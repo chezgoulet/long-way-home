@@ -15,6 +15,11 @@
 
 set -euo pipefail
 
+
+UPSTREAM_REPO="https://github.com/imjustadudegamer/VoyagerSP-Android.git"
+UPSTREAM_SHA="0d8942e86a8469859da086f590875bcb66b4f4df"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 # Locate cmake/ninja. They are frequently installed rootlessly in a venv rather than system-wide;
 # a bare `cmake: command not found` deep inside a build is a bad way to learn that.
 if ! command -v cmake >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1; then
@@ -32,10 +37,6 @@ if ! command -v ninja >/dev/null 2>&1; then
   echo "ninja not found on PATH (cmake can use make with -G 'Unix Makefiles', or install ninja)." >&2
   exit 1
 fi
-
-UPSTREAM_REPO="https://github.com/imjustadudegamer/VoyagerSP-Android.git"
-UPSTREAM_SHA="0d8942e86a8469859da086f590875bcb66b4f4df"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="${1:-$(dirname "$ROOT")/upstream}"
 PATCHES="$ROOT/patches"
 
