@@ -31,6 +31,12 @@ if [ -d "$SYSROOT/usr/lib/x86_64-linux-gnu" ]; then
   export LD_LIBRARY_PATH="$SYSROOT/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 
+LOG="$BUILD_DIR/run-$(date +%Y%m%d-%H%M%S).log"
 echo "engine:    $ENGINE"
 echo "data:      $BUILD_DIR/baseEF"
-exec "$ENGINE" +set fs_basepath "$BUILD_DIR" +set fs_homepath "$BUILD_DIR" "$@"
+echo "log:       $LOG"
+echo
+
+# Tee rather than exec: what the engine prints is the evidence for whether a session
+# worked, and a playtest that leaves no trace tells us nothing afterwards.
+"$ENGINE" +set fs_basepath "$BUILD_DIR" +set fs_homepath "$BUILD_DIR" "$@" 2>&1 | tee "$LOG"
