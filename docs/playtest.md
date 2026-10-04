@@ -45,6 +45,33 @@ Every run is logged to `build/run-<timestamp>.log`.
 - **No configuration yet.** The first run creates its own config; the retail `efconfig.cfg` is not
   read.
 
+## The safe-video-settings prompt, explained
+
+If the engine asks whether to "start with safe video settings", it is telling you that the previous
+run did not exit cleanly. The marker is a **PID file** (`build/home/baseEF/*.pid`), written at startup
+and removed on a clean exit — so any run that was killed leaves it, and the next run offers the dialog.
+
+It is harmless: answering yes only sets `com_abnormalExit` for that run. To stop being asked, quit from
+the game menu instead of killing the process, or delete the stale file:
+
+```
+rm -f build/home/baseEF/*.pid
+```
+
+Worth knowing because it is also invisible in a headless run: an unanswered dialog blocks startup, and
+the engine simply stops logging. Several of my own smoke tests stopped that way before I traced it.
+
+## Scripts live under `real_scripts/` in the game data
+
+A map's `usescript "voy9/intro"` is satisfied by `real_scripts/voy9/intro.IBI` inside the paks — pak0
+carries 1,615 of them and the expansion pak another 306, 1,918 in total. The GDK script corpus is a
+2000 snapshot, older than the expansion, so a scenario built from it will reference scripts that only
+the installation provides. Tell the validator where the game is and it stops reporting them:
+
+```
+python3 tools/validator/validate.py <scenario> --data "<installation>" --entitydict <dict.json>
+```
+
 ## If it fails to start
 
 - `cannot open shared object file` → the rootless dependencies are missing; they live in
