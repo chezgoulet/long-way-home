@@ -10,6 +10,17 @@
 # Shipped content is supplied rather than vendored: none of it belongs in this repository.
 
 set -euo pipefail
+# Pick a CMake generator that exists on this machine: ninja when present, otherwise the
+# Makefiles generator. The playtest host has cmake and make but no ninja, and a build script
+# that refuses to run there is a build script that does not work where it is needed.
+if command -v ninja >/dev/null 2>&1; then
+  GENERATOR="Ninja"
+elif command -v make >/dev/null 2>&1; then
+  GENERATOR="Unix Makefiles"
+else
+  echo "neither ninja nor make found: install one of them" >&2
+  exit 1
+fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Locate cmake/ninja. They are frequently installed rootlessly in a venv rather than system-wide;
