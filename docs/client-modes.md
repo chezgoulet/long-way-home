@@ -57,13 +57,41 @@ No NAT traversal to write, no relay to run. Two deliberate choices:
 
 The House already runs a tailnet, so a private server is a scripted launch away, not a project.
 
-## One engine, two modules — not two clients
+## One engine or two — revised after reading cMod's changelog
 
-The recommendation. The engine we build is the *same lineage* as cMod's; the multiplayer game code is
-released. So the honest version of "one client, three modes" is **one binary that loads either game
-module**, with cMod's improvements (widescreen, brightness, the 1024-shader limit, larger pk3 handling,
-HTTP downloads) folded into the engine rather than shipped as a second application. Two engines would
-drift, and the modes would slowly stop agreeing about the game.
+**My earlier recommendation was "one engine, two modules". The evidence below argues for two engines
+first, and I am revising it.**
+
+cMod's `ChangeLog` is twenty years of fixes to the *connection path*, which is exactly where mode 2's
+unexplained fault lives:
+
+- *"connection issues / userinfo — client side fix, instead of sending `connect <userinfo>` packet we now
+  send `connect "<userinfo>"`"*
+- *"backported from RTCW, don't get dropped if the server changes map while connecting (ignore outdated cp)"*
+- *"backport fix to pk3 reordering… bad order from connection may break stuff"*
+- *"extended the getIpAuthorize (server->auth message) syntax"*, and a UI for `com_errorMessage` so a
+  kick/drop/disconnect is actually *shown* rather than silently stalling
+- `CL_InitDownloads` / `FS_ComparePaks` diagnostics that print which missing paks caused a connection to
+  fail — *"typically when the user is sent back to the main screen"*
+
+Our engine is a lilium-lineage tree and has inherited none of those. A stall at "connecting to localhost"
+with no error text is precisely the symptom of the pre-fix behaviour in that list.
+
+**So the two routes are:**
+
+| route | cost | risk |
+|---|---|---|
+| **A — one engine, two modules** | port cMod's connect-path fixes into our tree, build the HM module from released source | the porting *is* the risky part of mode 2; two decades of fixes to re-derive |
+| **B — two engines, one client** | mode 2 = cMod as shipped (Linux build, maintained); modes 1 and 3 = our engine; one launcher, one data root | two engines to maintain, modes can drift |
+
+**Recommendation revised to B, for now.** Mode 2 ships almost immediately that way — cMod is already
+native on Linux and maintained, and with the freeware base plus a tailnet address it is done without us
+writing engine code. Route A stays open and becomes cheaper later if we ever want to converge, because
+cMod's changelog tells us exactly which fixes to port rather than leaving us to rediscover them.
+
+The thing that would change this: if the fault turns out to be something trivial and local (a pure-server
+pk3 mismatch caused by an extra pk3 in the writepath, say), then our engine's HM path may be fine as-is
+and route A is cheap after all. That is what the next multiplayer session's log is for.
 
 ## The promise, stated precisely
 
