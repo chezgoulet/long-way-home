@@ -81,11 +81,21 @@ compares. The 64-bit header fix produces reader-compatible output.
 
 ## Result
 
-**G0 item 2 is met on the compile half:** all 2,408 shipped script files compile with zero
-diagnostics under the settled wiring, at roughly 0.12 s each, emitting a correctly-headed block
-stream. What remains before this item is fully closed is round-trip verification — re-opening each
-`.IBI` with `CBlockStream::Open`/`ReadBlock` and confirming the block structure reads back — which is
-the next increment and needs neither the original compiler nor the game.
+**G0 item 2 is met.** All 2,408 shipped script files compile with zero diagnostics under the settled
+wiring, at roughly 0.12 s each, emitting a correctly-headed block stream — and every one of those
+2,408 outputs was then read back with the game's own reader.
+
+Round-trip verification (`tools/ibi-dump`, which calls `CBlockStream::Open` and walks the stream with
+`BlockAvailable`/`ReadBlock`): **2,408 of 2,408 OK**, header and version validated on every file, no
+truncated blocks, no reader failures. The verification uses only the released sources — neither the
+game nor the original compiler was needed.
+
+To rebuild those numbers:
+
+```
+./scripts/bootstrap-upstream.sh            # builds the modules and ibize
+/tmp/dump-build/ibi-dump <file.IBI>        # reads one back and reports its structure
+```
 
 ## Next
 
