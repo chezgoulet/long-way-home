@@ -24,6 +24,36 @@ Work is organised by gate, not by calendar. See `docs/program-charter-v3.md`:
 
 Nothing downstream starts before its gate passes.
 
+## Holding our delta from upstream: inherit, do not own
+
+The programme builds on stacks other people maintain — the pinned upstream port for the single-player
+engine, and the community's multiplayer client for retail multiplayer. **Our position is to consume their
+maintenance, and to keep our own delta thin enough to rebase onto it whenever they release.** The owner's
+rule, 2026-10-04: *"I'd rather be in the best position to inherit community work than increase our support
+of more stuff."*
+
+Current delta from the pinned upstream: **39 files, ±152/115 lines, in four patches by concern.**
+
+| patch | concern | why it is separate |
+|---|---|---|
+| `0001` | build under a modern, non-clang toolchain | flags and headers only; the sort of change upstream might take directly |
+| `0002` | explicit 15-bit `rand` at every call site | mechanical, 32 files, and it exists only because the shim's macro poisoned libstdc++ headers |
+| `0003` | 64-bit correctness in released source | upstream-relevant independently of us: a pointer-width write and an overlapping `strcpy` |
+| `0004` | raise the content and entity ceilings | a policy choice, not a fix; ours to justify |
+
+Rules that keep this shape:
+
+- **One concern per patch, and a patch that could be offered upstream on its own.** `0001` and `0003`
+  are arguably bug reports with fixes attached; `0004` is a decision. Rebasing three reviewable patches
+  is a different job from rebasing one.
+- **New game logic lives behind the module boundary**, in a game module the engine loads — never in the
+  engine. Anything placed in the engine is a delta we own forever and a rebase cost on every release.
+- **Where the engine must change, ask upstream first.** The multiplayer programme's engine-level needs in
+  particular belong to the projects maintaining those engines, so the maintenance is shared rather than
+  duplicated.
+- **Re-measure the delta when it grows.** The four-patch shape is the asset; a patch series that doubles
+  quietly is how a fork becomes unforkable.
+
 ## Evidence rules
 
 Every claim of "done" ships with the artifact that proves it: a symbol report, a byte

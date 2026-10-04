@@ -1,0 +1,29 @@
+diff --git a/efgame/src/icarus/BlockStream.cpp b/efgame/src/icarus/BlockStream.cpp
+index 6178d5a..14723e7 100755
+--- a/efgame/src/icarus/BlockStream.cpp
++++ b/efgame/src/icarus/BlockStream.cpp
+@@ -517,7 +517,10 @@ int CBlockStream::Create( char *filename )
+ 		return false;
+ 	}
+ 
+-	fwrite( id_header, 1, sizeof(id_header), m_fileHandle );
++	/* 64-bit fix: sizeof(char*) is 8 on LP64, but the header is the 4-byte literal
++	 * "IBI" plus its terminator, and Open() reads exactly that. Size the write off
++	 * the literal, not the pointer. */
++	fwrite( IBI_HEADER_ID, 1, sizeof(IBI_HEADER_ID), m_fileHandle );
+ 	fwrite( &version, 1, sizeof(version), m_fileHandle );
+ 
+ 	return true;
+diff --git a/efgame/src/icarus/tokenizer.h b/efgame/src/icarus/tokenizer.h
+index 63db73c..4582d68 100755
+--- a/efgame/src/icarus/tokenizer.h
++++ b/efgame/src/icarus/tokenizer.h
+@@ -106,7 +106,7 @@ class CToken
+ {
+ public:
+ 	CToken();
+-	~CToken();
++	virtual ~CToken();   // 64-bit fix: Delete() does `delete this` on derived tokens
+ 	static CToken* Create();
+ 	virtual void Delete();
+ 

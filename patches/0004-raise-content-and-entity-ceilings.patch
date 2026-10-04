@@ -1,0 +1,84 @@
+diff --git a/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h b/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h
+index 34559c4..2fcff1c 100755
+--- a/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h
++++ b/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h
+@@ -1160,7 +1160,7 @@ typedef enum {
+ #define	MAX_CLIENTS			64		// absolute limit
+ #define MAX_LOCATIONS		64
+ 
+-#define	GENTITYNUM_BITS		10		// don't need to send any more
++#define	GENTITYNUM_BITS		11		// raised: a furnished deck binds 1024 long before models do
+ #define	MAX_GENTITIES		(1<<GENTITYNUM_BITS)
+ 
+ // entitynums are communicated with GENTITY_BITS, so any reserved
+@@ -1175,7 +1175,7 @@ typedef enum {
+ #define	MAX_SOUNDS			256		// so they cannot be blindly increased
+ 
+ 
+-#define	MAX_CONFIGSTRINGS	1024
++#define	MAX_CONFIGSTRINGS	4096
+ 
+ // these are the only configstrings that the system reserves, all the
+ // other ones are strictly for servergame to clientgame communication
+@@ -1184,7 +1184,7 @@ typedef enum {
+ 
+ #define	RESERVED_CONFIGSTRINGS	2	// game can't modify below this, only the system can
+ 
+-#define	MAX_GAMESTATE_CHARS	16000
++#define	MAX_GAMESTATE_CHARS	64000
+ typedef struct {
+ 	int			stringOffsets[MAX_CONFIGSTRINGS];
+ 	char		stringData[MAX_GAMESTATE_CHARS];
+diff --git a/efgame/src/game/q_shared.h b/efgame/src/game/q_shared.h
+index cf3e046..2530fbc 100755
+--- a/efgame/src/game/q_shared.h
++++ b/efgame/src/game/q_shared.h
+@@ -552,18 +552,18 @@ inline float Q_crandom( int *seed ) {
+ 
+ //  Returns a float min <= x < max (exclusive; will get max - 0.00001; but never max
+ inline float Q_flrand(float min, float max) {
+-	return ((rand() * (max - min)) / 32768.0F) + min;
++	return ((ef_rand15() * (max - min)) / 32768.0F) + min;
+ }
+ 
+ // Returns an integer min <= x <= max (ie inclusive)
+ inline int Q_irand(int min, int max) {
+ 	max++; //so it can round down
+-	return ((rand() * (max - min)) >> 15) + min;
++	return ((ef_rand15() * (max - min)) >> 15) + min;
+ }
+ 
+ //returns a float between 0 and 1.0
+ inline float random() {
+-	return (rand() / ((float)0x7fff));
++	return (ef_rand15() / ((float)0x7fff));
+ }
+ 
+ //returns a float between -1 and 1.0
+@@ -875,7 +875,7 @@ typedef struct {
+ #define	MAX_CLIENTS			1 // 128		// absolute limit
+ #define MAX_LOCATIONS		64
+ 
+-#define	GENTITYNUM_BITS		10		// don't need to send any more
++#define	GENTITYNUM_BITS		11		// raised: a furnished deck binds 1024 long before models do
+ #define	MAX_GENTITIES		(1<<GENTITYNUM_BITS)
+ 
+ // entitynums are communicated with GENTITY_BITS, so any reserved
+@@ -890,7 +890,7 @@ typedef struct {
+ #define	MAX_SOUNDS			256		// so they cannot be blindly increased
+ 
+ 
+-#define	MAX_CONFIGSTRINGS	1024
++#define	MAX_CONFIGSTRINGS	4096
+ 
+ // these are the only configstrings that the system reserves, all the
+ // other ones are strictly for servergame to clientgame communication
+@@ -899,7 +899,7 @@ typedef struct {
+ 
+ #define	RESERVED_CONFIGSTRINGS	2	// game can't modify below this, only the system can
+ 
+-#define	MAX_GAMESTATE_CHARS	16000
++#define	MAX_GAMESTATE_CHARS	64000
+ typedef struct {
+ 	int			stringOffsets[MAX_CONFIGSTRINGS];
+ 	char		stringData[MAX_GAMESTATE_CHARS];

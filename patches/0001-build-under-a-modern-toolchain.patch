@@ -1,0 +1,76 @@
+diff --git a/efgame/CMakeLists.txt b/efgame/CMakeLists.txt
+index b6def67..f9a8031 100755
+--- a/efgame/CMakeLists.txt
++++ b/efgame/CMakeLists.txt
+@@ -51,6 +51,18 @@ set(EF_COPTS
+   -fmacro-prefix-map=${CMAKE_SOURCE_DIR}=/src
+ )
+ 
++# ---------------------------------------------------------------------------
++# Native/GCC port (Long Way Home). The Android build uses clang, which accepts
++# -ferror-limit and -Wno-everything; GCC rejects both outright. Guard them so
++# this file builds unchanged on Android AND on desktop Linux.
++if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
++  list(REMOVE_ITEM EF_COPTS -ferror-limit=0 -Wno-everything)
++  # MSVC and clang silently accept the brace-initialisation narrowings Raven's UI tables use
++  # (e.g. `250 + MENU_BUTTON_MED_HEIGHT * 1.5` in an int array). GCC calls them errors.
++  # Keep the original semantics; do not edit the tables.
++  list(APPEND EF_COPTS -Wno-narrowing)
++endif()
++
+ # ---- shared utility sources (compiled into BOTH modules, like the retail projects) ----
+ # q_math/q_shared/q_color etc. live in game/ but the ui module needs them too. Discover by
+ # pattern: the q_*.cpp shared core (NOT bg_lib = QVM libc).
+diff --git a/efgame/android/ef_android_compat.h b/efgame/android/ef_android_compat.h
+index 2005fdc..72159e1 100755
+--- a/efgame/android/ef_android_compat.h
++++ b/efgame/android/ef_android_compat.h
+@@ -76,7 +76,26 @@ static inline char* ef_strupr(char* s){ for(char* p=s; p&&*p; ++p) *p=(char)toup
+  *      breaks Q_irand/crandom/ef_frandom (they divide/shift by 0x7fff). Mask to 15 bits.
+  *      (rand) avoids re-expanding the function-like macro -> calls the real libc rand. ---- */
+ static inline int ef_rand15(void){ return (rand)() & 0x7fff; }
++/* ---- Long Way Home / native GCC port ----
++ * libstdc++'s <stdlib.h> (via <cstdlib>) declares `using ::rand;` inside namespace std.
++ * If this macro is defined before that header is parsed, the using-declaration expands to
++ * `using ::ef_rand15;` and the TU fails to compile. Pull the standard header in first:
++ * it is include-guarded, so later includes are no-ops and the macro is then safe. */
++#ifdef __cplusplus
++#include <cstdlib>   // C++ only: this header is force-included into C translation units too
++#endif
++
++/* MSVC pulls these in transitively; GCC does not. ICARUS uses va_list and stdio. */
++#ifdef __cplusplus
++#include <cstdarg>
++#include <cstdio>
++#include <cstring>
++#include <cstdlib>
++#endif
++
++#if defined(__clang__)
+ #define rand() ef_rand15()
++#endif
+ 
+ /* ---- misc Win32 calls ---- */
+ #define OutputDebugString(s) ((void)(s))
+diff --git a/efgame/src/speedrun/sound_skipping.cpp b/efgame/src/speedrun/sound_skipping.cpp
+index 49740e5..281cfbc 100755
+--- a/efgame/src/speedrun/sound_skipping.cpp
++++ b/efgame/src/speedrun/sound_skipping.cpp
+@@ -1,5 +1,7 @@
+ #include "sound_skipping.hpp"
+ 
++#include <algorithm>
++
+ #include "../game/g_local.h"
+ 
+ #include <filesystem>
+@@ -58,7 +60,8 @@ void InitSoundSkipping() {
+ 	auto line_start = content.begin();
+ 	while (line_start != content.end()) {
+ 		const auto line_end = std::find(line_start, content.end(), '\n');
+-		std::filesystem::path sound{line_start, line_end};
++		const std::string line(line_start, line_end);
++		std::filesystem::path sound(line);
+ 		sound.replace_extension(".wav");
+ 		sounds_to_skip.insert(sound.string());
+ 		if (line_end == content.end()) {
