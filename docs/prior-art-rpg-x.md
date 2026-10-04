@@ -100,15 +100,54 @@ classes that become configstrings per level, so the per-level figure is the one 
 Retail is nowhere near the ceiling: no shipped level exceeds 256 models or 256 sounds, and the worst
 spends roughly 50 configstrings of 1024.
 
-So **do not raise the limits speculatively.** RPG-X's 4096 was driven by prop density in
-hand-furnished ship interiors — the shape the capstone is heading toward, not the shape retail has.
-The honest order is: instrument, watch, and raise when a number demands it.
+### Raised anyway, on the owner's call — and here is the resolution of that disagreement
 
-That instrument now exists: the validator counts per-level content registration and warns at 60% of
-each limit (`W005` for models/sounds, `W006` for the configstring budget), with a negative test that
-seeds a dense level and asserts the warning is emitted. Across all 106 shipped maps it is silent,
-which is the correct calibration — and it will speak up when authored content approaches, rather than
-failing later as missing textures.
+The measurement above argued for instrumenting and waiting. The owner overruled it, correctly: *"We're
+running 25-year-old software on modern hardware. Unless there's a compelling reason not to, wouldn't
+it make sense to up the limit?"* There was no compelling reason — the measurement answered "retail
+does not need this yet", which is a different question from "do not raise it". Since authored content
+grows into whatever ceiling exists, raising it before there is content to invalidate is strictly
+cheaper than raising it after.
+
+**Raised, in both copies of `q_shared.h` (`efcode/qcommon/` and `efgame/src/game/`):**
+
+| constant | from | to | why it is safe, or what it costs |
+|---|---|---|---|
+| `MAX_CONFIGSTRINGS` | 1024 | 4096 | no network field references it; ~12 KB more in the struct |
+| `MAX_GAMESTATE_CHARS` | 16000 | 64000 | sizes the same struct and must move with it |
+| `GENTITYNUM_BITS` | 10 | 11 | **on the wire** (`NETF(otherEntityNum)` et al) — an internal format change, permissible because we build both ends and SP runs over loopback |
+
+`MAX_MODELS` and `MAX_SOUNDS` stay at 256: also 8-bit on the wire, and with the worst shipped level at
+37 models and 14 sounds there is no pressure to touch the format a second time.
+
+The entity ceiling was the one worth raising now, because it is the limit with measured pressure:
+**`borg1` loads 561 of 1024 entities**, while models sit at 37 of 256. A deck furnished with crew and
+props binds entities long before it binds models.
+
+**Verified on the playtest host**, patch series re-applied to both trees, module and engine rebuilt
+clean, then run against the retail data:
+
+```
+GENTITYNUM_BITS 11   MAX_GENTITIES (1<<GENTITYNUM_BITS)   MAX_CONFIGSTRINGS 4096
+21675 files in pk3 files
+----- Client Initialization Complete -----
+SP: map/transition/use/save/load commands registered
+----- finished R_Init -----
+ui: SP UI loaded (UI_API_VERSION=2)
+```
+
+Nothing regressed, and the SP UI still loads.
+
+**Residual from this change:** saves written by the previous build should be checked once in a session
+before being relied on — entity numbers are persisted, and the wire width changed. New saves are the
+reference; retail saves were already incompatible.
+
+### The instrument stays, because it is how we find out we were too conservative
+
+The validator counts per-level content registration and warns at 60% of each limit (`W005` for
+models/sounds, `W006` for configstrings), with a negative test that seeds a dense level and asserts the
+warning is emitted. Across all 106 shipped maps it is silent — correct calibration — and it will speak
+up when authored content approaches the new ceiling, rather than failing later as missing textures.
 
 ## Do not take
 
