@@ -1,0 +1,21 @@
+NOTICE
+
+This repository is a derivative work built on the released source code and tooling of
+Star Trek: Voyager — Elite Force.
+
+Engine lineage (GPL-2.0):
+  id Software (Quake III Arena) -> ioquake3 -> ioEF (Thilo Schulz)
+  -> lilium-voyager (Zack Middleton / clover-moe) -> this project.
+
+Singleplayer game module (Raven STEF Game Source License, 2002-11-21):
+  Elite Force singleplayer source code, Raven Software, as maintained by the
+  Elite-Reinforce project and the VoyagerSP port. Permitted: creating modifications, and
+  distributing them free of charge for non-commercial purposes. Prohibited: sale, rental,
+  commercial exploitation, reverse engineering of the shipped game.
+
+Tools and data referenced but NOT redistributed here:
+  Raven Software's Game Development Kit (efRadiant, q3map, bspc, BehavEd, IBIze) — obtained
+  separately, used locally. Our native replacements are rebuilt from released source.
+
+Star Trek and all related marks are the property of their respective rights holders.
+No game data is included. No commercial use is intended or permitted.

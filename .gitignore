@@ -1,0 +1,32 @@
+# build trees
+build/
+build64/
+build32/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.dll
+*.dylib
+
+# game data never enters the repo
+baseEF/
+BaseEf/
+*.pk3
+pak*.pk3
+efgamex86.dll
+*.bsp
+.vm/
+
+# tool output
+out/
+dist/
+*.log
+
+# editors / os
+.vscode/
+.idea/
+*.swp
+.DS_Store
+__pycache__/
+*.pyc
