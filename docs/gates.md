@@ -78,8 +78,11 @@ Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere con
 - **~30 `Cmd_AddCommand: … already defined`** on each level transition. Harmless, but it means the SP
   path's console registrations are not idempotent.
 - **`MAX_PACKET_USERCMDS`** printed twice at shutdown. Cosmetic.
-- **No cutscene playback.** FFmpeg sits behind Ubuntu Pro on the playtest host, so Bink is compiled out
-  and `.bik` files are skipped. Milestone M5.
+- **Dependencies no longer live in `/tmp`** — the tree is in `build/deps`, on the binary's RPATH, and
+  `ldd` with no environment set reports zero missing libraries. Closed.
+- ~~**No cutscene playback.**~~ **Closed** — FFmpeg is available from the plain archive with the version
+  pinned (the ESM build was merely the preferred candidate), and the engine now links Bink playback.
+  See `docs/evidence/deps-durable-and-cutscenes.md`. Whether a cutscene *plays* still wants a session.
 - **126 script references the GDK corpus lacks** — the validator found them; most likely the
   expansion's scripts. Worth resolving before G2 content work.
 - **Retail PC saves are incompatible** with the port (upstream documents this). Start new campaigns.
