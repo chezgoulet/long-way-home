@@ -37,37 +37,50 @@ fi
 git -C "$REPO_DIR" --no-pager log --oneline -1
 
 echo "==> game data at $GAME_DIR"
+# Missing game data is not a reason to refuse: the engine, the modules and the tools all
+# build without it. The host just is not *playable* yet, and the script says so at the end.
+PLAYABLE=no
 if [ ! -d "$GAME_DIR" ]; then
-  echo "    not found: $GAME_DIR" >&2; exit 1
+  echo "    not found: $GAME_DIR"
+  GAME_DIR=""
 fi
 BASE=""
 for candidate in "$GAME_DIR/baseEF" "$GAME_DIR/BaseEf" "$GAME_DIR"/*/baseEF "$GAME_DIR"/*/BaseEf; do
   [ -d "$candidate" ] && { BASE="$candidate"; break; }
 done
 if [ -z "$BASE" ]; then
-  echo "    no baseEF directory under $GAME_DIR -- point --game-dir at the installation" >&2
-  exit 1
+  echo "    no baseEF under $GAME_DIR -- nothing to link yet (game not installed?)"
+else
+  PLAYABLE=yes
 fi
 
+if [ -n "$BASE" ]; then
 PAKS=$(find "$BASE" -maxdepth 1 -iname 'pak*.pk3' | sort)
 echo "    baseEF: $BASE"
 echo "    paks:"
 echo "$PAKS" | sed 's/^/      /'
 if ! echo "$PAKS" | grep -qi 'pak0.pk3'; then
-  echo "    WARNING: pak0.pk3 not found -- the engine will refuse to start" >&2
+  echo "    WARNING: pak0.pk3 not found -- the engine will refuse to start"
+  PLAYABLE=no
+fi
 fi
 DLL=$(find "$GAME_DIR" -maxdepth 2 -iname 'efgamex86.dll' | head -1 || true)
 echo "    efgamex86.dll (ownership check, never loaded): ${DLL:-NOT FOUND}"
 
 # The engine searches ./baseEF relative to its working directory, so link rather than copy.
-LINK="$REPO_DIR/build/baseEF"
-mkdir -p "$(dirname "$LINK")"
-if [ -e "$LINK" ] && [ ! -L "$LINK" ]; then
-  echo "    $LINK exists and is not a symlink; leaving it alone"
-else
-  ln -sfn "$BASE" "$LINK"
-  echo "    linked $LINK -> $BASE"
+if [ -n "$BASE" ]; then
+  # The engine searches ./baseEF relative to its working directory, so link rather than copy.
+  LINK="$REPO_DIR/build/baseEF"
+  mkdir -p "$(dirname "$LINK")"
+  if [ -e "$LINK" ] && [ ! -L "$LINK" ]; then
+    echo "    $LINK exists and is not a symlink; leaving it alone"
+  else
+    ln -sfn "$BASE" "$LINK"
+    echo "    linked $LINK -> $BASE"
+  fi
 fi
 
 echo
-echo "==> next: ./scripts/bootstrap-upstream.sh, then run the client from $REPO_DIR/build"
+echo "PLAYTEST READY: $PLAYABLE"
+[ "$PLAYABLE" = yes ] || echo "  (game data missing: the build will work, playing will not)"
+echo "==> next: cd $REPO_DIR && ./scripts/bootstrap-upstream.sh"
