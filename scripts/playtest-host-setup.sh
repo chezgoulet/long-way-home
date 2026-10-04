@@ -44,10 +44,9 @@ if [ ! -d "$GAME_DIR" ]; then
   echo "    not found: $GAME_DIR"
   GAME_DIR=""
 fi
-BASE=""
-for candidate in "$GAME_DIR/baseEF" "$GAME_DIR/BaseEf" "$GAME_DIR"/*/baseEF "$GAME_DIR"/*/BaseEf; do
-  [ -d "$candidate" ] && { BASE="$candidate"; break; }
-done
+# Case-insensitive: the GOG install ships "BaseEF", the engine looks for "baseEF", and on a
+# case-sensitive filesystem those are different paths. List every spelling and match on name.
+BASE="$(find "$GAME_DIR" -maxdepth 3 -type d -iname 'baseef' 2>/dev/null | head -1)"
 if [ -z "$BASE" ]; then
   echo "    no baseEF under $GAME_DIR -- nothing to link yet (game not installed?)"
 else
