@@ -43,19 +43,49 @@ offline compiler entirely*. Added, guarded to C++.
 That exclusion is the thread running through all three: nothing has ever compiled these files on
 Linux, so the shim's Win32 file-API stand-ins were untested against them.
 
-## Open item — the driver's keyword-table wiring
+## The wiring question — resolved, with numbers
 
 The tokenizer scans a keyword table until it sees `TK_EOF`. The interpreter's ID table terminates
-with its own `ID_EOF` sentinel, and its type table with `TYPE_EOF`. Handing either to the tokenizer
-directly makes the scan run past the end of the array — silently on 32-bit (it read whatever
-followed until it got lucky), an overread at 64-bit. The driver now copies the table and terminates
-it correctly, but **which tables the original `IBIze` registered is not documented and is being
-determined empirically**, using the shipped corpus as the oracle: `.IBIze` demonstrably compiled
-these 2,175 scripts in 2000, so the correct wiring is whichever configuration compiles them.
+with its own `ID_EOF` sentinel and its type table with `TYPE_EOF`, so handing either to the tokenizer
+makes the scan run past the end of the array — silently on 32-bit (it read whatever followed until it
+got lucky), an overread at 64-bit, caught by AddressSanitizer.
 
-Until that is settled, a large share of sampled scripts report parse diagnostics — for example the
-BehavEd type annotations `/*@AFFECT_TYPE*/ FLUSH` and `/*@CAMERA_COMMANDS*/ MOVE` — which is
-consistent with a table the tokenizer is not being given.
+That much was a real bug. The conclusion drawn from it was wrong, though, and the corpus corrected it.
+**Handing the interpreter's tables to the tokenizer does not merely risk an overread — it breaks
+compilation.** The interpreter resolves script names against its own tables; a tokenizer that has
+already converted `affect`, `camera` or `FLUSH` into keyword tokens produces tokens the interpreter
+then rejects. Measured across the whole shipped corpus, both wirings on identical inputs:
+
+| wiring | scripts | mean output | minimal outputs |
+|---|---|---|---|
+| no keyword table | 2,408 / 2,408 clean | 1,143 B | 52 |
+| ID table installed | 2,408 / 2,408 clean | 232 B | 742 |
+
+The two wirings differ on 1,163 of 2,408 scripts, always in the same direction. The 52 minimal
+outputs under the correct wiring were inspected individually: they are sound-table data files
+(`behaved_francais.txt`, `behaved_deutsch.txt`) and other non-script material that ship alongside the
+scripts, so an 8-byte stream is the correct result for them, not a failure.
+
+The driver now defaults to no keyword table, with an override kept for experiments.
+
+## Header format verified against the reader
+
+A compiled stream begins:
+
+```
+4942 4900 c3f5 c83f   "IBI\0" + little-endian float 0x3FC8F5C3 = 1.57
+```
+
+which is exactly `IBI_HEADER_ID` followed by `IBI_VERSION`, the pair `CBlockStream::Open` reads and
+compares. The 64-bit header fix produces reader-compatible output.
+
+## Result
+
+**G0 item 2 is met on the compile half:** all 2,408 shipped script files compile with zero
+diagnostics under the settled wiring, at roughly 0.12 s each, emitting a correctly-headed block
+stream. What remains before this item is fully closed is round-trip verification — re-opening each
+`.IBI` with `CBlockStream::Open`/`ReadBlock` and confirming the block structure reads back — which is
+the next increment and needs neither the original compiler nor the game.
 
 ## Next
 
