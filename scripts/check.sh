@@ -36,10 +36,7 @@ if ! command -v cmake >/dev/null 2>&1; then
   echo "    python3 -m venv .venv && .venv/bin/pip install cmake ninja" >&2
   exit 1
 fi
-if ! command -v ninja >/dev/null 2>&1; then
-  echo "ninja not found on PATH (cmake can use make with -G 'Unix Makefiles', or install ninja)." >&2
-  exit 1
-fi
+# ninja is preferred, not required: see the GENERATOR choice above.
 
 SOURCE_MAP=""; SCRIPT_CORPUS=""; BUILD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/../upstream"
 while [ $# -gt 0 ]; do
