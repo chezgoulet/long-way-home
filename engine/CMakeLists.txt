@@ -194,6 +194,15 @@ target_compile_options(longwayhome PRIVATE
 # backend is actually used, so the link must not insist on seeing them now.
 target_link_options(longwayhome PRIVATE -Wl,--allow-shlib-undefined)
 
+# The SP bridge dlopen()s its modules by BARE NAME ("libefgame.so", "libefui.so"), and the loader
+# does not search the binary's own directory for those. A runtime search path of $ORIGIN means the
+# engine finds modules sitting beside it however it is launched -- from a script, a file manager, or
+# a desktop entry -- instead of depending on the environment the launcher happened to set.
+# --disable-new-dtags is required: with the modern default the linker emits DT_RUNPATH, which
+# dlopen does NOT consult for a bare library name, so the path would silently do nothing.
+target_link_options(longwayhome PRIVATE -Wl,--disable-new-dtags -Wl,-rpath,$ORIGIN)
+set_target_properties(longwayhome PROPERTIES BUILT_RUNTIME_OUTPUT_DIRECTORY_NAME "." )
+
 target_link_libraries(longwayhome
   sp_game_bridge
   ${SDL2_LIBRARY} ${VULKAN_RUNTIME} dl m pthread
