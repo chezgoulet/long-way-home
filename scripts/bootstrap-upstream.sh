@@ -15,6 +15,17 @@
 
 set -euo pipefail
 
+# Pick a CMake generator that exists on this machine: ninja when present, otherwise the
+# Makefiles generator. The playtest host has cmake and make but no ninja, and a build script
+# that refuses to run there is a build script that does not work where it is needed.
+if command -v ninja >/dev/null 2>&1; then
+  GENERATOR="Ninja"
+elif command -v make >/dev/null 2>&1; then
+  GENERATOR="Unix Makefiles"
+else
+  echo "neither ninja nor make found: install one of them" >&2
+  exit 1
+fi
 
 UPSTREAM_REPO="https://github.com/imjustadudegamer/VoyagerSP-Android.git"
 UPSTREAM_SHA="0d8942e86a8469859da086f590875bcb66b4f4df"
@@ -56,7 +67,7 @@ for p in "$PATCHES"/*.patch; do
 done
 
 echo "==> configuring"
-cmake -S "$WORK/efgame" -B "$WORK/efgame/build-linux" -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake -S "$WORK/efgame" -B "$WORK/efgame/build-linux" -G "$GENERATOR" -DCMAKE_BUILD_TYPE=Release
 
 echo "==> building"
 cmake --build "$WORK/efgame/build-linux" -j"$(nproc)"
@@ -69,13 +80,13 @@ echo "==> artifacts (game modules)"
 ls -la "$WORK/efgame/build-linux"/libefgame.so "$WORK/efgame/build-linux"/libefui.so
 
 echo "==> building the native ICARUS script compiler (ibize)"
-cmake -S "$ROOT/tools/ibize" -B "$WORK/ibize-build" -G Ninja \
+cmake -S "$ROOT/tools/ibize" -B "$WORK/ibize-build" -G "$GENERATOR" \
   -DUPSTREAM_DIR="$WORK" -DCMAKE_BUILD_TYPE=Release
 cmake --build "$WORK/ibize-build" -j"$(nproc)"
 ls -la "$WORK/ibize-build/ibize"
 
 echo "==> building the round-trip reader (ibi-dump)"
-cmake -S "$ROOT/tools/ibi-dump" -B "$WORK/ibi-dump-build" -G Ninja \
+cmake -S "$ROOT/tools/ibi-dump" -B "$WORK/ibi-dump-build" -G "$GENERATOR" \
   -DUPSTREAM_DIR="$WORK" -DCMAKE_BUILD_TYPE=Release
 cmake --build "$WORK/ibi-dump-build" -j"$(nproc)"
 ls -la "$WORK/ibi-dump-build/ibi-dump"
