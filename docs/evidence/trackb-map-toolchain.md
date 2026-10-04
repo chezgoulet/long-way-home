@@ -60,9 +60,31 @@ Related detail worth keeping: the released source's `.nav` reader had an LP64 bu
 bytes where the format is a 4-byte FourCC (`'JNV2'`), desynchronising on 64-bit builds. Upstream
 patched it; our x86_64 build inherits the fix.
 
+## The whole chain, proved end to end except the last link
+
+```
+_brig.map   (Raven's published source)
+   |  q3map2 2.5.17n            native Linux, zero shader misses
+_brig.bsp   (549,192 bytes, IBSP version 46 -- identical to the retail file)
+   |  mbspc 2.2 -bsp2aas        native Linux
+_brig.aas   (235,628 bytes -- navigation built from the compiled geometry)
+```
+
+`mbspc` walking the compiled BSP and classifying its traversal (elevator, ramp jump, double jump,
+strafe jump…) is a Q3-lineage parser reading our output end to end, which is a stronger statement
+than a version field: the geometry survives a reader from the same family as the engine's.
+
 ## What is not yet proven
 
 **No compiled map has been loaded in the engine.** Compiling and loading are different claims, and
-only the second one closes this gate item. That needs a session on the playtest host: drop the
-compiled `.bsp` into the data's `maps/`, load it, and confirm it spawns — at which point the `.nav`
-should appear beside it as evidence that navigation baked too.
+only the second one closes this gate item. That needs a session on the playtest host. The test is two minutes:
+
+```
+mkdir -p build/home/baseEF/maps
+cp /tmp/nrc/work/_brig.bsp build/home/baseEF/maps/
+# in game, console:  spmap _brig
+```
+
+Written into the *writable* homepath rather than the installation, which is what the split data
+path is for — and if the map loads, a `_brig.nav` should appear beside it, which is the navigation
+baking itself and the last thing this item is waiting on.
