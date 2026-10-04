@@ -1097,6 +1097,25 @@ index 6178d5a..14723e7 100755
  	fwrite( &version, 1, sizeof(version), m_fileHandle );
  
  	return true;
+diff --git a/efgame/src/icarus/Interpreter.cpp b/efgame/src/icarus/Interpreter.cpp
+index cd32ba6..a5fdc19 100755
+--- a/efgame/src/icarus/Interpreter.cpp
++++ b/efgame/src/icarus/Interpreter.cpp
+@@ -165,7 +165,13 @@ int CInterpreter::Error( char *format, ... )
+ 	vsprintf (error_msg, format, argptr);
+ 	va_end (argptr);
+ 
+-	strcpy((char *) work_dir, getcwd( (char *) &work_dir, 1024 ) );
++	/* 64-bit cleanup: getcwd() already writes into work_dir, then strcpy() copied work_dir
++	 * onto itself -- overlapping source and destination, undefined behaviour that ASan flags
++	 * (strcpy-param-overlap) on every error path. Just check the result. */
++	if ( !getcwd( (char *) work_dir, sizeof( work_dir ) ) )
++	{
++		strcpy( (char *) work_dir, "." );
++	}
+ 
+ 	if (error_file[1] == ':')
+ 	{
 diff --git a/efgame/src/icarus/tokenizer.h b/efgame/src/icarus/tokenizer.h
 index 63db73c..4582d68 100755
 --- a/efgame/src/icarus/tokenizer.h

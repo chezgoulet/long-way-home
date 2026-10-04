@@ -69,19 +69,32 @@ from concurrent.futures import ThreadPoolExecutor
 ibize, dump, corpus = sys.argv[1], sys.argv[2], sys.argv[3]
 scripts = sorted(os.path.join(r, f) for r, _, fs in os.walk(corpus) for f in fs if f.lower().endswith(".txt"))
 
+# NOTE: the interpreter reports errors with printf(), i.e. on STDOUT, while the tokenizer reports
+# through the error callback on stderr. A check that reads only stderr is blind to the majority of
+# failures -- which is exactly how an earlier version of this script reported a false all-clear.
 def one(i_and_s):
     i, s = i_and_s
     o = f"/tmp/check-{i}.IBI"
     r = subprocess.run([ibize, s, o], capture_output=True, timeout=30)
-    if r.returncode != 0 or r.stderr.strip():
-        return "compile"
+    msg = (r.stdout + r.stderr).decode(errors="replace").strip().replace("\n", " ")
+    if r.returncode != 0:
+        return ("compile", s, msg[:100])
     d = subprocess.run([dump, o], capture_output=True, timeout=30)
-    return "ok" if d.stdout.decode(errors="replace").startswith("OK\t") else "dump"
+    if not d.stdout.decode(errors="replace").startswith("OK\t"):
+        return ("dump", s, "")
+    return ("ok", s, "")
 
 with ThreadPoolExecutor(max_workers=8) as ex:
     results = list(ex.map(one, enumerate(scripts)))
-ok = results.count("ok"); compile_err = results.count("compile"); dump_err = results.count("dump")
-print(f"    {len(scripts)} scripts: {ok} compiled and read back, "
-      f"{compile_err} compile error(s), {dump_err} read-back failure(s)")
+ok = sum(1 for k, _, _ in results if k == "ok")
+compile_err = [r for r in results if r[0] == "compile"]
+dump_err = [r for r in results if r[0] == "dump"]
+print(f"    {len(scripts)} files: {ok} compiled and read back, "
+      f"{len(compile_err)} rejected by the compiler, {len(dump_err)} read-back failure(s)")
+for kind, path, msg in (compile_err + dump_err)[:20]:
+    rel = os.path.relpath(path, corpus)
+    print(f"      {kind}: {rel}" + (f"  |  {msg}" if msg else "  |  (no diagnostic printed)"))
+if len(compile_err) + len(dump_err) > 20:
+    print(f"      ... and {len(compile_err) + len(dump_err) - 20} more")
 sys.exit(1 if (compile_err or dump_err) else 0)
 PY
