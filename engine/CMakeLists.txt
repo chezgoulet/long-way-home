@@ -24,6 +24,14 @@ if(NOT EXISTS ${EF}/client/cl_main.c)
   message(FATAL_ERROR "UPSTREAM_DIR does not look like the patched upstream checkout: ${UPSTREAM_DIR}")
 endif()
 
+set(LONGWAY_SYSROOT "" CACHE PATH "Optional prefix holding dependency headers and libraries")
+set(_lib_hints ${LONGWAY_SYSROOT}/usr/lib/x86_64-linux-gnu ${LONGWAY_SYSROOT}/usr/lib)
+set(_inc_hints ${LONGWAY_SYSROOT}/usr/include ${LONGWAY_SYSROOT}/usr/include/x86_64-linux-gnu)
+
+# Prefer shared libraries: picking up a static libSDL2.a drags in every private dependency SDL
+# was built against (Wayland, DRM, X11) and fails to link where the shared library exists.
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".so;.a")
+
 option(LONGWAY_BINK "Link FFmpeg for Bink cutscene playback" ON)
 
 # ---- engine source groups (same lists as the Android target) ----
@@ -82,6 +90,7 @@ add_library(sp_game_bridge STATIC
   ${SP}/sp_bridge.cpp ${SP}/sp_ui_bridge.cpp ${SP}/sp_clink.c)
 target_include_directories(sp_game_bridge PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/platform
+  ${_inc_hints}
   ${EFG}/android ${EFG}/src/game ${EFG}/src/cgame ${EFG}/src/ui
   ${EFG}/src/client ${EFG}/src/renderer ${EFG}/src/qcommon ${SP})
 target_compile_options(sp_game_bridge PRIVATE
@@ -100,13 +109,6 @@ set(ENGINE_SRC
 # Dependencies are found directly rather than through pkg-config: the machines this has to
 # build on (the playtest host, a rootless toolchain tree) do not reliably have pkg-config or
 # the .pc files, and a build that needs them is a build that fails where it matters.
-set(LONGWAY_SYSROOT "" CACHE PATH "Optional prefix holding dependency headers and libraries")
-# Prefer shared libraries: picking up a static libSDL2.a drags in every private dependency SDL
-# was built against (Wayland, DRM, X11 extensions) and fails to link on a desktop that has the
-# shared library sitting right there. This is what the earlier lilium link errors actually were.
-set(CMAKE_FIND_LIBRARY_SUFFIXES ".so;.a")
-set(_lib_hints ${LONGWAY_SYSROOT}/usr/lib/x86_64-linux-gnu ${LONGWAY_SYSROOT}/usr/lib)
-set(_inc_hints ${LONGWAY_SYSROOT}/usr/include ${LONGWAY_SYSROOT}/usr/include/x86_64-linux-gnu)
 
 find_path(SDL2_INCLUDE_DIR NAMES SDL.h PATH_SUFFIXES SDL2 HINTS ${_inc_hints})
 find_library(SDL2_LIBRARY NAMES SDL2 HINTS ${_lib_hints})
@@ -122,6 +124,7 @@ if(NOT VULKAN_INCLUDE_DIR OR NOT VULKAN_RUNTIME)
 endif()
 message(STATUS "Vulkan: ${VULKAN_RUNTIME}")
 
+set(LONGWAY_FFMPEG_LIBS "")
 if(LONGWAY_BINK)
   find_path(AVCODEC_INCLUDE_DIR NAMES libavcodec/avcodec.h HINTS ${_inc_hints})
   find_library(AVCODEC_LIBRARY   NAMES avcodec   HINTS ${_lib_hints})
@@ -130,11 +133,19 @@ if(LONGWAY_BINK)
   find_library(SWSCALE_LIBRARY   NAMES swscale   HINTS ${_lib_hints})
   if(AVCODEC_INCLUDE_DIR AND AVCODEC_LIBRARY AND AVFORMAT_LIBRARY AND AVUTIL_LIBRARY AND SWSCALE_LIBRARY)
     list(APPEND ENGINE_SRC ${SP}/bink_ff.c)
+    list(APPEND LONGWAY_FFMPEG_LIBS ${AVCODEC_LIBRARY} ${AVFORMAT_LIBRARY}
+         ${AVUTIL_LIBRARY} ${SWSCALE_LIBRARY})
     message(STATUS "Bink cutscene playback: enabled (FFmpeg found at ${AVCODEC_LIBRARY})")
   else()
-    message(WARNING "FFmpeg not found: Bink cutscene playback disabled")
+    # Not fatal: cinematics are polish. A NOTFOUND variable reaching target_link_libraries is a
+    # CMake *generate* error, which is a confusing way to learn that a package is missing.
+    message(WARNING "FFmpeg not found: building without Bink cutscene playback")
     set(LONGWAY_BINK OFF)
   endif()
+endif()
+
+if(NOT LONGWAY_BINK)
+  list(APPEND ENGINE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/platform/bink_stubs.c)
 endif()
 
 if(NOT SDL2_INCLUDE_DIR OR NOT SDL2_LIBRARY)
@@ -147,7 +158,8 @@ target_include_directories(longwayhome PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/platform
   ${EF} ${EF}/zlib ${EF}/jpeg-8c ${EF}/AL
   ${EF}/libmad-0.15.1b ${EF}/libmad-0.15.1b/include
-  ${SP} ${SDL2_INCLUDE_DIR} ${AVCODEC_INCLUDE_DIR})
+  ${SP} ${SDL2_INCLUDE_DIR} ${_inc_hints} ${VULKAN_INCLUDE_DIR}
+  $<$<BOOL:${AVCODEC_INCLUDE_DIR}>:${AVCODEC_INCLUDE_DIR}>)
 
 target_compile_definitions(longwayhome PRIVATE
   _GNU_SOURCE
@@ -185,4 +197,4 @@ target_link_options(longwayhome PRIVATE -Wl,--allow-shlib-undefined)
 target_link_libraries(longwayhome
   sp_game_bridge
   ${SDL2_LIBRARY} ${VULKAN_RUNTIME} dl m pthread
-  ${AVCODEC_LIBRARY} ${AVFORMAT_LIBRARY} ${AVUTIL_LIBRARY} ${SWSCALE_LIBRARY})
+  ${LONGWAY_FFMPEG_LIBS})
