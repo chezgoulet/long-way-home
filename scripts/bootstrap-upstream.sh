@@ -42,8 +42,14 @@ cmake -S "$WORK/efgame" -B "$WORK/efgame/build-linux" -G Ninja -DCMAKE_BUILD_TYP
 echo "==> building"
 cmake --build "$WORK/efgame/build-linux" -j"$(nproc)"
 
-echo "==> artifacts"
+echo "==> artifacts (game modules)"
 ls -la "$WORK/efgame/build-linux"/libefgame.so "$WORK/efgame/build-linux"/libefui.so
+
+echo "==> building the native ICARUS script compiler (ibize)"
+cmake -S "$ROOT/tools/ibize" -B "$WORK/ibize-build" -G Ninja \
+  -DUPSTREAM_DIR="$WORK" -DCMAKE_BUILD_TYPE=Release
+cmake --build "$WORK/ibize-build" -j"$(nproc)"
+ls -la "$WORK/ibize-build/ibize"
 echo
 echo "Expected exports:"
 echo "  libefgame.so : GetGameAPI, vmMain, dllEntry"
