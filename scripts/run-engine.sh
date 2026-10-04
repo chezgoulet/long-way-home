@@ -32,10 +32,29 @@ done
 [ -n "$ENGINE" ] || { echo "engine binary not found; build it first (see engine/README.md)" >&2; exit 1; }
 [ -d "$BUILD_DIR/baseEF" ] || { echo "no baseEF in $BUILD_DIR -- run scripts/playtest-host-setup.sh" >&2; exit 1; }
 
-# Library search path: the durable copy first, then the ephemeral rootless tree if it survives,
-# then whatever the system already provides.
-for candidate in "$BUILD_DIR/deps/usr/lib/x86_64-linux-gnu" "/tmp/sysroot/usr/lib/x86_64-linux-gnu"; do
+# Library search path, in the order the loader will use it:
+#   1. the SP game modules -- the bridge dlopen()s "libefgame.so" and "libefui.so" by BARE NAME,
+#      and the loader does not search the engine binary's own directory for those. Without this
+#      the first map load fails with "dlopen libefgame.so failed" and looks like a crash.
+#   2. the rootless dependency tree (durable copy first, then the ephemeral one if it survives).
+for candidate in \
+    "$ROOT/../upstream/efgame/build-linux" \
+    "$ROOT/build-linux" \
+    "$ROOT/../upstream/efgame/build" \
+    "$BUILD_DIR/modules" \
+    "$BUILD_DIR/deps/usr/lib/x86_64-linux-gnu" \
+    "/tmp/sysroot/usr/lib/x86_64-linux-gnu"; do
   [ -d "$candidate" ] && export LD_LIBRARY_PATH="$candidate${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+done
+
+# Say out loud whether the modules are where the loader will look, before the engine tries.
+for m in libefgame.so libefui.so; do
+  found=""
+  for candidate in ${LD_LIBRARY_PATH//:/ }; do
+    [ -f "$candidate/$m" ] && { found="$candidate/$m"; break; }
+  done
+  if [ -n "$found" ]; then echo "module:    $found"
+  else echo "module:    $m NOT FOUND on the library path -- a map load will fail" >&2; fi
 done
 
 [ -n "$HOME_DIR" ] || HOME_DIR="$BUILD_DIR/home"
