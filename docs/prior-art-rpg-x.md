@@ -87,9 +87,28 @@ Two constraints the source states, and both bite when raising them:
   Raising the count without raising the buffer moves the overflow rather than removing it, so the two
   move together.
 
-The measurement to run before the capstone adds content: log configstring usage on a loaded campaign
-map, and find out how much of the 1024 retail SP material already spends. Content that quietly runs out
-of configstrings fails in ways that look like missing textures rather than missing capacity.
+### Measured, and it changes the order of work
+
+Counting content registration across **all 106 published map sources** — models and sounds are the
+classes that become configstrings per level, so the per-level figure is the one that matters:
+
+| | worst level | median | cap |
+|---|---|---|---|
+| distinct models | **37** (`deck08`) | 5 | 256 |
+| distinct sounds | **14** | 2 | 256 |
+
+Retail is nowhere near the ceiling: no shipped level exceeds 256 models or 256 sounds, and the worst
+spends roughly 50 configstrings of 1024.
+
+So **do not raise the limits speculatively.** RPG-X's 4096 was driven by prop density in
+hand-furnished ship interiors — the shape the capstone is heading toward, not the shape retail has.
+The honest order is: instrument, watch, and raise when a number demands it.
+
+That instrument now exists: the validator counts per-level content registration and warns at 60% of
+each limit (`W005` for models/sounds, `W006` for the configstring budget), with a negative test that
+seeds a dense level and asserts the warning is emitted. Across all 106 shipped maps it is silent,
+which is the correct calibration — and it will speak up when authored content approaches, rather than
+failing later as missing textures.
 
 ## Do not take
 

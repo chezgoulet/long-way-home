@@ -16,6 +16,8 @@ Error codes are stable so a fault can be referred to by name:
   E007  compiled script fails round-trip (the game's reader rejects it)
   W001  declared script never referenced by any map
   W004  map has no navigation coverage and is not declared inhabited (fine for space)
+  W005  content registration approaching an engine limit (models/sounds) - see the note
+  W006  content registration approaching the configstring budget
   W002  retail asset references seen (unverifiable without game data) - informational
   W003  script checks skipped (no compiler/reader supplied)
 
@@ -40,6 +42,17 @@ NAV_CLASSES = ("waypoint", "waypoint_navgoal", "waypoint_squadpath", "waypoint_s
                "point_combat", "path_corner")
 
 CLASSNAME = re.compile(r'"classname"\s+"([^"]+)"')
+MODEL_REF = re.compile(r'"model2?"\s+"([^"]+)"')
+SOUND_REF = re.compile(r'"(?:noise|sound)"\s+"([^"]+)"')
+
+# Engine limits this check watches. They come from the engine's q_shared.h; the content that
+# consumes them registers per LEVEL, not globally, which is why the count is per map.
+MAX_MODELS = 256
+MAX_SOUNDS = 256
+MAX_CONFIGSTRINGS = 1024
+# Warn well before the ceiling: content that runs out of configstrings fails in ways that look like
+# missing textures rather than missing capacity, so the warning has to arrive early enough to act on.
+CONTENT_WARN_FRACTION = 0.6
 USESCRIPT = re.compile(r'"usescript"\s+"([^"]+)"')
 KV = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"\s+"([^"]*)"')
 # A brush face is three parenthesised point triples followed by the shader name.
@@ -149,6 +162,20 @@ def check_map(path, root, dictionary, prefixes, rep, inhabited, declared_scripts
         if key in declared_scripts or os.path.basename(key) in script_names_by_base:
             continue
         rep.error("E002", rel, f"usescript '{script}' is not among the scenario's declared scripts")
+
+    # Content registration: models and sounds become configstrings when the level loads, per level.
+    # Retail's worst shipped level spends 37 models and 14 sounds of 256; RPG-X needed 4096
+    # configstrings because their ship interiors are dense with props. Measure rather than assume.
+    models = {m.lower() for m in MODEL_REF.findall(text) if not m.startswith("*")}
+    sounds = {s_.lower() for s_ in SOUND_REF.findall(text)}
+    if len(models) >= MAX_MODELS * CONTENT_WARN_FRACTION:
+        rep.warn("W005", rel, f"{len(models)} distinct models of {MAX_MODELS} ({len(models)*100//MAX_MODELS}%)")
+    if len(sounds) >= MAX_SOUNDS * CONTENT_WARN_FRACTION:
+        rep.warn("W005", rel, f"{len(sounds)} distinct sounds of {MAX_SOUNDS} ({len(sounds)*100//MAX_SOUNDS}%)")
+    spent = len(models) + len(sounds)
+    if spent >= MAX_CONFIGSTRINGS * CONTENT_WARN_FRACTION:
+        rep.warn("W006", rel, f"~{spent} of {MAX_CONFIGSTRINGS} configstrings from this level's models+sounds")
+    rep.note(f"{rel}: content registration {len(models)} models, {len(sounds)} sounds")
 
     internals = {shader for shader in FACE.findall(text)
                  if shader.lower().startswith(INTERNAL_PREFIXES) and not shader.startswith(("//", "(", "{"))}

@@ -113,6 +113,20 @@ def seed_broken_script(root):
         fh.write('this is not a script ( "unbalanced );\n')
 
 
+def seed_content_overflow(root):
+    """A level whose model registration approaches MAX_MODELS. Warnings do not fail the run, so
+    this case asserts the warning is *emitted and named* rather than that the exit code changes."""
+    with open(os.path.join(root, "maps", "dense.map"), "w") as fh:
+        fh.write('{\n"classname" "worldspawn"\n}\n')
+        for i in range(200):
+            fh.write('{\n"classname" "misc_model"\n"model" "models/deck/prop_%03d.md3"\n'
+                     '"origin" "0 0 0"\n}\n' % i)
+
+
+WARN_CASES = [
+    ("W005 content registration near the model limit", seed_content_overflow, "W005", "distinct models"),
+]
+
 CASES = [
     ("E001 unknown entity class", seed_unknown_class, "E001", "Foo_Unknown_Class"),
     ("E002 missing script", seed_missing_script, "E002", "no_such_script"),
@@ -159,6 +173,20 @@ def main():
             caught = (rc == 1) and any(line.startswith(code) and needle in line
                                        for line in out.splitlines())
             print(f"{'PASS' if caught else 'FAIL'}  {label}: expected {code} naming '{needle}' (rc={rc})")
+            if not caught:
+                failures += 1
+                print("      output was:\n" + "\n".join("      " + l for l in out.splitlines()[:8]))
+
+        for label, seed, code, needle in WARN_CASES:
+            case = os.path.join(tmp, "warn_" + code)
+            shutil.copytree(clean, case)
+            for dirpath, _, names in os.walk(case):
+                for n in names:
+                    os.chmod(os.path.join(dirpath, n), 0o644)
+            seed(case)
+            rc, out = run(case, args)
+            caught = any(line.startswith(code) and needle in line for line in out.splitlines())
+            print(f"{'PASS' if caught else 'FAIL'}  {label}: expected {code} naming '{needle}'")
             if not caught:
                 failures += 1
                 print("      output was:\n" + "\n".join("      " + l for l in out.splitlines()[:8]))
