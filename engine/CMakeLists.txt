@@ -126,11 +126,18 @@ message(STATUS "Vulkan: ${VULKAN_RUNTIME}")
 
 set(LONGWAY_FFMPEG_LIBS "")
 if(LONGWAY_BINK)
+  # Shared libraries only for FFmpeg. A static libavcodec.a drags in every dependency it was
+  # built against -- zlib here -- and the failure reads as "undefined reference to uncompress",
+  # pointing nowhere near the cause. This is the third time a static archive has been chosen over
+  # the shared object sitting beside it, so the suffix list is narrowed for these finds rather
+  # than trusting the default search order.
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".so")
   find_path(AVCODEC_INCLUDE_DIR NAMES libavcodec/avcodec.h HINTS ${_inc_hints})
   find_library(AVCODEC_LIBRARY   NAMES avcodec   HINTS ${_lib_hints})
   find_library(AVFORMAT_LIBRARY  NAMES avformat  HINTS ${_lib_hints})
   find_library(AVUTIL_LIBRARY    NAMES avutil    HINTS ${_lib_hints})
   find_library(SWSCALE_LIBRARY   NAMES swscale   HINTS ${_lib_hints})
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".so;.a")   # restore for anything that follows
   if(AVCODEC_INCLUDE_DIR AND AVCODEC_LIBRARY AND AVFORMAT_LIBRARY AND AVUTIL_LIBRARY AND SWSCALE_LIBRARY)
     list(APPEND ENGINE_SRC ${SP}/bink_ff.c)
     list(APPEND LONGWAY_FFMPEG_LIBS ${AVCODEC_LIBRARY} ${AVFORMAT_LIBRARY}
