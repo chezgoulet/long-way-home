@@ -118,14 +118,18 @@ def script_stem(declared_path, root):
 
 def check_map(path, root, dictionary, prefixes, rep, inhabited, declared_scripts,
               script_names_by_base):
+    # `dictionary is None` means no dictionary was supplied. Checking classes against an empty
+    # dictionary would report every class in every map as unknown -- noise that looks like a finding.
+    # Skip the check and say so instead.
     rel = os.path.relpath(path, root)
     text = open(path, encoding="utf-8", errors="replace").read()
 
     classes = Counter(CLASSNAME.findall(text))
-    unknown = sorted(c for c in classes
-                     if c not in dictionary and not any(c.startswith(p) for p in prefixes))
-    for name in unknown:
-        rep.error("E001", rel, f"unknown entity class '{name}' ({classes[name]} instance(s))")
+    if dictionary is not None:
+        unknown = sorted(c for c in classes
+                         if c not in dictionary and not any(c.startswith(p) for p in prefixes))
+        for name in unknown:
+            rep.error("E001", rel, f"unknown entity class '{name}' ({classes[name]} instance(s))")
 
     nav = sum(n for c, n in classes.items() if c.startswith(NAV_CLASSES))
     if nav == 0:
@@ -220,10 +224,15 @@ def main():
         rep.error("E005", "scenario.json", "no maps matched the declared patterns")
     scripts = expand(man.get("scripts", []))
 
-    found = load_dictionary([a.entitydict] if a.entitydict else [])
-    if not found[0]:
-        rep.warn("W003", "entities", "no entity dictionary supplied: class checks limited to nav")
-    dictionary, prefixes = found
+    if a.entitydict:
+        dictionary, prefixes = load_dictionary([a.entitydict])
+        if not dictionary:
+            rep.warn("W003", "entities", f"dictionary {a.entitydict} is empty: entity-class check skipped")
+            dictionary, prefixes = None, []
+    else:
+        rep.warn("W003", "entities",
+                 "no --entitydict supplied: entity-class check skipped (not an all-clear)")
+        dictionary, prefixes = None, []
 
     inhabited_globs = [os.path.join(root, g) for g in man.get("inhabited", [])]
     def is_inhabited(path):

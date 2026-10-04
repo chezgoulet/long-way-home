@@ -81,25 +81,41 @@ compares. The 64-bit header fix produces reader-compatible output.
 
 ## Result
 
-**G0 item 2 is met.** All 2,408 shipped script files compile with zero diagnostics under the settled
-wiring, at roughly 0.12 s each, emitting a correctly-headed block stream — and every one of those
-2,408 outputs was then read back with the game's own reader.
+**Corrected.** An earlier version of this document claimed all 2,408 corpus files compiled with
+zero diagnostics. That was wrong, and wrong in an instructive way: the interpreter reports errors
+with `printf`, i.e. on **stdout**, while the tokenizer reports through the error callback on stderr.
+The checking script read only stderr, so it was blind to every interpreter diagnostic and reported a
+false all-clear. (It is the same mistake as reading a pipeline's exit code instead of the command's.)
 
-Round-trip verification (`tools/ibi-dump`, which calls `CBlockStream::Open` and walks the stream with
-`BlockAvailable`/`ReadBlock`): **2,408 of 2,408 OK**, header and version validated on every file, no
-truncated blocks, no reader failures. The verification uses only the released sources — neither the
-game nor the original compiler was needed.
+The accurate position, measured with both streams captured and the exit code respected:
 
-To rebuild those numbers:
+| category | count |
+|---|---|
+| compiled cleanly and read back | 2,394 |
+| not ICARUS scripts at all | 11 |
+| scripts the rebuilt compiler rejects | 3 |
+| read-back failures | 0 |
 
-```
-./scripts/bootstrap-upstream.sh            # builds the modules and ibize
-/tmp/dump-build/ibi-dump <file.IBI>        # reads one back and reports its structure
-```
+The eleven are sound-table data (`behaved_francais.txt`, `behaved_deutsch.txt`), configuration
+(`setup.txt`), a directory list (`validdirs.txt`) and editor backups (`ordermunro.bak.txt`,
+`startbakup.txt`) that live in the same archive. They are not scripts and correctly fail.
 
-## Next
+The three are real scripts, rejected deterministically on every run, each with a named cause:
 
-1. Settle the wiring against the corpus (a variant sweep is running).
-2. Report a corpus-wide pass rate over all 2,175 shipped scripts.
-3. Add read-back verification: re-open each `.IBI` with `CBlockStream::Open`/`ReadBlock` and confirm
-   the block structure round-trips — a check that needs neither the original compiler nor the game.
+- `voy1/scene7.TXT` — line 15 uses a bare `tag` in `camera ( MOVE, tag );`, an older dialect that
+  this compiler reads as a syntax error. `voy1/scene10.TXT`, which uses the newer
+  `tag( "fs_bridge", ORIGIN )` form, is a different case (below).
+- `voy5/beamstart.TXT` — line 5 calls `action( SOUND, ... )`. `action` appears in the ICARUS manual's
+  command list but is **not** in the identifier table of this released build.
+- `voy1/scene10.TXT` — rejected with a non-zero code and **prints nothing at all**, which is a silent
+  failure and the least comfortable of the three.
+
+All three still emit structurally valid partial streams (5, 9 and 2 blocks respectively, all reading
+back cleanly), consistent with the compiler stopping at the offending construct while leaving what it
+had already emitted.
+
+Two of these are questions about *Raven's* compiler rather than about our port — an older dialect and
+a documented-but-absent command — and one is a silent failure worth reporting upstream. None of them
+blocks the gate: the tool compiles and verifies the content it is meant to, and now names what it
+rejects instead of hiding it.
+
