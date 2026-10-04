@@ -29,6 +29,13 @@ was mode 2. The log shows Holomatch loading, `qagame.qvm` coming up from the pak
 carries both paths; in SP mode it deliberately bypasses the HM one
 (`EFSP Route-b: HM spmap/qagame/cgame NOT loaded; SP cgame is sole`).
 
+**Tasks carried out of this analysis, both needing one session:**
+
+- [ ] explain and close the control fault ("connecting to localhost", no avatar control) — the difference
+      between Holomatch booting and Holomatch being playable
+- [ ] decide: retail `qagame.qvm` through the interpreter (proven working) or a native module built from
+      the released Holomatch source (faster, moddable, and the same job we already did for single-player)
+
 Two open questions, both answerable in one session:
 
 1. **The control fault.** That session showed "connecting to localhost" and no avatar control. Unexplained

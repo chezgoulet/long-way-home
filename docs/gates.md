@@ -44,6 +44,41 @@ Acceptance bar (from the charter, plus the owner's addition):
 Testing needs a logged-in desktop session: under a virtual display the renderer reports
 `failed to find graphics queue family` and the load never reaches the SP path.
 
+## The client's contract — three modes (agreed 2026-10-04)
+
+Recorded in full in `docs/client-modes.md`. The client offers:
+
+1. **the original game and all downloadable content** — retail campaign, Expansion Pack, 1.2 voice pack
+2. **original LAN multiplayer** — retail Holomatch over a LAN or a VPN (Tailscale, Nebula, ZeroTier)
+3. **Long Way Home** — single player (Tracks A/B/C) and multiplayer (Track D)
+
+Two decisions that go with it:
+
+- **One engine, two game modules — not two clients.** Our engine is the same lineage as cMod's and the
+  multiplayer game source is released, so one binary loads either module, with cMod's improvements folded
+  in rather than shipped as a second application. Two engines would drift.
+- **The compatibility promise:** "full original" means compatibility of *gameplay and content* — retail
+  maps, saves, configuration and demos behaving as they did — not a byte-identical binary. cMod's
+  rendering and limit changes are wanted, not violations.
+
+## G6 — retail single player, including the Expansion Pack ⏳ next
+
+The original game as a *mode*, not a stepping stone. Bar: the campaign runs; the Virtual Voyager decks,
+turbolift and station menus work (G2's bar); retail configuration and saves behave; and a save survives
+switching modes inside the client. Needs sessions; almost no new code.
+
+## G7 — retail multiplayer, LAN and over a VPN ⏳ next
+
+Bar: a match between two machines on a LAN, and the same over a VPN address; bots as the fallback
+population; and **the control fault from the first playtest explained and closed** — the difference
+between "Holomatch boots" and "Holomatch is playable". Open question to settle here: keep running the
+retail `qagame.qvm` through the interpreter (proven working) or build the released Holomatch source into
+a native module.
+
+Agreed ordering: **G6 and G7 before G4 and G5.** They are cheap, they make the client useful now, and
+they are the recruitment path for the multiplayer programme — Track D's hardest constraint is population.
+G3 proceeds in parallel, because its code can be written without a session even though its criteria need one.
+
 ## G3 — reactive crew ⏳ pending
 
 5–10 NPCs, one deck, no new animations, reused barks, posts and acknowledgement, with the measurable
