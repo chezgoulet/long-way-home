@@ -57,41 +57,52 @@ No NAT traversal to write, no relay to run. Two deliberate choices:
 
 The House already runs a tailnet, so a private server is a scripted launch away, not a project.
 
-## One engine or two — revised after reading cMod's changelog
+## The principle: inherit, do not own
 
-**My earlier recommendation was "one engine, two modules". The evidence below argues for two engines
-first, and I am revising it.**
+Owner's direction, 2026-10-04: *"I'd rather be in the best position to inherit community work than
+increase our support of more stuff."*
 
-cMod's `ChangeLog` is twenty years of fixes to the *connection path*, which is exactly where mode 2's
-unexplained fault lives:
+That is the deciding rule for every architectural choice on this roadmap, and it is better than the
+engine-count trade-off I was weighing. We are one small group with a long programme; the community
+stacks we build on are maintained by people who have been fixing them for twenty years. Our position
+should be to **consume their maintenance, and to keep our own delta thin enough to rebase onto it
+whenever they release.**
+
+Applied concretely:
+
+- **Mode 2 is cMod as shipped — zero delta from us.** Native on Linux, maintained, with the connect-path
+  fixes our own tree never inherited (see the changelog notes below). We ship it, we do not fork it, and
+  their next release is ours for free.
+- **Modes 1 and 3 build on maintained upstreams too**: the SP engine is a thin patch series on the pinned
+  upstream port, rebasable on every upstream release, and the modules are ours only because nobody else
+  has written them.
+- **Our inventions live behind the module boundary, not in the engine.** The autonomy layer, the ship
+  server, the authored content — all of it belongs in a game module the engine loads, because that is
+  what keeps the engine inheritable. Anything we put *into* the engine is a delta we own forever, and a
+  rebase cost on every upstream release.
+- **Where the engine must change, prefer contributing upstream** — Track D's engine-level needs (many
+  clients, persistence, orchestration) are exactly the kind of change worth offering to the projects
+  maintaining those engines, so the maintenance is shared rather than duplicated.
+
+The honest cost: we give up the freedom to change multiplayer engine behaviour unilaterally, and upstream
+acceptance is not guaranteed. That is a real constraint, and it is why the principle has a boundary — new
+game logic is ours and lives in the module; engine internals are theirs and we ask first.
+
+### Why this matters here specifically
+
+cMod's changelog is twenty years of *connection-path* fixes our lilium-lineage tree never inherited:
 
 - *"connection issues / userinfo — client side fix, instead of sending `connect <userinfo>` packet we now
-  send `connect "<userinfo>"`"*
+  send `connect \"<userinfo>\"`"*
 - *"backported from RTCW, don't get dropped if the server changes map while connecting (ignore outdated cp)"*
 - *"backport fix to pk3 reordering… bad order from connection may break stuff"*
-- *"extended the getIpAuthorize (server->auth message) syntax"*, and a UI for `com_errorMessage` so a
-  kick/drop/disconnect is actually *shown* rather than silently stalling
-- `CL_InitDownloads` / `FS_ComparePaks` diagnostics that print which missing paks caused a connection to
+- *"extended the getIpAuthorize (server->auth message) syntax"*, plus a `com_errorMessage` UI so a kick or
+  drop is *shown* rather than silently stalling
+- `CL_InitDownloads` / `FS_ComparePaks` diagnostics naming the missing paks that caused a connection to
   fail — *"typically when the user is sent back to the main screen"*
 
-Our engine is a lilium-lineage tree and has inherited none of those. A stall at "connecting to localhost"
-with no error text is precisely the symptom of the pre-fix behaviour in that list.
-
-**So the two routes are:**
-
-| route | cost | risk |
-|---|---|---|
-| **A — one engine, two modules** | port cMod's connect-path fixes into our tree, build the HM module from released source | the porting *is* the risky part of mode 2; two decades of fixes to re-derive |
-| **B — two engines, one client** | mode 2 = cMod as shipped (Linux build, maintained); modes 1 and 3 = our engine; one launcher, one data root | two engines to maintain, modes can drift |
-
-**Recommendation revised to B, for now.** Mode 2 ships almost immediately that way — cMod is already
-native on Linux and maintained, and with the freeware base plus a tailnet address it is done without us
-writing engine code. Route A stays open and becomes cheaper later if we ever want to converge, because
-cMod's changelog tells us exactly which fixes to port rather than leaving us to rediscover them.
-
-The thing that would change this: if the fault turns out to be something trivial and local (a pure-server
-pk3 mismatch caused by an extra pk3 in the writepath, say), then our engine's HM path may be fine as-is
-and route A is cheap after all. That is what the next multiplayer session's log is for.
+A silent stall at "connecting to localhost" is precisely the pre-fix symptom in that list. Inheriting
+those fixes costs nothing; re-deriving them costs everything they cost, again.
 
 ## The promise, stated precisely
 
