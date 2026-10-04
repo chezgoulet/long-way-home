@@ -129,8 +129,29 @@ def script_stem(declared_path, root):
     return os.path.splitext(rel)[0].lower()
 
 
+def retail_scripts(data_dir):
+    """Scripts the game installation provides, keyed the way a map references them.
+
+    The retail paks keep them under `real_scripts/`, as compiled `.IBI` (and some `.txt`), so a map
+    referencing `voy9/intro` is satisfied by `real_scripts/voy9/intro.IBI` in the data. A scenario
+    does not contain those and should not be asked to: like retail textures, they are external.
+    """
+    import zipfile
+    found = set()
+    for pak in glob.glob(os.path.join(data_dir, "**", "pak*.pk3"), recursive=True):
+        try:
+            with zipfile.ZipFile(pak) as z:
+                for name in z.namelist():
+                    m = re.match(r"real_scripts/(.+)\.(txt|ibi)$", name, re.I)
+                    if m:
+                        found.add(m.group(1).lower())
+        except (OSError, zipfile.BadZipFile):
+            continue
+    return found
+
+
 def check_map(path, root, dictionary, prefixes, rep, inhabited, declared_scripts,
-              script_names_by_base):
+              script_names_by_base, retail=frozenset()):
     # `dictionary is None` means no dictionary was supplied. Checking classes against an empty
     # dictionary would report every class in every map as unknown -- noise that looks like a finding.
     # Skip the check and say so instead.
@@ -155,13 +176,19 @@ def check_map(path, root, dictionary, prefixes, rep, inhabited, declared_scripts
     else:
         rep.note(f"{rel}: {nav} navigation entities, {len(classes)} distinct classes")
 
+    retail_used = set()
     # Resolve references against the scenario's *declared* scripts, not against a filesystem walk:
     # a scenario says what it contains, and that declaration is what a reference must satisfy.
     for script in sorted(set(USESCRIPT.findall(text))):
         key = os.path.splitext(script.replace("\\", "/"))[0].lower()
         if key in declared_scripts or os.path.basename(key) in script_names_by_base:
             continue
-        rep.error("E002", rel, f"usescript '{script}' is not among the scenario's declared scripts")
+        if key in retail or os.path.basename(key) in {os.path.basename(r) for r in retail} and False:
+            continue
+        if key in retail:
+            retail_used.add(key)
+            continue
+        rep.error("E002", rel, f"usescript '{script}' is in neither the scenario nor the retail data")
 
     # Content registration: models and sounds become configstrings when the level loads, per level.
     # Retail's worst shipped level spends 37 models and 14 sounds of 256; RPG-X needed 4096
@@ -220,6 +247,7 @@ def main():
     ap.add_argument("--ibize")
     ap.add_argument("--ibi-dump", dest="ibi_dump")
     ap.add_argument("--entitydict", help="JSON produced by entitydict.py parse --json")
+    ap.add_argument("--data", help="game installation; its pak*.pk3 real_scripts/ satisfy references")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
 
@@ -268,10 +296,14 @@ def main():
     declared = {script_stem(s, root) for s in scripts}
     by_base = {os.path.basename(k): k for k in declared}
 
+    retail = retail_scripts(a.data) if a.data else frozenset()
+    if retail:
+        rep.note(f"retail data provides {len(retail)} scripts (real_scripts/)")
+
     referenced = set()
     for m in maps:
         referenced |= check_map(m, root, dictionary, prefixes, rep, is_inhabited(m),
-                                declared, by_base)
+                                declared, by_base, retail)
 
     check_scripts(scripts, referenced, a.ibize, a.ibi_dump, rep,
                   os.path.join(root, ".validate-build"), root)
