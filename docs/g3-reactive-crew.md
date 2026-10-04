@@ -86,6 +86,10 @@ navigator + anims + say  -- existing steering, animation, dialogue
   the file is missing (see `docs/evidence/trackb-map-toolchain.md`).
 - **No new animation.** `BS_SAY` already provides the talk animation timed to a sound's length, and
   `BS_WAIT`/`BS_LOOK`/`BS_AIM` cover standing, turning and facing.
+- **Persistence follows a precedent that already works in this engine family.** RPG-X keeps character
+  and ship state in SQLite bundled *inside the gamecode* (`g_sql.c`, `sqlite3.c`, `ui_sql.c`) — no
+  external daemon, state stored where it is owned. See `docs/prior-art-rpg-x.md`. G3 keeps its per-NPC
+  state in the SP module's own save path for the same reason.
 - **Persistence is bounded from the start.** Per NPC: post id, current goal, and the schedule cursor
   (unused in G3, present for G4). An explicit per-NPC byte budget is set at implementation and tested.
 

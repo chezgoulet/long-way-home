@@ -56,6 +56,19 @@ direct combat/reaction > director override > duty/routine > idle/social.
 
 ## G4 — living ship ⏳ pending, does not start until G3 passes
 
+## Adopted from RPG-X prior art (2026-10-04)
+
+Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere concrete:
+
+- **rank and permission model → Track D** as the starting design for ship authority
+- **embedded SQLite persistence → Track D and G3** as the storage pattern
+- **emote / interaction vocabulary → capstone and G4**
+- **content headroom → Track B, before capstone content work**: `MAX_CONFIGSTRINGS` 1024 against their
+  4096, `MAX_GENTITIES` 1024 against 2048, `MAX_MODELS` 256 against 512 — with the two constraints the
+  source states (models and sounds ride the network as 8 bits; configstrings and
+  `MAX_GAMESTATE_CHARS` must move together). First task: measure configstring usage on a loaded
+  campaign map, so we know how much of the budget retail already spends.
+
 ## G5 — capstone scenario ⏳ pending
 
 ---

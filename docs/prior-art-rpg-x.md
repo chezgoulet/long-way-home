@@ -57,6 +57,40 @@ That is evidence for what the design already claims: a crew game lives on a cale
 building the watch and session structure (the `watchbill` component) early rather than treating it as
 an MMO-phase nicety.
 
+## Adopted — and where each lands
+
+Owner's decision, 2026-10-04: all four, with the limits item first because it constrains the others.
+
+| taken | lands in | as |
+|---|---|---|
+| rank and permission model | **Track D** (ship authority) | the starting design for the chain of command, read from `rpgxEF` rather than invented |
+| embedded SQLite persistence | **Track D** per-ship state, and **G3**'s per-NPC budget | the storage pattern: state lives with the code that owns it, no external daemon |
+| emote / interaction vocabulary | **capstone and G4** | the reference for what a body can do, once G3 stops excluding new animation |
+| content headroom | **Track B, before content work** | raise the limits ahead of the capstone, not after it overflows |
+
+### The headroom item, with our numbers beside theirs
+
+| limit | ours (`efcode`) | RPG-X | note |
+|---|---|---|---|
+| `MAX_CLIENTS` | 64 | 64 | unchanged in both — **this is not a player-count story** |
+| `MAX_GENTITIES` | 1024 (`GENTITYNUM_BITS` 10) | 2048 (11 bits) | entities per level |
+| `MAX_MODELS` | 256 (fixed) | 512 (`MODELNUM_BITS` 9) | |
+| `MAX_SOUNDS` | 256 | 256 | unchanged |
+| `MAX_CONFIGSTRINGS` | **1024** | **4096** | the one that fills first |
+
+Two constraints the source states, and both bite when raising them:
+
+- **`MAX_MODELS` and `MAX_SOUNDS` ride the network as 8 bits**, and the header says plainly they
+  "cannot be blindly increased". Widening them changes the wire format, which is fine here — we build
+  both ends — but it is a protocol change, not a constant.
+- **`MAX_CONFIGSTRINGS` sizes `stringOffsets[]` in the gamestate against `MAX_GAMESTATE_CHARS 16000`.**
+  Raising the count without raising the buffer moves the overflow rather than removing it, so the two
+  move together.
+
+The measurement to run before the capstone adds content: log configstring usage on a loaded campaign
+map, and find out how much of the 1024 retail SP material already spends. Content that quietly runs out
+of configstrings fails in ways that look like missing textures rather than missing capacity.
+
 ## Do not take
 
 - **Their engine fork as a base.** We have a better-supported lineage: lilium/cMod, maintained, native
