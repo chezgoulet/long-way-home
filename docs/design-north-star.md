@@ -167,28 +167,34 @@ squarely inside the engine's comfort zone.
 This is why the freeware Holomatch base matters more than anything else in the multiplayer
 discussion: a persistent community needs people who can join **without buying anything**.
 
-### Correction (later the same day): the MMO has no NPCs — the crew is human
+### The crew model, settled: a canonical complement, players first, NPCs filling the deficit
 
-The owner's direction: the multiplayer experience has **no NPCs at all**. Every character is a player,
-up to a crew complement the size of Voyager's own — battle-royale numbers in a single instance.
+Final direction from the owner: **the crew complement is a canonical number, the server supports up to
+the full complement in played characters, and any deficit is filled by NPCs.**
 
-This is a purer design than the version above, and it removes the safety net deliberately: if the ship
-succeeds or fails by whether its crew works together, then nothing may paper over an absent or failing
-crew. The consequences are real and they move work around:
+This is the strongest of the positions considered, because it does away with the ghost-ship problem
+without giving up what makes the multiplayer experience Star Trek: a ship is always fully crewed, and
+the drama comes from which posts are held by people and which by the ship's own AI.
 
-- **Solo play keeps the NPC crew.** The autonomy layer (Track C) belongs to the single-player
-  experience, where a 140-crew ship is inhabited by simulated people. The MMO does not use it.
-- **The roster becomes human.** `watchbill` stays the right name, but it now serves real people:
-  posts, ranks, watch rotation across time zones, and who is on duty.
-- **The chain of command becomes the core system.** With no NPCs, the ship's org chart has to be
-  software: who may reroute power, who may fire, who may change course, who may relieve whom. Damage
-  and power routing — the systems that looked hard — are the easy part by comparison.
-- **The hull should match the community, not the canon.** A persistent all-human ship with nobody
-  online is a ghost ship. Crews come in canonical sizes, so the honest answer is to start with a hull
-  a few dozen people can genuinely crew and let the class scale with the population.
-- **Population is the open risk.** The engine ceiling is a bounded engineering problem (below). Fielding
-  ~150 concurrent players from a community whose live servers run in the low tens is an open-ended
-  social one.
+Design consequences, now the record:
+
+- **The complement is hull data, not a constant.** Canon: an Intrepid-class ship carries approximately
+  150; Voyager left drydock with 153 and was down to roughly 141 after the losses in "Caretaker." The
+  complement belongs to the hull class, with Voyager's default set from canon, and `crew_current` is a
+  first-class ship statistic that attrition reduces and recruitment restores.
+- **The unit is the post, not the character.** A post exists whether or not a person holds it. A player
+  who takes a post displaces the NPC holding it; when that player leaves, the NPC resumes — including
+  taking back what it was doing. That hand-over is a first-class system requirement, not a fringe case.
+- **Authority stays human-anchored.** NPCs may hold posts and follow standing orders; they do not command
+  players. A ship with nobody aboard is under standing orders, not commanded by its computer.
+- **NPC attrition counts.** If NPC crew die, the complement drops and the ship is weaker. A loss is a
+  loss, whoever was wearing the uniform — which is the whole point.
+- **Track C serves both experiences**, and was never decorative: single-player gets a full NPC crew,
+  multiplayer gets the deficit filler.
+- **The engine ceiling binds on the player side only.** "Up to the complement in played characters" is
+  the requirement; past that, a server refuses entry rather than degrading.
+- **New performance question for the spike:** many NPCs *and* many players on one server. Server CPU with
+  a full NPC crew plus a full player complement is untested territory.
 
 ### The engine's actual ceiling, measured
 
