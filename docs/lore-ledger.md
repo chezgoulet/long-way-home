@@ -86,6 +86,20 @@ All invented. Canon shows repair teams, casualties and a sickbay that fills up; 
 | Exposure injures / kills after | 60 s / 300 s |
 | Sickbay | 6 under treatment at once; 12 hours each at full output |
 
+## Intruders and control
+
+All invented.
+
+| fact | value |
+|---|---|
+| A system is hijacked below | 50% control |
+| One unopposed boarder takes a system in | 10 minutes |
+| A full station crew wins an uncontested system back in | 20 minutes |
+| A counter-hack returns at most | 50% control |
+| One defender accounts for one boarder (and the reverse) in | 4 minutes |
+| Boarders with nothing to take move a deck in | 15 minutes |
+| Breach puzzle | 5x5 grid, 6 codes, buffer 7, targets of 2/3/4 worth 1/2/3 |
+
 ## Stations
 
 | fact | value | confidence |

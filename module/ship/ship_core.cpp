@@ -226,6 +226,12 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		if (s.systems[id].health < 1.0f) wantRepair[nWant++] = id;
 	std::stable_sort(wantRepair, wantRepair + nWant, [&](int a, int b) { return s.systems[a].priority < s.systems[b].priority; });
 	int treated = 0;
+	for (Deck &d : s.decks) d.defenders = 0;
+	// Where security is needed: the deck with the most boarders first.
+	int hot[DECKS], nHot = 0;
+	for (int d = 0; d < DECKS; ++d)
+		if (s.decks[d].intruders > 0.0f) hot[nHot++] = d;
+	std::stable_sort(hot, hot + nHot, [&](int a, int b) { return s.decks[a].intruders > s.decks[b].intruders; });
 
 	for (CrewMember &c : s.crew) {
 		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) {
@@ -255,6 +261,7 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 				c.status = CREW_FIT;
 				c.recovery = 0.0f;
 				c.exposure = 0.0f;
+				c.wounds = 0.0f;
 			}
 		}
 
@@ -280,6 +287,17 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		c.fatigue = std::min(1.0f, std::max(0.0f, c.fatigue));
 
 		if (a == ACT_ON_DUTY && c.post < SYS_COUNT) ++s.systems[c.post].manned;
+
+		// Security on duty with no station answers a boarding: enough to outnumber each party, worst first.
+		if (a == ACT_ON_DUTY && c.post == SYS_COUNT && c.dept == DEPT_SECURITY) {
+			for (int k = 0; k < nHot; ++k) {
+				Deck &d = s.decks[hot[k]];
+				if (d.defenders > static_cast<int>(d.intruders) + 1) continue;
+				++d.defenders;
+				c.deck = static_cast<uint8_t>(hot[k] + 1);
+				break;
+			}
+		}
 
 		// An engineer on duty with no station of their own joins the damage-control party.
 		if (a == ACT_ON_DUTY && c.post == SYS_COUNT && c.dept == DEPT_ENGINEERING) {
@@ -358,7 +376,77 @@ static void UpdatePower(Ship &s, float shipSeconds)
 		const int need = SPECS[i].crewNeeded;
 		// An unattended station still runs, at half effect: automation, not expertise.
 		const float manning = need ? 0.5f + 0.5f * std::min(1.0f, static_cast<float>(sys.manned) / need) : 1.0f;
-		sys.output = sys.health * powered * manning;
+		// A hijacked system still draws the ship's power; what it does with it is no longer ours.
+		sys.output = sys.control < HIJACKED ? 0.0f : sys.health * powered * manning;
+	}
+}
+
+// Boarders: fight, hack, advance. Deterministic -- attrition is a rate, not a roll.
+static void UpdateIntruders(Ship &s, float shipSeconds)
+{
+	const float minutes = shipSeconds / 60.0f;
+	float arriving[DECKS] = {0};
+	for (int d = 0; d < DECKS; ++d) {
+		Deck &deck = s.decks[d];
+		if (deck.intruders <= 0.0f) { deck.intruders = 0.0f; continue; }
+
+		// The fight. Each side wears the other down at the same rate; boarders also die without air.
+		const float before = deck.intruders;
+		deck.intruders -= deck.defenders * minutes / FIGHT_MINUTES;
+		if (deck.atmosphere < AIRLESS) deck.intruders -= before * minutes / (EXPOSURE_KILLS / 60.0f);
+		if (deck.defenders > 0) {
+			// what the boarders do to the defenders: wounds, one defender at a time until each is out of it
+			float hurt = std::min(before, static_cast<float>(deck.defenders)) * minutes / FIGHT_MINUTES;
+			for (CrewMember &c : s.crew) {
+				if (hurt <= 0.0f) break;
+				if (c.status != CREW_FIT || c.deck != d + 1 || c.dept != DEPT_SECURITY || c.activity != ACT_ON_DUTY) continue;
+				const float taken = std::min(hurt, 1.0f - c.wounds);
+				c.wounds += taken;
+				hurt -= taken;
+				if (c.wounds >= 1.0f) c.status = CREW_INJURED;
+			}
+		}
+		// the last of a party that is being killed does not linger as a fraction
+		if (deck.intruders < 0.05f && (deck.defenders > 0 || deck.atmosphere < AIRLESS)) deck.intruders = 0.0f;
+		if (deck.intruders <= 0.0f) { deck.intruders = 0.0f; continue; }
+
+		// Those not pinned by defenders work on the systems stationed here, sharing themselves out.
+		const float free_ = std::max(0.0f, deck.intruders - deck.defenders);
+		// (a system already wholly theirs, a dark console and a wreck are not work)
+		auto workable = [&](int i) {
+			return SPECS[i].deck == d + 1 && s.systems[i].enabled && s.systems[i].health > 0.0f && s.systems[i].control > 0.0f;
+		};
+		int here = 0;
+		for (int i = 0; i < SYS_COUNT; ++i)
+			if (workable(i)) ++here;
+		if (here > 0) {
+			for (int i = 0; i < SYS_COUNT; ++i) {
+				System &sys = s.systems[i];
+				if (!workable(i)) continue;
+				sys.control = std::max(0.0f, sys.control - (free_ / here) * minutes / HACK_MINUTES);
+			}
+		} else if (deck.defenders == 0) {
+			// Nothing to take here and nobody stopping them: on toward the bridge or Engineering.
+			const int target = std::abs(d + 1 - BRIDGE_DECK) <= std::abs(d + 1 - ENGINEERING_DECK) ? BRIDGE_DECK : ENGINEERING_DECK;
+			if (target != d + 1) {
+				// the party moves off a few at a time, and its last stragglers go together
+				const float moving = deck.intruders < 0.05f ? deck.intruders : std::min(deck.intruders, deck.intruders * minutes / ADVANCE_MINUTES);
+				deck.intruders -= moving;
+				arriving[d + (target > d + 1 ? 1 : -1)] += moving;
+			}
+		}
+	}
+	for (int d = 0; d < DECKS; ++d) s.decks[d].intruders += arriving[d];
+
+	// The crew at a station win it back when nobody is contesting it; a powered-down system is frozen.
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		System &sys = s.systems[i];
+		if (sys.control >= 1.0f || !sys.enabled) continue;
+		const Deck &deck = s.decks[SPECS[i].deck - 1];
+		if (deck.intruders - deck.defenders > 0.0f) continue;
+		const int need = SPECS[i].crewNeeded > 0 ? SPECS[i].crewNeeded : 1;
+		const float crewShare = std::min(1.0f, static_cast<float>(sys.manned) / need);
+		sys.control = std::min(1.0f, sys.control + crewShare * minutes / RETAKE_MINUTES);
 	}
 }
 
@@ -424,6 +512,7 @@ void Tick(Ship &s, float seconds)
 		const float step = std::min(shipSeconds, 60.0f);
 		s.clock += step;
 		UpdateCrew(s, step);
+		UpdateIntruders(s, step);
 		UpdatePower(s, step);
 		UpdateDecks(s, step);
 		shipSeconds -= step;
@@ -432,14 +521,95 @@ void Tick(Ship &s, float seconds)
 
 void SetAlert(Ship &s, Alert a) { s.alert = a; }
 
+// A hijacked system refuses its console. Power can still be cut at the source (SetSourceOnline),
+// and the system can still be shot (DamageSystem): both are ways of denying it to the boarders.
 void SetEnabled(Ship &s, SystemId id, bool on)
 {
-	if (id < SYS_COUNT) s.systems[id].enabled = on;
+	if (id < SYS_COUNT && !Hijacked(s, id)) s.systems[id].enabled = on;
 }
 
 void SetPriority(Ship &s, SystemId id, int priority)
 {
-	if (id < SYS_COUNT) s.systems[id].priority = priority;
+	if (id < SYS_COUNT && !Hijacked(s, id)) s.systems[id].priority = priority;
+}
+
+bool Hijacked(const Ship &s, SystemId id) { return id < SYS_COUNT && s.systems[id].control < HIJACKED; }
+
+void Board(Ship &s, int deck, int boarders)
+{
+	if (deck >= 1 && deck <= DECKS && boarders > 0) s.decks[deck - 1].intruders += boarders;
+}
+
+void CounterHack(Ship &s, SystemId id, float strength)
+{
+	if (id >= SYS_COUNT || !(strength > 0.0f)) return;
+	System &sys = s.systems[id];
+	sys.control = std::min(1.0f, sys.control + std::min(1.0f, strength) * 0.5f); // a perfect run is worth half the system
+}
+
+int Intruders(const Ship &s)
+{
+	float n = 0.0f;
+	for (const Deck &d : s.decks) n += d.intruders;
+	return static_cast<int>(std::ceil(n - 1e-4f));
+}
+
+Breach MakeBreach(uint32_t seed)
+{
+	static const char *const CODES[] = {"1C", "55", "7A", "BD", "E9", "FF"};
+	Breach b;
+	uint32_t r = seed ? seed : 1;
+	auto next = [&r]() { r = r * 1664525u + 1013904223u; return r >> 10; };
+	for (int i = 0; i < b.size * b.size; ++i) b.grid.push_back(CODES[next() % 6]);
+	// Targets are laid along a legal path through the grid, so every puzzle can be solved in full:
+	// one walk of `buffer` cells, cut into a short, a medium and a long sequence that overlap.
+	std::vector<int> path;
+	std::vector<bool> used(b.grid.size(), false);
+	int row = 0, col = static_cast<int>(next() % b.size);
+	for (int step = 0; step < b.buffer; ++step) {
+		int cell = row * b.size + col;
+		for (int tries = 0; used[cell] && tries < b.size; ++tries) { // slide along the line to a free cell
+			if (step % 2 == 0) col = (col + 1) % b.size; else row = (row + 1) % b.size;
+			cell = row * b.size + col;
+		}
+		used[cell] = true;
+		path.push_back(cell);
+		if (step % 2 == 0) row = static_cast<int>(next() % b.size); else col = static_cast<int>(next() % b.size);
+	}
+	auto slice = [&](int from, int n) {
+		std::vector<std::string> t;
+		for (int i = from; i < from + n; ++i) t.push_back(b.grid[path[i]]);
+		return t;
+	};
+	b.targets = {slice(0, 2), slice(1, 3), slice(3, 4)};
+	return b;
+}
+
+float BreachScore(const Breach &b, const std::vector<int> &picks)
+{
+	const int cells = b.size * b.size;
+	if (picks.empty() || static_cast<int>(picks.size()) > b.buffer || static_cast<int>(b.grid.size()) != cells) return 0.0f;
+	std::vector<bool> used(cells, false);
+	for (size_t i = 0; i < picks.size(); ++i) {
+		const int c = picks[i];
+		if (c < 0 || c >= cells || used[c]) return 0.0f;
+		used[c] = true;
+		if (i == 0) { if (c / b.size != 0) return 0.0f; continue; }          // start in the top row
+		const int p = picks[i - 1];
+		if (i % 2 == 1 ? c % b.size != p % b.size : c / b.size != p / b.size) return 0.0f; // down a column, then along a row
+	}
+	float got = 0.0f, total = 0.0f;
+	for (size_t t = 0; t < b.targets.size(); ++t) {
+		const std::vector<std::string> &want = b.targets[t];
+		const float value = static_cast<float>(t + 1);
+		total += value;
+		for (size_t at = 0; at + want.size() <= picks.size(); ++at) {
+			bool match = true;
+			for (size_t k = 0; k < want.size() && match; ++k) match = b.grid[picks[at + k]] == want[k];
+			if (match) { got += value; break; }
+		}
+	}
+	return total > 0.0f ? got / total : 0.0f;
 }
 
 void SetSourceOnline(Ship &s, SourceId id, bool on)
@@ -511,14 +681,14 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.F(s.cfg.dayScale);
 	w.U64(static_cast<uint64_t>(std::llround(s.clock * 1000.0)));
 	w.U8(s.alert);
-	for (const System &sys : s.systems) { w.F(sys.health); w.U8(sys.enabled); w.U16(static_cast<uint16_t>(sys.priority)); }
+	for (const System &sys : s.systems) { w.F(sys.health); w.U8(sys.enabled); w.U16(static_cast<uint16_t>(sys.priority)); w.F(sys.control); }
 	for (const Source &src : s.sources) { w.F(src.health); w.U8(src.online); }
-	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); }
+	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); w.F(d.intruders); }
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
 	w.F(s.stores.spareParts);
 	// Names, types, departments and stations come back from the seed; only what changes is stored.
-	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); }
+	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); }
 	return w.b;
 }
 
@@ -542,9 +712,9 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	const uint8_t alert = r.U8();
 	if (alert > ALERT_RED) return false;
 	s.alert = static_cast<Alert>(alert);
-	for (System &sys : s.systems) { sys.health = r.Unit(); sys.enabled = r.U8() != 0; sys.priority = static_cast<int16_t>(r.U16()); }
+	for (System &sys : s.systems) { sys.health = r.Unit(); sys.enabled = r.U8() != 0; sys.priority = static_cast<int16_t>(r.U16()); sys.control = r.Unit(); }
 	for (Source &src : s.sources) { src.health = r.Unit(); src.online = r.U8() != 0; }
-	for (Deck &d : s.decks) { d.atmosphere = r.Unit(); d.hull = r.Unit(); }
+	for (Deck &d : s.decks) { d.atmosphere = r.Unit(); d.hull = r.Unit(); d.intruders = r.F(); if (!(d.intruders >= 0.0f && d.intruders <= 10000.0f)) return false; }
 	s.stores.deuterium = r.Unit(); s.stores.antimatter = r.Unit(); s.stores.batteries = r.Unit();
 	s.stores.torpedoes = r.U16();
 	s.stores.spareParts = r.F();
@@ -556,6 +726,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		c.post = r.U8();
 		c.exposure = r.F();
 		c.recovery = r.Unit();
+		c.wounds = r.Unit();
 		if (!(c.exposure >= 0.0f && c.exposure <= 1.0e6f)) return false;
 		if (c.status > CREW_ASSIMILATED || c.watch >= WATCHES || c.post > SYS_COUNT) return false;
 	}
@@ -592,6 +763,11 @@ std::string Describe(const Ship &s)
 		s.PowerAvailable(), s.PowerAllocated(), s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes,
 		s.stores.spareParts);
 	out += line;
+	for (int d = 0; d < DECKS; ++d) {
+		if (s.decks[d].intruders <= 0.0f) continue;
+		std::snprintf(line, sizeof(line), "  INTRUDERS deck %d: %.0f, opposed by %d\n", d + 1, std::ceil(s.decks[d].intruders), s.decks[d].defenders);
+		out += line;
+	}
 	for (int i = 0; i < SRC_COUNT; ++i) {
 		std::snprintf(line, sizeof(line), "  source %-22s %4d of %4d  health %3.0f%%%s\n", SOURCES[i].name, s.sources[i].output,
 			SOURCES[i].capacity, s.sources[i].health * 100, s.sources[i].online ? "" : "  OFFLINE");
@@ -602,6 +778,11 @@ std::string Describe(const Ship &s)
 		std::snprintf(line, sizeof(line), "  %-24s deck %2d  power %3d/%3d  manned %d/%d  health %3.0f%%  output %3.0f%%%s%s\n", SPECS[i].name,
 			SPECS[i].deck, sys.allocated, SPECS[i].demand, sys.manned, SPECS[i].crewNeeded, sys.health * 100, sys.output * 100,
 			sys.enabled ? "" : "  OFF", sys.repairing ? "  UNDER REPAIR" : "");
+		if (sys.control < 1.0f) {
+			out.erase(out.size() - 1);
+			std::snprintf(line, sizeof(line), "  control %3.0f%%%s\n", sys.control * 100, sys.control < HIJACKED ? "  HIJACKED" : "");
+			out += line;
+		}
 		out += line;
 	}
 	return out;

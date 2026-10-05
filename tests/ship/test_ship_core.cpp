@@ -337,7 +337,7 @@ static void TestSave()
 	Tick(s, Hours(s, 5.5f));
 
 	const std::vector<uint8_t> blob = Pack(s);
-	CHECK(blob.size() < 3072); // the whole ship and its 141 crew
+	CHECK(blob.size() < 4096); // the whole ship and its 141 crew
 	Ship back;
 	CHECK(Unpack(blob.data(), blob.size(), back));
 	CHECK(Pack(back) == blob);
@@ -471,6 +471,150 @@ static void TestCasualties()
 	CHECK(CrewOnDeck(held, 1).size() < CrewOnDeck(NewShip(), 1).size() + 1);
 }
 
+// S7. Boarders take systems; the crew take them back.
+static void TestBoarding()
+{
+	g_test = "boarding and control";
+	// Unopposed: no security left aboard. Two boarders on deck 8 work at the sensors.
+	Ship s = NewShip();
+	for (CrewMember &c : s.crew)
+		if (c.dept == DEPT_SECURITY && c.post == SYS_COUNT) c.status = CREW_DEAD;
+	Board(s, 8, 2);
+	CHECK(Intruders(s) == 2);
+	Tick(s, Hours(s, 2.0f / 60.0f)); // two minutes
+	CHECK(s.systems[SYS_SENSORS].control < 1.0f && !Hijacked(s, SYS_SENSORS));
+	CHECK(s.systems[SYS_WARP_DRIVE].control == 1.0f); // they are not on deck 11
+	Tick(s, Hours(s, 3.0f / 60.0f));
+	CHECK(Hijacked(s, SYS_SENSORS));
+	CHECK(s.systems[SYS_SENSORS].output == 0.0f && s.systems[SYS_SENSORS].allocated > 0); // it runs, but not for us
+
+	// A hijacked system refuses its console.
+	SetEnabled(s, SYS_SENSORS, false);
+	SetPriority(s, SYS_SENSORS, -9);
+	CHECK(s.systems[SYS_SENSORS].enabled && s.systems[SYS_SENSORS].priority == Spec(SYS_SENSORS).priority);
+
+	// A counter-hack takes it back for a while -- and with the boarders still there, they take it again.
+	CounterHack(s, SYS_SENSORS, 1.0f);
+	CHECK(!Hijacked(s, SYS_SENSORS));
+	Tick(s, Hours(s, 5.0f / 60.0f));
+	CHECK(Hijacked(s, SYS_SENSORS));
+
+	// Cutting its power denies it to both sides: control stops moving.
+	CounterHack(s, SYS_SENSORS, 1.0f);
+	SetEnabled(s, SYS_SENSORS, false);
+	const float frozen = s.systems[SYS_SENSORS].control;
+	Tick(s, Hours(s, 10.0f / 60.0f));
+	CHECK(s.systems[SYS_SENSORS].control == frozen);
+
+	// Security answers a boarding, wears it down, and is hurt doing it. Then the crew win the system back.
+	Ship d = NewShip();
+	Board(d, 8, 2);
+	Tick(d, 1.0f);
+	CHECK(d.decks[7].defenders >= 3); // enough to outnumber them
+	int secOnEight = 0;
+	for (const CrewMember &c : d.crew)
+		if (c.dept == DEPT_SECURITY && c.deck == 8) ++secOnEight;
+	CHECK(secOnEight >= d.decks[7].defenders); // they went there (others may have quarters on the deck)
+	Tick(d, Hours(d, 6.0f / 60.0f));
+	CHECK(Intruders(d) == 0);
+	CHECK(!Hijacked(d, SYS_SENSORS)); // pinned by the defenders, the boarders never got to work
+	int hurt = 0;
+	float wounds = 0.0f;
+	for (const CrewMember &c : d.crew) {
+		if (c.status == CREW_INJURED) ++hurt;
+		wounds += c.wounds;
+	}
+	CHECK(wounds > 0.3f && hurt <= 3); // it cost something: wounds taken, though four against two put nobody out of it
+	d.systems[SYS_SENSORS].control = 0.2f; // as if they had taken it before being cleared
+	Tick(d, Hours(d, 30.0f / 60.0f));
+	CHECK(d.systems[SYS_SENSORS].control == 1.0f); // the station's own crew, uncontested, restore it
+	Tick(d, 1.0f);
+	CHECK(d.decks[7].defenders == 0); // and security stands down
+
+	// Boarders on a deck with nothing to take move on -- toward the bridge from deck 3.
+	Ship m = NewShip();
+	for (CrewMember &c : m.crew)
+		if (c.dept == DEPT_SECURITY) c.status = CREW_DEAD;
+	Board(m, 3, 4);
+	Tick(m, Hours(m, 1.5f));
+	CHECK(m.decks[2].intruders < 0.5f && m.decks[0].intruders > 3.0f);
+	CHECK(Intruders(m) == 4); // nobody was lost on the way
+	Tick(m, Hours(m, 0.5f));
+	CHECK(Hijacked(m, SYS_SHIELDS) && Hijacked(m, SYS_COMMUNICATIONS)); // the bridge is theirs
+
+	// Venting the deck kills boarders too.
+	Ship v = NewShip();
+	for (CrewMember &c : v.crew)
+		if (c.dept == DEPT_SECURITY) c.status = CREW_DEAD;
+	Board(v, 9, 3);
+	BreachDeck(v, 9, 1.0f);
+	Tick(v, Hours(v, 0.5f));
+	CHECK(v.decks[8].intruders == 0.0f); // none left alive on the vented deck
+	CHECK(Intruders(v) < 3);             // (some had taken the torpedo bay and moved on before the air went)
+
+	// And it is all in the save.
+	Ship w = NewShip();
+	Board(w, 8, 3);
+	Tick(w, Hours(w, 1.0f / 60.0f));
+	w.systems[SYS_SENSORS].control = 0.3f;
+	const std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(Hijacked(back, SYS_SENSORS) && Intruders(back) == Intruders(w));
+	CHECK(Describe(back) == Describe(w));
+}
+
+static void TestBreachPuzzle()
+{
+	g_test = "the breach puzzle";
+	for (uint32_t seed = 1; seed <= 40; ++seed) {
+		const Breach b = MakeBreach(seed);
+		CHECK(static_cast<int>(b.grid.size()) == b.size * b.size && b.targets.size() == 3);
+		CHECK(b.targets[0].size() == 2 && b.targets[1].size() == 3 && b.targets[2].size() == 4);
+
+		// Every puzzle can be solved in full: search the legal paths for one that scores 1.
+		float best = 0.0f;
+		std::vector<int> path;
+		struct Search {
+			const Breach &b; float &best; std::vector<int> &path;
+			void Go(std::vector<bool> &used) {
+				if (best >= 1.0f) return;
+				if (!path.empty()) { const float sc = BreachScore(b, path); if (sc > best) best = sc; }
+				if (static_cast<int>(path.size()) >= b.buffer) return;
+				for (int k = 0; k < b.size; ++k) {
+					int cell;
+					if (path.empty()) cell = k;
+					else if (path.size() % 2 == 1) cell = k * b.size + path.back() % b.size;
+					else cell = (path.back() / b.size) * b.size + k;
+					if (used[cell]) continue;
+					used[cell] = true; path.push_back(cell);
+					Go(used);
+					path.pop_back(); used[cell] = false;
+				}
+			}
+		} search{b, best, path};
+		std::vector<bool> used(b.grid.size(), false);
+		search.Go(used);
+		CHECK(best == 1.0f);
+
+		// The same seed is the same puzzle.
+		const Breach again = MakeBreach(seed);
+		CHECK(again.grid == b.grid && again.targets == b.targets);
+	}
+	CHECK(MakeBreach(1).grid != MakeBreach(2).grid);
+
+	// The rules of the path.
+	const Breach b = MakeBreach(7);
+	CHECK(BreachScore(b, {}) == 0.0f);
+	CHECK(BreachScore(b, {5}) == 0.0f);                 // must start in the top row
+	CHECK(BreachScore(b, {0, 1}) == 0.0f);              // the second pick goes down the column, not along the row
+	CHECK(BreachScore(b, {0, 5, 0}) == 0.0f);           // no cell twice
+	CHECK(BreachScore(b, {0, 5, 6, 1, 2, 7, 8, 3}) == 0.0f); // longer than the buffer
+	CHECK(BreachScore(b, {0, 99}) == 0.0f);
+	const float partial = BreachScore(b, {0, 5});       // a legal path scores what it contains, perhaps nothing
+	CHECK(partial >= 0.0f && partial <= 1.0f);
+}
+
 static void TestStations()
 {
 	g_test = "stations";
@@ -562,6 +706,8 @@ int main(int argc, char **argv)
 	TestCrewOnDeck();
 	TestDamageControl();
 	TestCasualties();
+	TestBoarding();
+	TestBreachPuzzle();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

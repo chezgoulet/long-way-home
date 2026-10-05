@@ -77,6 +77,7 @@ struct System {
 	int allocated = 0;      // EPS units granted this tick
 	int manned = 0;         // on-duty crew at the station this tick
 	int repairing = 0;      // damage-control crew working on it this tick
+	float control = 1.0f;   // 1 = the crew's, 0 = the intruders'; below HIJACKED it answers to them, not to us
 	float output = 0.0f;    // 0..1: what the system is actually delivering
 };
 
@@ -95,6 +96,8 @@ struct Source {
 struct Deck {
 	float atmosphere = 1.0f; // 0 vacuum .. 1 breathable
 	float hull = 1.0f;       // 0 open to space .. 1 intact
+	float intruders = 0.0f;  // hostile boarders on this deck (fractional while a fight wears them down)
+	int defenders = 0;       // security crew fighting here this tick
 };
 
 struct Stores {
@@ -121,6 +124,7 @@ struct CrewMember {
 	uint8_t status = CREW_FIT;
 	float fatigue = 0.0f;    // 0 rested .. 1 exhausted
 	float exposure = 0.0f;   // seconds spent on a deck without air; injures, then kills
+	float wounds = 0.0f;     // 0..1 taken fighting boarders; at 1 they are out of the fight, injured
 	float recovery = 0.0f;   // 0..1 progress of an injured crew member's treatment
 
 	// derived each tick
@@ -197,10 +201,49 @@ const int SICKBAY_BEDS = 6;                  // treated at once [inv]
 const float TREATMENT_HOURS = 12.0f;         // per patient, with sickbay at full output [inv]
 const int SICKBAY_DECK = 5;
 
+// ---- intruders and control of the ship's systems (S7) ----------------------------------------------
+//
+// Boarders arrive on a deck. Those on a deck with a system's station work at taking it: its control
+// falls, and below HIJACKED the system no longer answers to the crew -- it delivers nothing to the
+// ship and refuses the consoles -- until it is won back. Control is won back by the crew at the
+// station (slowly, by itself), by a successful counter-hack (CounterHack, fed by the breach puzzle),
+// or by there being nobody left to hold it. Cutting a system's power stops both sides.
+// Security crew on duty who stand no station go to where the boarders are and fight. Boarders who
+// find nothing to take on their deck move on toward the bridge or Main Engineering.
+
+const float HIJACKED = 0.5f;
+const float HACK_MINUTES = 10.0f;        // one boarder, unopposed, takes a system from the crew in this [inv]
+const float RETAKE_MINUTES = 20.0f;      // a full station crew wins an uncontested system back in this [inv]
+const float FIGHT_MINUTES = 4.0f;        // one defender accounts for one boarder in this, and the reverse [inv]
+const float ADVANCE_MINUTES = 15.0f;     // boarders with nothing to take move a deck in this [inv]
+const int BRIDGE_DECK = 1;
+const int ENGINEERING_DECK = 11;
+
+void Board(Ship &s, int deck, int boarders);
+// A counter-hack at a console: `strength` 0..1 is how well the operator did (BreachScore).
+void CounterHack(Ship &s, SystemId id, float strength);
+bool Hijacked(const Ship &s, SystemId id);
+int Intruders(const Ship &s);            // aboard, all decks, rounded up
+
+// The breach puzzle. A square grid of two-character codes and a set of target sequences. The
+// operator picks cells alternately along a row and then a column, starting in the top row, without
+// reusing a cell, up to `buffer` picks; every target sequence that appears in the picks, in order
+// and unbroken, counts. Deterministic for a seed, so the screen and a test see the same puzzle.
+struct Breach {
+	int size = 5;
+	int buffer = 7;
+	std::vector<std::string> grid;                   // size * size codes, row by row
+	std::vector<std::vector<std::string>> targets;   // each a sequence of codes; later ones are longer and worth more
+};
+Breach MakeBreach(uint32_t seed);
+// `picks` are cell indices (row * size + column). Returns 0 for an illegal path, otherwise the
+// fraction of the total target value achieved, 0..1.
+float BreachScore(const Breach &b, const std::vector<int> &picks);
+
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 2;   // 2: spare parts, exposure, recovery
+const uint16_t SAVE_VERSION = 3;   // 2: spare parts, exposure, recovery; 3: system control, intruders
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.
