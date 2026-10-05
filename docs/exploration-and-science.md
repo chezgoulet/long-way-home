@@ -82,6 +82,68 @@ info -- so the board has a shipped home to grow into.
 rotation, a lab backlog in the job queue. That is where the two halves of the game meet: the same crew hours
 that could repair a conduit could instead chart a system, and the ship is always behind on both.
 
+## The constraint that forces exploration: dilithium
+
+The owner's addition, and it is the ratchet the whole game needs: **the ship cannot go home without finding
+dilithium, and finding it means exploring.** Canon supplies the numbers, which is what makes it a mechanic
+rather than a mood.
+
+### What canon actually says
+
+- Dilithium moderates the matter/antimatter reaction. It **fractures** under use, and fractured crystals can
+  be **recomposited** with a theta-matrix compositor *while still in the warp core's articulation frame*,
+  which "significantly increased the lifespan of a dilithium crystal, but **occasional replacement was still
+  necessary**". (Memory Alpha, *Dilithium*.)
+- **An Intrepid-class warp core could last up to three years before refuelling.** That is Voyager's
+  refuelling interval, and it is the single most useful number in this document.
+- **In 2372 Voyager discovered a new form of dilithium in the Delta Quadrant** that stayed stable at much
+  higher reaction rates, allowing far more efficient travel at high speed; it was installed aboard a
+  shuttlecraft. So **finding better dilithium through exploration is canon**, not our invention.
+- Recrystallisation is not universally available and access to it has been restricted -- so a facility that
+  buys back crystal life is a *capability the ship has to hold onto*, not a free action.
+
+### The arithmetic that makes it legible
+
+Seventy-five thousand light years at warp 6.2 is about **seventy-five years**. Three years per refuelling
+means the crossing needs roughly **twenty-five crystal supplies**, which puts each one at roughly **three
+thousand light years of progress**.
+
+That gives the game the scoreboard it has been missing: not a fuel gauge, but *this crystal is worth three
+thousand light years*. Every decision can be expressed in the same unit as the goal.
+
+### The loop
+
+1. **Decline.** Crystal integrity falls with warp use, faster at high warp -- so the captain's speed choices
+   directly spend the ship's future. This is the same coupling as the warp-damage thresholds, and it means
+   "run hard to escape" and "run easy to last" are one decision, not two.
+2. **Recomposite.** Engineering can buy back most of the loss in the articulation frame -- a **maintenance
+   job** in the crew economy, costing crew hours and a facility, and giving the warp core the same texture
+   as every other system: watched, worked on, argued about.
+3. **Replace.** Eventually recomposition stops being enough and the ship needs *new* crystal, which is not
+   aboard. So she must locate a source, which means **survey, chart, detour** -- the exploration mechanics,
+   now with a reason nobody can ignore.
+4. **Acquire, five ways, five stories.** Mine it (an away mission into a hazard); trade for it (canon's
+   rule: the price is never only material); salvage it (derelicts, wrecks, someone else's bad luck); take it
+   (reputation, and the crew will remember); or **research it** -- the lab's payoff, because a better crystal
+   is a permanent improvement, not a refill.
+5. **Improve.** A superior crystal raises efficiency, which *shortens the journey*. This is the one positive
+   loop in an otherwise degrading game, and it is canon. Exploration must be able to make the ship better,
+   or the whole design is only about losing slowly.
+
+### The failure state is immobility, not death
+
+With no dilithium there is no warp. The ship can still run sublight, still repair, still explore locally,
+still keep her people alive -- **but home stops getting closer.** That is the correct failure for this
+programme: it is attrition rather than a game over, it leaves the player with something to do, and a crew
+who strand themselves through a series of bad calls have earned an ending rather than a bug.
+
+### Why this is the keystone
+
+It makes the two halves of the game the same game. Science and exploration are no longer an optional mode
+alongside survival -- they are **how survival is paid for**. The chart is the map of where the fuel is. The
+crew hours spent surveying are the same hours that could have sealed a hull breach. And the number that
+measures everything, in the end, is a single one: **how far is left.**
+
 ## What each mechanic needs
 
 - **Scan, chart, course:** tier 2 sensors, plus a `chart` table and a distance-remaining number.
