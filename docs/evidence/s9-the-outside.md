@@ -40,9 +40,10 @@ Engineering are S6 and S7 running because S9 gave them something to do.
 
 ## What S9 still needs
 
-- **Anything to see or hear**: a viewscreen, the ship shaking, an alert klaxon, a sector map on the
-  Conn console, weapons control on Tactical. The consoles of S4 are where this is operated from;
-  today it is console commands.
+- **On the consoles: done in outline** (`scripts/s9-check.sh`). Tactical shows the contact's hull
+  and shields and our own shields, and fires torpedoes; the Conn lists the beacons one jump away
+  and jumps. Every console shows boarders and assimilated decks.
+- **Anything else to see or hear**: a viewscreen, the ship shaking, an alert klaxon, a drawn map.
 - **An opponent with systems of its own** (targetable shields, weapons, engines) rather than three
   numbers; more than one kind; more than one at a time.
 - **Choices at a beacon** — hail, trade, run, answer a distress call — and the pressure director the

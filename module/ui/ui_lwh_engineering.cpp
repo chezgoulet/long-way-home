@@ -23,7 +23,7 @@ const int MAX_SOURCES = 8;
 
 struct SystemRow {
 	char name[32];
-	int allocated, demand, health, output, manned, need, enabled, priority, station;
+	int allocated, demand, health, output, manned, need, enabled, priority, station, control;
 };
 
 struct SourceRow {
@@ -41,7 +41,16 @@ struct Screen {
 	char header[128];
 	char stores[128];
 	int alert;
+
+	// the breach puzzle, while a counter-hack is in progress at this console
+	bool breaching;
+	char codes[25][4];
+	char targets[160];
+	int picks[8], npicks;
+	int line;           // the cell the cursor is on, within the row or column the rules allow
 } screen;
+
+const int BREACH_SIZE = 5, BREACH_BUFFER = 7;
 
 // "name|a b c ..." -- the name may contain spaces, the numbers follow the bar.
 bool ReadRow( const char *cvar, char *name, int nameSize, int *out, int count )
@@ -77,10 +86,10 @@ void Refresh( void )
 	for ( int i = 0; i < MAX_SYSTEMS; ++i )
 	{
 		SystemRow &r = screen.sys[screen.systems];
-		int v[9];
-		if ( !ReadRow( va( "lwh_ship_sys%d", i ), r.name, sizeof( r.name ), v, 9 ) ) break;
+		int v[10];
+		if ( !ReadRow( va( "lwh_ship_sys%d", i ), r.name, sizeof( r.name ), v, 10 ) ) break;
 		r.allocated = v[0]; r.demand = v[1]; r.health = v[2]; r.output = v[3];
-		r.manned = v[4]; r.need = v[5]; r.enabled = v[6]; r.priority = v[7]; r.station = v[8];
+		r.manned = v[4]; r.need = v[5]; r.enabled = v[6]; r.priority = v[7]; r.station = v[8]; r.control = v[9];
 		// a station shows the systems it operates; Engineering distributes power to all of them
 		if ( screen.station == 0 || r.station == screen.station ) ++screen.systems;
 	}
@@ -111,9 +120,114 @@ int HealthColour( int percent )
 	return percent >= 75 ? CT_LTBLUE1 : percent >= 35 ? CT_LTORANGE : CT_RED;
 }
 
+// ---- the breach puzzle ----------------------------------------------------------------------
+//
+// The rules are the ship's (ship_core: MakeBreach, BreachScore). This presents the grid she
+// published, lets the operator walk it the way the rules allow -- along the top row first, then
+// down a column, then along a row, and so on -- and sends her the picks to score.
+
+int BreachCell( void )
+{//the cell under the cursor: the first pick moves along the top row, odd picks down the last pick's column, even along its row
+	if ( screen.npicks == 0 ) return screen.line;
+	const int last = screen.picks[screen.npicks - 1];
+	return screen.npicks % 2 == 1 ? screen.line * BREACH_SIZE + last % BREACH_SIZE : ( last / BREACH_SIZE ) * BREACH_SIZE + screen.line;
+}
+
+bool BreachPicked( int cell )
+{
+	for ( int i = 0; i < screen.npicks; ++i )
+		if ( screen.picks[i] == cell ) return true;
+	return false;
+}
+
+void BreachBegin( void )
+{
+	char grid[256];
+	ui.Cvar_VariableStringBuffer( "lwh_breach_grid", grid, sizeof( grid ) );
+	ui.Cvar_VariableStringBuffer( "lwh_breach_targets", screen.targets, sizeof( screen.targets ) );
+	int n = 0;
+	for ( char *tok = strtok( grid, " " ); tok && n < 25; tok = strtok( NULL, " " ) ) Q_strncpyz( screen.codes[n++], tok, sizeof( screen.codes[0] ) );
+	if ( n != 25 ) return; //the ship has published nothing: stay on the station
+	screen.breaching = true;
+	screen.npicks = 0;
+	screen.line = 0;
+}
+
+void BreachSubmit( void )
+{
+	char cmd[128] = "ship solve";
+	for ( int i = 0; i < screen.npicks; ++i ) Q_strcat( cmd, sizeof( cmd ), va( " %d", screen.picks[i] ) );
+	screen.breaching = false;
+	ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship as %d %s\n", screen.station, cmd + 5 ) );
+}
+
+bool BreachAct( int key )
+{
+	switch ( key )
+	{
+	case K_LEFTARROW: case K_UPARROW:
+		screen.line = ( screen.line + BREACH_SIZE - 1 ) % BREACH_SIZE;
+		return true;
+	case K_RIGHTARROW: case K_DOWNARROW:
+		screen.line = ( screen.line + 1 ) % BREACH_SIZE;
+		return true;
+	case K_ENTER: case K_KP_ENTER:
+		if ( BreachPicked( BreachCell() ) ) return true; //a cell is used once
+		screen.picks[screen.npicks++] = BreachCell();
+		screen.line = 0;
+		if ( screen.npicks >= BREACH_BUFFER ) BreachSubmit();
+		return true;
+	case 's': case 'S':
+		if ( screen.npicks ) BreachSubmit();
+		return true;
+	case K_ESCAPE:
+		screen.breaching = false; //abandoned: nothing is sent
+		return true;
+	}
+	return true;
+}
+
+void BreachDraw( void )
+{
+	char system[64];
+	ui.Cvar_VariableStringBuffer( "lwh_breach_system", system, sizeof( system ) );
+	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
+	UI_FillRect( 20, 16, 600, 22, colorTable[CT_RED] );
+	UI_DrawProportionalString( 44, 19, va( "INTRUSION COUNTERMEASURES  -  %s", system ), UI_SMALLFONT, colorTable[CT_BLACK] );
+	UI_DrawProportionalString( 44, 60, "CODE MATRIX", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	const int cursor = BreachCell();
+	for ( int c = 0; c < 25; ++c )
+	{
+		const int x = 60 + ( c % BREACH_SIZE ) * 56, y = 84 + ( c / BREACH_SIZE ) * 44;
+		const bool picked = BreachPicked( c );
+		// the line the rules allow the next pick from
+		bool allowed;
+		if ( screen.npicks == 0 ) allowed = c / BREACH_SIZE == 0;
+		else if ( screen.npicks % 2 == 1 ) allowed = c % BREACH_SIZE == screen.picks[screen.npicks - 1] % BREACH_SIZE;
+		else allowed = c / BREACH_SIZE == screen.picks[screen.npicks - 1] / BREACH_SIZE;
+		if ( c == cursor ) UI_FillRect( x - 8, y - 6, 48, 34, colorTable[CT_DKPURPLE2] );
+		UI_DrawProportionalString( x, y, screen.codes[c], UI_SMALLFONT,
+			colorTable[picked ? CT_DKGREY : c == cursor ? CT_WHITE : allowed ? CT_LTGOLD1 : CT_LTPURPLE1] );
+	}
+	UI_DrawProportionalString( 380, 60, "SEQUENCES REQUIRED", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	{
+		char copy[160];
+		Q_strncpyz( copy, screen.targets, sizeof( copy ) );
+		int row = 0;
+		for ( char *seq = strtok( copy, "|" ); seq; seq = strtok( NULL, "|" ), ++row )
+			UI_DrawProportionalString( 380, 84 + row * 28, seq, UI_SMALLFONT, colorTable[CT_LTBLUE1] );
+	}
+	UI_DrawProportionalString( 44, 330, va( "BUFFER  %d / %d", screen.npicks, BREACH_BUFFER ), UI_TINYFONT, colorTable[CT_LTORANGE] );
+	for ( int i = 0; i < screen.npicks; ++i )
+		UI_DrawProportionalString( 60 + i * 56, 348, screen.codes[screen.picks[i]], UI_SMALLFONT, colorTable[CT_WHITE] );
+	UI_DrawProportionalString( 44, 426, "ARROWS move along the lit line   ENTER take the code   S send what you have   ESC abandon",
+		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+}
+
 void Draw( void )
 {
 	Refresh();
+	if ( screen.breaching ) { BreachDraw(); return; }
 
 	static const int ALERT_COLOUR[3] = { CT_LTBLUE1, CT_YELLOW, CT_RED };
 	const int alertColour = ALERT_COLOUR[screen.alert >= 0 && screen.alert < 3 ? screen.alert : 0];
@@ -132,6 +246,26 @@ void Draw( void )
 	char refusal[128];
 	ui.Cvar_VariableStringBuffer( "lwh_ship_refusal", refusal, sizeof( refusal ) );
 	if ( refusal[0] ) UI_DrawProportionalString( 44, 412, va( "REFUSED: %s", refusal ), UI_TINYFONT, colorTable[CT_RED] );
+
+	// What is aboard that should not be, on every console; the outside, where it is worked from.
+	char line[256];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_aboard", line, sizeof( line ) );
+	if ( line[0] ) UI_DrawProportionalString( 44, 72, line, UI_TINYFONT, colorTable[CT_RED] );
+	if ( screen.station == 1 )
+	{
+		ui.Cvar_VariableStringBuffer( "lwh_ship_enemy", line, sizeof( line ) );
+		UI_DrawProportionalString( 44, 384, line[0] ? line : "NO CONTACTS", UI_SMALLFONT, colorTable[line[0] ? CT_RED : CT_LTBLUE1] );
+		UI_DrawProportionalString( 44, 398, va( "OUR SHIELDS %d%%", static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_shields" ) ) ),
+			UI_TINYFONT, colorTable[CT_LTGOLD1] );
+	}
+	if ( screen.station == 3 )
+	{
+		ui.Cvar_VariableStringBuffer( "lwh_ship_chart", line, sizeof( line ) );
+		UI_DrawProportionalString( 44, 384, line, UI_TINYFONT, colorTable[CT_LTGOLD1] );
+	}
+	char result[16];
+	ui.Cvar_VariableStringBuffer( "lwh_breach_result", result, sizeof( result ) );
+	if ( result[0] ) UI_DrawProportionalString( 320, 398, va( "LAST COUNTERMEASURE: %s%% EFFECTIVE", result ), UI_TINYFONT, colorTable[CT_LTBLUE1] );
 
 	if ( !screen.systems )
 	{
@@ -168,15 +302,17 @@ void Draw( void )
 		Bar( 252, y + 2, 100, 8, r.demand ? r.allocated * 100 / r.demand : 0, CT_LTBLUE1 );
 		UI_DrawProportionalString( 358, y, r.enabled ? va( "%d/%d", r.allocated, r.demand ) : "OFF", UI_TINYFONT, colorTable[text] );
 		Bar( 400, y + 2, 100, 8, r.output, HealthColour( r.health ) );
-		UI_DrawProportionalString( 520, y, va( "%3d%%", r.health ), UI_TINYFONT, colorTable[HealthColour( r.health )] );
+		if ( r.control < 50 ) UI_DrawProportionalString( 520, y, "HIJACKED", UI_TINYFONT, colorTable[CT_RED] );
+		else UI_DrawProportionalString( 520, y, va( "%3d%%", r.health ), UI_TINYFONT, colorTable[HealthColour( r.health )] );
 		UI_DrawProportionalString( 584, y, va( "%d/%d", r.manned, r.need ), UI_TINYFONT,
 			colorTable[r.manned >= r.need ? CT_LTBLUE1 : CT_RED] );
 	}
 
 	UI_DrawProportionalString( 44, 426, screen.station == 0
 		? "UP/DOWN select   ENTER on/off   LEFT/RIGHT priority   1 2 3 condition green/yellow/red   ESC leave"
-		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   1 2 3 condition green/yellow/red   ESC leave"
-		: "UP/DOWN select   ENTER on/off   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   1 2 3 condition   F fire torpedo   H countermeasures   ESC leave"
+		: screen.station == 3 ? "UP/DOWN select   ENTER on/off   J K L jump to the first, second, third beacon listed   H countermeasures   ESC leave"
+		: "UP/DOWN select   ENTER on/off   H countermeasures   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
 // One operator action. Shared by the keyboard and by the `lwh_eng_key` command, so that what a
@@ -184,6 +320,7 @@ void Draw( void )
 bool Act( int key )
 {
 	Refresh();
+	if ( screen.breaching ) return BreachAct( key );
 	if ( !screen.systems ) return false;
 	const SystemRow &r = screen.sys[screen.cursor];
 	switch ( key )
@@ -212,6 +349,20 @@ bool Act( int key )
 			++screen.cursor;
 		}
 		return true;
+	case 'f': case 'F': Send( "ship fire" ); return true;
+	case 'h': case 'H': // countermeasures on the selected system: ask the ship for a puzzle, then present it
+		Send( va( "ship breach \"%s\"", r.name ) );
+		ui.Cmd_ExecuteText( EXEC_APPEND, "lwh_eng_key breachopen\n" ); //after the ship has published it
+		return true;
+	case 'j': case 'J': case 'k': case 'K': case 'l': case 'L':
+	{
+		char links[64];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_links", links, sizeof( links ) );
+		int want = ( key | 32 ) - 'j', n = 0;
+		for ( char *tok = strtok( links, " " ); tok; tok = strtok( NULL, " " ), ++n )
+			if ( n == want ) { Send( va( "ship jump %s", tok ) ); break; }
+		return true;
+	}
 	// whether this station, and this operator, may call the alert is the ship's to say
 	case '1': Send( "ship alert green" ); return true;
 	case '2': Send( "ship alert yellow" ); return true;
@@ -222,6 +373,7 @@ bool Act( int key )
 
 sfxHandle_t Key( int key )
 {
+	if ( screen.breaching ) { BreachAct( key ); return menu_null_sound; } //ESC abandons the puzzle, not the console
 	if ( Act( key ) ) return menu_null_sound;
 	return Menu_DefaultKey( &screen.menu, key ); // ESC and the rest
 }
@@ -230,6 +382,7 @@ void Open( int station )
 {
 	screen.station = station;
 	screen.cursor = 0;
+	screen.breaching = false;
 	memset( &screen.menu, 0, sizeof( screen.menu ) );
 	screen.menu.draw = Draw;
 	screen.menu.key = Key;
@@ -251,6 +404,7 @@ int KeyByName( const char *name )
 	if ( !Q_stricmp( name, "left" ) ) return K_LEFTARROW;
 	if ( !Q_stricmp( name, "right" ) ) return K_RIGHTARROW;
 	if ( !Q_stricmp( name, "enter" ) ) return K_ENTER;
+	if ( !Q_stricmp( name, "escape" ) ) return K_ESCAPE;
 	return name[0] && !name[1] ? name[0] : 0;
 }
 
@@ -292,7 +446,8 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 	{
 		char arg[32];
 		ui.Argv( 1, arg, sizeof( arg ) );
-		Act( KeyByName( arg ) );
+		if ( !Q_stricmp( arg, "breachopen" ) ) BreachBegin();
+		else Act( KeyByName( arg ) );
 		return qtrue;
 	}
 	return qfalse;

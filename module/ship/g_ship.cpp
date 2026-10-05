@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
+#include <cmath>
 #include <cstdlib>
 #include <ctime>
 #include <string>
@@ -36,6 +37,10 @@ cvar_t *g_shipTest;     // harness: 1 = act, report, save, quit; 2 = report what
 cvar_t *g_shipTestPos;
 cvar_t *g_shipTestPitch;
 cvar_t *g_shipTestWatch; // "x y z": report whether the trigger centred there has fired
+
+// A breach puzzle in progress at a console: which system it is for, and the puzzle itself.
+int breachSystem = -1;
+ship::Breach breach;
 
 bool active = false;
 bool tested = false;
@@ -128,6 +133,35 @@ void Publish( void )
 		gi.cvar_set( Fmt( "lwh_ship_src%d", i ).c_str(), Fmt( "%s|%d %d %d %d", SOURCES[i], src.output, CAPACITY[i],
 			static_cast<int>( src.health * 100 + 0.5f ), src.online ? 1 : 0 ).c_str() );
 	}
+	// The outside, for Tactical and the Conn.
+	gi.cvar_set( "lwh_ship_enemy", !vessel.enemy.present ? "" : Fmt( "%s   HULL %d%%   SHIELDS %d%%%s", vessel.enemy.borg ? "BORG VESSEL" : "HOSTILE VESSEL",
+		static_cast<int>( vessel.enemy.hull * 100 + 0.5f ), static_cast<int>( vessel.enemy.shields * 100 + 0.5f ),
+		vessel.enemy.hull <= 0.0f ? "   DESTROYED" : "" ).c_str() );
+	gi.cvar_set( "lwh_ship_shields", Fmt( "%d", static_cast<int>( vessel.shieldStrength * 100 + 0.5f ) ).c_str() );
+	{
+		static const char *const KINDS[] = { "EMPTY SPACE", "HOSTILE", "DERELICT", "BORG" };
+		std::string chart = Fmt( "AT BEACON %d OF %d.   JUMPS:", vessel.beacon, static_cast<int>( vessel.sector.size() ) - 1 );
+		std::string links;
+		for ( int l : vessel.sector[vessel.beacon].links )
+		{
+			chart += Fmt( "   [%d] %s", l, vessel.sector[l].visited ? KINDS[vessel.sector[l].kind] : "UNCHARTED" );
+			links += Fmt( "%d ", l );
+		}
+		gi.cvar_set( "lwh_ship_chart", chart.c_str() );
+		gi.cvar_set( "lwh_ship_links", links.c_str() );
+	}
+	{
+		std::string aboard;
+		for ( int d = 0; d < ship::DECKS; ++d )
+		{
+			if ( vessel.decks[d].intruders > 0.0f )
+				aboard += Fmt( "%s DECK %d: %d   ", vessel.decks[d].borg ? "BORG" : "INTRUDERS", d + 1, static_cast<int>( std::ceil( vessel.decks[d].intruders ) ) );
+			if ( vessel.decks[d].assimilated > 0.0f )
+				aboard += Fmt( "DECK %d %d%% ASSIMILATED   ", d + 1, static_cast<int>( vessel.decks[d].assimilated * 100 + 0.5f ) );
+		}
+		gi.cvar_set( "lwh_ship_aboard", aboard.c_str() );
+	}
+
 	int order[ship::SYS_COUNT];
 	for ( int i = 0; i < ship::SYS_COUNT; ++i ) order[i] = i;
 	std::stable_sort( order, order + ship::SYS_COUNT, []( int a, int b ) { return vessel.systems[a].priority < vessel.systems[b].priority; } );
@@ -135,9 +169,10 @@ void Publish( void )
 	{
 		const ship::System &sys = vessel.systems[order[k]];
 		const ship::SystemSpec &spec = ship::Spec( static_cast<ship::SystemId>( order[k] ) );
-		gi.cvar_set( Fmt( "lwh_ship_sys%d", k ).c_str(), Fmt( "%s|%d %d %d %d %d %d %d %d %d", spec.name, sys.allocated, spec.demand,
+		gi.cvar_set( Fmt( "lwh_ship_sys%d", k ).c_str(), Fmt( "%s|%d %d %d %d %d %d %d %d %d %d", spec.name, sys.allocated, spec.demand,
 			static_cast<int>( sys.health * 100 + 0.5f ), static_cast<int>( sys.output * 100 + 0.5f ), sys.manned, spec.crewNeeded,
-			sys.enabled ? 1 : 0, sys.priority, ship::StationOf( static_cast<ship::SystemId>( order[k] ) ) ).c_str() );
+			sys.enabled ? 1 : 0, sys.priority, ship::StationOf( static_cast<ship::SystemId>( order[k] ) ),
+			static_cast<int>( sys.control * 100 + 0.5f ) ).c_str() );
 	}
 }
 
@@ -187,6 +222,74 @@ void RunTest( void )
 			vessel.systems[ship::SYS_LIFE_SUPPORT].priority, vessel.systems[ship::SYS_STRUCTURAL_INTEGRITY].priority );
 		WriteReport( "ship/operated.txt" );
 		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 9 )
+	{//the consoles of S7 and S9: win a hijacked system back through the breach screen, jump, and fire
+		static int step = 0, nextKeyMs = 0;
+		static std::vector<std::string> keys;
+		if ( level.time < 1000 ) { step = 0; keys.clear(); }
+		auto at = [&]( int n, int ms ) { return step == n && level.time >= ms; };
+		if ( at( 0, 3000 ) ) { vessel.systems[ship::SYS_SENSORS].control = 0.2f; gi.SendConsoleCommand( "ui_ops\n" ); step = 1; }
+		if ( at( 1, 3400 ) ) { gi.SendConsoleCommand( "lwh_eng_key down\nlwh_eng_key down\nlwh_eng_key down\n" ); step = 2; }
+		if ( at( 2, 4000 ) ) { gi.SendConsoleCommand( "lwh_eng_key h\n" ); step = 3; }
+		if ( at( 3, 4600 ) )
+		{//solve the puzzle the ship published, by search, and turn the path into the operator's key presses
+			gi.SendConsoleCommand( "screenshot lwh_breach\n" );
+			std::vector<int> best, path;
+			float bestScore = -1.0f;
+			std::vector<bool> used( breach.grid.size(), false );
+			struct Search {
+				const ship::Breach &b; std::vector<int> &best, &path; float &bestScore; std::vector<bool> &used;
+				void Go() {
+					if ( bestScore >= 1.0f ) return;
+					if ( !path.empty() ) { const float sc = ship::BreachScore( b, path ); if ( sc > bestScore ) { bestScore = sc; best = path; } }
+					if ( static_cast<int>( path.size() ) >= b.buffer ) return;
+					for ( int k = 0; k < b.size; ++k ) {
+						const int cell = path.empty() ? k : path.size() % 2 == 1 ? k * b.size + path.back() % b.size : ( path.back() / b.size ) * b.size + k;
+						if ( used[cell] ) continue;
+						used[cell] = true; path.push_back( cell ); Go(); path.pop_back(); used[cell] = false;
+					}
+				}
+			} search{ breach, best, path, bestScore, used };
+			if ( breachSystem >= 0 ) search.Go();
+			for ( size_t i = 0; i < best.size(); ++i )
+			{
+				const int line = i == 0 ? best[0] : i % 2 == 1 ? best[i] / breach.size : best[i] % breach.size;
+				for ( int k = 0; k < line; ++k ) keys.push_back( "right" );
+				keys.push_back( "enter" );
+			}
+			if ( static_cast<int>( best.size() ) < breach.buffer ) keys.push_back( "s" );
+			gi.Printf( "SHIP: console test: breach puzzle solvable to %d%% in %d picks\n", static_cast<int>( bestScore * 100 + 0.5f ), static_cast<int>( best.size() ) );
+			nextKeyMs = level.time;
+			step = 4;
+		}
+		if ( step == 4 && level.time >= nextKeyMs )
+		{
+			if ( keys.empty() ) step = 5;
+			else { gi.SendConsoleCommand( Fmt( "lwh_eng_key %s\n", keys.front().c_str() ).c_str() ); keys.erase( keys.begin() ); nextKeyMs = level.time + 100; }
+		}
+		if ( at( 5, nextKeyMs + 800 ) )
+		{
+			gi.Printf( "SHIP: console test: sensors control %d%%, %s\n", static_cast<int>( vessel.systems[ship::SYS_SENSORS].control * 100 + 0.5f ),
+				ship::Hijacked( vessel, ship::SYS_SENSORS ) ? "still hijacked" : "ours again" );
+			gi.SendConsoleCommand( "ui_navigation\n" );
+			nextKeyMs = level.time;
+			step = 6;
+		}
+		if ( at( 6, nextKeyMs + 500 ) ) { gi.SendConsoleCommand( "lwh_eng_key j\n" ); step = 7; }
+		if ( at( 7, nextKeyMs + 1200 ) ) { gi.SendConsoleCommand( "ui_tactical\n" ); step = 8; }
+		if ( at( 8, nextKeyMs + 1600 ) ) { gi.SendConsoleCommand( "lwh_eng_key 3\n" ); step = 9; }
+		if ( at( 9, nextKeyMs + 3000 ) ) { gi.SendConsoleCommand( "lwh_eng_key f\n" ); step = 10; }
+		if ( at( 10, nextKeyMs + 4000 ) ) { gi.SendConsoleCommand( "screenshot lwh_combat\n" ); step = 11; }
+		if ( at( 11, nextKeyMs + 5000 ) )
+		{
+			gi.Printf( "SHIP: console test: at beacon %d, %s, condition %d, torpedoes %d, enemy shields %d%%\n", vessel.beacon,
+				ship::InCombat( vessel ) ? "in combat" : "no contact", vessel.alert, vessel.stores.torpedoes,
+				static_cast<int>( vessel.enemy.shields * 100 + 0.5f ) );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 12;
+		}
 		return;
 	}
 	if ( g_shipTest->integer == 8 )
@@ -481,14 +584,21 @@ void Svcmd_Ship_f( void )
 		const bool isAlert = !Q_stricmp( cmd, "alert" );
 		const bool isSwitch = !Q_stricmp( cmd, "on" ) || !Q_stricmp( cmd, "off" );
 		const bool isPriority = !Q_stricmp( cmd, "priority" );
+		const bool isFire = !Q_stricmp( cmd, "fire" );
+		const bool isJump = !Q_stricmp( cmd, "jump" );
+		const bool isBreach = !Q_stricmp( cmd, "breach" ) || !Q_stricmp( cmd, "solve" );
 		// until a character is chosen the player is nobody in particular, and is not held to a rank
 		const bool anyone = vessel.player < 0 && vessel.cfg.role != ship::ROLE_IN_COMMAND;
-		if ( !isAlert && !isSwitch && !isPriority ) why = "that is not a console's to do";
+		if ( !isAlert && !isSwitch && !isPriority && !isFire && !isJump && !isBreach ) why = "that is not a console's to do";
 		else if ( !anyone && !ship::PlayerMayOperate( vessel, st ) ) why = "you are not cleared for this station";
 		else if ( isAlert && !( st == ship::STN_ENGINEERING || st == ship::STN_TACTICAL ) ) why = "the alert is not called from this station";
 		else if ( isAlert && !anyone && vessel.cfg.role != ship::ROLE_IN_COMMAND && !ship::MayCallAlert( vessel.crew[vessel.player], st ) )
 			why = "calling the alert needs a lieutenant or above";
 		else if ( isPriority && st != ship::STN_ENGINEERING ) why = "the power order is Engineering's to set";
+		else if ( isFire && st != ship::STN_TACTICAL ) why = "weapons are fired from Tactical";
+		else if ( isJump && st != ship::STN_CONN ) why = "the ship is flown from the Conn";
+		else if ( !Q_stricmp( cmd, "breach" ) && ( sys < 0 || !ship::OperatedFrom( static_cast<ship::SystemId>( sys ), st ) ) )
+			why = "that system is not operated from this station";
 		else if ( ( isSwitch || isPriority ) && ( sys < 0 || !ship::OperatedFrom( static_cast<ship::SystemId>( sys ), st ) ) )
 			why = "that system is not operated from this station";
 		else if ( ( isSwitch || isPriority ) && ship::Hijacked( vessel, static_cast<ship::SystemId>( sys ) ) )
@@ -534,6 +644,35 @@ void Svcmd_Ship_f( void )
 		if ( who < 0 ) gi.Printf( "SHIP: no such character can be created (department 0-4: command, engineering, security, sciences, medical; rank 0-4)\n" );
 		else gi.Printf( "SHIP: you are %s, crew number %d\n", vessel.crew[who].name.c_str(), who );
 		return;
+	}
+	else if ( !Q_stricmp( cmd, "breach" ) && sys >= 0 )
+	{//start a counter-hack at a console: publish a puzzle for the screen to present
+		breachSystem = sys;
+		breach = ship::MakeBreach( static_cast<uint32_t>( level.time ) * 2654435761u + sys );
+		std::string grid, targets;
+		for ( const std::string &code : breach.grid ) grid += code + " ";
+		for ( size_t t = 0; t < breach.targets.size(); ++t )
+		{
+			if ( t ) targets += "| ";
+			for ( const std::string &code : breach.targets[t] ) targets += code + " ";
+		}
+		gi.cvar_set( "lwh_breach_grid", grid.c_str() );
+		gi.cvar_set( "lwh_breach_targets", targets.c_str() );
+		gi.cvar_set( "lwh_breach_system", ship::Spec( static_cast<ship::SystemId>( sys ) ).name );
+		gi.cvar_set( "lwh_breach_result", "" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "solve" ) )
+	{//the operator's picks: score them, and that is the strength of the counter-hack
+		if ( breachSystem < 0 ) return;
+		std::vector<int> picks;
+		for ( int i = first + 1; i < gi.argc(); ++i ) picks.push_back( atoi( gi.argv( i ) ) );
+		const float score = ship::BreachScore( breach, picks );
+		ship::CounterHack( vessel, static_cast<ship::SystemId>( breachSystem ), score );
+		gi.Printf( "SHIP: counter-hack on %s scored %d%%; control is now %d%%\n", ship::Spec( static_cast<ship::SystemId>( breachSystem ) ).name,
+			static_cast<int>( score * 100 + 0.5f ), static_cast<int>( vessel.systems[breachSystem].control * 100 + 0.5f ) );
+		gi.cvar_set( "lwh_breach_result", Fmt( "%d", static_cast<int>( score * 100 + 0.5f ) ).c_str() );
+		breachSystem = -1;
 	}
 	else if ( !Q_stricmp( cmd, "jump" ) && a[0] )
 	{

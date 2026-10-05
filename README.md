@@ -46,6 +46,7 @@ scripts/check.sh ...              # G0's corpus checks; needs that content
 scripts/g3-measure.sh             # G3's measured run; needs your own copy of the game
 scripts/build-ship.sh             # S3: stitch the published decks into one map and compile it
 scripts/s3-check.sh               # S3: tour all fifteen decks of the one map by turbolift
+scripts/s9-check.sh               # S7, S9: the breach puzzle screen, a jump from the Conn, a torpedo from Tactical
 scripts/s7-check.sh               # S7, S8: boarders and Borg drones as hostile bodies tied to the ship's count
 scripts/s5-check.sh               # S5: embodied crew follow the ship's roster and walk to their places
 scripts/s4-check.sh               # S4: a station console opened by the ship's own panel command
