@@ -140,6 +140,21 @@ Each character in the crew data files carries a **provenance** field: `canon`, `
 keeps the roster honest at a glance, matches the discipline in `docs/lore-ledger.md`, and means a character
 drawn from a novel is never presented as something the show established.
 
+### The Tier A core is already written: the Hazard Team
+
+The game's own unit supplies fourteen named characters with models, roles, traits and at least one canon
+friendship (Telsia Murphy is a longtime friend of Munro). Alpha squad: Lt. Les Foster commanding, Ens.
+Alexander Munro as second, and Crewmen Telsia Murphy, Austin Chang, Kendrick Biessman, Chell and Juliet Jurot
+-- scout, demolitionist, heavy weapons, technician and medic. Beta squad: Ens. Elizabeth Laird with Crewmen
+Jeffrey Nelson, Perfecto Oviedo, Kenn Lathrop, Thomas Odell, Mitch Csatlos and Michael Jaworski. See
+`docs/crew-manifest.md`.
+
+So the authored tier is not a writing exercise from nothing. It is **seven defined personalities plus seven
+more names**, and the work is filling in the drives, fears and allegiances the games left open -- which is the
+part the games never needed and we do. Note also that Elite Force let the player be Alexandria Munro as well
+as Alexander: both are in the paks, and the female version is a game-canon option we can keep, marked as our
+branch.
+
 ## 7. The named core we already have
 
 The game itself supplies named faces, which is why the reuse rule holds here too: the bot roster alone gives

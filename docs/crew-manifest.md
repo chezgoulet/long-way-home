@@ -109,6 +109,65 @@ qualified name on two critical bills, and the manifest should make that visible:
 transporter chief aboard* -- canon says exactly that, because the first transporter chief was killed in the
 crossing.
 
+## The Hazard Team: the unit the manifest is missing
+
+Elite Force's own invention, and the game's lore hands us a roster that is already most of what Tier A needs. It
+is not a department -- it is a **standing unit that cuts across departments**, and that is precisely why it
+belongs in this document.
+
+### What canon says
+
+- The team was formed under Captain Janeway after the crew took losses to boarders, and it is divided into
+  **A-squad and B-squad**. In the game's own lore its achievements are defeating the **Vohrsoth** and getting
+  Voyager home through the **transwarp hub** -- so the unit's story arc *is* the journey's endgame.
+- **Lieutenant Les Foster** commands it, and he and **Tuvok** train it in tactical procedure and lead it
+  personally into action. So its reporting line is through security and tactical, while its tasking comes from
+  the captain and the first officer.
+- **A-squad**, with roles and personalities already written:
+  - **Lt. Les Foster** -- leader, trainer, goes in first.
+  - **Ens. Alexander Munro** -- second in command; headstrong, apparently undisciplined, repeatedly proves
+    himself a better leader than anyone expected. *In the first game the player could be a female version of
+    the same character, Alexandria Munro* -- a game canon choice we should keep, marked as our branch.
+  - **Crewman Telsia Murphy** -- scout and sniper; **a longtime friend of Munro** (canon supplies the bond,
+    we do not have to invent it).
+  - **Crewman Austin Chang** -- demolitionist; joined when the team was formed.
+  - **Crewman Kendrick Biessman** -- heavy weapons; sarcastic, boisterous, cocky, loud, and very good at it.
+  - **Crewman Chell** -- technician; joined to get close to alien technology, averse to fighting, complains
+    constantly, and is indispensable anyway.
+  - **Crewman Juliet Jurot** -- field medic; fiercely logical with Betazoid empathy, and paradoxical with it.
+- **B-squad**: Ens. Elizabeth Laird, and Crewmen Jeffrey Nelson, Perfecto Oviedo, Kenn Lathrop, Thomas Odell,
+  Mitch Csatlos and Michael Jaworski.
+
+Every one of those has a model in the retail paks, which is the reuse rule satisfied: we did not have to
+invent a single one of them.
+
+### Why it belongs in the manifest, and what it does for the design
+
+1. **It is the away-team bill made permanent.** Everyone else's battle station is a place aboard; the Hazard
+   Team's is *wherever the ship is not*. That is the standing assignment that overrides the watch for its
+   members, and it is why the manifest needs a unit layer above departments.
+2. **It explains the player's double life.** The player holds a shipboard post *and* goes into the breach,
+   which is otherwise an odd thing for a starship to ask of one person. In single player the Hazard Team is
+   the answer, and in the starting states it is where an ensign begins.
+3. **Its casualties gut three departments at once.** A squad contains a technician, a medic, a demolitionist
+   and a security specialist, so losing one action costs engineering, medical and security simultaneously.
+   That is the *holes are the game* principle with real teeth, and it is the sharpest attrition lever in the
+   whole roster.
+4. **Two squads are a relief resource.** Missions take one squad and leave the other; a bad mission leaves the
+   ship with only B-squad, which is a worse team and a demoralised one. Canon gives us the resource for free.
+5. **Its training is on the holodeck.** The firing range and tactical drills are canon and the map already
+   ships, which closes the training item in `docs/gap-analysis.md` with a canon use rather than an invented one.
+6. **It gives the middle of the hierarchy a second reporting line**, and a good one: Foster takes tactical
+   direction from Tuvok, tasking from the bridge, and answers for his people to the first officer who owns the
+   crew. That is exactly the kind of overlap that produces arguments worth having on screen.
+
+### Consequence for Tier A
+
+`docs/crew-roster.md` recommended drawing the authored core from the game's own named characters. Here they
+are, with roles, traits and a friendship included: **fourteen names, two squads, seven defined personalities**.
+The work left is not invention -- it is filling in the drives, fears and allegiances the games left open, and
+deciding who the player is.
+
 ## Who reports to whom
 
 Administratively: **CO -> XO -> department heads -> division and shift leads -> specialists and crew.**
