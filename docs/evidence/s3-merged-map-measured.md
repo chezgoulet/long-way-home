@@ -167,3 +167,42 @@ linking, clipping and traces. Retail maps never reached that number, which is wh
 
 With the patch applied G3's measurement and S2's check still pass. Saves from before it do not
 load, which the patch says.
+
+## The whole ship loads and runs (2026-10-06)
+
+The crash was the brush-model limit after all, in a place the first count did not look: the client
+game registers a map's brush models into two tables sized 256 and filled with no bounds check. Nine
+hundred of them ran off the end of one global and into the next, and the first thing to read the
+damage — a snapshot pointer now made of floats — crashed. Found by building the module with symbols
+and asking gdb which global sits before the corrupted one. `patches/0009` gives the tables their
+own limit with a check, and raises the renderer's model table, which was the wall after that.
+
+With patches 0008 and 0009, `scripts/build-ship.sh` and `map voyager`:
+
+```
+EFSP: SP_SpawnServer: 900 inline models, entity string 416174 bytes
+EFSP: SP_SpawnServer: ge->Init done. num_entities=2802 linked=1579
+EFSP: save: wrote saves/auto.sav (map voyager, t=1000, eAUTO)
+EFSP: Munro connected
+EFSP: SP_DrawFrame #2 stereo=0 levelTime=1100 numEnt=1024
+```
+
+A twenty-second headless run, ship simulation on, every deck's entities and scripts live:
+
+| measure | value |
+|---|---|
+| game frame, average | 3.1 ms |
+| game frame, worst | 26 ms |
+| entities with a script sequencer | 518 |
+| navigation baked on first load | `maps/voyager.nav`, 649 KB |
+
+For comparison deck 4 alone averages 0.24 ms. Ten decks thinking at once cost thirteen times one
+deck — inside a 16.7 ms frame on average, outside it at worst, and that is the game alone, before
+rendering. It runs; it is not yet fast.
+
+**What "loads and runs" does not mean.** Nobody has walked it. The snapshot still carries only the
+first 1,024 entities, so the lower decks' doors and crew are simulated but would not be drawn. The
+map has no visibility data and no lighting. The turbolifts still try to change level. The 268
+renamed names have not been checked against the scripts — and all ten decks' scripts now run at
+once in one level, which they were never written to do. Five decks are missing. Those are S3's
+remaining exit criteria, in that order of dependency.

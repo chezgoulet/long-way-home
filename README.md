@@ -37,6 +37,7 @@ scripts/test.sh                   # every check that needs no game data (this is
 scripts/fetch-gdk.sh              # fetch the official GDK content G0 is checked against, into build/gdk
 scripts/check.sh ...              # G0's corpus checks; needs that content
 scripts/g3-measure.sh             # G3's measured run; needs your own copy of the game
+scripts/build-ship.sh             # S3: stitch the published decks into one map and compile it
 scripts/s2-check.sh               # S2: the ship in the game, saved, reloaded, and operated from its console
 scripts/run-engine.sh             # play (see docs/playtest.md)
 scripts/run-scenario.sh           # play a crewed deck
@@ -46,7 +47,7 @@ scripts/run-scenario.sh           # play a crewed deck
 
 | path | what |
 |---|---|
-| `patches/` | our delta from the pinned upstream port: eight patches, one concern each |
+| `patches/` | our delta from the pinned upstream port: nine patches, one concern each |
 | `engine/` | the native Linux build of the single-player engine (GPL-2.0) |
 | `module/` | our game logic, compiled into the game module (STEF licence) — the crew direction layer and the ship simulation |
 | `tools/` | script compiler, validator, entity dictionary, map generator, crew authoring |
