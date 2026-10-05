@@ -75,6 +75,60 @@ Each scenario declares, in data:
   not happen.
 - **Warmth** -- the human beat it leaves behind. A scenario with no warmth is a hazard, not a story.
 
+## Rank and role: one event, many positions
+
+The owner's addition, and it is the thing that turns a scenario set into a ship. But the naive version --
+*unlock different content for different classes* -- wastes it. The strong version is: **author every
+scenario once, and instantiate it through the post you hold.** The same event arrives as a different
+problem depending on where you are standing in it.
+
+Rank and role change four separate things, and conflating them is the failure mode:
+
+1. **What you can see.** Information is the first expression of rank. The captain's board shows the whole
+   ship's condition; a console on deck 12 shows that deck and its own systems. Filtered status is the
+   cheapest and strongest signal that you hold a job rather than a class.
+2. **What you are allowed to do.** Authority is canon and specific: ejecting the warp core needs the
+   chief engineer's or senior staff's authorization code; red alert is the highest status and can be
+   raised by more than the captain. Gating controls by authority means some things need **two people** --
+   which is the cooperative ship the owner asked for, expressed as a rule rather than a wish.
+3. **Who you are responsible for.** A department head owns people, not systems: their roster, their
+   posts, their casualties. The security chief's version of an intruder is *deck seven and three people
+   with no relief*; the engineer's is *the manifold is screaming and there are two hours of coolant*.
+4. **What you are told, and by whom.** Rank decides who reports to you and whom you report to. The same
+   emergency reaches a junior as a status update, a department head as a decision request, and the
+   captain as a choice between two bad outcomes -- or as an order you disagree with and must carry out
+   anyway. That last position is the most interesting one in the whole game, and canon lives in it.
+
+**A worked example.** Scenario 2, the severed relays: as captain you decide whether to take power from
+the shields mid-engagement; as the engineer you are the one whose console is on fire and who must tell
+the captain the truth about the time; as security you are holding a corridor with no relief and a
+wounded crewman behind you; as the young officer on the deck where the lights went out, you are the one
+sent into the junction. One authored event. Four experiences. Four decisions, each with its own stakes.
+
+**And rank must move.** The ship's roster promotes to fill its own gaps: canon's crossing cost the first
+officer, the chief engineer, the entire medical staff and the transporter chief, and the ship sailed on
+with people in jobs they were not trained for -- a Maquis made chief engineer, a young ensign left on the
+bridge, a civilian given a department. In a run with no reset, **your rank rises because people died.**
+That is the attrition north star reaching the player's own shoulders, and it is also the scenario set's
+answer to how a junior post stays interesting: you inherit the job when it empties.
+
+**Where this pays off most is multiplayer.** In single player the player holds one post and the rest are
+NPCs; the lens is theirs alone. Under one-ship-one-server it becomes the whole point: the captain, the
+engineer and the security chief are three people with partial information, gated authority, and no
+single view of the truth. Asymmetric posts with real decisions is what makes a ship server more than a
+lobby. Keep the role model serialisable and the authority table in data, and this costs nothing later.
+
+**One honest friction.** A post with nothing to decide is a spectator, and "nobody will listen to me" is
+only fun if it can eventually matter. So every post needs a decision at its own level, and every junior
+post needs a channel that escalates -- the report that nobody acted on, which the player can later point
+to. That is not a nicety; it is the difference between an organisation and a menu.
+
+### What a scenario must therefore declare
+
+In addition to the contract above: **the positions it can be experienced from**, and for each one, the
+information they receive, the authority they hold, the people they are responsible for, and the decision
+they own. Author the event once; author the positions as data.
+
 ## A first slate
 
 Nine, ordered by how soon they can be built against the systems that already exist. Each names its canon
