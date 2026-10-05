@@ -18,7 +18,7 @@
 
 namespace crew {
 
-const int MAX_POSTS = 64;
+const int MAX_POSTS = 256;      // one place for each of the ship's complement, with room to spare
 const int MAX_CREW = 32;        // G3 uses 5-10; the ceiling leaves room for G4's 20-30
 const int NO_POST = -1;
 

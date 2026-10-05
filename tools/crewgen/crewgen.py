@@ -31,7 +31,7 @@ import sys
 import zipfile
 
 G3_MIN_CREW, G3_MAX_CREW = 5, 10
-MAX_CREW, MAX_POSTS = 32, 64
+MAX_CREW, MAX_POSTS = 32, 256
 NAME = re.compile(r"^[A-Za-z0-9_\-]+$")
 NAV_REACH = 96.0  # an authored position further than this from every waypoint is off the graph
 BOUNDS = {

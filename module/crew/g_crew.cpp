@@ -676,7 +676,7 @@ void LoadPosts( void )
 			cs.posts.push_back( p );
 		}
 	}
-	else
+	else if ( !g_crewFromShip->integer ) //the ship's roster brings its own places; the map's navgoals belong to its scripts
 	{//no authored list: every script navgoal in the map is a post, in a stable order
 		std::vector<const gentity_t *> ents;
 		for ( int n = 1; n < globals.num_entities; ++n )
@@ -1108,7 +1108,9 @@ void Crew_Frame( void )
 		cs.nextDirectorMs = level.time + DIRECTOR_MS;
 		std::vector<bool> scripted( cs.members.size() );
 		for ( size_t i = 0; i < cs.members.size(); ++i ) scripted[i] = cs.members[i].level == crew::LEVEL_SCRIPT;
-		cs.st.restaffs += crew::Restaff( cs.members, cs.posts, scripted );
+		// A place given to one person by the ship's roster is theirs, not a post someone else should
+		// be sent to cover; the director's restaffing applies to declared posts only.
+		if ( !g_crewFromShip->integer ) cs.st.restaffs += crew::Restaff( cs.members, cs.posts, scripted );
 	}
 
 	const int64_t ns = std::chrono::duration_cast<std::chrono::nanoseconds>( std::chrono::steady_clock::now() - t0 ).count();
