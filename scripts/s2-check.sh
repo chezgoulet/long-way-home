@@ -11,6 +11,7 @@
 # console and operates it key by key -- condition red, a system switched off, another demoted in
 # the power order -- while the game keeps running behind it, then takes a screenshot of the console.
 #
+# Run in holodeck mode (g_shipMode 1): the test saves and loads by name, which ironman refuses.
 # Writes under build/g3-home only, like the G3 measurement.
 
 set -euo pipefail
@@ -38,7 +39,7 @@ engine() {
   find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
   echo "==> $label"
   SDL_AUDIODRIVER=dummy timeout 180 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
-      +set s_useOpenAL 0 +set g_ship 1 "$@" >"$HOME_DIR/s2-$label.out" 2>&1 || true
+      +set s_useOpenAL 0 +set g_ship 1 +set g_shipMode 1 "$@" >"$HOME_DIR/s2-$label.out" 2>&1 || true
   grep -h '^SHIP: \(simulation\|restored\|wrote\|carried\|the save\)\|^Wrote screenshots' "$HOME_DIR/s2-$label.out" | sed 's/^/    /' || true
 }
 

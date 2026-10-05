@@ -137,7 +137,7 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 | **S7** intruders and hacking | 🔶 first slice, the rules in the core: boarders, contested control, hijacking, security response, the breach puzzle; boarders are hostile bodies on the player's deck and killing one counts; the breach puzzle is a console screen | `docs/evidence/s7-intruders-and-control.md`, `scripts/s7-check.sh` |
 | **S8** the Borg | 🔶 first slice, the rules in the core: drones convert decks and take crew, assimilated systems are lost outright, stripping costs hours and parts; drones are bodies on the player's deck; assets do not change yet | `docs/evidence/s8-the-borg.md`, `scripts/s7-check.sh` |
 | **S9** the outside | 🔶 first slice, the rules in the core: a sector of beacons, jumps, ship-to-ship combat through the ship's own systems, hits landing on decks, boarding when shields fall, salvage; jumps from the Conn console and torpedoes from Tactical | `docs/evidence/s9-the-outside.md`, `scripts/s9-check.sh` |
-| **S10** play modes, roles, character creation | 🔶 first slice, the rules in the core: ironman/holodeck, three clocks with wall-clock catch-up, clearance by rank and department, three player roles, character creation; not yet enforced in the game | `docs/evidence/s10-modes-and-roles.md` |
+| **S10** play modes, roles, character creation | 🔶 first slice, the rules in the core: ironman/holodeck, three clocks with wall-clock catch-up, clearance by rank and department, three player roles, character creation; clearance and ironman are enforced in the game; no creation screen, no orders | `docs/evidence/s10-modes-and-roles.md`, `scripts/s10-check.sh`, `scripts/s4-check.sh` |
 
 ## Adopted from RPG-X prior art (2026-10-04)
 

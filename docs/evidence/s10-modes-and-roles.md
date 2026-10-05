@@ -36,8 +36,8 @@ evidenced by `tests/ship`, with the settings exposed in the game as cvars.
 
 ## What S10 still needs
 
-- **Enforcement, partly done.** Clearance is now enforced in the game (below). Ironman still does
-  not stop a manual save or a load, and being in command issues no orders to anyone.
+- **Enforcement: clearance and ironman are now enforced in the game** (both below). Being in command
+  still issues no orders to anyone.
 - **A character-creation screen**, and the player's character being the body the player walks in.
 - **Orders**: in-command play needs the crew to carry out what is ordered — power priorities, alert,
   repair and security teams — which is the hierarchy the owner asked for.
@@ -63,3 +63,20 @@ PASS  a security ensign operates Tactical's own systems and nothing else, and do
 Until a character is chosen the player is nobody in particular and is not held to a rank; a
 hijacked system refuses any console. Commands typed bare at the game's own console remain a
 developer's and are unrestricted.
+
+## Ironman, enforced in the game (later the same day)
+
+`patches/0012`: while `g_ironman` is set — which the ship simulation does unless `g_shipMode 1` —
+the engine's `save` and `load` commands refuse any name but the one forward save, so the menus, a
+key binding and the console are held to it alike. The game writes that save every minute. Dying
+resumes it rather than the level's autosave. `scripts/s10-check.sh`:
+
+```
+    Ironman: save 'byhand' refused. The ship is saved for you, and only forward.
+    Ironman: load 'auto' refused. The ship is saved for you, and only forward.
+PASS  ironman refuses a save and a load by hand, and writes its one save forward
+```
+
+Not done: the save and load *menus* still offer what will be refused; a save on quitting; and
+loading the ironman save a second time is not prevented (copying the file aside defeats it, as in
+any game with an ironman mode).

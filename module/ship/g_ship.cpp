@@ -224,6 +224,16 @@ void RunTest( void )
 		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}
+	if ( g_shipTest->integer == 10 )
+	{//ironman: a save by hand, a load by hand, and the one save the game is allowed
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 ) { gi.SendConsoleCommand( "save byhand\n" ); step = 1; }
+		if ( step == 1 && level.time >= 4000 ) { gi.SendConsoleCommand( "load auto\n" ); step = 2; }
+		if ( step == 2 && level.time >= 5000 ) { gi.SendConsoleCommand( "save ironman\n" ); step = 3; }
+		if ( step == 3 && level.time >= 7000 ) { gi.Printf( "SHIP: ironman test done at t=%d\n", level.time ); gi.SendConsoleCommand( "quit\n" ); step = 4; }
+		return;
+	}
 	if ( g_shipTest->integer == 9 )
 	{//the consoles of S7 and S9: win a hijacked system back through the breach screen, jump, and fire
 		static int step = 0, nextKeyMs = 0;
@@ -468,9 +478,15 @@ void Ship_RegisterCvars( void )
 	g_shipTestWatch = gi.cvar( "g_shipTestWatch", "", 0 );
 }
 
+const int IRONMAN_SAVE_MS = 60000; // how often the one save is written forward
+int nextIronmanSaveMs = 0;
+
 void Ship_Init( void )
 {
 	active = g_ship && g_ship->integer;
+	// The engine holds saves and loads to ironman while this is set (patches/0012).
+	gi.cvar_set( "g_ironman", active && g_shipMode->integer != 1 ? "1" : "0" );
+	nextIronmanSaveMs = IRONMAN_SAVE_MS;
 	tested = false;
 	pendingSave.clear();
 	if ( !active ) return;
@@ -524,6 +540,11 @@ void Ship_Frame( void )
 	const int ms = level.time - level.previousTime;
 	if ( ms > 0 && ms < 1000 ) ship::Tick( vessel, ms / 1000.0f );
 	if ( level.time / 250 != level.previousTime / 250 ) Publish();
+	if ( !ship::SavesAllowed( vessel.cfg ) && level.time >= nextIronmanSaveMs && !g_shipTest->integer )
+	{//ironman: the ship is saved for you, forward only
+		nextIronmanSaveMs = level.time + IRONMAN_SAVE_MS;
+		gi.SendConsoleCommand( "save ironman\n" );
+	}
 	if ( g_shipTest->integer ) RunTest();
 }
 
