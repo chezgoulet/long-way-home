@@ -111,6 +111,22 @@ That drones assimilate technology and people is on screen. Every rate is invente
 | One unopposed drone takes one crew member in | 10 minutes |
 | Stripping a wholly assimilated deck | 8 engineer-hours, 20 spare parts, at most 4 engineers |
 
+## The outside
+
+All invented, FTL being the model the owner named.
+
+| fact | value |
+|---|---|
+| A sector | 12 beacons: 40% empty, 30% hostile, 20% derelict, 10% Borg |
+| A jump costs | 1% deuterium, 1% antimatter; needs the warp drive at half output or better |
+| Full phasers strip an enemy's shields, or hole a bare hull, in | 6 minutes |
+| One torpedo on an unshielded hull | 34% (three to destroy) |
+| Our shields recharge from nothing in | 3 minutes at full shield output |
+| A raider strips our shields at | 25% a minute; the Borg at 50% |
+| A minute of unopposed fire | 15% off each system on the deck hit, 10% off its hull |
+| A boarding party | 3 from a raider, 4 drones from the Borg, to Main Engineering |
+| A derelict yields | 25 spare parts |
+
 ## Stations
 
 | fact | value | confidence |

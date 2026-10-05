@@ -139,6 +139,42 @@ struct CrewMember {
 // is eight hours on duty, then a meal, recreation, personal time and eight hours' sleep.
 Activity ScheduledActivity(int watch, int secondOfDay);
 
+// ---- the outside (S9) ---------------------------------------------------------------------------
+//
+// The ship crosses a sector of beacons, FTL-fashion: a jump needs the warp drive and burns fuel, and
+// what waits at the far end is fixed by the sector's seed. A hostile ship is fought with the ship's
+// own systems -- what the phasers and shields deliver is what the simulation says they deliver, so a
+// fight is won or lost in Engineering as much as at Tactical -- and what gets through lands on a
+// deck and a system. With our shields down, the enemy sends boarders across.
+
+enum BeaconKind : uint8_t { BEACON_EMPTY = 0, BEACON_HOSTILE, BEACON_DERELICT, BEACON_BORG, BEACON_KIND_COUNT };
+
+struct Beacon {
+	BeaconKind kind = BEACON_EMPTY;
+	bool visited = false;
+	std::vector<int> links;      // beacons one jump away
+};
+
+struct Enemy {
+	bool present = false;
+	bool borg = false;
+	float hull = 0.0f;           // 0..1
+	float shields = 0.0f;        // 0..1
+	float firepower = 0.0f;      // shield strength it strips from us per minute, unopposed
+	int boarders = 0;            // it will send these across once, when our shields are down
+};
+
+const int SECTOR_BEACONS = 12;
+const float JUMP_DEUTERIUM = 0.01f;      // fraction of tankage per jump [inv]
+const float JUMP_ANTIMATTER = 0.01f;
+const float PHASER_MINUTES = 6.0f;       // full phasers strip an enemy's shields, or hole a bare hull, in this [inv]
+const float TORPEDO_HULL = 0.34f;        // one torpedo on an unshielded hull [inv]
+const float SHIELD_RECHARGE_MINUTES = 3.0f; // full shield output restores the shields from nothing in this: faster
+                                            // than an ordinary raider strips them, slower than the Borg do [inv]
+const float HIT_SYSTEM = 0.15f;          // what a minute's unopposed fire does to the system it lands on [inv]
+const float HIT_HULL = 0.10f;            // ... and to that deck's hull
+const float SALVAGE_PARTS = 25.0f;       // spare parts recovered from a derelict [inv]
+
 // ---- the ship ---------------------------------------------------------------------------------
 
 enum Alert : uint8_t { ALERT_GREEN = 0, ALERT_YELLOW, ALERT_RED };
@@ -157,6 +193,13 @@ struct Ship {
 	Deck decks[DECKS];
 	Stores stores;
 	std::vector<CrewMember> crew;
+
+	// the outside
+	float shieldStrength = 1.0f; // what stands between enemy fire and the hull; 0 = hits land
+	std::vector<Beacon> sector;
+	int beacon = 0;              // where the ship is
+	Enemy enemy;
+	uint32_t hits = 0;           // how many hits have landed: decides, deterministically, where the next one does
 
 	int Day() const { return static_cast<int>(clock / SECONDS_PER_DAY); }
 	int SecondOfDay() const { return static_cast<int>(clock) % SECONDS_PER_DAY; }
@@ -261,10 +304,18 @@ Breach MakeBreach(uint32_t seed);
 // fraction of the total target value achieved, 0..1.
 float BreachScore(const Breach &b, const std::vector<int> &picks);
 
+// Jump to a linked beacon. Refused (false) if it is not one jump away, the warp drive is delivering
+// less than half its output, or there is no fuel -- and a ship cannot jump out of a fight it cannot
+// outrun: the same test, so running needs a working drive.
+bool Jump(Ship &s, int toBeacon);
+// One torpedo at the enemy. False if there is no enemy, none left, or the launchers are not delivering.
+bool FireTorpedo(Ship &s);
+bool InCombat(const Ship &s);
+
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 4;   // 2: spare parts, exposure, recovery; 3: system control, intruders; 4: the Borg
+const uint16_t SAVE_VERSION = 5;   // 2: parts, exposure, recovery; 3: control, intruders; 4: the Borg; 5: the outside
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

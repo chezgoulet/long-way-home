@@ -91,6 +91,8 @@ static const int DEPT_DECK[DEPT_COUNT] = {1, 11, 4, 8, 5};     // where departme
 const int MESS_DECK = 2;
 const int HOLODECK_DECK = 6;
 
+static float Clamp01(float v) { return std::min(1.0f, std::max(0.0f, v)); }
+
 static bool Critical(SystemId id) { return SPECS[id].priority <= SPECS[SYS_COMPUTER_CORE].priority; }
 
 // What the alert condition switches off, whatever its console says. Green: weapons and shields
@@ -496,6 +498,113 @@ static void UpdateIntruders(Ship &s, float shipSeconds)
 	}
 }
 
+// ---- the outside ------------------------------------------------------------------------------
+
+static void BuildSector(Ship &s)
+{
+	uint32_t r = (s.cfg.seed ? s.cfg.seed : 1) * 2654435761u;
+	auto next = [&r]() { r = r * 1664525u + 1013904223u; return r >> 9; };
+	s.sector.assign(SECTOR_BEACONS, Beacon());
+	// A chain from the first beacon to the last, so the sector can always be crossed, plus side links.
+	for (int i = 0; i + 1 < SECTOR_BEACONS; ++i) {
+		s.sector[i].links.push_back(i + 1);
+		s.sector[i + 1].links.push_back(i);
+	}
+	for (int i = 0; i + 2 < SECTOR_BEACONS; ++i) {
+		if (next() % 3) continue;
+		s.sector[i].links.push_back(i + 2);
+		s.sector[i + 2].links.push_back(i);
+	}
+	for (int i = 1; i < SECTOR_BEACONS; ++i) {
+		const uint32_t roll = next() % 10;
+		s.sector[i].kind = roll < 4 ? BEACON_EMPTY : roll < 7 ? BEACON_HOSTILE : roll < 9 ? BEACON_DERELICT : BEACON_BORG;
+	}
+	s.sector[0].visited = true; // where the ship starts: nothing here
+}
+
+static void Arrive(Ship &s)
+{
+	Beacon &b = s.sector[s.beacon];
+	const bool first = !b.visited;
+	b.visited = true;
+	s.enemy = Enemy();
+	if (!first) return; // what was here has been dealt with, or taken
+	if (b.kind == BEACON_HOSTILE || b.kind == BEACON_BORG) {
+		s.enemy.present = true;
+		s.enemy.borg = b.kind == BEACON_BORG;
+		s.enemy.hull = 1.0f;
+		s.enemy.shields = 1.0f;
+		s.enemy.firepower = s.enemy.borg ? 0.5f : 0.25f;
+		s.enemy.boarders = s.enemy.borg ? 4 : 3;
+	} else if (b.kind == BEACON_DERELICT) {
+		s.stores.spareParts += SALVAGE_PARTS;
+	}
+}
+
+bool InCombat(const Ship &s) { return s.enemy.present && s.enemy.hull > 0.0f; }
+
+bool Jump(Ship &s, int toBeacon)
+{
+	if (s.sector.empty() || toBeacon < 0 || toBeacon >= static_cast<int>(s.sector.size())) return false;
+	const std::vector<int> &links = s.sector[s.beacon].links;
+	if (std::find(links.begin(), links.end(), toBeacon) == links.end()) return false;
+	if (s.systems[SYS_WARP_DRIVE].output < 0.5f) return false;
+	if (s.stores.deuterium < JUMP_DEUTERIUM || s.stores.antimatter < JUMP_ANTIMATTER) return false;
+	s.stores.deuterium -= JUMP_DEUTERIUM;
+	s.stores.antimatter -= JUMP_ANTIMATTER;
+	s.beacon = toBeacon;
+	Arrive(s);
+	return true;
+}
+
+bool FireTorpedo(Ship &s)
+{
+	if (!InCombat(s) || s.stores.torpedoes <= 0 || s.systems[SYS_TORPEDO_LAUNCHERS].output <= 0.0f) return false;
+	--s.stores.torpedoes;
+	// Shields take what they can of it; the rest reaches the hull.
+	const float absorbed = std::min(s.enemy.shields, TORPEDO_HULL);
+	s.enemy.shields -= absorbed;
+	s.enemy.hull = std::max(0.0f, s.enemy.hull - (TORPEDO_HULL - absorbed));
+	return true;
+}
+
+static void UpdateOutside(Ship &s, float shipSeconds)
+{
+	const float minutes = shipSeconds / 60.0f;
+	// Our shields recharge by what the shield system delivers, and hold nothing without it.
+	const float shieldOut = s.systems[SYS_SHIELDS].output;
+	s.shieldStrength = std::min(shieldOut > 0.0f ? 1.0f : 0.0f, s.shieldStrength + shieldOut * minutes / SHIELD_RECHARGE_MINUTES);
+	if (!InCombat(s)) return;
+
+	// Our phasers: their shields first, then their hull.
+	float ours = s.systems[SYS_PHASERS].output * minutes / PHASER_MINUTES;
+	const float onShields = std::min(ours, s.enemy.shields);
+	s.enemy.shields -= onShields;
+	s.enemy.hull = std::max(0.0f, s.enemy.hull - (ours - onShields));
+	if (s.enemy.hull <= 0.0f) return; // it is over; whatever they sent across is still aboard
+
+	// Their fire: our shields first; what gets through lands on a deck and the systems stationed there.
+	float theirs = s.enemy.firepower * minutes;
+	const float held = std::min(theirs, s.shieldStrength);
+	s.shieldStrength -= held;
+	theirs -= held;
+	if (theirs > 0.0f) {
+		const float share = theirs / s.enemy.firepower; // minutes of unopposed fire
+		const int deck = static_cast<int>(s.hits * 7u % DECKS);
+		++s.hits;
+		s.decks[deck].hull = Clamp01(s.decks[deck].hull - HIT_HULL * share);
+		for (int i = 0; i < SYS_COUNT; ++i)
+			if (SPECS[i].deck == deck + 1) s.systems[i].health = Clamp01(s.systems[i].health - HIT_SYSTEM * share);
+	}
+
+	// With our shields down they send their party across, once, to where it will hurt.
+	if (s.shieldStrength <= 0.0f && s.enemy.boarders > 0) {
+		if (s.enemy.borg) BoardBorg(s, ENGINEERING_DECK, s.enemy.boarders);
+		else Board(s, ENGINEERING_DECK, s.enemy.boarders);
+		s.enemy.boarders = 0;
+	}
+}
+
 static void UpdateDecks(Ship &s, float shipSeconds)
 {
 	const float support = s.systems[SYS_LIFE_SUPPORT].output;
@@ -545,6 +654,7 @@ Ship NewShip(const Config &cfg)
 	s.cfg = cfg;
 	for (int i = 0; i < SYS_COUNT; ++i) s.systems[i].priority = SPECS[i].priority;
 	BuildRoster(s);
+	BuildSector(s);
 	Tick(s, 0.0f); // so a new ship is already in a consistent state: powered, manned, located
 	return s;
 }
@@ -560,6 +670,7 @@ void Tick(Ship &s, float seconds)
 		UpdateCrew(s, step);
 		UpdateIntruders(s, step);
 		UpdatePower(s, step);
+		UpdateOutside(s, step);
 		UpdateDecks(s, step);
 		shipSeconds -= step;
 	} while (shipSeconds > 0.0f);
@@ -676,7 +787,6 @@ void SetSourceOnline(Ship &s, SourceId id, bool on)
 	if (id < SRC_COUNT) s.sources[id].online = on;
 }
 
-static float Clamp01(float v) { return std::min(1.0f, std::max(0.0f, v)); }
 
 void DamageSystem(Ship &s, SystemId id, float amount)
 {
@@ -746,6 +856,16 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
 	w.F(s.stores.spareParts);
+	// The sector's shape comes back from the seed; where the ship is in it, and what it has met, is stored.
+	w.F(s.shieldStrength);
+	w.U8(static_cast<uint8_t>(s.beacon));
+	w.U32(s.hits);
+	uint32_t visited = 0;
+	for (size_t i = 0; i < s.sector.size() && i < 32; ++i)
+		if (s.sector[i].visited) visited |= 1u << i;
+	w.U32(visited);
+	w.U8(s.enemy.present); w.U8(s.enemy.borg); w.F(s.enemy.hull); w.F(s.enemy.shields); w.F(s.enemy.firepower);
+	w.U8(static_cast<uint8_t>(s.enemy.boarders));
 	// Names, types, departments and stations come back from the seed; only what changes is stored.
 	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); }
 	return w.b;
@@ -765,6 +885,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	Ship s;
 	s.cfg = cfg;
 	BuildRoster(s);
+	BuildSector(s);
 	if (count != s.crew.size()) return false;
 
 	s.clock = static_cast<double>(r.U64()) / 1000.0;
@@ -778,6 +899,16 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	s.stores.torpedoes = r.U16();
 	s.stores.spareParts = r.F();
 	if (!(s.stores.spareParts >= 0.0f && s.stores.spareParts <= 100000.0f)) return false;
+	s.shieldStrength = r.Unit();
+	s.beacon = r.U8();
+	if (s.beacon >= static_cast<int>(s.sector.size())) return false;
+	s.hits = r.U32();
+	const uint32_t visited = r.U32();
+	for (size_t i = 0; i < s.sector.size() && i < 32; ++i) s.sector[i].visited = (visited >> i) & 1u;
+	s.enemy.present = r.U8() != 0; s.enemy.borg = r.U8() != 0;
+	s.enemy.hull = r.Unit(); s.enemy.shields = r.Unit(); s.enemy.firepower = r.F();
+	if (!(s.enemy.firepower >= 0.0f && s.enemy.firepower <= 100.0f)) return false;
+	s.enemy.boarders = r.U8();
 	for (CrewMember &c : s.crew) {
 		c.status = r.U8();
 		c.fatigue = r.Unit();
@@ -822,6 +953,15 @@ std::string Describe(const Ship &s)
 		s.PowerAvailable(), s.PowerAllocated(), s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes,
 		s.stores.spareParts);
 	out += line;
+	static const char *const KINDS[] = {"empty space", "a hostile ship", "a derelict", "the Borg"};
+	std::snprintf(line, sizeof(line), "  beacon %d of %d (%s)  shields at %.0f%%\n", s.beacon, static_cast<int>(s.sector.size()) - 1,
+		s.sector.empty() ? "?" : KINDS[s.sector[s.beacon].kind], s.shieldStrength * 100);
+	out += line;
+	if (s.enemy.present) {
+		std::snprintf(line, sizeof(line), "  %s: hull %.0f%%  shields %.0f%%%s\n", s.enemy.borg ? "BORG VESSEL" : "HOSTILE VESSEL",
+			s.enemy.hull * 100, s.enemy.shields * 100, s.enemy.hull <= 0.0f ? "  DESTROYED" : "");
+		out += line;
+	}
 	for (int d = 0; d < DECKS; ++d) {
 		if (s.decks[d].intruders <= 0.0f) continue;
 		std::snprintf(line, sizeof(line), "  %s deck %d: %.0f, opposed by %d\n", s.decks[d].borg ? "BORG" : "INTRUDERS", d + 1,

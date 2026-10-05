@@ -688,6 +688,169 @@ static void TestBorg()
 	CHECK(Describe(back) == Describe(w));
 }
 
+// S9. The outside: a sector to cross, and something in it that shoots back.
+static int FirstOfKind(const Ship &s, BeaconKind k)
+{
+	for (size_t i = 0; i < s.sector.size(); ++i)
+		if (s.sector[i].kind == k) return static_cast<int>(i);
+	return -1;
+}
+
+// Walk the chain to a beacon, resolving nothing on the way (enemies met are simply removed).
+static void GoTo(Ship &s, int beacon)
+{
+	while (s.beacon != beacon) {
+		s.enemy = Enemy();
+		const bool ok = Jump(s, s.beacon + (beacon > s.beacon ? 1 : -1));
+		if (!ok) return;
+	}
+}
+
+static void TestSector()
+{
+	g_test = "the sector";
+	const Ship s = NewShip();
+	CHECK(static_cast<int>(s.sector.size()) == SECTOR_BEACONS && s.beacon == 0 && !InCombat(s));
+	for (int i = 0; i + 1 < SECTOR_BEACONS; ++i) { // it can always be crossed
+		bool linked = false;
+		for (int l : s.sector[i].links) linked = linked || l == i + 1;
+		CHECK(linked);
+	}
+	for (size_t i = 0; i < s.sector.size(); ++i)
+		for (int l : s.sector[i].links) { // links run both ways
+			bool back = false;
+			for (int m : s.sector[l].links) back = back || m == static_cast<int>(i);
+			CHECK(back);
+		}
+	const Ship again = NewShip();
+	Config other; other.seed = 7;
+	const Ship different = NewShip(other);
+	bool differs = false;
+	for (int i = 0; i < SECTOR_BEACONS; ++i) {
+		CHECK(again.sector[i].kind == s.sector[i].kind);
+		differs = differs || different.sector[i].kind != s.sector[i].kind || different.sector[i].links != s.sector[i].links;
+	}
+	CHECK(differs);
+
+	// Jumping: one link at a time, with a working drive, and it costs fuel.
+	Ship j = NewShip();
+	Tick(j, 1.0f);
+	CHECK(!Jump(j, 5) || j.sector[0].links.size() > 2); // not adjacent (unless the seed linked it)
+	CHECK(!Jump(j, -1) && !Jump(j, 99));
+	const float fuel = j.stores.deuterium;
+	CHECK(Jump(j, 1) && j.beacon == 1 && j.sector[1].visited);
+	CHECK(j.stores.deuterium < fuel);
+	j.enemy = Enemy();
+	DamageSystem(j, SYS_WARP_DRIVE, 0.8f);
+	j.stores.spareParts = 0.0f;
+	Tick(j, 1.0f);
+	CHECK(!Jump(j, 2)); // a crippled drive goes nowhere -- including away
+	CHECK(j.beacon == 1);
+
+	// A derelict yields parts, once.
+	Ship d = NewShip();
+	Tick(d, 1.0f);
+	const int derelict = FirstOfKind(d, BEACON_DERELICT);
+	if (derelict > 0) {
+		GoTo(d, derelict - 1);
+		d.enemy = Enemy();
+		const float parts = d.stores.spareParts;
+		CHECK(Jump(d, derelict));
+		CHECK(d.stores.spareParts == parts + SALVAGE_PARTS);
+		CHECK(Jump(d, derelict - 1));
+		d.enemy = Enemy();
+		CHECK(Jump(d, derelict));
+		CHECK(d.stores.spareParts == parts + SALVAGE_PARTS); // picked clean
+	}
+}
+
+static void TestCombat()
+{
+	g_test = "ship to ship";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int hostile = FirstOfKind(s, BEACON_HOSTILE);
+	CHECK(hostile > 0);
+	GoTo(s, hostile - 1);
+	s.enemy = Enemy();
+	CHECK(Jump(s, hostile));
+	CHECK(InCombat(s) && s.enemy.hull == 1.0f && s.enemy.shields == 1.0f);
+
+	// At condition green the weapons are stood down: we do them no harm and our shields are not up.
+	Tick(s, Hours(s, 2.0f / 60.0f));
+	CHECK(s.enemy.shields == 1.0f);
+	CHECK(s.shieldStrength == 0.0f);
+	bool hurt = false;
+	for (int i = 0; i < SYS_COUNT; ++i) hurt = hurt || s.systems[i].health < 1.0f;
+	for (const Deck &d : s.decks) hurt = hurt || d.hull < 1.0f;
+	CHECK(hurt);                      // their fire lands
+	CHECK(Intruders(s) >= 1 && Intruders(s) <= 3); // and with our shields down they have come aboard, in Engineering
+	                                  // (three came; security is already among them)
+	CHECK(s.decks[ENGINEERING_DECK - 1].intruders > 0.0f);
+
+	// Red alert: shields and phasers. The fight is now ours to win.
+	SetAlert(s, ALERT_RED);
+	Tick(s, Hours(s, 4.0f / 60.0f));
+	CHECK(s.enemy.shields < 1.0f);
+	CHECK(s.shieldStrength > 0.0f);
+	const int torpedoes = s.stores.torpedoes;
+	CHECK(FireTorpedo(s) && s.stores.torpedoes == torpedoes - 1);
+	Tick(s, Hours(s, 20.0f / 60.0f));
+	CHECK(!InCombat(s) && s.enemy.hull == 0.0f);
+	CHECK(!FireTorpedo(s) && s.stores.torpedoes == torpedoes - 1); // nothing left to shoot at
+	const float hullAfter = s.decks[0].hull + s.decks[7].hull + s.decks[14].hull;
+	Tick(s, Hours(s, 10.0f / 60.0f));
+	CHECK(s.decks[0].hull + s.decks[7].hull + s.decks[14].hull == hullAfter); // the firing has stopped
+
+	// The fight is decided by the ship's systems: with the phasers wrecked, time alone does not win it.
+	Ship weak = NewShip();
+	Tick(weak, 1.0f);
+	GoTo(weak, hostile - 1);
+	weak.enemy = Enemy();
+	Jump(weak, hostile);
+	SetAlert(weak, ALERT_RED);
+	DamageSystem(weak, SYS_PHASERS, 1.0f);
+	weak.stores.spareParts = 0.0f;
+	Tick(weak, Hours(weak, 0.5f));
+	CHECK(InCombat(weak) && weak.enemy.hull == 1.0f);
+	// Torpedoes still work, and three on an unshielded hull would finish it -- but its shields are up.
+	CHECK(FireTorpedo(weak));
+	CHECK(weak.enemy.hull == 1.0f && weak.enemy.shields < 1.0f);
+	// No launchers, no torpedoes.
+	DamageSystem(weak, SYS_TORPEDO_LAUNCHERS, 1.0f);
+	Tick(weak, 1.0f);
+	CHECK(!FireTorpedo(weak));
+
+	// The Borg send drones, not boarders.
+	Ship b = NewShip();
+	Tick(b, 1.0f);
+	const int cube = FirstOfKind(b, BEACON_BORG);
+	if (cube > 0) {
+		GoTo(b, cube - 1);
+		b.enemy = Enemy();
+		CHECK(Jump(b, cube) && b.enemy.borg);
+		Tick(b, Hours(b, 3.0f / 60.0f));
+		CHECK(b.decks[ENGINEERING_DECK - 1].borg);
+	}
+
+	// Mid-fight, it is all in the save, and carries on the same.
+	Ship w = NewShip();
+	Tick(w, 1.0f);
+	GoTo(w, hostile - 1);
+	w.enemy = Enemy();
+	Jump(w, hostile);
+	SetAlert(w, ALERT_RED);
+	Tick(w, Hours(w, 3.0f / 60.0f));
+	const std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.beacon == w.beacon && InCombat(back) && back.hits == w.hits);
+	CHECK(Describe(back) == Describe(w));
+	Tick(w, Hours(w, 5.0f / 60.0f));
+	Tick(back, Hours(back, 5.0f / 60.0f));
+	CHECK(Describe(back) == Describe(w));
+}
+
 static void TestStations()
 {
 	g_test = "stations";
@@ -782,6 +945,8 @@ int main(int argc, char **argv)
 	TestBoarding();
 	TestBreachPuzzle();
 	TestBorg();
+	TestSector();
+	TestCombat();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

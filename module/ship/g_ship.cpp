@@ -414,6 +414,26 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "seal" ) && a[0] ) ship::RepairDeck( vessel, atoi( a ), 1.0f );
 	else if ( !Q_stricmp( cmd, "board" ) && a[0] && b[0] ) ship::Board( vessel, atoi( a ), atoi( b ) );
 	else if ( !Q_stricmp( cmd, "borg" ) && a[0] && b[0] ) ship::BoardBorg( vessel, atoi( a ), atoi( b ) );
+	else if ( !Q_stricmp( cmd, "jump" ) && a[0] )
+	{
+		if ( !ship::Jump( vessel, atoi( a ) ) ) gi.Printf( "SHIP: cannot jump to beacon %s (not one jump away, no warp drive, or no fuel)\n", a );
+	}
+	else if ( !Q_stricmp( cmd, "fire" ) )
+	{
+		if ( !ship::FireTorpedo( vessel ) ) gi.Printf( "SHIP: no torpedo fired (no target, none left, or the launchers are down)\n" );
+	}
+	else if ( !Q_stricmp( cmd, "chart" ) )
+	{
+		static const char *const KINDS[] = { "empty", "hostile", "derelict", "Borg" };
+		for ( size_t i = 0; i < vessel.sector.size(); ++i )
+		{
+			std::string links;
+			for ( int l : vessel.sector[i].links ) links += Fmt( " %d", l );
+			gi.Printf( "SHIP: %sbeacon %2d  %-8s  jumps to%s\n", static_cast<int>( i ) == vessel.beacon ? "> " : "  ", static_cast<int>( i ),
+				vessel.sector[i].visited ? KINDS[vessel.sector[i].kind] : "unknown", links.c_str() );
+		}
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "counterhack" ) && sys >= 0 && b[0] ) ship::CounterHack( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "source" ) && FindSource( a ) >= 0 && b[0] )
 		ship::SetSourceOnline( vessel, static_cast<ship::SourceId>( FindSource( a ) ), !Q_stricmp( b, "on" ) );
@@ -422,6 +442,7 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "usage: ship status | crew <deck> | console | alert green|yellow|red | on|off <system> | priority <system> <n>\n" );
 		gi.Printf( "       ship damage|repair <system> <0..1> | breach <deck> <0..1> | source core|impulse|auxiliary|batteries on|off\n" );
 		gi.Printf( "       ship seal <deck> | board <deck> <boarders> | borg <deck> <drones> | counterhack <system> <0..1>\n" );
+		gi.Printf( "       ship chart | jump <beacon> | fire\n" );
 		return;
 	}
 	ship::Tick( vessel, 0.0f );
