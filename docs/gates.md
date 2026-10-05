@@ -96,15 +96,29 @@ Agreed ordering: **G6 and G7 before G4 and G5.** They are cheap, they make the c
 they are the recruitment path for the multiplayer programme — Track D's hardest constraint is population.
 G3 proceeds in parallel, because its code can be written without a session even though its criteria need one.
 
-## G3 — reactive crew ⏳ pending
+## G3 — reactive crew 🔶 measured, awaiting the owner's judgement
 
-5–10 NPCs, one deck, no new animations, reused barks, posts and acknowledgement, with the measurable
-criteria in the charter (post coverage over a sampled run, bounded time to post, zero navigation
-failures, save/load restores posts and schedules, an explicit per-NPC save-size budget, no ICARUS
-script regressions).
+**Implemented and measured 2026-10-05.** Six crew hold six posts on `tour/deck04` through a ten-minute
+headless run: 100% coverage at all 121 samples, every post reached within 6.1 s, no stuck or
+out-of-world events, every address acknowledged within 1.5 s, the deck's four scripted characters
+undisturbed, a script run on a post-holder honoured and the member returned to duty, crew state
+identical across save and reload, 25 bytes of save per crew member against a budget of 256.
+Evidence: `docs/evidence/g3-reactive-crew-measured.md`; reproduce with `scripts/g3-measure.sh`.
 
-**Arbitration precedence must be written before any Track C code exists** — scripted sequence >
-direct combat/reaction > director override > duty/routine > idle/social.
+What is left is the owner's:
+
+- **Does the deck feel inhabited?** `scripts/run-scenario.sh`, in a logged-in session.
+- **Is adding crew acceptable for this gate?** None of deck04's own eight NPCs can be given a post —
+  four are permanently scripted, four are seated props spawned in solid — so the scenario declares
+  six crew of existing character types and the layer spawns them. No new art, voice or animation;
+  but the charter says "named crew already placed", and that is not what was measured.
+- **Frame time on the target desktop.** Measured here as time inside the game frame (0.34 ms with the
+  crew, 0.24 ms without); a frame rate needs a real renderer.
+
+The layer is `module/crew/`, attached by `patches/0005`, authored through the manifest's `crew`
+section. It is off by default (`g_crew 0`), and with it off the module behaves and saves exactly as
+before. Arbitration precedence — scripted sequence > direct combat/reaction > director override >
+duty/routine > idle/social — was written before the code, as required, and is unit-tested.
 
 ## G4 — living ship ⏳ pending, does not start until G3 passes
 
@@ -126,6 +140,15 @@ Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere con
 ---
 
 ## Residuals (named, queued, not forgotten)
+
+- **The Game Development Kit is no longer on the playtest host** (it was extracted under `/tmp`).
+  `scripts/check.sh` and the game-pack builder need it; G0's corpus checks cannot be re-run until it
+  is extracted again, somewhere durable. `scripts/test.sh` covers everything that needs no content.
+- **The entity dictionary's flags and keys were wrong until 2026-10-05** — a header pattern ran on
+  into each description. Class names, and so G0's coverage figures, were unaffected; the dictionary
+  should be regenerated when the GDK is back.
+- **Crew cannot open doors.** Two suggested starting positions on deck04 were one waypoint from their
+  posts and unreachable. Scenario layouts must be measured, and G4's schedules will meet this.
 
 - **~30 `Cmd_AddCommand: … already defined`** on each level transition. Harmless, but it means the SP
   path's console registrations are not idempotent.

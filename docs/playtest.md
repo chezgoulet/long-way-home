@@ -38,8 +38,9 @@ Every run is logged to `build/run-<timestamp>.log`.
 
 ## Known absences in this build
 
-- **No cutscenes.** The host's FFmpeg packages are behind Ubuntu Pro, so Bink playback is compiled
-  out; `.bik` files are skipped rather than crashed on. Cinematics are milestone M5.
+- **Cutscenes are linked but unconfirmed.** Bink playback is compiled in (FFmpeg from the plain
+  archive; see `docs/evidence/deps-durable-and-cutscenes.md`). Whether one *plays* still wants a
+  session.
 - **Saves are fresh.** Retail PC saves are not compatible with the port yet (upstream documents
   this), so start a new campaign rather than loading an old save.
 - **No configuration yet.** The first run creates its own config; the retail `efconfig.cfg` is not
@@ -79,3 +80,20 @@ python3 tools/validator/validate.py <scenario> --data "<installation>" --entityd
   `scripts/playtest-host-setup.sh` if that directory is gone.
 - A black screen or an immediate exit with a Vulkan message → the display or driver, not the
   engine. Send the log; the Vulkan lines will say which.
+
+
+## Walking a crewed deck (gate G3)
+
+```
+./scripts/run-scenario.sh
+```
+
+builds the crew file for `scenarios/deck04-watch` and starts the engine on Virtual Voyager's deck 4
+with the direction layer on. Six crew walk to six posts and hold them; they look at you when you
+come near, turn to you when you come close, answer when used, and say something when walked into.
+The deck's own characters — Tuvok, Chell, the transporter chief, the four at the lounge table —
+carry on under their scripts, untouched.
+
+The numbers are already measured (`scripts/g3-measure.sh`, results in
+`docs/evidence/g3-reactive-crew-measured.md`). What only you can judge is the last line of the
+specification: whether the deck feels inhabited. In the console, `crew report` prints the run so far.

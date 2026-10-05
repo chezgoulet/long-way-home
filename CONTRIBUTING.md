@@ -32,7 +32,7 @@ maintenance, and to keep our own delta thin enough to rebase onto it whenever th
 rule, 2026-10-04: *"I'd rather be in the best position to inherit community work than increase our support
 of more stuff."*
 
-Current delta from the pinned upstream: **39 files, ±152/115 lines, in four patches by concern.**
+Current delta from the pinned upstream: **42 files, +210/−115 lines, in five patches by concern.**
 
 | patch | concern | why it is separate |
 |---|---|---|
@@ -40,6 +40,7 @@ Current delta from the pinned upstream: **39 files, ±152/115 lines, in four pat
 | `0002` | explicit 15-bit `rand` at every call site | mechanical, 32 files, and it exists only because the shim's macro poisoned libstdc++ headers |
 | `0003` | 64-bit correctness in released source | upstream-relevant independently of us: a pointer-width write and an overlapping `strcpy` |
 | `0004` | raise the content and entity ceilings | a policy choice, not a fix; ours to justify |
+| `0005` | attach points for the crew direction layer | ten one-line calls and a build option; inert unless `LWH_MODULE_DIR` is set, so it changes nothing on its own |
 
 Rules that keep this shape:
 
@@ -48,11 +49,28 @@ Rules that keep this shape:
   is a different job from rebasing one.
 - **New game logic lives behind the module boundary**, in a game module the engine loads — never in the
   engine. Anything placed in the engine is a delta we own forever and a rebase cost on every release.
+- **And it lives in `module/`, not in a patch.** Our own source files are compiled into the game module
+  from this repository (`-DLWH_MODULE_DIR`); the patch carries only the calls into them. The direction
+  layer is some 1,600 lines of ours and 51 added lines of delta. Keep that ratio: a new system gets a
+  directory here and, at most, another line in `lwh_hooks.h`.
 - **Where the engine must change, ask upstream first.** The multiplayer programme's engine-level needs in
   particular belong to the projects maintaining those engines, so the maintenance is shared rather than
   duplicated.
 - **Re-measure the delta when it grows.** The four-patch shape is the asset; a patch series that doubles
   quietly is how a fork becomes unforkable.
+
+## Tests
+
+`scripts/test.sh` runs everything that needs no game data — the direction layer's unit tests, the tool
+tests, lint, and the shape of the patch series — and is what CI runs on every push and pull request.
+It must pass before a PR is opened.
+
+- Logic that can be separated from the engine is, and is tested there: `module/crew/crew_core.*`
+  includes no game header for exactly this reason (`tests/crew`).
+- A tool gets tests in `tests/tools`, built on synthetic inputs. No test may depend on game data,
+  the GDK or the upstream checkout: those checks are gate measurements (`scripts/check.sh`,
+  `scripts/g3-measure.sh`) and their output is evidence, recorded under `docs/evidence/`.
+- A bug fixed is a test added. The fault that motivates a check should be visible in the check.
 
 ## Evidence rules
 
