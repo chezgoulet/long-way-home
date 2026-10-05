@@ -444,6 +444,9 @@ const float DECK_BASE = 1636.0f;    // as in ship/g_scope.cpp: maps a height on 
 const float SPAWN_CLEAR = 256.0f;   // nobody appears this close to the player
 
 std::vector<int> shipEmbodied;      // roster indices currently embodied, parallel to nothing: looked up by name
+struct Leaving { int idx; int sinceMs; };
+std::vector<Leaving> shipLeaving;   // those due off the deck who are still in the player's sight
+const int LEAVE_PATIENCE_MS = 45000; // how long someone may take to walk out of sight before they simply go
 
 std::string RosterName( int rosterIndex ) { return Fmt( "lwh_crew_%03d", rosterIndex ); }
 
@@ -502,8 +505,33 @@ void SyncShipRoster( void )
 		const int idx = shipEmbodied[k];
 		if ( std::find( wanted.begin(), wanted.end(), idx ) != wanted.end() ) { ++k; continue; }
 		gentity_t *e = FindByName( RosterName( idx ) );
-		if ( e && gi.inPVS( player->currentOrigin, e->currentOrigin )
-			&& Distance( player->currentOrigin, e->currentOrigin ) < 1024.0f ) { ++k; continue; }
+		const bool inSight = e && gi.inPVS( player->currentOrigin, e->currentOrigin )
+			&& Distance( player->currentOrigin, e->currentOrigin ) < 1024.0f;
+		if ( inSight )
+		{//they do not vanish in front of the player: they walk off, to the far end of the deck
+			size_t l = 0;
+			while ( l < shipLeaving.size() && shipLeaving[l].idx != idx ) ++l;
+			if ( l == shipLeaving.size() )
+			{
+				shipLeaving.push_back( { idx, level.time } );
+				const std::string place = "place_" + RosterName( idx );
+				for ( crew::Post &q : cs.posts )
+				{
+					if ( q.name != place ) continue;
+					float best = -1.0f;
+					for ( int node : nodes )
+					{
+						vec3_t at;
+						navigator.GetNodePosition( node, at );
+						const float d = Distance( at, player->currentOrigin );
+						if ( d > best ) { best = d; VectorCopy( at, q.origin ); }
+					}
+				}
+			}
+			if ( level.time - shipLeaving[l].sinceMs < LEAVE_PATIENCE_MS ) { ++k; continue; }
+		}
+		for ( size_t l = 0; l < shipLeaving.size(); ++l )
+			if ( shipLeaving[l].idx == idx ) { shipLeaving.erase( shipLeaving.begin() + l ); break; }
 		if ( e ) G_FreeEntity( e );
 		shipEmbodied.erase( shipEmbodied.begin() + k );
 	}
@@ -512,6 +540,9 @@ void SyncShipRoster( void )
 	for ( int idx : wanted )
 	{
 		if ( std::find( shipEmbodied.begin(), shipEmbodied.end(), idx ) != shipEmbodied.end() ) continue;
+		// someone who should have left but is still in the player's sight holds their place in the
+		// count: the deck never shows more than its cap, even across a change of company
+		if ( static_cast<int>( shipEmbodied.size() ) >= cs.cfg.maxCrew ) break;
 		const std::string name = RosterName( idx );
 		vec3_t at;
 		bool placed = false;
@@ -529,7 +560,12 @@ void SyncShipRoster( void )
 		p.hasOrigin = true;
 		navigator.GetNodePosition( nodes[( idx * 104729u + 13u ) % nodes.size()], p.origin );
 		bool known = false;
-		for ( const crew::Post &q : cs.posts ) known = known || q.name == p.name;
+		for ( crew::Post &q : cs.posts )
+		{
+			if ( q.name != p.name ) continue;
+			known = true;
+			VectorCopy( p.origin, q.origin ); //back from wherever they last walked off to
+		}
 		if ( !known && static_cast<int>( cs.posts.size() ) < crew::MAX_POSTS )
 		{
 			cs.posts.push_back( p );
@@ -997,6 +1033,7 @@ void Crew_Init( void )
 {
 	cs = CrewState();
 	shipEmbodied.clear();
+	shipLeaving.clear();
 	if ( !g_crew || !g_crew->integer )
 	{
 		cs.baseline = g_crewRun && g_crewRun->integer > 0;

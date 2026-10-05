@@ -39,6 +39,7 @@ round is done and its answers are in `docs/ship-programme.md`. **Do not re-ask t
 | `scripts/g3-measure.sh` (`--seconds 30` for a quick regression) | G3, eleven criteria | game data, built engine |
 | `scripts/s2-check.sh` | S2: ship in game, save/reload, console operated | same |
 | `scripts/build-ship.sh` | S3: stitches and compiles the whole ship (~3 min with vis+light) | `fetch-gdk.sh`, `fetch-map-tools.sh` |
+| `scripts/s5-check.sh` | S5 so far: embodied crew follow the ship's roster through meals; most walk to their place | game data, built engine |
 | `scripts/s4-check.sh` | S4 so far: Tactical opened by the retail panel command, operated, authority enforced | game data, built engine |
 | `scripts/s3-check.sh` | S3: one map, fifteen decks, each reached by turbolift, standing and clear; game frame time | the built ship (builds it if absent) |
 
@@ -63,7 +64,7 @@ measurement is running — bash reads scripts incrementally and the module is lo
 | S2 | built and verified headless; the owner has not operated the console. Open by command only (`ship console`), keyboard only, flat colour. |
 | S3 | **in progress — see below** |
 | S4 | **first slice done** (`scripts/s4-check.sh`): stations in the core; one screen serves Engineering, Tactical, Ops, Conn (and Sickbay); the retail panel commands `ui_engineeringstatus`/`ui_tactical`/`ui_ops`/`ui_navigation` open them when `g_ship 1`. Remaining: each station's real controls (needs core state: targets, course, transporter, medical), live status drawn on panels in the world (engine work), the other retail panels, mouse, artwork. See `docs/evidence/s4-station-consoles.md`. |
-| S5 | **first slice** (2026-10-06): with `g_crew 1 g_ship 1 g_crewFromShip 1` the crew on the player's deck are whoever the ship has there (`SyncShipRoster` in `g_crew.cpp`): they arrive and leave with their routine, each is given a place from the deck's navigation, and they walk to it. Seen on `tour/deck04` standing in for deck 2 (`+set g_crewDeck 2`): 41 aboard at breakfast, none an hour later, back at each meal; 7 of 10 embodied reached their places within 35 s, one failed. **No check script yet, not run on the merged ship, places are arbitrary nodes rather than stations, cap is 10.** Plan below. |
+| S5 | **first slice** (2026-10-06): with `g_crew 1 g_ship 1 g_crewFromShip 1` the crew on the player's deck are whoever the ship has there (`SyncShipRoster` in `g_crew.cpp`): they arrive and leave with their routine, each is given a place from the deck's navigation, and they walk to it. Seen on `tour/deck04` standing in for deck 2 (`+set g_crewDeck 2`): 41 aboard at breakfast, none an hour later, back at each meal; 7 of 10 embodied reached their places within 35 s, one failed. `scripts/s5-check.sh` checks it (count follows the ship through four meals; most reach their place; those leaving walk out of sight). **Not run on the merged ship, places are arbitrary nodes rather than stations, cap is 10.** Plan below. |
 | S6–S10 | not started |
 
 ## S3 in detail (the active work)
@@ -122,10 +123,9 @@ The crew direction layer (G3) embodies a *declared* roster and walks it to posts
 (S1) knows where each of the 141 is supposed to be. S5 joins them:
 
 1. (done as a first slice — `SyncShipRoster`) The roster on the player's deck comes from
-   `ship::CrewOnDeck`. Next for this step: a `scripts/s5-check.sh` (fast clock via
-   `g_shipDayScale`, assert the embodied count follows the ship's across a watch change and that
-   most reach their places); run it on the merged ship with `g_shipDeckPitch`; raise the cap toward
-   20-30 and measure frame time.
+   `ship::CrewOnDeck`, checked by `scripts/s5-check.sh`. Next for this step: run it on the merged
+   ship with `g_shipDeckPitch` (the code path exists, untested); raise the cap toward 20-30 and
+   measure frame time; one in ten gave up reaching a place on deck04 — find out why.
 2. A crew member's post is their system's station (`ship::Spec(post).deck/station`); stations need
    positions on the merged map — a table from station name to a waypoint, authored per deck.
    Off-duty crew go to the mess hall, the holodeck, their quarters: more positions.
@@ -148,8 +148,9 @@ The crew direction layer (G3) embodies a *declared* roster and walks it to posts
 ## Things the owner should be told (already said, repeat if asked)
 
 - **Saves from before `patches/0008` do not load** — including his own in `build/home`.
-- Six stale `longwayhome` processes from before the session were left running
-  (PIDs 63223, 67616, 98050, 186058, 309455, 398990). They are not ours to kill.
+- The six stale `longwayhome` processes from before the session were closed on 2026-10-06 after
+  the owner said old idle game processes may be closed ("if there's nothing using them"). That
+  permission is for orphaned, idle game processes only; check before closing anything.
 - Most numbers in the ship simulation are invented; canonical ones in `docs/lore-ledger.md` are
   marked "recalled" where written from memory and need checking against a source.
 - `build/tools` (map compiler, cabextract) and `build/gdk` (the GDK content) were fetched into the
