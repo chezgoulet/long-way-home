@@ -14,6 +14,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <string>
 #include <vector>
 
@@ -26,6 +27,9 @@ const char *const CARRY_FILE = "ship/carry.ship";
 
 cvar_t *g_ship;         // 1 = the ship simulation runs
 cvar_t *g_shipDayScale; // ship seconds per game second (60 = a day in 24 minutes; 1 = real time)
+cvar_t *g_shipMode;     // 0 ironman (the game), 1 holodeck (saves allowed)
+cvar_t *g_shipClock;    // 0 accelerated by g_shipDayScale, 1 real time, 2 wall clock (the ship lives on while away)
+cvar_t *g_shipRole;     // 0 any post, 1 in command, 2 Munro
 cvar_t *g_shipTest;     // harness: 1 = act, report, save, quit; 2 = report what a load restored, quit;
                         //          3 = operate the Engineering console; 4 = go to g_shipTestPos and photograph;
                         //          5 = ride the turbolift to every deck and report each arrival
@@ -297,6 +301,9 @@ void Ship_RegisterCvars( void )
 {
 	g_ship = gi.cvar( "g_ship", "0", 0 );
 	g_shipDayScale = gi.cvar( "g_shipDayScale", "60", 0 );
+	g_shipMode = gi.cvar( "g_shipMode", "0", 0 );
+	g_shipClock = gi.cvar( "g_shipClock", "0", 0 );
+	g_shipRole = gi.cvar( "g_shipRole", "0", 0 );
 	g_shipTest = gi.cvar( "g_shipTest", "0", 0 );
 	g_shipTestPos = gi.cvar( "g_shipTestPos", "0 0 0", 0 );
 	g_shipTestPitch = gi.cvar( "g_shipDeckPitch", "0", 0 );
@@ -327,7 +334,10 @@ void Ship_Init( void )
 	}
 	ship::Config cfg;
 	if ( g_shipDayScale->value > 0.0f ) cfg.dayScale = g_shipDayScale->value;
+	cfg.mode = g_shipMode->integer == 1 ? ship::MODE_HOLODECK : ship::MODE_IRONMAN;
+	cfg.clockMode = g_shipClock->integer == 1 ? ship::CLOCK_REAL_TIME : g_shipClock->integer == 2 ? ship::CLOCK_WALL : ship::CLOCK_ACCELERATED;
 	vessel = ship::NewShip( cfg );
+	ship::SetRole( vessel, g_shipRole->integer == 1 ? ship::ROLE_IN_COMMAND : g_shipRole->integer == 2 ? ship::ROLE_MUNRO : ship::ROLE_ANY_POST );
 	gi.Printf( "SHIP: simulation active, %d crew, a day every %.0f minutes\n",
 		static_cast<int>( vessel.crew.size() ), ship::SECONDS_PER_DAY / cfg.dayScale / 60.0f );
 }
@@ -338,7 +348,17 @@ void Ship_Frame( void )
 	if ( !pendingSave.empty() )
 	{
 		if ( ship::Unpack( pendingSave.data(), pendingSave.size(), vessel ) )
+		{
 			gi.Printf( "SHIP: restored from the save, day %d\n", vessel.Day() );
+			// Under the wall clock the ship lived on while the game was closed.
+			const uint64_t now = static_cast<uint64_t>( time( NULL ) );
+			if ( vessel.cfg.clockMode == ship::CLOCK_WALL && vessel.wallSeconds && now > vessel.wallSeconds )
+			{
+				ship::CatchUp( vessel, static_cast<double>( now - vessel.wallSeconds ) );
+				gi.Printf( "SHIP: %.1f hours passed aboard while you were away; it is now day %d\n",
+					( now - vessel.wallSeconds ) / 3600.0, vessel.Day() );
+			}
+		}
 		else
 			gi.Printf( S_COLOR_YELLOW"SHIP: the save's ship state could not be read; keeping a new ship\n" );
 		pendingSave.clear();
@@ -359,6 +379,7 @@ void Ship_Shutdown( void )
 void Ship_WriteSave( void )
 {
 	if ( !active ) return;
+	vessel.wallSeconds = static_cast<uint64_t>( time( NULL ) );
 	std::vector<uint8_t> blob = ship::Pack( vessel );
 	gi.AppendToSaveGame( SAVE_CHUNK, blob.data(), static_cast<int>( blob.size() ) );
 }
@@ -414,6 +435,13 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "seal" ) && a[0] ) ship::RepairDeck( vessel, atoi( a ), 1.0f );
 	else if ( !Q_stricmp( cmd, "board" ) && a[0] && b[0] ) ship::Board( vessel, atoi( a ), atoi( b ) );
 	else if ( !Q_stricmp( cmd, "borg" ) && a[0] && b[0] ) ship::BoardBorg( vessel, atoi( a ), atoi( b ) );
+	else if ( !Q_stricmp( cmd, "character" ) && a[0] && b[0] && gi.argc() > 4 )
+	{//ship character <name> <department 0-4> <rank 0-4>
+		const int who = ship::CreateCharacter( vessel, a, static_cast<ship::Department>( atoi( b ) ), atoi( gi.argv( 4 ) ) );
+		if ( who < 0 ) gi.Printf( "SHIP: no such character can be created (department 0-4: command, engineering, security, sciences, medical; rank 0-4)\n" );
+		else gi.Printf( "SHIP: you are %s, crew number %d\n", vessel.crew[who].name.c_str(), who );
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "jump" ) && a[0] )
 	{
 		if ( !ship::Jump( vessel, atoi( a ) ) ) gi.Printf( "SHIP: cannot jump to beacon %s (not one jump away, no warp drive, or no fuel)\n", a );
@@ -442,7 +470,7 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "usage: ship status | crew <deck> | console | alert green|yellow|red | on|off <system> | priority <system> <n>\n" );
 		gi.Printf( "       ship damage|repair <system> <0..1> | breach <deck> <0..1> | source core|impulse|auxiliary|batteries on|off\n" );
 		gi.Printf( "       ship seal <deck> | board <deck> <boarders> | borg <deck> <drones> | counterhack <system> <0..1>\n" );
-		gi.Printf( "       ship chart | jump <beacon> | fire\n" );
+		gi.Printf( "       ship chart | jump <beacon> | fire | character <name> <department> <rank>\n" );
 		return;
 	}
 	ship::Tick( vessel, 0.0f );

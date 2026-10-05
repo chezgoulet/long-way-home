@@ -4,6 +4,16 @@ Written 2026-10-06 at the owner's request, for whoever picks this up next (a new
 memory of this one). Read this, then `docs/ship-programme.md` (the plan and the owner's decisions),
 then `docs/gates.md` (the ledger). Keep this file current: update it at the end of every session.
 
+## In one paragraph
+
+Every gate S1-S10 now has something real behind it, and none of S3-S10 is finished. S1-S2 are done;
+S3 (the one-map ship) and S4-S5 have slices that run in the engine with check scripts; S6-S10 are
+**rules in the ship core with unit tests, reachable only from the console** — nothing of them is
+embodied, drawn or enforced in the game. The honest shape of what remains is therefore the same for
+each: take the core's state and make it visible and operable (bodies, consoles, assets), in the
+order the hand-off's per-gate notes give. The core (`module/ship/ship_core.*`, ~1,300 lines, 24
+tests) is the part to trust; read `tests/ship/test_ship_core.cpp` to see what it guarantees.
+
 ## The standing instruction
 
 The owner's goal for the session: *fully understand the goals of this repo and fully implement
@@ -69,7 +79,7 @@ measurement is running — bash reads scripts incrementally and the module is lo
 | S7 | **first slice, core only** (`tests/ship`): `Board`, per-system `control`, `Hijacked` (refuses console, delivers nothing), `CounterHack`, security response and attrition, boarders advancing, `MakeBreach`/`BreachScore`. Save format is version 3. Console: `ship board <deck> <n>`, `ship counterhack <system> <0..1>`. Next: boarders as hostile NPCs on the player's deck (reuse `SyncShipRoster`'s pattern with an enemy team), and the breach screen in `module/ui` calling `ship counterhack`. See `docs/evidence/s7-intruders-and-control.md`. |
 | S8 | **first slice, core only** (`tests/ship`): `BoardBorg`, per-deck `assimilated`, crew taken become drones, assimilated systems locked, stripping by engineers for parts. Save format is version 4. Console: `ship borg <deck> <n>`. Next: the visible half — swapping a section's shaders/models by `assimilated` is an engine capability to design; drones as NPCs (the game has Borg NPC types). See `docs/evidence/s8-the-borg.md`. |
 | S9 | **first slice, core only** (`tests/ship`): `sector` of 12 beacons from the seed, `Jump`, `Enemy`, `FireTorpedo`, `shieldStrength`, hits landing on decks and systems, boarding when shields fall, salvage. Save format is version 5. Console: `ship chart`, `ship jump <n>`, `ship fire`. Next: put it on the consoles (sector map on Conn, weapons on Tactical — extend `module/ui/ui_lwh_engineering.cpp` and the `lwh_ship_*` cvar feed), an enemy with systems, the pressure director. See `docs/evidence/s9-the-outside.md`. |
-| S10 | not started: play modes (ironman / holodeck), the three clocks (only the accelerated one exists, via `g_shipDayScale`), rank and clearance, the three player roles, character creation. |
+| S10 | **first slice, core + cvars** (`tests/ship`): `PlayMode`, `ClockMode` + `CatchUp`, `MayOperate`/`MayCallAlert`/`MayCommand`, `PlayerRole`, `CreateCharacter`. Save format is version 6. Cvars `g_shipMode`, `g_shipClock`, `g_shipRole`; console `ship character <name> <dept> <rank>`. **Nothing enforces these in the game yet**: next is to make the `ship` commands sent by consoles carry their station and be refused by `PlayerMayOperate`, deny manual saves in ironman (`GameAllowedToSaveHere` in `g_savegame.cpp` is the place), and a creation screen. See `docs/evidence/s10-modes-and-roles.md`. |
 
 ## S3 in detail (the active work)
 

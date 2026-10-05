@@ -659,13 +659,88 @@ Ship NewShip(const Config &cfg)
 	return s;
 }
 
+// ---- modes, rank and the player ---------------------------------------------------------------------
+
+float ClockRate(const Config &cfg) { return cfg.clockMode == CLOCK_ACCELERATED ? cfg.dayScale : 1.0f; }
+
+bool SavesAllowed(const Config &cfg) { return cfg.mode == MODE_HOLODECK; }
+
+static void Advance(Ship &s, double shipSeconds);
+
+void CatchUp(Ship &s, double realSecondsAway)
+{
+	if (s.cfg.clockMode != CLOCK_WALL || !(realSecondsAway > 0.0)) return;
+	Advance(s, std::min(realSecondsAway, static_cast<double>(MAX_CATCH_UP_DAYS) * SECONDS_PER_DAY));
+}
+
+bool MayOperate(const CrewMember &who, Station st)
+{
+	if (who.status != CREW_FIT) return false;
+	if (who.rank >= 4) return true;
+	switch (st) {
+	case STN_ENGINEERING: return who.dept == DEPT_ENGINEERING;
+	case STN_TACTICAL: return who.dept == DEPT_SECURITY;
+	case STN_OPS: case STN_CONN: return who.dept == DEPT_COMMAND || who.dept == DEPT_SCIENCES;
+	case STN_SICKBAY: return who.dept == DEPT_MEDICAL;
+	default: return false;
+	}
+}
+
+bool MayCallAlert(const CrewMember &who, Station st)
+{
+	return who.rank >= 3 && (st == STN_ENGINEERING || st == STN_TACTICAL) && MayOperate(who, st);
+}
+
+bool MayCommand(const CrewMember &who) { return who.status == CREW_FIT && who.rank >= 5; }
+
+bool PlayerMayOperate(const Ship &s, Station st)
+{
+	if (s.cfg.role == ROLE_IN_COMMAND) return true;
+	return s.player >= 0 && s.player < static_cast<int>(s.crew.size()) && MayOperate(s.crew[s.player], st);
+}
+
+bool PlayerMayCommand(const Ship &s)
+{
+	if (s.cfg.role == ROLE_IN_COMMAND) return true;
+	return s.player >= 0 && s.player < static_cast<int>(s.crew.size()) && MayCommand(s.crew[s.player]);
+}
+
+int CreateCharacter(Ship &s, const std::string &name, Department dept, int rank)
+{
+	if (name.empty() || name.size() > 40 || rank < 0 || rank > 4 || dept >= DEPT_COUNT) return -1;
+	const size_t named = sizeof(NAMED) / sizeof(NAMED[0]);
+	// The last generated member of the department with no station: nobody's post is taken from them.
+	for (size_t i = s.crew.size(); i-- > named;) {
+		CrewMember &c = s.crew[i];
+		if (c.dept != dept || c.post != SYS_COUNT || c.status != CREW_FIT) continue;
+		c.name = name;
+		c.rank = static_cast<uint8_t>(rank);
+		s.player = static_cast<int>(i);
+		return s.player;
+	}
+	return -1;
+}
+
+void SetRole(Ship &s, PlayerRole role)
+{
+	s.cfg.role = role;
+	if (role != ROLE_MUNRO) return;
+	for (size_t i = 0; i < s.crew.size(); ++i)
+		if (s.crew[i].type == "munro") s.player = static_cast<int>(i);
+}
+
 void Tick(Ship &s, float seconds)
 {
 	if (!(seconds >= 0.0f)) return;
+	Advance(s, static_cast<double>(seconds) * ClockRate(s.cfg));
+}
+
+static void Advance(Ship &s, double shipSecondsTotal)
+{
 	// Long steps are cut up, so a paused or fast-forwarded ship arrives where a played one would.
-	float shipSeconds = seconds * s.cfg.dayScale;
+	double shipSeconds = shipSecondsTotal;
 	do {
-		const float step = std::min(shipSeconds, 60.0f);
+		const float step = static_cast<float>(std::min(shipSeconds, 60.0));
 		s.clock += step;
 		UpdateCrew(s, step);
 		UpdateIntruders(s, step);
@@ -673,7 +748,7 @@ void Tick(Ship &s, float seconds)
 		UpdateOutside(s, step);
 		UpdateDecks(s, step);
 		shipSeconds -= step;
-	} while (shipSeconds > 0.0f);
+	} while (shipSeconds > 0.0);
 }
 
 void SetAlert(Ship &s, Alert a) { s.alert = a; }
@@ -848,6 +923,15 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U16(static_cast<uint16_t>(s.crew.size()));
 	w.U32(s.cfg.seed);
 	w.F(s.cfg.dayScale);
+	w.U8(s.cfg.mode); w.U8(s.cfg.clockMode); w.U8(s.cfg.role);
+	w.U16(static_cast<uint16_t>(s.player));
+	w.U64(s.wallSeconds);
+	// A created character's name and rank are not in the seed.
+	const bool custom = s.player >= 0 && s.player < static_cast<int>(s.crew.size());
+	const std::string name = custom ? s.crew[s.player].name : std::string();
+	w.U8(static_cast<uint8_t>(name.size()));
+	for (char ch : name) w.U8(static_cast<uint8_t>(ch));
+	w.U8(custom ? s.crew[s.player].rank : 0);
 	w.U64(static_cast<uint64_t>(std::llround(s.clock * 1000.0)));
 	w.U8(s.alert);
 	for (const System &sys : s.systems) { w.F(sys.health); w.U8(sys.enabled); w.U16(static_cast<uint16_t>(sys.priority)); w.F(sys.control); }
@@ -881,12 +965,22 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	Config cfg;
 	cfg.seed = r.U32();
 	cfg.dayScale = r.F();
+	const uint8_t mode = r.U8(), clockMode = r.U8(), role = r.U8();
 	if (!r.ok || !(cfg.dayScale > 0.0f && cfg.dayScale <= 86400.0f)) return false;
+	if (mode > MODE_HOLODECK || clockMode > CLOCK_WALL || role > ROLE_MUNRO) return false;
+	cfg.mode = static_cast<PlayMode>(mode); cfg.clockMode = static_cast<ClockMode>(clockMode); cfg.role = static_cast<PlayerRole>(role);
 	Ship s;
 	s.cfg = cfg;
 	BuildRoster(s);
 	BuildSector(s);
 	if (count != s.crew.size()) return false;
+	s.player = static_cast<int16_t>(r.U16());
+	s.wallSeconds = r.U64();
+	std::string name;
+	for (int n = r.U8(); n > 0 && r.ok; --n) name.push_back(static_cast<char>(r.U8()));
+	const uint8_t playerRank = r.U8();
+	if (s.player < -1 || s.player >= static_cast<int>(s.crew.size()) || playerRank > 6) return false;
+	if (s.player >= 0) { s.crew[s.player].name = name; s.crew[s.player].rank = playerRank; }
 
 	s.clock = static_cast<double>(r.U64()) / 1000.0;
 	const uint8_t alert = r.U8();

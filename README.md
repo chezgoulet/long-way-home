@@ -34,7 +34,7 @@ The gate ledger, `docs/gates.md`, is the authority; this is its summary.
 | S7 | intruders and hacking | first slice in the ship core: boarders, contested control of systems, security response, the breach puzzle's rules |
 | S8 | the Borg | first slice in the ship core: assimilation of decks and crew, and stripping it back |
 | S9 | the outside | first slice in the ship core: a sector to jump across and ship-to-ship combat through the ship's own systems |
-| S10 | play modes, roles, character creation | not started; see `docs/ship-programme.md` |
+| S10 | play modes, roles, character creation | first slice in the ship core: ironman and holodeck, three clocks, clearance by rank, three player roles |
 
 ## Building and checking
 

@@ -127,6 +127,19 @@ All invented, FTL being the model the owner named.
 | A boarding party | 3 from a raider, 4 drones from the Borg, to Main Engineering |
 | A derelict yields | 25 spare parts |
 
+## Rank and clearance
+
+That departments work their own stations and that senior officers can take any is on screen in
+outline. The thresholds are invented.
+
+| fact | value |
+|---|---|
+| Any station | lieutenant commander and above |
+| Calls the alert | lieutenant and above, at Engineering or Tactical |
+| Commands | commander and above (the captain and first officer) |
+| A created character | at most lieutenant commander |
+| Wall-clock catch-up | at most 30 days per absence |
+
 ## Stations
 
 | fact | value | confidence |

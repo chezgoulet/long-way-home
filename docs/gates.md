@@ -137,7 +137,7 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 | **S7** intruders and hacking | 🔶 first slice, the rules in the core: boarders, contested control, hijacking, security response, the breach puzzle; no bodies and no puzzle screen yet | `docs/evidence/s7-intruders-and-control.md` |
 | **S8** the Borg | 🔶 first slice, the rules in the core: drones convert decks and take crew, assimilated systems are lost outright, stripping costs hours and parts; nothing visible yet | `docs/evidence/s8-the-borg.md` |
 | **S9** the outside | 🔶 first slice, the rules in the core: a sector of beacons, jumps, ship-to-ship combat through the ship's own systems, hits landing on decks, boarding when shields fall, salvage; nothing to see yet | `docs/evidence/s9-the-outside.md` |
-| **S10** play modes, roles, character creation | ⏳ pending | |
+| **S10** play modes, roles, character creation | 🔶 first slice, the rules in the core: ironman/holodeck, three clocks with wall-clock catch-up, clearance by rank and department, three player roles, character creation; not yet enforced in the game | `docs/evidence/s10-modes-and-roles.md` |
 
 ## Adopted from RPG-X prior art (2026-10-04)
 

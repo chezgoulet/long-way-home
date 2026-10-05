@@ -179,9 +179,23 @@ const float SALVAGE_PARTS = 25.0f;       // spare parts recovered from a derelic
 
 enum Alert : uint8_t { ALERT_GREEN = 0, ALERT_YELLOW, ALERT_RED };
 
+// ---- how it is played (S10) -------------------------------------------------------------------------
+
+// Ironman is the game: one ship, no going back. Holodeck is for learning and testing: saves allowed.
+enum PlayMode : uint8_t { MODE_IRONMAN = 0, MODE_HOLODECK };
+// Accelerated: a ship's day in `dayScale`-compressed game time, only while playing. Real time: a day
+// is a day, only while playing. Wall clock: a day is a day and the ship lives on while you are away.
+enum ClockMode : uint8_t { CLOCK_ACCELERATED = 0, CLOCK_REAL_TIME, CLOCK_WALL };
+// Who the player is. Any post: a crew member, with that member's clearance. In command: the ship
+// answers to you. Munro: the Hazard Team's ensign, as in the retail game.
+enum PlayerRole : uint8_t { ROLE_ANY_POST = 0, ROLE_IN_COMMAND, ROLE_MUNRO };
+
 struct Config {
 	uint32_t seed = 2371;        // roster generation; the same seed is the same crew
 	float dayScale = 60.0f;      // ship seconds per simulated second: 60 = a day in 24 minutes
+	PlayMode mode = MODE_IRONMAN;
+	ClockMode clockMode = CLOCK_ACCELERATED;
+	PlayerRole role = ROLE_ANY_POST;
 };
 
 struct Ship {
@@ -200,6 +214,10 @@ struct Ship {
 	int beacon = 0;              // where the ship is
 	Enemy enemy;
 	uint32_t hits = 0;           // how many hits have landed: decides, deterministically, where the next one does
+
+	// the player
+	int player = -1;             // index into crew of the player's character; -1 = none chosen
+	uint64_t wallSeconds = 0;    // wall-clock time when the ship was last saved (CLOCK_WALL catches up from it)
 
 	int Day() const { return static_cast<int>(clock / SECONDS_PER_DAY); }
 	int SecondOfDay() const { return static_cast<int>(clock) % SECONDS_PER_DAY; }
@@ -312,10 +330,39 @@ bool Jump(Ship &s, int toBeacon);
 bool FireTorpedo(Ship &s);
 bool InCombat(const Ship &s);
 
+// ---- modes, rank and the player (S10) -------------------------------------------------------------
+
+// Ship seconds that pass per second played, for the configured clock.
+float ClockRate(const Config &cfg);
+// May the game be saved and loaded at will? Not in ironman: the ship is saved for you, and only forward.
+bool SavesAllowed(const Config &cfg);
+// The ship was away from the player for this long. Under the wall clock she lived through it -- at
+// most MAX_CATCH_UP_DAYS of it, so a year's absence is not a year's simulation. Other clocks: nothing.
+const float MAX_CATCH_UP_DAYS = 30.0f;
+void CatchUp(Ship &s, double realSecondsAway);
+
+// Clearance. A crew member operates the station their department works: Engineering for engineers,
+// Tactical for security, Operations and the Conn for command and sciences, Sickbay for medical. A
+// lieutenant commander or above may operate any. The alert is called by a department head or above
+// (lieutenant, rank 3) at Engineering or Tactical. Only the captain and first officer command.
+bool MayOperate(const CrewMember &who, Station st);
+bool MayCallAlert(const CrewMember &who, Station st);
+bool MayCommand(const CrewMember &who);
+// The same questions for the player, whose role may widen or fix the answer.
+bool PlayerMayOperate(const Ship &s, Station st);
+bool PlayerMayCommand(const Ship &s);
+
+// Character creation: the player takes the place of a generated crew member of that department --
+// the complement does not grow -- with the name and rank chosen (rank 0..4: nobody is created a
+// commander). Returns the roster index, or -1 if the name is empty or the rank out of range.
+int CreateCharacter(Ship &s, const std::string &name, Department dept, int rank);
+// Sets the role; ROLE_MUNRO makes the player Alexander Munro.
+void SetRole(Ship &s, PlayerRole role);
+
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 5;   // 2: parts, exposure, recovery; 3: control, intruders; 4: the Borg; 5: the outside
+const uint16_t SAVE_VERSION = 6;   // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

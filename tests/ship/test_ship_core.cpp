@@ -365,9 +365,11 @@ static void TestSave()
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[6] = 7; // a different complement
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[24] = 5; // an alert condition that does not exist
+	bad = blob; bad[39] = 5; // an alert condition that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[28] = 0x7f; // a health that is not a fraction
+	bad = blob; bad[43] = 0x7f; // a health that is not a fraction
+	CHECK(!Unpack(bad.data(), bad.size(), untouched));
+	bad = blob; bad[16] = 9; // a play mode that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	CHECK(Describe(untouched) == before);
 }
@@ -851,6 +853,90 @@ static void TestCombat()
 	CHECK(Describe(back) == Describe(w));
 }
 
+// S10. How it is played, and who may do what.
+static void TestModesAndClocks()
+{
+	g_test = "modes and clocks";
+	Config cfg;
+	CHECK(cfg.mode == MODE_IRONMAN && !SavesAllowed(cfg)); // ironman is the game
+	cfg.mode = MODE_HOLODECK;
+	CHECK(SavesAllowed(cfg));
+
+	// Accelerated: a ship's day in twenty-four minutes. Real time and wall clock: a second is a second.
+	Config acc, real, wall;
+	real.clockMode = CLOCK_REAL_TIME;
+	wall.clockMode = CLOCK_WALL;
+	CHECK(ClockRate(acc) == 60.0f && ClockRate(real) == 1.0f && ClockRate(wall) == 1.0f);
+	Ship a = NewShip(acc), r = NewShip(real), w = NewShip(wall);
+	Tick(a, 60.0f); Tick(r, 60.0f); Tick(w, 60.0f);
+	CHECK(a.SecondOfDay() == 9 * 3600 && r.SecondOfDay() == 8 * 3600 + 60 && w.SecondOfDay() == 8 * 3600 + 60);
+
+	// Away for two days: only the wall-clock ship lived through them.
+	const float fuelA = a.stores.deuterium, fuelW = w.stores.deuterium;
+	CatchUp(a, 2.0 * SECONDS_PER_DAY); CatchUp(r, 2.0 * SECONDS_PER_DAY); CatchUp(w, 2.0 * SECONDS_PER_DAY);
+	CHECK(a.Day() == 0 && r.Day() == 0 && w.Day() == 2);
+	CHECK(a.stores.deuterium == fuelA && w.stores.deuterium < fuelW);
+	// A ship left hurt is found worse, or mended, by what her crew could do meanwhile.
+	Ship hurt = NewShip(wall);
+	DamageSystem(hurt, SYS_SENSORS, 0.6f);
+	CatchUp(hurt, 6.0 * 3600);
+	CHECK(hurt.systems[SYS_SENSORS].health == 1.0f && hurt.stores.spareParts < 100.0f);
+	// A year away is not a year simulated.
+	Ship longAway = NewShip(wall);
+	CatchUp(longAway, 365.0 * SECONDS_PER_DAY);
+	CHECK(longAway.Day() == static_cast<int>(MAX_CATCH_UP_DAYS));
+	CatchUp(longAway, -5.0);
+	CHECK(longAway.Day() == static_cast<int>(MAX_CATCH_UP_DAYS));
+}
+
+static void TestRankAndRoles()
+{
+	g_test = "rank, clearance and the player";
+	Ship s = NewShip();
+	const CrewMember &janeway = s.crew[0], &tuvok = s.crew[2], &torres = s.crew[5], &kim = s.crew[4], &doctor = s.crew[6];
+	CHECK(MayCommand(janeway) && MayCommand(s.crew[1]) && !MayCommand(tuvok) && !MayCommand(torres));
+	CHECK(MayOperate(torres, STN_ENGINEERING) && !MayOperate(torres, STN_TACTICAL));
+	CHECK(MayOperate(tuvok, STN_TACTICAL) && MayOperate(tuvok, STN_ENGINEERING)); // a lieutenant commander may take any station
+	CHECK(MayOperate(kim, STN_OPS) && MayOperate(kim, STN_CONN) && !MayOperate(kim, STN_SICKBAY));
+	CHECK(MayOperate(doctor, STN_SICKBAY) && !MayOperate(doctor, STN_CONN));
+	CHECK(MayCallAlert(torres, STN_ENGINEERING) && MayCallAlert(tuvok, STN_TACTICAL));
+	CHECK(!MayCallAlert(kim, STN_OPS));           // not from Operations
+	CHECK(!MayCallAlert(s.crew[9], STN_ENGINEERING)); // Vorik is an ensign
+	s.crew[5].status = CREW_INJURED;
+	CHECK(!MayOperate(s.crew[5], STN_ENGINEERING)); // the injured operate nothing
+
+	// The player, three ways.
+	Ship p = NewShip();
+	CHECK(!PlayerMayOperate(p, STN_ENGINEERING) && !PlayerMayCommand(p)); // nobody yet
+	CHECK(CreateCharacter(p, "", DEPT_ENGINEERING, 1) == -1);
+	CHECK(CreateCharacter(p, "Too Senior", DEPT_ENGINEERING, 5) == -1);     // nobody is created a commander
+	const int me = CreateCharacter(p, "Ensign Reyes", DEPT_ENGINEERING, 1);
+	CHECK(me >= 19 && p.player == me && p.crew[me].name == "Ensign Reyes" && p.crew[me].rank == 1);
+	CHECK(static_cast<int>(p.crew.size()) == COMPLEMENT);                  // a place taken, not a berth added
+	CHECK(p.crew[me].post == SYS_COUNT);                                   // and nobody's station taken from them
+	CHECK(PlayerMayOperate(p, STN_ENGINEERING) && !PlayerMayOperate(p, STN_TACTICAL) && !PlayerMayCommand(p));
+	SetRole(p, ROLE_IN_COMMAND);
+	CHECK(PlayerMayOperate(p, STN_TACTICAL) && PlayerMayCommand(p));
+	SetRole(p, ROLE_MUNRO);
+	CHECK(p.crew[p.player].name == "Alexander Munro");
+	CHECK(PlayerMayOperate(p, STN_TACTICAL) && !PlayerMayOperate(p, STN_ENGINEERING) && !PlayerMayCommand(p));
+
+	// The mode, the clock, the role and the created character are in the save.
+	Config cfg;
+	cfg.mode = MODE_HOLODECK;
+	cfg.clockMode = CLOCK_WALL;
+	Ship w = NewShip(cfg);
+	const int who = CreateCharacter(w, "Lt. Okoro", DEPT_SCIENCES, 3);
+	w.wallSeconds = 1791234567ull;
+	const std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.cfg.mode == MODE_HOLODECK && back.cfg.clockMode == CLOCK_WALL && back.cfg.role == ROLE_ANY_POST);
+	CHECK(back.player == who && back.crew[who].name == "Lt. Okoro" && back.crew[who].rank == 3);
+	CHECK(back.wallSeconds == 1791234567ull);
+	CHECK(Pack(back) == blob);
+}
+
 static void TestStations()
 {
 	g_test = "stations";
@@ -947,6 +1033,8 @@ int main(int argc, char **argv)
 	TestBorg();
 	TestSector();
 	TestCombat();
+	TestModesAndClocks();
+	TestRankAndRoles();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);
