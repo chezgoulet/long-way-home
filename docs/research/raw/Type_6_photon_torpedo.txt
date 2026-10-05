@@ -1,0 +1,35 @@
+[[File:USS Voyager firing a photon torpedo.jpg|thumb|''Voyager'' firing photon torpedoes]]
+[[File:Type 6 photon torpedo specs.jpg|thumb|Specifications]]
+The '''type 6 photon torpedo''' was a type of [[photon torpedo]] used by {{Class|Intrepid}} [[starship]]s. The {{USS|Protostar}} was also equipped with this type of torpedo. ({{PRO|Lost and Found}})
+
+The specs for this type of photon torpedo were as followed:
+
+* Body: 210 [[cm]] long and 76 × 45 cm across
+* Weight: 247.5 [[kilo]]s when not loaded
+* Warhead: maximum of 1.5 kilos of [[antimatter]]
+* Mid-range yield: 3,500,000 [[kilometer]]s
+* Blast zone: 300 kilometers
+* [[Guidance system]] enabled
+* Speed up to vmax = vl + (0.75 vl / [[speed of light|c]])
+
+{{bginfo|The text for the technical specifications on the weapon was taken from the ''[[Star Trek: The Next Generation Technical Manual]]''{{page cite}} reference book.|The warhead's yield is the TNT equivalent of 64.5 Megatons.}}
+
+In [[2370]], [[B'Elanna Torres]] programmed the [[Cardassian ATR-4107]] [[shield]]s to adjust to all known weapons, including those used by [[Starfleet]]. When she last accessed the [[missile]] on [[stardate]] 47582, the {{USS|Voyager}}, which was equipped with this type of torpedo, was not in service. 
+
+In [[2372]], ''Voyager'' attempted to disable the missile's drive systems with torpedoes. As the torpedoes approached the missile, it scanned the weapons and adapted its shields. The torpedoes exploded harmlessly against the shields and the missile was undamaged. ({{VOY|Dreadnought}})
+
+In [[2375]], [[Ensign]] [[Harry Kim]] suggested [[beam]]ing one of ''Voyager''{{'}}s type-6 photon torpedoes over to an attacking [[Borg probe]] as they remodulated their shields in attempt to disable the vessel. Since the torpedo detonated near the [[power matrix]], it instead caused the destruction of the Borg ship. ({{VOY|Dark Frontier}})
+
+A type-6 photon torpedo from ''Voyager'' was on display at the [[Museum of Kyrian Heritage]] in [[3074]]. ({{VOY|Living Witness}})
+
+== See also == 
+* [[Class 6 warhead]]
+* [[Class 9 torpedo]]
+* [[Class 10 photon torpedo]]
+
+{{DEFAULTSORT|Type 06 photon torpedo}}
+
+[[de:Typ-6-Photonentorpedo]]
+
+[[Category:Explosive weapons]]
+[[Category:Classifications]]

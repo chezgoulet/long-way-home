@@ -1,0 +1,43 @@
+[[File:Tritanium ore.jpg|thumb|Tritanium ore]]
+[[File:Melted tritanium.jpg|thumb|Melted tritanium on [[Minos]]]]
+{{disambiguation|similarly named materials|tritium{{bracket right}}, {{bracket left}}titanium{{bracket right}}, or {{bracket left}}trititanium}}
+'''Tritanium''' was an [[ore]] known to be, when [[purity|pure]], 21.4 times as [[hardness|hard]] as [[diamond]]. It was found, among other places, on the [[planet]] [[Argus X]]. ({{TOS|Obsession}}) The ability to melt tritanium was beyond [[Federation]] [[weapon|weapons]] [[technology]] in [[2364]]. ({{TNG|The Arsenal of Freedom}}) 
+
+During the [[autopsy]] of [[Hon-Tihl]], the [[Klingon]] [[first officer]] of the {{IKS|Toh'Kaht}}, in [[2369]], [[Doctor]] [[Julian Bashir|Bashir]] found tritanium [[alloy]] fragments in his chest and upper arms, but determined that they were not the cause of his [[death]]. ({{DS9|Dramatis Personae}})
+
+{{bginfo|According to the ''[[Star Fleet Medical Reference Manual]]'' (p. 19), the element tritanium, symbol Tn, atomic weight 323, atomic number 125, was discovered by the Federation on Argus X in [[2161]].}}
+
+== Uses of tritanium ==
+Tritanium [[alloy]] was a widely-used construction material. The [[bulkhead]]s of {{NX|Enterprise}} were composed of tritanium. ({{ENT|Dead Stop}}) It continued to be used in the [[23rd century]], when it was used in the {{class|Crossfield}}. ({{DIS|Saints of Imperfection}}) In the [[24th century]], [[Federation]] [[starship]]s, specifically {{class|Galaxy}}, {{class|Intrepid}}, and {{type|Raven}}, also had tritanium bulkheads. ({{TNG|Where Silence Has Lease}}; {{VOY|Year of Hell, Part II|The Raven|Repentance}})
+
+The ''[[Erstwhile]]'', a [[Class 9 cargo vessel]], had a tritanium hull. ({{TNG|The Outrageous Okona}})
+
+The [[hull]]s of [[Axanar cargo ship]]s in the [[2150s]] were composed of tritanium and [[disilicon polymer]]s. ({{ENT|Fight or Flight}})
+
+{{bginfo|In the script for "Fight or Flight", the hull of an Axanar cargo vessel is instead referred to as containing [[ditanium]], although this is changed to tritanium in the final version of the episode.}}
+
+The hulls of Federation [[Type 6 shuttlecraft]] were composed of tritanium. A [[Class 2 shuttle]]'s hull was also made from a tritanium alloy. ({{TNG|Rascals}}; {{VOY|Threshold}}) 
+
+Tritanium was also used as a type of armor plating in [[skimmer|assault skimmers]]. ({{DS9|Business as Usual}})
+
+Federation [[EJ7 interlock]]s were composed of a tritanium compound. In [[2369]] [[Chief]] [[Miles O'Brien|O'Brien]]'s went missing and he found the remains in a [[power conduit]] alongside the organic remains of [[Ensign]] [[Aquino]]. Prior to this find, the [[computer]] located a tritanium source in the [[tool locker]] in [[Deep Space 9 levels#Level three|level three]]. ({{DS9|In the Hands of the Prophets}}) 
+
+The projectile fired from the [[TR-116 rifle]] was composed of tritanium. ({{DS9|Field of Fire}})
+
+[[Borg]] [[tactical drone]]s possessed a tritanium infrastructure, as did [[Borg cube]]s. ({{VOY|Dark Frontier|Endgame}})
+
+The detonator of a warhead in a firing range {{USS|Voyager}} accidentally wandered into was protected by tritanium shielding. ({{VOY|Human Error}})
+
+{{bginfo|According to the script for "Business as Usual", this material's name as pronounced as "try-TAIN-ee-um". ''{{st-minutiae|resources/scripts/516.txt}}''|According to a line cut from {{e|Encounter at Farpoint}}, tritanium, along with [[duraglass]], were used in the construction of [[Federation]] [[space station]]s. ''{{st-minutiae|resources/scripts/102.txt}}}}
+
+{{minerals}}
+
+==External link==
+* {{mbeta}}
+
+[[de:Tritanium]]
+[[fr:Tritanium]]
+[[ja:トリタニウム]]
+[[nl:Tritanium]]
+
+[[Category:Materials]]

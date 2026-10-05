@@ -1,0 +1,105 @@
+[[File:Regenerative shielding.jpg|thumb|The USS ''Prometheus'']]
+[[File:IKS Bortas shields hit.jpg|thumb|The port shields of a {{class|Vor'cha}} ship take a hit from a photon torpedo]]
+[[File:Galaxy class deflector shield.jpg|thumb|The deflector shields of a ''Galaxy''-class starship's [[stardrive]] section react to a [[tractor pulse]]]]
+[[File:USS Enterprise-D fires on Duras sisters b-o-p.jpg|thumb|The forward shields of a {{class|D12}} [[Duras sisters' Bird-of-Prey|Klingon Bird-of-Prey]] take a blast of phaser fire from the {{USS|Enterprise|NCC-1701-D|-D}}]]
+[[File:Trij's Bird-of-Prey.jpg|thumb|Class 5 Bird-of-Prey shields]]
+[[File:Voyager shields.jpg|thumb|The deflector shields of an ''Intrepid''-class starship's primary hull reacting to weapons fire]]
+[[File:Constitution II class deflector status display.jpg|thumb|Deflector status display of a ''Constitution II''-class starship]]
+[[File:Graviton analysis.jpg|thumb|A graviton analysis of a ''Galaxy''-class starship's shields]]
+[[File:Deflector status display, Sovereign class.jpg|thumb|The deflector status display of a {{class|Sovereign}} starship]]
+{{aquote|Shields up, red alert!|Christopher Pike|2258|11}}
+'''Deflector shields''' or '''shield grids''', generally [[Reference|referred]] to simply as '''shields''', were a type of [[force field]] that surrounded a [[starship]], [[space station]], or [[planet]] that was used to [[Protection|protect]] against [[enemy]] [[Attack|attacks]] or natural [[Hazard|hazards]].
+
+== Operation ==
+Deflector shields worked by forming a layer or layers of energetic distortion with a high concentration of gravitons around the object to be protected. The shield on starships was divided into six sections: [[fore|forward]], [[starboard]], [[port]], [[aft]], [[dorsal]], and [[ventral]]. ({{film|10}}) Shield energies could be emitted by a localized antenna or "dish," such as a ship's [[navigational deflector]], or by a network of "grid" emitters spread across the surface of an object, such as a starship's [[hull]]. Deflector shields have been standard equipment on starships since at least the [[23rd century]].
+
+Normally, neither [[matter]] nor highly concentrated [[energy]] could penetrate a shield. Most matter or energy that came into contact with the shields was harmlessly deflected away when they were "up," or energized at a high level. This was significant in starship combat because shields were required for hull protection. Only minor hull damage would be expected during combat with the shields up. Without deflector shields, weapons in the 23rd and [[24th century|24th centuries]] were capable of causing catastrophic damage to starship hulls almost instantly. ({{film|2}}; {{film|6}}; {{film|7}})
+
+Continuous or extremely powerful energy discharges could gradually erode a shield's integrity to the point of failure. Shield capacities varied depending on a variety of factors, ranging from available power to environmental concerns, making definitive and universal calculations of how much damage they could withstand difficult to estimate. As a result, tactical officers would constantly report on shield strength during combat, usually as a percentage of total effectiveness, with 100% indicating that the shields were fully operational and lower percentage scores indicating weaker shield conditions. 
+
+Specific sections of the shield grid could sustain more damage than others and be reinforced with additional power reserves, so tactical officers would report on the shields' health by section if necessary. Shields were said to be "holding" if the damage was insufficient to allow a compromise; if the shields were "buckling" or "failing," total shield protection was on the way. ({{film|6}})
+
+Shields used a [[frequency]] range to allow certain types of energy and matter to pass through or to increase the effectiveness of blocking them. Shield frequencies were rarely discernible without inspecting the controls on board the ship deploying them, making it difficult to tune weapons to the exact frequency of an opponent's shields in order to bypass them. ({{DS9|The Jem'Hadar}}; {{film|7}})
+
+Starships would match their own shield and weapon frequencies in combat so that their shielding did not interfere with their own weapons. Some weapons technologies, including those commonly used by the [[Borg]], had rapidly adjustable frequencies, allowing them to quickly penetrate a static frequency shield. To minimize the effectiveness of the weapon's retuned frequencies, an effective counter was to repeatedly and randomly alter the shield harmonics, though this tactic amounted to little more than a stall against the Borg. ({{film|7}}; {{TNG|The Best of Both Worlds}})
+
+A deflector shield took some time to activate. When taking a [[shuttlecraft]] on board via its [[tractor beam]], a {{class|Constitution II}} starship needed exactly 13.5 seconds to lower and raise its shields, though this included the time required to tractor in the shuttle during an automated [[docking]] procedure; flying the shuttle in manually reduced this time significantly. ({{film|5}})
+
+Shields on a {{class|Nova}} starship could be fully recharged after 45 seconds of charging the shield emitters. The shields were required to be lowered for this task. ({{VOY|Equinox}})
+
+Normally, [[transporter]]s were not capable of penetrating shields. ({{TOS|Arena|A Taste of Armageddon}}) Twenty-third century [[Federation]] starships, such as the ''Constitution''-class {{USS|Enterprise|NCC-1701}}, could not transport through their own shields, but later starships such as the {{Class|Intrepid}} vessels could transport personnel and objects freely to and from without having to lower their shields. ({{VOY|Tsunkatse}})
+
+Federation starships typically used at least two different shield configurations. One type created an ellipsoid shield bubble that encircled the ship and a relatively large region directly adjacent to it. The other shield configuration employed a contour-conforming shield layer that extended a few meters beyond the main hull.
+
+{{bginfo|The ellipsoid shield configuration isn't shown until the [[24th century]]. Though shield harmonics can be adjusted to change the shape of shields of the 24th century, it is unclear if ships could produce both shield configurations.}}
+
+Some starships had a shield system advanced enough to allow protection of only specific areas of the ship, leaving other areas unprotected. This was useful in times when power reserves are low. Lowering portions of the shields would allow the use of transporters without completely sacrificing the protection that shields provide. This was also useful if a [[captain]] wanted to leave a section of the ship unshielded, like a [[cargo bay]]. ({{VOY|Equinox, Part II}})
+
+Shields could be "extended" to encompass another vessel which couldn't use its own shields. ({{TNG|The Next Phase}}) This could also be used on ships with weaker shields, by matching the ships' [[shield emitter]] frequencies. ({{TOS|Mudd's Women}}; {{TNG|The Defector|Deja Q}}; {{VOY|Equinox}}) While the extended shielding could provide some protection in the event of a shield failure on one ship, this technique put a strain on that ship's systems, and the overall strength of the extended shields was generally not as strong as two independent shield systems.
+
+== Strength ==
+Shield strengths seemed to vary, making an exact calculation of how much damage they could take impossible. However, there were some examples:
+* A ''Constitution''-class starship's shields could take the equivalent of ninety [[photon torpedo]]es at once. They could do so a total of five times before shattering completely. ({{TOS|The Changeling}})
+* A {{class|Sydney}} starship could be destroyed by two photon torpedoes from a ''Galaxy''-class starship with weakened shields. ({{TNG|Relics}})
+* Transporters on a ''Galaxy''-class starship could penetrate the shields on a {{class|Sydney}} starship with weakened shields. ({{TNG|Relics}})
+* The type of deflector shield used by the [[Lysian Central Command]] had an output of 4.3 [[kilojoule]]s and could have easily been taken out with a single photon torpedo. ({{TNG|Conundrum}})
+* According to [[Malcolm Reed]], the shields of the [[22nd century]] [[Nausicaan]] [[Nausicaan ship|ships]] won't hold against a [[torpedo]] from {{EnterpriseNX}}. ({{ENT|Fortunate Son}})
+
+== Weaknesses ==
+[[File:USS Odyssey's shields penetrated.jpg|thumb|The USS ''Odyssey''{{'}}s shields penetrated]]
+During the first battle with the [[Dominion]] in [[2370]], the {{USS|Odyssey}}'s shields were useless against the attacking [[Jem'Hadar fighter|Jem'Hadar]] [[Jem'Hadar fighters 001|fighters]] [[phased polaron beam]]s, therefore the ship suffered significant [[hull]] damage during the attack, even losing viability to its [[port]] [[nacelle]]. To compensate the ''Odyssey''{{'}}s [[Captain]] [[Keogh]] attempted to alter the shield harmonics to compensate, but was unable to find an effective [[frequency]], even after they had run through the full spectrum. Consequently, with the loss of their primary defensive mechanism, Keogh had [[engineering]] divert shield power to [[weapon system|weapons]] to bolster their offensive capabilities. ({{DS9|The Jem'Hadar}}) [[2374|Four years later]], [[Weyoun 5]] was surprised to learn that [[Deep Space 9]]'s shields held against the Dominion's initial assault during the [[second Battle of Deep Space 9]]. In fact, he called such a feat "impossible", adding, "''Federation shields have always proven useless against our weapons.''" Nevertheless, he was reassured by [[Gul]] [[Dukat]] that "''I've found it wise to never underestimate the Federation's technical skill or Captain [[Benjamin Sisko|Sisko]]'s resourcefulness.''" ({{DS9|Call to Arms}})
+
+[[Solar flare|Solar flares]] can also damage shields and render them useless. 
+
+In [[2266]], [[Commander]] [[Hikaru Sulu|Sulu]] was forced to take the ''[[USS Enterprise (NCC-1701)|Enterprise]]'' out of the [[Minarian star system|Minara System]] when the star entered its [[Nova|nova phase]] releasing a solar flare and trapping [[James T. Kirk|Kirk]], [[Leonard McCoy|Bones]], and [[Spock]] on the planets surface. ([[Star Trek: The Original Series|TOS]]: {{e|The Empath}})
+
+In [[2364]], [[Lieutenant junior grade|Lieutenant, j.g]]. [[Geordi La Forge]] told [[Captain]] [[Jean-Luc Picard]] that the solar flare activity on a star the [[USS Enterprise (NCC-1701-D)|USS ''Enterprise''-D]] was studying was increasing. The shields were weakened by the flare activity, but managed to hold. ([[Star Trek: The Next Generation|TNG]]: {{e|Symbiosis}})  
+
+During a battle in the [[Klingon Civil War]], [[Kurn]] destroyed two pursuing [[Klingon Bird-of-Prey|Birds-of-Prey]] by triggering a solar flare. ([[Star Trek: The Next Generation|TNG]]: {{e|Redemption II}}) During the [[Dominion War]], [[Worf]] used this same tactic to destroy [[Monac shipyard|Monac Shipyards]]. ([[Star Trek: Deep Space Nine|DS9]]: {{e|Shadows and Symbols}})
+
+In [[2373]], [[Lieutenant junior grade|Lieutenant]] [[B'Elanna Torres]] listed a solar flare as one of many factors that could interfere with [[USS Voyager|USS ''Voyager'']]'s attempt to bring the [[Barzan wormhole]] to them with [[Verteron|verterons]]. ([[Star Trek: Voyager|VOY]]: {{e|False Profits}})
+
+In [[3189]], the planet [[Reilling VII]] deployed shields to protect itself from solar flares. That year, it requested additional shielding from [[Federation Headquarters]], which promptly sent a ship to assist them. ([[Star Trek: Discovery|DIS]]: {{e|Scavengers}}) 
+
+== Uses ==
+[[File:Hunter deflector shield.jpg|thumb|The handheld variation used by the Hunters]]
+In [[2369]], [[Starfleet]] made [[first contact]] with a [[species]] from the [[Gamma Quadrant]] known as the [[Hunter]]s. The first contact ended in a shootout on the [[Deep Space 9]] [[Promenade]], wherein the Hunters used a handheld deflector shield, integrated into their uniforms on their left arms. These shields collected the [[phaser]] fire and bundled it, letting the Hunters take several phaser shots without being hit. ({{DS9|Captive Pursuit}})
+
+{{bginfo|The [[script]] for "Captive Pursuit" refers to this technology as "optical deflector shields". ''{{st-minutiae|resources/scripts/406.txt}}''}}
+
+Later that year, [[Major]] [[Kira Nerys]] and [[Lieutenant]] [[Jadzia Dax]] re-calibrated the inner deflector shield subsystems of [[Deep Space 9]]. ({{DS9|Duet}})
+
+On [[Nepenthe]], the [[house]] of [[William T. Riker]] and [[Deanna Troi]] had been equipped with deflector shields and [[scanner]]s by [[2399]], as Riker said they had been having "a little trouble... with the [[Kzinti]]." ({{PIC|Nepenthe}})
+
+In [[3189]], as the {{USS|Discovery}} descended to the [[surface]] of a [[The Colony|planet]], [[Acting Captain]] [[Saru]] ordered [[Lieutenant]] [[Joann Owosekun]] to activate the deflector shields in bursts so as to cushion their [[crash landing|landing]]. ({{DIS|Far From Home}})
+
+== Shield types ==
+* [[Auto-regenerative shielding]]
+* [[Chromodynamic shield]]
+* [[Covariant shield]]
+* [[Defense field]]
+* [[Immersion shielding]]
+* [[Metaphasic shield]]
+* [[Metaphysic shield]]
+* [[Multi-adaptive shield]]
+* [[Multi-spatial force field]]
+* [[Multi-spectrum shielding]]
+* [[Multiphasic shield]]
+* [[Paratrinic shield]]
+* [[Refractive shield]]
+* [[Regenerative shield]]
+* [[Structural integrity field]]
+* [[Temporal shield]]
+* [[Trynar shield]]
+* [[Unimatrix shield]]
+
+== See also ==
+* [[Military technology]]
+[[cs:Štítový systém]]
+[[de:Schutzschild]]
+[[es:Escudos]]
+[[fr:Bouclier déflecteur]]
+[[ja:ディフレクター・シールド]]
+[[pl:Deflektor]]
+[[pt:Escudo defletor]]
+[[Category:Shield technology]]

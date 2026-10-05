@@ -1,0 +1,14 @@
+[[File:Phaser with rotating frequencies.jpg|thumb|[[Worf]] firing a hand-phaser equipped with a phaser adapter]]
+The '''phaser adapter''' was an anti-[[Borg]] modification chip added to [[phaser]]s used by [[Starfleet]] in [[2367]]. ({{TNG|The Best of Both Worlds, Part II}})
+
+In [[2366]], it was discovered that Borg systems were vulnerable to phaser blasts on a [[resonance frequency]] spread in the high narrow band. The Borg adapted to compensate for this weakness after [[Captain]] [[Jean-Luc Picard]] was [[assimilate]]d as the [[Locutus]]. ({{TNG|The Best of Both Worlds}}) 
+
+In 2367, based on a suggestion from [[Wesley Crusher]], a chip known as the phaser adapter was designed. It would automatically re-tune phasers to a random setting after each discharge. Using the adapter, phasers were set on a rotating modulation, to allow at most twelve shots to penetrate Borg shielding before they adapted. ({{TNG|The Best of Both Worlds, Part II}}; {{film|8}}; {{VOY|Scorpion}})
+
+A similar technology was invented in [[2375]] by [[Species 10026]]. The Borg adapted by [[Triaxilation|triaxilating]] their [[deflector shield]] geometry to absorb the energy of the modulating [[phaser pulse]]s. ({{VOY|Dark Frontier}}) 
+
+{{bginfo|The apocryphal ''[[Star Trek: Voyager - Elite Force]]'' and ''[[Star Trek: Elite Force II]]'' video games feature a rifle weapon developed by the crew of {{USS|Voyager}}, known as the infinity modulator or {{mb|Infinity modulator|I-MOD}}, in which this modulation technology was perfected and Borg drones were not able to adapt their personal [[force field]]s to its blasts.}}
+
+{{Phaser technology}}
+[[Category:Computer technology]]
+[[Category:Weapon components]]

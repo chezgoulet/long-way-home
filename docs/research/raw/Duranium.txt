@@ -1,0 +1,60 @@
+[[File:Test cylinder.jpg|thumb|A duranium [[test cylinder]], circa 2366]]
+[[File:La Forge and Crusher investigate radiation burn.jpg|thumb|Geordi La Forge and Wesley Crusher examining damage to duranium from Krieger waves]]
+'''Duranium''' was an extremely strong, silvery [[metal]]lic substance that was used in [[alloy]]s for [[hull]] construction of the [[starship]]s and [[space station]]s of numerous cultures, including [[Andorian]]s, [[Cardassian]]s, [[Ferengi]], [[Human]]s, [[Klingon]]s, and [[Trabe]]. 
+
+Duranium interests were traded on the open market of the [[Ferengi Futures Exchange]]. Over the last three [[trading cycle]]s prior to mid-[[2373]], there had been an increase of 7.75, a decrease of 2.125, and another increase of 11.375, making an overall gain of seventeen points. That year, [[DaiMon]] [[Igel]] petitioned to [[Grand Nagus]] [[Zek]] as to whether he should sell his duranium interests on the Exchange. ({{DS9|Ferengi Love Songs}})
+
+During the [[Dominion War]], the [[Gallamite]]s were supplying duranium to the [[Federation]] for the war effort. ({{DS9|Penumbra}})
+
+== Applications ==
+The outer hull of {{class|NX}} starships were lined with duranium. ({{ENT|The Xindi}})
+
+Federation [[Class F shuttlecraft|Class F]] [[Federation shuttlecraft|shuttlecraft]] were constructed with a duranium metal shell. ({{TOS|The Menagerie, Part I}})
+
+Portions of the interior of {{class|Galaxy}} starships were composed of solid duranium. It was discovered, in [[2366]], that [[Krieger wave]]s were capable of putting a hole in solid duranium, something that was rather difficult to accomplish, when one was discovered in the [[cargo bay]] of the {{USS|Enterprise|NCC-1701-D|-D}}. ({{TNG|A Matter of Perspective}}) 
+
+[[Miles O'Brien]] used an object of pure duranium in order to test the [[transporter]]'s operation in the ''Enterprise''-D's transporter room three, as he had discovered something odd while synchronizing the [[phase transition coil]]s. ({{TNG|Hollow Pursuits}})
+
+The skulls of [[Soong-type]] [[android]]s were partly composed of duranium. ({{TNG|The Chase}})
+
+Portions of the [[secondary hull]] on a [[Klingon]] {{class|Vor'cha}} [[attack cruiser]] were partially constructed from duranium [[alloy]]. While searching the [[debris]] of the {{IKS|Toh'Kaht}} for a [[mission recorder]], [[Jadzia Dax|Dax]] noted that the [[magnetic field]] from the duranium might be masking it. ({{DS9|Dramatis Personae}})
+
+Portions of [[Kazon fighter]]s, like Federation [[Type 8 shuttlecraft]], were composed of duranium and [[magnesite]]. ({{VOY|Initiations}})
+
+Duranium alloy was not normally used in the construction of the pylon supports of [[Class 2 shuttle]]s, making the shuttle susceptible to [[subspace torque]] when trying to achieve [[warp 10]]. [[Harry Kim]] suggested using a duranium alloy to reinforce the [[nacelle]], but [[B'Elanna Torres]] had already considered that and determined that it was "too brittle." ({{VOY|Threshold}})
+
+The [[Borg drone]] designated as [[One]] identified the hull of the {{class|Intrepid}} {{USS|Voyager}} as being constructed of duranium. ({{VOY|Drone}}) 
+
+''Voyager'' stored spare duranium sheeting in its [[cargo bay]] one. [[Neelix]] noted that "''with a few modifications, it could be converted into [[gravity plating]].''" ({{VOY|Alice}})
+
+=== Duranium composites ===
+The [[Cardassian]]s used two-[[meter]] thick duranium composite to shield all the [[access conduit]]s aboard [[Terok Nor]]. Prior to the station's encounter with the [[Hunter]]s, [[Miles O'Brien]] had "never seen a [[scanning device]] that could penetrate it." ({{DS9|Captive Pursuit}})
+
+[[Deep Space 9]]'s crew later took advantage of knowing that this composite was impervious to the station's own security net scans and hid in the conduits in [[2370]], when the station was under siege. ({{DS9|The Siege}})
+
+The [[emergency hatch]]es aboard [[Federation]] [[runabout]]s were made of duranium composite. When [[Major]] [[Kira Nerys]] suggested to burn through the hatch, Commander [[Benjamin Sisko]] told her to "forget it" and that "it would take [her] an hour to get through." ({{DS9|Q-Less}})
+
+=== Duranium shadows ===
+[[Duranium shadow]]s could be used to create the illusion, to [[sensor]] scans, of large weapon stockpiles. In [[2369]], Miles O'Brien created such an illusion behind a [[thoron field]] to fool [[Gul]] [[Jasad]] into thinking that Deep Space 9 was far more heavily armed than originally believed. O'Brien's duranium shadow gave the Cardassians the impression that the station was armed with an estimated five thousand [[photon torpedo]]es and integrated [[phaser bank]]s on all levels. ({{DS9|Emissary}})  
+
+Prior to the [[first Battle of Deep Space 9]], [[Benjamin Sisko]] warned [[Gowron]] and {{dis|Martok|Changeling}} that the station was armed with five thousand photon torpedoes, and suggested that if they did not believe him that they were free to scan the station. After the scan, Martok was still skeptical and stated to Gowron that it was a trick, and that what they were reading was likely an illusion created by thoron fields and duranium shadows. ({{DS9|The Way of the Warrior}})
+
+== Background information ==
+According to the ''[[Star Trek: Deep Space Nine Technical Manual]]'', duranium is a naturally-occurring ore in planetary [[crust]]s such as the crust of Bajor. This would suggest that duranium itself is not an alloy, but rather that there is a family of elements where duranium is the prime constituent. This is further supported by the use of the term "duranium-235," which implies that duranium is in fact an element, one that has an isotope with an atomic weight of 235.
+
+In the fictional ''[[Star Wars]]'' universe, {{f|starwars|duranium}} is an extremely light and durable material that is somewhat {{f|starwars|lightsaber}}-resistant and is much stronger than {{f|starwars|transparisteel}} or {{f|starwars|bronzium}}.
+
+This material is also referenced as a construction material in the video game {{wt|Unreal Tournament 2004}} and in ''[[Star Trek: New Worlds]]'' as a sixth resource material refined from dolamide ore. It is used to construct most structures.
+
+== See also ==
+* [[Duritanium]]
+
+== External links ==
+* {{mbeta}}
+* {{fandom|starwars|Duranium|Wookieepedia}}
+
+[[Category:Materials]]
+
+[[de:Duranium]]
+[[es:Duranio]]
+[[ja:デュラニウム]]

@@ -1,0 +1,64 @@
+[[File:USS Saratoga 2367 attacked.jpg|thumb|{{USS|Saratoga|NCC-31911}} in a [[Borg]] tractor beam]]
+A '''tractor beam''' or '''stabilizing beam''' was an attenuated linear [[graviton beam]] used by [[starship]]s and [[space station]]s to control the [[movement]] of external objects. The tractor beam placed spatial stresses on the object in specific areas, allowing it to hold the "tractored" object in a fixed [[location]] or alter its [[position]] and/or [[trajectory]]. While tractor beams were normally used to pull objects towards the beam source &ndash; usually to tow objects &ndash; conversely, they could also be set to ''repel'' objects. They were most often employed to tow a disabled or vulnerable ship to [[safety]], or sometimes, used by an [[enemy]] ship to control the movement of the target vessel. ({{DIS|Battle at the Binary Stars}}; {{TOS|Who Mourns for Adonais?}}; {{TNG|The Naked Now|The Battle|The Masterpiece Society|Cause And Effect}}; {{DS9|Emissary}}; {{VOY|Scorpion|Renaissance Man}})
+
+Tractor beams were generally only used at sub-[[warp]] velocities. To safely tow a vessel at warp speed, the target vessel's engines had to be deactivated to avoid shearing forces against towing vessel. A tractor beam could be used at warp speed only if both vessels' speeds were exactly matched. ({{VOY|Day of Honor|Renaissance Man}}; {{TNG|Final Mission|The Emissary}})
+
+Before the development of the tractor beam, Earth starships such as {{EnterpriseNX}} instead used the more primitive [[grappler]]s. Other species like [[Vulcan]]s, [[Klingon]]s, and [[Malurian]]s already used tractor beams by the mid-[[22nd century]]. ({{s|ENT}}; {{ENT|Breaking the Ice|Civilization}})
+{{bginfo|The {{y|2006}} video game ''[[Star Trek: Legacy]]'' established that the tractor beams had started being used by Starfleet during the [[Earth-Romulan War]] around the year [[2159]], when ''Enterprise'' had its grapplers replaced with the more advanced technology.}}
+
+[[File:Tractor beam model.jpg|thumb|A model tractor beam]]
+The [[First Federation]] vessel ''[[Fesarius]]'' was capable of towing a {{class|Constitution}} vessel at high warp for prolonged periods without stressing the hull of the target ship. ({{TOS|The Corbomite Maneuver}}) [[Borg]] vessels also had the capability of holding [[starship]]s securely while traveling at warp speed. ({{VOY|Scorpion, Part II}})
+
+In [[2293]], a tractor beam was one of several pieces of equipment and personnel lacked by the {{USS|Enterprise|NCC-1701-B|-B}} during its [[maiden voyage]], as it was not slated to be installed until the [[Tuesday]] after. ({{film|7}})
+
+[[Wesley Crusher]] created a model of the type of tractor beam that the {{USS|Enterprise|NCC-1701-D|-D}} used as a science project, before [[Geordi La Forge]] inadvertently infected him with the [[polywater intoxication|Psi virus]] brought over from the {{SS|Tsiolkovsky}}. While under the infection's influence, he seized control of [[engineering]] and was able to reconfigure the ship's tractor beam into a [[repulsor beam]], allowing the ''Enterprise'' to push itself away from the ''Tsiolkovsky'' and avoid a [[stellar core fragment]] from a nearby collapsing [[red giant]]. ({{TNG|The Naked Now}})
+
+If a vessel's tractor beam is strong enough, its graviton field can reinforce the structural integrity of a target vessel, keeping its hull from succumbing to stresses normally exhibited by a tractor field. ({{DS9|Captive Pursuit}})
+
+[[File:USS Enterprise-D tows the USS Stargazer.jpg|thumb|left|Tractor beam as used for towing]]
+When using a tractor beam to force another vessel out of warp speed, otherwise known as a "'''warp tow'''", both vessels needed to match velocity at the time of the tractor beam initiation. This brought tremendous risk to both vessels. However, if both vessels' [[hull]]s were strong enough to withstand the stress, they could both be brought out of warp with the tractor beam still engaged if the towing vessel carefully disengaged the warp drive while engaging the [[impulse engine]]s. ({{DS9|Paradise}})
+
+[[File:Internal tractor beam emitter.jpg|thumb|An internal tractor beam emitter in the shuttlebay of the USS ''Enterprise''-D]]
+Most [[Federation]] vessels were equipped with a [[tractor beam emitter]] on the [[aft]] [[ventral]] [[hull]], as it was the best location for towing objects. Secondary emitters were also placed in other locations. Smaller emitters were installed within [[shuttlebay]]s to assist in [[docking]] and landing maneuvers. ({{TNG|Time Squared}})
+
+A low frequency tractor beam projected against a [[planet]]'s [[tectonic plate]]s was capable of producing minor [[earthquake]]s. ({{TNG|Devil's Due}})
+
+The stress of a [[Romulan]] tractor beam caused sub-microscopic deformations in the [[structural integrity]], specially the nose section and aft [[thruster]]s, of the [[Type 15 shuttlepod]] ''[[Onizuka]]'', when used in an effort to stop a target craft. ({{TNG|The Mind's Eye}})
+
+The Borg favored the use of a considerably more advanced tractor beam when engaging in combat. The Borg beam was capable of rapidly draining a vessel's [[shields]] while holding the vessel in place, rendering it virtually helpless against the [[cutting beam]] that it was often used in conjunction with. Furthermore, the sheer size of the [[Borg cube]] permitted the tractor beam to be used with considerable effectiveness against even ships as large as the USS ''Enterprise''-D. They also had the ability to utilize tractor beams at warp velocities. ({{TNG|Q Who}}; {{DS9|Emissary}}; {{VOY|Scorpion}})
+
+In [[2369]], the [[Klaestron]]s disabled the tractor beam aboard [[Deep Space 9]] when they [[kidnap]]ped [[Lieutenant]] [[Jadzia Dax]] by creating a [[residual charge]] in the [[graviton generator]]. ({{DS9|Dax}})
+
+The same year, Deep Space 9's tractor beam was holding the [[Federation]] [[freighter]] ''[[Norkova]]'' after it was [[hijacking|hijacked]] by [[Rao Vantika]], [[Durg]], and two [[Bajoran mercenary 001|Bajoran]] [[Bajoran mercenary 002|mercenaries]]. Later, Lieutenant Dax sent an [[electromagnetic pulse]] via the tractor beam to free [[Doctor]] [[Julian Bashir]] from the [[consciousness]] of Vantika. ({{DS9|The Passenger}})
+
+[[File:USS Defiant tractors Vorcha class.jpg|thumb|left|Use of a modulated tractor beam to affect ship-to-ship weaponry]]
+[[File:DS9 tractor beam.jpg|thumb|The tractor beam of Deep Space 9]]
+A carefully modulated tractor beam could be used to affect ship-to-ship [[weapon]]ry. In [[2372]], [[Lieutenant Commander]] [[Worf]] of the {{USS|Defiant|2370}} suggested using such a beam against a {{class|Vor'cha}} attack cruiser. When put into practice, his plan was successful, deflecting some of the vessel's [[disruptor]] fire and reducing its effectiveness by fifty percent. ({{DS9|The Way of the Warrior}})
+
+In [[2371]], [[B'Elanna Torres]] devised a plan to create a [[subspace tractor beam]], which was a standard tractor beam modified to match [[subspace interference]]. This modification required more power than a standard tractor beam and could cut through subspace interference. This tractor beam was also able to project long distances. ({{VOY|Parallax}})
+
+In [[2384]], one of the tactics used by [[Jankom Pog]] against the ''[[Rev-1]]''{{'}}s drones was to bifurcate the {{USS|Protostar}}'s tractor beam and use it to slow them down. [[Murf]] then used the ship's phasers to destroy the drones. ({{PRO|Ascension, Part II}})
+
+In [[3195]], during the [[Venari Ral]] attack on the {{USS|Athena}}, Cadet [[Genesis Lythe]] attempted to use the tractor beam to save Cadet [[Darem Reymi]] when the ship's transporters were offline. [[The Doctor]] used his [[command code]] to give her command level access to the primary tactical systems and Genesis successfully rescued Darem. ({{SA|Kids These Days}})
+
+{{clear}}
+
+== See also ==
+* [[Tractor rig]]
+* [[Mooring beam]]
+* [[Multiphase tractor beam]]
+* [[Grappler]]
+* [[Subspace tractor beam]]
+
+== External links ==
+* {{mbeta}}
+* {{wikipedia}}
+
+[[cs:Vlečný paprsek]]
+[[de:Traktorstrahl]]
+[[es:Rayo tractor]]
+[[fr:Rayon tracteur]]
+[[ja:トラクター・ビーム]]
+[[pl:Promień trakcyjny]]
+
+[[Category:Transportation technology]]

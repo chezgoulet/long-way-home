@@ -1,0 +1,39 @@
+{{multiple}}
+[[File:Long range sensor scan display.jpg|thumb|On a display on the ''Defiant'']]
+[[File:USS Stargazer long range sensors.jpg|thumb|Long range sensor results aboard the ''Stargazer'']]
+A '''long range sensor scan''', '''long range scan''', or '''long range sensor''' was a [[scan]] which allowed a person to search a large [[area]] in [[space]] for objects such as [[starship]]s.
+
+[[Captain]] [[Jonathan Archer]] ordered the use of the long range sensors after {{EnterpriseNX}} went through the [[liquid]] [[phosphorus]] layer around a [[gas giant]] in [[2151]] and detected a [[Suliban helix]]. ({{ENT|Broken Bow}})
+
+In [[August]] 2151, the [[plasma cannon]] of the {{ECS|Fortunate}} knocked out the long range sensors of ''Enterprise''. When {{Trip Tucker}} was able to bring them back online, [[T'Pol]] detected weapon's fire and ''Enterprise'' went to settle the situation between the ''Fortunate'' and the [[Nausicaan]] [[pirate]]s. ({{ENT|Fortunate Son}})
+
+Also in 2151, Captain Archer ordered [[Lieutenant]] [[Malcolm Reed]] to stay on their long range scanners and let him know when the ''Enterprise'' made another contact with the [[Shroomies|unidentified aliens]] they had encountered earlier. ({{ENT|Silent Enemy}})
+
+In [[2153]], [[T'Pol]] identified the [[Borg]]-[[assimilate]]d [[transport]] ''[[Arctic One]]'' on the ships long range sensors. ({{ENT|Regeneration}})
+
+In [[2267]], the sensors of the {{USS|Enterprise|NCC-1701}} were able to scan out to one [[parsec]] and give a near instantaneous result. ({{TOS|The Enterprise Incident}})
+
+In [[2367]]. [[Lieutenant Commander]] [[Geordi La Forge]] stated that the long range sensors aboard the {{USS|Enterprise|NCC-1701-D|-D}} were able to scan a radius of ten light years within a twenty four [[hour]] period; effectively, one [[sector]] per [[day]]. ({{TNG|The Wounded}})
+
+In [[2368]], the long range sensors aboard the ''Enterprise''-D were able to detect a cubical [[Borg scout ship]] with a mass of 2.5 million metric tons, at a range that would take thirty-one hours and seven minutes to traverse at [[warp factor]] seven-point-six. ({{TNG|I Borg}}).
+
+In [[2369]], Lieutenant Commander [[Worf]] informed [[Commander]] [[William T. Riker]] that the long range sensors of the ''Enterprise''-D picked up a [[distress call]] from a [[Romulan]] [[warbird]]. Later, La Forge was unable to find the ''Enterprise''-D, as it was not at the rendezvous point. He told [[Captain]] [[Jean-Luc Picard]] that the long range sensors were at maximum and there was no sign of the ''Enterprise''. ({{TNG|Timescape}})
+
+The same year [[Doctor]] [[Julian Bashir]] and [[Major]] [[Kira Nerys]] responded to a [[priority one]] [[distress signal]] from the [[Kobliad transport]] ''[[Reyab]]'' and found the ship via the long range sensors. ({{DS9|The Passenger}})
+
+During a rescue mission for the [[runabout]] {{USS|Yangtzee Kiang}} in the [[Gamma Quadrant]], the long range sensors of the {{USS|Rio Grande}} were affected by the [[delta radiation]] of the [[star]] of a [[binary star system]]. ({{DS9|Battle Lines}})
+
+The computer aboard [[Deep Space 9]] activated the long range sensors when Commander [[Benjamin Sisko|Sisko]] requested data about all [[Cardassian]] traffic at the border in 2369. ({{DS9|The Forsaken}})
+
+In [[2370]], [[Sam Lavelle]] performed a long range scan to find an [[escape pod]] near the [[Cardassian border]], but with no success. [[Data]] suggested it was possible that at this distance, the [[sensor]]s of the ''Enterprise''-D were unable to distinguish the pod from the [[inorganic]] [[matter]] normally present in space. ({{TNG|Lower Decks}})
+
+''In an [[alternate timeline]], Data, on board the {{USS|Pasteur}}, performed a long range sensor scan to locate anomalies in the [[Devron system]] but found nothing.'' ({{TNG|All Good Things...}})
+
+In [[2372]], Worf performed a long range sensor scan from a console on the bridge of the {{USS|Defiant|2370}}, searching for [[Klingon]] starships. ({{DS9|The Way of the Warrior}})
+
+Following the destruction of the [[Federation]] [[colony]] [[Ivor Prime]] near [[Deep Space 5]] in [[2373]], long range sensors detected the [[Borg]]. [[Admiral]] {{dis|Hayes|Male Admiral}} reported this to Captain [[Jean-Luc Picard]]. ({{film|8}})
+
+The long range sensors of the {{USS|Enterprise|NCC-1701-E|-E}} went offline after the ship went through the [[temporal vortex]] to the [[year]] [[2063]]. ({{film|8}})
+
+[[de:Langstreckensensor]]
+[[Category:Scans]]

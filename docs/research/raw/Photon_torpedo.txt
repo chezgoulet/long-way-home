@@ -1,0 +1,164 @@
+{{multiple}}
+[[File:USS Enterprise fires photon torpedo.jpg|thumb|{{USS|Enterprise|NCC-1701}} firing a photon torpedo]]
+[[File:Photon torpedo - the ship.jpg|thumb|A standard Starfleet-issue photon torpedo]]
+{{aquote|Photon torpedo: isn't that the universal greeting when communications are down?''"<br>"''I think it's the universal greeting when you don't like someone.|[[William T. Riker]] '''and''' [[Geordi La Forge]]|2375|9}}
+'''Photon torpedoes''' were [[warp-capable]] [[tactical]] [[matter]]/[[antimatter weapon]]s commonly deployed aboard [[starship]]s and [[starbase]]s by various organizations. Photon torpedoes, often abbreviated as "[[photon]]s", were called '''''Pu'DaH dak cha''''' in [[Klingonese]]. ({{TNG|The Arsenal of Freedom}}, etc.; {{ENT|Sleeping Dogs}})
+
+== History ==
+[[File:D5 class forward torpedo.jpg|thumb|A 22nd century Klingon D5 firing a photon torpedo]]
+[[File:USS Kelvin photon torpedo launchers.jpg|thumb|Starfleet photon torpedo launchers in 2233]]
+[[Klingon]]s began using photon torpedoes by at least the mid-[[22nd century]]. They used them extensively on board {{class|Raptor}} [[scout vessel]]s, {{class|D5}} [[battle cruiser]]s, and [[Klingon Bird-of-Prey (22nd century)|Birds-of-Prey]]. In comparison, during that same period, [[Earth]]'s [[Starfleet]] was still employing the [[spatial torpedo]], although they soon upgraded to [[photonic torpedo]]es, the precursors to the photon torpedo. ({{ENT|Fight or Flight|Sleeping Dogs|Judgment|The Expanse|Borderland}})
+
+Starfleet vessels, operated by the [[United Federation of Planets]], began using photon torpedoes by at least [[2233]]. ({{film|11}})
+
+The [[24th century]] saw the deployment of an improved type of ordnance in the year [[2371]]: the [[quantum torpedo]]. Nonetheless, photons continued to be utilized along with the new quantum torpedoes by such starships as the {{USS|Enterprise|NCC-1701-E|-E}}. ({{DS9|Defiant}}; {{film|10}})
+
+In [[2384]], the {{USS|Voyager|NCC-74656-A|-A}} was equipped with 1,276 photon torpedoes. ({{PRO|Into the Breach, Part I}})
+{{bginfo|An LCARS display on the ''Voyager''-A lists photon torpedoes as one of the available armaments. A clear view of the ship's Operation information panel was provided by Dominique Rossier of Wardenlight Studio. ''{{el|cdnb.artstation.com/p/assets/images/images/077/741/459/4k/dominique-rossier-prodigy-s2-pilotea10.jpg?1720212135}}''}}
+
+== Overview ==
+[[File:Photon warhead label.jpg|thumb|The warning label on a photon warhead]]
+[[File:Enterprise fires torpedo.jpg|thumb|A standard photon torpedo in space]]
+[[File:Class 10 photon torpedo.jpg|thumb|A class-10 photon torpedo carrying [[Borg]] [[nanoprobe]]s]]
+The components of a Federation photon torpedo were contained within an elongated elliptical casing, also known as a photon tube. The weapon was armed with a [[photon warhead]]. The [[warhead]] had a detonation chamber filled with antimatter. Upon detonation the torpedo created a matter-antimatter explosion and a flood of [[ion radiation]]. ({{film|2}}; {{film|3}}; {{DS9|Tribunal}}; {{VOY|Good Shepherd}}; {{TNG|The Loss|New Ground}})
+
+In [[2367]], the range of Federation photon torpedoes was slightly below three hundred thousand kilometers. ({{TNG|The Wounded}}) When launched, Federation photon torpedoes expelled [[plasma exhaust]] into the [[torpedo tube]]. ({{VOY|Future's End, Part II}}) Federation photon torpedoes had a [[subspace detonator]]. It could be activated remotely to abort a torpedo that had been launched. The detonator destroyed the torpedo before impact. ({{TNG|Genesis}})
+
+In [[2368]], Federation photon torpedo warhead yields had at least sixteen preset levels. An explosion powerful enough to disrupt a [[soliton wave]] could be created with five torpedoes set to level 16. ({{TNG|New Ground}}) According to the [[Kyrian]] curator {{dis|Quarren|Kyrian}}, a photon torpedo with a twenty-five [[isoton]] yield could destroy an entire city within seconds. ({{VOY|Living Witness}})
+
+{{bginfo|Given that much of the other information about ''Voyager'' was wrong in "Living Witness" and this piece of information was stated about a torpedo that had been inactive for centuries, the accuracy of the statement is questionable.}}
+
+When fired by a {{class|Galaxy}} starship without [[shields]] at a target in close range, a single photon detonation had a high [[probability]] of destroying the firing ship as well. In [[2365]], the unshielded {{USS|Lantree}} was destroyed with a single photon torpedo hit. The {{USS|Enterprise|NCC-1701-D|-D}} remained at a distance of forty kilometers. ({{film|7}}; {{TNG|Q Who|Unnatural Selection}})
+
+{{bginfo|Photon torpedoes were also seen destroying starships with single hits in {{DS9|The Way of the Warrior}}.}}
+
+In 2367, if a photon torpedo was fired by a ''Galaxy''-class starship with shields, at a target in close range, the torpedo explosion could disable the firing ship. When shield strength was increased three hundred percent, the ship remained undamaged when a full spread of maximum yield torpedoes was detonated at close range. ({{TNG|The Nth Degree}})
+
+Torpedoes used by the Federation in 2365 could burrow through the surface of a planet intact. By 2367, the [[deflector shield|shields]] of a torpedo could protect it for several seconds, during which the torpedo entered a sun and burrowed into its stellar core. The torpedo flight engine used reactants carried on board for power. Klingon and Federation photon torpedoes had a frequency, related to that of its target's deflector shield frequency modulation, measured in megahertz. When both were matched torpedoes could penetrate the shields of the target starship. ({{TNG|Pen Pals|Half a Life}}; {{film|7}}; {{VOY|Equinox, Part II}})
+
+{{bginfo|It is not clear if the frequency of the torpedo was actually the shield frequency modulation of the torpedo. A line by [[Geordi La Forge]] in the script of "Half a Life" confirmed torpedoes used a sustainer engine for propulsion. This dialogue was however cut short from the aired episode. ''{{st-minutiae|resources/scripts/196.txt}}''}}
+
+[[Antimatter charge]]s were a type of low-yield weapon system that could be upgraded into photon torpedoes. In 2365, Geordi La Forge increased the size of the charges on the [[Pakled]] ship ''[[Mondor]]'' and turned the Pakled weapons into photon torpedoes. ({{TNG|Samaritan Snare}})
+
+With [[thoron field]]s and [[duranium shadow]]s, false sensor readings of photon torpedoes could be created to fool enemy ships. ({{DS9|Emissary|The Way of the Warrior}})
+
+In [[2370]], [[Quark]] arranged the sale of two hundred [[Pygorian]] photon torpedoes, among other items, to the [[Maquis]] through their [[gun runner]] [[Sakonna]]. ({{DS9|The Maquis, Part I|The Maquis, Part II}})
+
+== Federation photon torpedo types ==
+[[File:Photon torpedo interior 2367.jpg|thumb|Schematics of the type of photon torpedo used in 2367]]
+[[File:Mark XXV torpedo interior.jpg|thumb|Schematic of a Mark XXV torpedo]]
+[[File:Constitution class (alternate reality), torpedo bay.jpg|thumb|Several small cylindrical torpedoes stacked in the [[torpedo bay]] of the alternate {{USS|Enterprise|NCC-1701 alternate reality}}]]
+Section 31 vessels in [[2258]] were capable of firing Mark V photon torpedoes through "dropbay"-style launchers. ({{DIS|Such Sweet Sorrow, Part 2}})
+
+[[USS Enterprise (NCC-1701)|The Enterprise]] carried Mark III photon torpedoes, one of which fell on [[Montgomery Scott]] while he was a puppet around 2260. ([[Star Trek: Strange New Worlds|SNW]]: [[Level-Five Transporter Accident (episode)|Level-Five Transporter Accident]])
+
+{{class|Constitution II}} starships carried an inventory of Mark VI torpedoes with [[terminium]] casings in [[2285]], and Mark VII photon torpedoes in [[2293]]. At least the Mark VII torpedoes could not be programmed to fire themselves without a [[torpedo launcher]]. ({{film|2}}; {{film|3}}; {{film|6}})
+
+In 2370, ''Galaxy''-class ships received a weapons upgrade that increased the explosive yield of photon torpedoes by eleven percent. Later that year, [[photon warhead]]s used on [[Deep Space 9]] were labeled as "Pho-torp Mark IV components". ({{TNG|Genesis}}; {{DS9|Tribunal}})
+
+{{bginfo|The Mark IV torpedo has never been seen on-screen, but has been depicted in the {{ste|4|2|140}} and {{STTM|3|10|42}} to have the size and shape of other torpedo casings seen on-screen.}}
+
+{{USS|Voyager}} was equipped with [[type 6 photon torpedo]]es. They were not in use before ''Voyager'' was launched in [[2371]]. Some of these torpedoes had a yield of twenty-five isotons. A class 6 warhead in this type of torpedo had the explosive yield of two hundred isotons. These torpedoes had an effective range of approximately eight million kilometers. The class 6 torpedoes were not capable of creating tears into subspace. ({{VOY|Dreadnought|Scorpion, Part II|Living Witness|Human Error|The Voyager Conspiracy}})
+
+''Voyager''{{'}}s torpedoes were also said to possess a [[class 6 warhead]]. ({{VOY|Scorpion, Part II}})
+
+''Voyager'' also carried [[class 9 torpedo|class 9]] and [[class 10 photon torpedo]]es. [[Qatai]] believed that the explosive charge of one class 9 torpedo could have destroyed the gigantic "[[telepathic pitcher plant]]" [[bioplasmic organism]] if it was detonated deep within its digestive tract. ({{VOY|Bliss}}) The class 10 torpedoes could be armed with even more powerful high-yield warheads. ({{VOY|Scorpion, Part II|In the Flesh}})
+
+The computer screen of the class 9 torpedo interior was used by the impostors in [[2376]] to identify it as a standard issue torpedo of USS ''Voyager'', classified as Mark XXV. ({{VOY|Bliss|Live Fast and Prosper}})
+
+{{bginfo|The graphic depicting the interior of the Mark XXV first appeared in the ''[[Star Trek: Deep Space Nine Technical Manual]]'', where the designation also originated. In "Bliss", the graphic was found in ''Voyager''{{'}}s weapon manifest as the class 9 torpedo, without the Mark XXV designation. In both manifests a diagram of the [[phaser cannon]], also originally created for ''Star Trek: Deep Space Nine Technical Manual'' as a weapon on the {{USS|Defiant|2370}}, also appeared as a weapon on ''Voyager''. This suggests the graphics were only used as generic weapon diagrams, since ''Voyager'' presumably didn't actually carry phaser cannons.}}
+
+''In [[2258]], the {{USS|Enterprise|NCC-1701 alternate reality}} of the {{NIR}} carried smaller cylindrical photon torpedoes. Six could be simultaneously loaded into a launcher.'' ({{film|11}})
+
+''[[2259|A year later]], the ''Enterprise'' was retrofitted with additional larger torpedo tubes along the [[secondary hull]] for prototype [[advanced long-range torpedo]]es. These torpedoes were designed to be undetectable to sensors.'' ({{film|12}})
+
+== Other uses and modifications ==
+[[File:Lisa Cusak funeral.jpg|thumb|Used as a casket, draped with [[flag of the Federation]]]]
+[[File:Warp flare.jpg|thumb|A photon torpedo used as a "[[warp flare]]"]]
+[[File:Mister Tricorder.jpg|thumb|A Mark V torpedo behind a smiling [[Data]]]]
+[[File:Gravimetric charge.jpg|thumb|[[Tuvok]] with a [[gravimetric charge]]]]
+[[File:Borg 8472 warhead.jpg|thumb|A high-yield warhead explosion, scattering [[Borg]] [[nanoprobe]]s]]
+* It became something of a [[Starfleet]] [[funeral|tradition]] to place [[death|dead]] [[crew]]members inside an empty torpedo casing, and often such torpedoes were launched into space. The tradition was similar to the ancient Earth tradition of the burial at sea. [[Spock]], [[Enrique Muniz]], Captain [[Lisa Cusak]], and [[Jadzia Dax]] were placed in empty torpedo casings after their deaths. Spock's body was launched towards the rapidly-forming {{dis|Genesis|planet|Genesis Planet}}. It is unknown, however, as to whether or not Cusak's or Dax's bodies were launched into space, or if they were returned home for more traditional ceremonies. ({{film|2}}; {{DS9|The Ship|The Sound of Her Voice|Tears of the Prophets}}) Non-Starfleet personnel have also received this type of burial. Dr. [[Ira Graves]]' body was beamed into space in a tube with a transparent window to display his face. Lieutenant [[John Kelly]]'s corpse, recovered from a [[graviton ellipse]] in [[2376]], was launched into space in a standard torpedo tube. ({{TNG|The Schizoid Man}}; {{VOY|One Small Step}})
+* ''In [[2259]] in the {{NIR}}, {{NIR|Khan Noonien Singh}} retrofitted seventy-two [[advanced long-range torpedo]]es by removing a [[Fuel cell|fuel container]] to make room inside the torpedo casing to smuggle his old crew from the {{SS|Botany Bay}} who were stored inside [[cryo tube]]s.'' ({{film|12}})
+* In [[2293]], [[Spock]] and [[Leonard McCoy|McCoy]] modified a photon torpedo to follow the trail of ionized [[gas]] from [[Chang's Bird-of-Prey]] at [[Nyota Uhura|Uhura]]'s suggestion. This exposed the [[cloak]]ed [[Klingon Bird-of-Prey|Bird-of-Prey]] and allowed its destruction by the {{USS|Enterprise|NCC-1701-A|-A}} and the {{USS|Excelsior|NCC-2000}}. ({{film|6}})
+* A volley of [[Romulan]] photon torpedoes was credited for catalyzing a [[Kerr loop]] out of [[superstring]] material, which resulted in a symmetrical [[temporal rift]], a [[wormhole]] without a definable center or [[event horizon]], between [[2344]] and [[2366]]. ({{TNG|Yesterday's Enterprise}})
+* In [[2368]], [[Data]] used a "high-energy burst level 6" yield setting on the photon torpedo warheads to expose [[tachyon]] signatures with inertial displacement as a convoy of cloaked [[Romulan]] [[D'deridex class|Warbirds]]. This setting presumably did not damage the Warbirds. ({{TNG|Redemption}})
+* Torpedoes could also be deployed like [[mine]]s. When released as mines, the torpedoes did not glow in any way. Armed torpedoes could be transported via the [[transporter]] to a specific location to detonate. ({{VOY|Year of Hell|Dark Frontier|Child's Play}})
+* In [[2364]] Federation photon torpedoes had a display blast setting. A spread of torpedoes at this setting were detonated a kilometer from the surface of [[Ligon II]] as a warning burst to demonstrate the power of a {{class|Galaxy}} starship. ({{TNG|Code of Honor}})
+* Photon torpedoes could also be used for illumination. Torpedoes were used, by manually configuring them to emit luminous bursts with the initial dispersal of 6.9 kilometers, to illuminate [[dark matter]] particles in the [[Mar Oscura Nebula]]. ({{TNG|In Theory}}) A torpedo was similarly modified to be a "[[warp flare]]", by reconfiguring it to emit a sustained [[polyluminous burst]], for illumination in a region of space with a heavy concentration of [[theta radiation]]. ({{VOY|Night}})
+* [[Doctor]] [[Timicin]] from [[Kaelon II]] made several modifications to the [[guidance system]] of Federation photon torpedoes that would enable him to implement his theory of [[nuclear fusion|helium fusion enhancement]] and possibly revitalize the [[Kaelon sun]]. ({{TNG|Half a Life}})
+* Modifications to a photon torpedo could be made so that a detonation inside a [[supernova]] remnant, like the [[MacPherson Nebula]], or a [[pulsar]], like [[Dikon Alpha]], would create a reaction that would artificially produce [[vertion]] particles. ({{TNG|Emergence}})
+* A Federation [[class 8 probe]] used the same casing as a photon torpedo. It could be launched from a stationary platform at warp 9 and could travel at that velocity. ({{TNG|Pen Pals|The Emissary}})
+{{bginfo|The probe torpedo casing did not glow in any way when transporting [[K'Ehleyr]], but appeared like a regular photon torpedo when transporting a resonator.}}
+* [[Doctor]] [[Tolian Soran]] had several Starfleet torpedo casings labeled as Mark V and Mark IIB torpedoes, and smaller tube components labeled with Mark IIB, Mark IV, and Mark VI, among his collection of solar probes in his secret torpedo bay aboard the [[Amargosa observatory]] in 2371. He modified one of the torpedoes to carry a [[trilithium weapon]]. ({{film|7}})
+* When outfitted with a [[phase discriminator]], the phase differential of the explosion of a photon torpedo could re-phased to be delivered into the variance of a different time continuum. ({{TNG|Time's Arrow, Part II}})
+* When outfitted with a [[gravimetric charge]], a photon torpedo could be turned into a [[gravimetric torpedo]]. Depending on the yield of the charge, several results could hypothetically be achieved, such as destroying a small planet, detonating a protostar to form a [[wormhole]], or annihilating [[Omega molecule]]s. ({{VOY|The Omega Directive}})
+* In [[2374]] and [[2375]] a number of standard and class 10 photon torpedoes from the {{USS|Voyager}} were modified to be [[bio-molecular warhead]]s. ({{VOY|Scorpion, Part II|In the Flesh}})
+* The catalytic agent used to recombine [[nucleonic particle]]s in the atmosphere of a planet could be encased in photon torpedoes. A detonation of multiple torpedoes in the [[troposphere]] could be used to deliver the agents globally in the concussive forces of the blasts to create the [[isolytic reaction]]. In [[2378]], USS ''Voyager'' neutralized the [[antimatter radiation]] in the atmosphere of [[Otrin's homeworld]] using this method. ({{VOY|Friendship One}})
+* When a ship without propulsion was on a decaying orbit around a planet, the [[shock wave]] of multiple photon torpedoes detonated at once less than a kilometer away could be used to gain altitude temporarily. Such a technique was used in [[2151]] to rescue the {{IKS|Somraw}} from being crushed by the [[atmospheric pressure]] of a [[gas giant]]. ({{ENT|Sleeping Dogs}})
+
+== See also ==
+* [[Dispersal pattern]]
+* [[Photon]]
+* [[Photon burst]]
+* [[Photon charge]]
+* [[Photonic shockwave]]
+* [[Torpedo]]
+* [[Torpedo bay]]
+* [[Torpedo launcher]]
+* [[Torpedo tube]]
+
+== Background information ==
+=== Establishing photon torpedoes ===
+[[File:USS Enterprise firing.jpg|thumb|''The Original Series'' special effect for both proximity blast phasers and photon torpedoes]]
+Photon torpedoes were introduced fairly late into the [[TOS Season 1|first season]] of {{s|TOS}}. They made their on-screen debut in the 19th episode of the series, {{e|Arena}}. Before that, when the {{USS|Enterprise|NCC-1701}} fired shots that looked like globular bursts, they were identified in dialogue as [[proximity blast]]s from the phasers, as in {{e|Balance of Terror}}. In fact, the early writer's guide, ''The Star Trek Guide'', made no mention of the ship having photon torpedo armaments. {{el|leethomson.myzen.co.uk/Star_Trek/1_Original_Series/Star_Trek_TOS_Writer's_Guide.pdf}} The sound of the proximity blasts (and subsequently the photon torpedoes) firing was that of the "skeleton beam" from the 1953 film {{wt|The War of the Worlds (1953 film)|The War of the Worlds}}.
+
+The {{y|1968}} [[reference book]] ''[[The Making of Star Trek]]'' (p. 194) gave this early description of the photon torpedo: "''...photon torpedoes, which are energy pods of matter and anti-matter contained and held temporarily separated in a magno-photon force field. These can be used as torpedoes or depth charges, and can be set with electrochemical, proximity, and a variety of other fuses. Photon torpedoes can be fired directly at a target, laid out as a minefield, or scattered in an attacker's path as depth charges.''"
+
+[[File:Spock's resting place.jpg|thumb|[[Captain]] [[Spock]]'s photon torpedo [[coffin]] in ''Star Trek II: The Wrath of Khan'']]
+The idea that the photon torpedoes themselves had physical missile-like casing was never confirmed on screen during ''The Original Series''. The idea of distinct "launchers" (or "tubes") for the torpedoes was first introduced in the [[TOS Season 2|second season]] episode, {{e|The Changeling}}, as "torpedo number 2" was fired instead of just a "torpedo bank being discharged". Even as late as {{film|1}}, Andrew Probert did not envision the photon torpedo to be a capsule, as he says in his 2005 Trekplace interview: "''I envisioned them as what we saw during the TV era, they were glowing globs of plasma or some sort of energy. They weren't giant capsules. I envision them as big, glowy, dangerous blobs of... scariness.''" {{el|trekplace.com/ap2005int01.html}}
+
+Photon torpedoes were definitely weapons with physical missile casings by the time of the {{y|1982}} feature film {{film|2}}. Furthermore, the special effect of a torpedo launched with a warhead and one launched as a coffin was completely different in the film. The first on-screen connection between photon torpedoes and antimatter came in {{y|1989}}, in the [[TNG Season 2|second season]] episode {{e|Samaritan Snare}} of {{s|TNG}} and it was not established until {{y|1991}}, in the [[TNG Season 4|fourth season]] episode {{e|Half a Life}}, that photon torpedoes had in fact [[deflector shield]]s of their own.
+
+While photon torpedoes made their first appearance in "Arena", set in the year [[2267]], the earliest on-screen use of photon torpedoes by a Starfleet vessel was depicted in the {{y|2009}} film, {{film|11}}, when the {{USS|Kelvin}} defended itself from torpedoes fired by the ''[[Narada]]'' with phasers and a rapid-fire barrage of photon torpedoes, in a scene set in the year [[2233]]. ''Kelvin''{{'}}s blue bolts were not identified in the dialogue of the film, but were identified in the script as photons. {{el|imsdb.com/scripts/Star-Trek.html}} It was also established in the {{s|ENT}} episode {{e|Sleeping Dogs}} of that the photon torpedo was in fact not an original Federation invention, but had in fact been used before by such races as the [[Klingon]]s as far back as the [[22nd century]].
+
+=== ''Technical Manuals'' ===
+==== ''[[Star Trek: The Next Generation Technical Manual]]'' ====
+[[File:Weapon ranges overlay remastered.jpg|thumb|The photon torpedo range of the {{USS|Phoenix}}, identified to be below 300,000 km, based on dialogue]]
+* [[Starfleet]] began developing two types of photon torpedoes starting in [[2215]], with the primary difficulty being the design of the warhead. The first type had the [[deuterium]] and [[antideuterium]] reactants driven together like in an implosion design [[nuclear weapon]]. This torpedo had a maximum range of 750,000 kilometers, as this was the stability limit of the containment field design. It had a low rate of annihilation, and was adequate as a defensive weapon only. The second type, which became operational in [[2271]] had the reactants mixed together in thousands of small magnetic packets. This increased the rate of annihilation. This type had an effective tactical range from fifteen kilometers to 3.5 million kilometers. (pp. 128 & 130) These range figures are however inconsistent with the range of below 300,000 kilometers established in {{e|The Wounded}} for a torpedo type used in 2367.
+
+* The second type warhead was loaded with a maximum yield of only 1.5 kilograms of antideuterium.. The torpedo had a dry mass of 247.5 kilograms. (pp. 129 & 68) By using standard physics calculations, a payload of 1.5 kilograms was equal to about 64.4 megatons.
+* As a safety measure the matter and antimatter were kept initially completely separated in the warhead. Only after the launch were they mixed during flight in the combiner tank, while still separated from each other in magnetic packets. This mixing took a minimum of 1.02 seconds. (pp. 128 & 129) This would explain why photon torpedoes were usually launched at very slow velocities when their targets were in relatively close range, as the travel time needed to be over one second for the warhead to be ready to detonate.[[File:Class 8 probe.jpg|thumb|A [[Class 8 probe|class VIII probe]]]]
+* The propulsion system of the torpedoes was a warp sustainer engine. The engine coils of the torpedo grabbed and held a hand-off field from the launcher tube's sequential field induction coils. A miniature matter/antimatter fuel cell added power to the hand-off field. When launched in warp flight, a torpedo would continue to travel at warp; when launched at sublight, a torpedo would travel at a high sublight speed but would not cross the warp threshold. (p. 129)
+* Class VIII medium-range and class IX long-range multi-mission warp probes both used a modified photon torpedo casing and a warp sustainer engine as the power plant. (pp. 117 & 118)
+
+==== ''[[Star Trek: Deep Space Nine Technical Manual]]'' ====
+[[File:P Torp.jpg|thumb|Inside of a Mark XXV photon torpedo]]
+[[File:Self-replicating mine.jpg|thumb|A [[self-replicating mine]] armed with a photon warhead]]
+* Torpedoes would obtain a high sublight speed when launched from a stationary launch platform. They were still effective against close-in threat vessels. The fact that a class 8 probe was supposedly launched by a starbase at warp speeds in "The Emissary" might be inconsistent with the statement that photon torpedoes couldn't reach warp speed if launched from a stationary or a sublight platform.
+
+* The Mark XXV torpedo was the current design as of [[2375]]. It had a dry mass of only 186.7 kilograms. The reactant capacity was increased five percent over the previous design, leading to a slightly higher yield of 18.5 isotons. The reactants were in a cryogenic state. Effective tactical range was increased to 4.05 million kilometers. (pp. 84 & 94) This range would also be inconsistent with the eight million kilometer range figure given in {{e|Human Error}} of a torpedo type that had entered into service in 2371.
+* Twenty-five isotons was the theoretical maximum yield limit for the standard photon torpedo first developed in [[2268]]. This theoretical maximum was finally reached with the Mark IX warhead. (p. 85) This yield level statement contradicts the 200 isoton figure from "Scorpion, Part II", not to mention the special high-yield torpedo from that episode that was supposedly even more powerful.
+* The self-destruct packages aboard the {{USS|Defiant|2370}} were photon warheads. On {{s|DS9}}, self-destruct was augmented with photon warheads scaled up 1.5 times of what was normally installed on torpedoes. The [[self-replicating mine]]s had a photon warhead combiner tank as their explosive charge. (pp. 93, 94, & 134)
+
+==== ''[[Star Trek: Voyager Technical Manual]]'' ====
+* The explosive yield (of the type-6 torpedo) could be set to ten different levels. Level 1 was just a fireworks display, level 5 was the standard yield of one kilogram antimatter charge, and level 10 violated strategic arms limitation treaties.
+
+==== ''[[Mr. Scott's Guide to the Enterprise]]'' ====
+* The Beltesha Missile Systems Mark VI photon torpedo replaced the Morris Magtronics Model FP-4 torpedo during the ''Constitution''-class refit in the [[2270]]s. The Mark VI has four magnathrust propulsion units. (pp. 82 & 85) The special effect of the original series photon torpedo was considerably different from the torpedoes seen from {{film|1}} onward. This also suggests a change in the torpedo model.
+
+While the ''Technical Manual''s and ''Guide''s themselves are not [[canon]], they are Memory Alpha {{ma|Resource policy|permitted resources}}.
+
+== External links ==
+* {{mbeta|Photon torpedo}}
+* {{wikipedia|List of weapons in Star Trek|List of weapons in ''Star Trek''}}
+
+[[cs:Fotonové torpédo]]
+[[de:Photonentorpedo]]
+[[es:Torpedo de Fotón]]
+[[fr:Torpille à photons]]
+[[ja:光子魚雷]]
+[[nl:Fotontorpedo]]
+[[pt:Torpedo fotônico]]
+[[Category:Explosive weapons]]
+[[Category:Weapons]]

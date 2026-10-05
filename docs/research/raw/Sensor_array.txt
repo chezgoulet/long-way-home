@@ -1,0 +1,48 @@
+{{aquote|Anyone can fix a sensor array but no one can fix the [[holosuite]]s like that idiot brother of mine.|Quark|2373|Rapture}}
+[[File:Constitution class duotronic sensor array.jpg|thumb|Display of duotronic sensor array in use]]
+A '''sensor array''' was a [[device]] in which a group of [[sensor]]s were combined; an [[example]] was the forward sensor array on {{class|Galaxy}} starships. [[Subprocessor]]s were part of a sensor array. ({{TNG|The Game}})
+
+In [[April]] [[2151]], when observing {{EnterpriseNX}} from ''[[Orbital 6]]'', [[Captain]] [[Jonathan Archer]] was eager to get a look at her lateral sensor array. ({{ENT|Broken Bow}})
+
+[[File:Vulcan listening post.jpg|thumb|left|A Vulcan sensory array beneath the monastery of P'Jem]]
+A [[commando]] from the [[Andorian Imperial Guard]] searched for a long range sensor array hidden beneath the [[Vulcan]] [[monastery]] at [[P'Jem]] on three occasions in [[2151]]. On their first two [[visit]]s there, no such sensor array was found, so they left within a [[day]]. During their third visit, in [[June]] 2151, though, a covert sensor array was indeed {{dis|discovery|observation|discovered}} by an [[Andorian]] team of four, led by [[Andorian Imperial Guard ranks|Commander]] [[Thy'lek Shran]], and a [[landing party]] from the {{class|NX}} [[starship]] {{EnterpriseNX}}, led by Captain Archer. The entry to the [[room]] housing the sensor array was hidden by a [[tapestry]] in the [[reliquary]] of the monastery. ({{ENT|The Andorian Incident}})
+{{bginfo|In the [[script]] for "The Andorian Incident", this Vulcan sensor array was described thus; "''We can see a tall, vast, cylindrical [[chamber]], multi-leveled, filled with sophisticated [[surveillance]] equipment &ndash; at least three stories tall. Hundreds of [[databank]]s are glowing and beeping. It's a massive intelligence gathering facility [&hellip;] [with] [[console]]s far below. It's an astonishing sight.''"}}
+
+The {{USS|Enterprise|NCC-1701}} used a [[duotronic]] sensor array. This ship, and its fellow {{class|Constitution}} ships, were equipped with two sensor arrays. They were located on the top and bottom of the [[primary hull]]. ({{TNG|Datalore}}; {{DS9|Trials and Tribble-ations}})
+
+[[File:Excelsior class refit MSD.jpg|thumb|The location of the aft lateral sensor array in the secondary hull of the Enterprise-B]]
+In [[2293]], the location of the aft lateral sensor array was labeled in the {{USS|Enterprise|NCC-1701-B|-B}} [[master systems display]] on the ship's [[bridge]]. ({{film|7}})
+
+In [[2367]], the {{Class|Galaxy}} starships had at least two systems managing the sensor arrays. They were the '''lateral sensor array system''' and the '''primary sensor array system'''. In that year, when [[Data]] [[hijack]]ed the {{USS|Enterprise|NCC-1701-D|-D}}, he issued a command override on these systems giving him complete control of the systems from the [[bridge]]. ({{TNG|Brothers}})
+
+[[Commander]] [[William T. Riker]] suggested running a diagnostic on the {{USS|Enterprise|NCC-1701-D|-D}}'s forward sensor array when the [[two-dimensional being]]s were first detected. ({{TNG|The Loss}})
+
+Even an enhanced sensor array aboard the ''Enterprise''-D wasn't able to locate the transformed [[Geordi La Forge]] on the surface of [[planet]] [[Tarchannen III]]. ({{TNG|Identity Crisis}})
+
+When studying the [[Phoenix Cluster]] in early [[2368]], only one long-range array was available for fifteen science teams. The available bandwidth was increased, however, by multiplexing the array. ({{TNG|The Game}})
+
+In [[2369]], [[Chief]] [[Miles O'Brien]] and his assistant [[Neela]] did modifications to several systems of [[Deep Space 9]]. O'Brien told Neela to re-route the [[signal enhancement module]] to the main sensor array. ({{DS9|Duet}})
+
+When the [[Starfleet]] crew of Deep Space 9 was forced to hand over the [[space station|station]] to the [[Alliance for Global Unity]]-controlled [[Bajoran Militia]], they sabotaged the sensor array. ({{DS9|The Siege}})
+
+In [[2370]], [[the Albino]] had a subspace sensor array inside his base on [[Secarus IV]]. The Legendary Klingon Captains [[Kang]], [[Koloth]], and [[Kor]] along with [[Jadzia Dax|Dax]] destroyed it to prevent the Albino from finding them when they went on their vendetta. ({{DS9|Blood Oath}})
+
+In [[2371]] in the [[mirror universe]], {{mu|Jennifer Sisko}} was working on a [[transpectral sensor array]] that would allow the [[Klingon-Cardassian Alliance|Alliance]] to easily locate {{mu|Terran}} ships in the [[Badlands]]. ({{DS9|Through the Looking Glass}})
+
+In [[2372]], [[Kar]] damaged the lateral sensor array on [[Commander]] [[Chakotay]]'s [[shuttlecraft]] after attacking it. ({{VOY|Initiations}})
+
+[[File:Ravinok sensor array fragment.jpg|thumb|Dukat holding ''Ravinok''{{'}}s sensor array fragment]]
+The same year, [[Razka Karn]] acquired a part of the [[forward]] sensor array of the ''[[Ravinok]]'' made of an [[uridium]] alloy. ({{DS9|Indiscretion}})
+
+Jadzia Dax mentioned that the primary sensor array of the {{USS|Defiant|2370}} could not locate [[life sign]]s when the [[cloaking device]] was activated. ({{DS9|The Way of the Warrior}})
+
+In early [[2373]], Chief Miles O'Brien was able to reroute data from a [[Jem'Hadar attack ship]]'s sensor array to a [[tricorder]]. ({{DS9|The Ship}})
+
+The [[Dominion]] constructed a massive sensor array in the [[Argolis Cluster]] in the early months of the [[Dominion War]]. It was powerful enough to detect starships at least five [[sector]]s away. In [[2374]], [[Jadzia Dax]] commanded the ''Defiant'' in a successful mission to destroy it. ({{DS9|Behind the Lines}})
+
+In [[2375]], Chakotay managed to find a way out of [[chaotic space]] by routing the {{USS|Voyager}}'s sensor array through the ship's [[deflector dish]], which maximized the deflector's amplitude. ({{VOY|The Fight}})
+
+In late 2375, a [[Romulan]] [[colony]] in the [[Unroth system]] began repairs on their long-range sensor array. This weakness was discovered by [[Thot]] [[Gor]], who planned an attack. ({{DS9|Strange Bedfellows}})
+
+[[de:Sensorenphalanx]]
+[[Category:Sensor technology]]

@@ -1,0 +1,54 @@
+{{multiple}}
+{{aquote|Photonic torpedoes. Their range is over fifty times greater than our conventional torpedoes, and they have a variable yield. They can knock the comm. array off a shuttlepod without scratching the hull or they can put a three kilometre crater into an asteroid|[[Malcolm Reed]]|2153|The Expanse}}
+[[File:Photonic torpedoes the augments.jpg|thumb|''Enterprise'' firing photonic torpedoes]]
+A '''photonic torpedo''' was a type of [[tactical]] [[photonic weapon|photonic]] [[antimatter weapon]] designed for use aboard [[starship]]s.
+
+== Specifications ==
+[[File:Photonic torpedoes.jpg|thumb|Photonic torpedoes in ''Enterprise''{{'}}s armory (2153)]]
+Photonic [[torpedo]]es were equipped with a [[variable yield]] [[antimatter warhead]]. They could be launched while a ship was traveling at [[warp]] speed as well as when it was traveling at [[sublight]] speeds. They had over fifty times greater range than the previous [[spatial torpedo]]es. The variable yield was described by [[Malcolm Reed]] as being able to "knock the [[com array]] off a {{dis|shuttlepod|22nd century}} without scratching the [[hull]], or put a three-[[kilometer]] crater into an [[asteroid]]." On {{class|NX}} starships, antimatter for their warheads was provided by the ship's antimatter reserves. ({{ENT|The Expanse|Hatchery}})
+
+A warning label on the torpedo casings classified the photonic torpedo as an antimatter ordnance device that must be maintained on power at all times. It also included warnings that the photonic torpedo employed [[Magnetic field|magnetic isolation fields]], that if breached would release lethal levels of energetic [[gamma ray]]s. The duty [[tactical officer]] was to be notified before loading or offloading the antimatter used by the torpedo. Magnetic devices were not to be operated near the torpedo, as they could interfere with the [[containment field]]. ({{s|ENT}})
+
+{{bginfo|The label remained illegible on screen. The [[It's A Wrap! sale and auction]] provided a legible image of the label. ''{{el|startrekpropcollector.com/trekauctions/image.pl?21c15576d149cd5167e2c279a5f7ca7e}}''}}
+
+== History ==
+[[Starfleet]] began to utilize the [[technology]] in [[2153]], when it began installation of the torpedoes aboard {{EnterpriseNX}} following its return to [[Earth]]. These new weapons were installed in the ship's [[armory]] to better prepare the craft for [[Xindi incident|searching for the Xindi weapon]]. ({{ENT|The Expanse}})
+
+{{bginfo|As described in the final draft script of "The Expanse", the photonic torpedoes aboard ''Enterprise'' were to have been shown being wheeled into the ship's armory on "a hi-tech cart", then manually lifted into a launch tube. In the final version of the episode, though, it is unclear how the torpedoes arrived in the armory (though they are shown in their cart) and are automatically maneuvered into the launch tube.}}
+
+The use of antimatter warheads aboard [[Earth starships]] came as quite a surprise to attacking [[Klingon]]s. In 2153, they sustained enough damage that they were forced to discontinue their pursuit of ''Enterprise'' on course to the [[Delphic Expanse]]. However, this form of torpedo still could not effectively penetrate the [[deflector shield]]ing of a typical {{dis|Klingon Bird-of-Prey|22nd century}} when most shield power was transferred to the section under attack. ({{ENT|The Expanse}})
+
+Klingon torpedo technology of the time, nevertheless, appeared to be much more advanced than both Earth and [[Vulcan]] technology, as some of their ships were already equipped with [[photon torpedo]]es. ({{ENT|Sleeping Dogs}})
+
+[[File:ISS Emmette.jpg|thumb|thumb|A mirror universe ship firing photonic torpedoes]]
+''In the [[mirror universe]], photonic torpedoes were already in use on the {{type|Emmette}} [[Emmette unnamed 001|starships]]. The weapons were used during an assault on the [[Lunar Colonies]], that occurred some time before the introduction of the {{class|NX}} of starships in [[2151]].'' ({{ENT|In A Mirror, Darkly|In A Mirror, Darkly, Part II}})
+
+== Other uses ==
+It became something of a [[Starfleet]] [[funeral|tradition]] to place [[death|dead]] [[crew]]members inside an empty torpedo casing, and often such torpedoes were launched into space. For such a [[burial]] in space by the crew, the [[Captain]] of the [[starship]] often conducted the [[funeral]] service.
+
+[[Sim]] was buried in such a manner in [[2153]]. ({{ENT|Similitude}})
+
+== Appendices ==
+=== See also ===
+* [[Antimatter torpedo]]
+* [[Photonic missile]]
+* [[Photonic warhead]]
+
+=== Background information ===
+In the final draft script of "The Expanse", photonic torpedoes were described thus; "''The torpedoes are similar to those seen in previous ''[[Star Trek]]'' series, but more primitive in design.''"
+
+According to [[StarTrek.com]], photonic torpedoes were the earliest model of a [[Starfleet]] photon torpedo. According to the site, photonic torpedoes were also armed with a matter/antimatter charge and an optional timer. They had simpler internal systems than the spatial torpedoes. For storage, the torpedoes were powered down to a safe mode to protect them from a failure of the magnetic field around the [[antimatter charge]]. {{st.com|bl=1|archivedate=20230000000000|database_article/photonic-torpedo}}
+
+{{VOY|Living Witness}} also supports the idea that photonic and photon torpedoes are synonymous. In the episode, a [[31st century]] [[Kyrian]] calls a [[24th century]] Starfleet photon torpedo a photonic torpedo. It is also possible the Kyrians were simply mistaken about the name. These accounts, though, suggest the term "photon torpedo" might be a shortening of the original term, similar to the way "cellular telephone" has been shortened over time to "cell phone".
+
+In any case, by [[2233]], Starfleet was using photon torpedoes, as seen in the [[Star Trek films|film]] {{film|11}} when the {{USS|Kelvin}} was defending itself, and as they were identified in the script of the film. {{el|http://www.imsdb.com/scripts/Star-Trek.html}} According to the ''[[Star Trek: The Next Generation Technical Manual]]'', Starfleet began work on the photon torpedo in [[2215]]. {{ENT|Sleeping Dogs}} established that the [[Klingon Empire]] was using photon torpedoes as early as [[2151]].
+
+A photonic torpedo casing was sold off on the [[It's A Wrap! sale and auction]] on eBay. {{stala|2802}}
+
+=== External link ===
+* {{mbeta}}
+
+[[cs:Fotonické torpédo]]
+[[de:Photoniktorpedo]]
+[[ja:光子性魚雷]]
+[[Category:Explosive weapons]]

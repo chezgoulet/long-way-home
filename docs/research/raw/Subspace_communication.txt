@@ -1,0 +1,73 @@
+[[File:Analysis of Subspace com wave.jpg|thumb|An analysis of a subspace com wave]]
+'''Subspace communication''', '''subspace radio''', or '''hyperchannel''', was the primary form of [[electromagnetic]] [[communication]] used throughout the [[Federation]]. By transmission of a [[subspace radio signal]], which traveled through [[subspace]] rather than normal [[space]], subspace communication permitted the sending of data and messages across interstellar distances faster than the [[speed of light]]. This made it much more practical than [[conventional radio]]. In fact, [[starship]]s rarely even monitored frequencies that traveled at the speed of light. ({{TNG|The Ensigns of Command}}, ''[[okudagram]]''; {{VOY|The 37's}})
+
+Subspace communication was mainly used by [[Starfleet Command]] to transmit orders to [[commanding officer]]s of starships on deep-space assignments. Likewise, the vessels' commanding officers used subspace communication to relay [[report]]s on their various missions back to Starfleet Command, to ask for suggestions, and/or to make requests. ({{ENT|Shockwave}}; {{TOS|Balance of Terror}}; {{film|2}}; {{TNG|The Best of Both Worlds}}; {{VOY|Friendship One}}; et al.)
+
+The speed of subspace messages varied greatly depending upon the technology involved.  For instance, in the [[2260s]], a subspace message from the [[Romulan Neutral Zone]] took three weeks to reach [[Starfleet Headquarters]], whereas a century later, at the same distance, subspace communications were essentially in real time. ({{TOS|Balance of Terror}}, {{film|10}}).  A message traveling subspace over a distance of 2.7 million [[light year]]s would have taken fifty-one years and ten months to reach Federation [[space]] in [[2364]]. ({{TNG|Where No One Has Gone Before}})
+{{bginfo|The exact measurement provided by [[Data]] in "Where No One Has Gone Before" is the only time a quantifiable number has been provided to determine the speed of subspace radio.  In that case, the subspace radio message would appear to be traveling 2,700,000 light years in 51<sup>5</sup>/<sub>6</sub> years, which is 52,090<sup>10</sup>/<sub>311</sub> times the speed of light, or approximately 144.5 light years per day at a speed of just over six light years an hour. This is equivalent to approximately warp 9.9995 in the new scale or warp 37.35 in the old scale.  The novel [[Vendetta]] gives this figure as well, remarking in one scene that the ''Enterprise''-D at maximum warp was just barely "keeping up" with the same subspace radio message advising Starfleet of their arrival. In the episode ({{SNW|All Those Who Wander}}), Spock stated that the speed of subspace communication was "approximately 52,000 times the speed of light." }}
+
+Depending on the actual distance between a vessel and the nearest [[subspace relay]] beacon, real-time communication was possible. An example of this is when [[Starfleet]] [[Lieutenant]] [[Reginald Barclay]] contacted the {{USS|Enterprise|NCC-1701-E|-E}}, which was seven light years away from his location on the [[Jupiter Station]], and spoke real-time to the ship's [[counselor]], [[Commander]] [[Deanna Troi]]. ({{VOY|Life Line}})
+
+Subspace communications had a varying degree of band frequencies, from upper (or high-band) to lower. For example, a [[diplomacy|diplomatic]] frequency used by the [[Vulcan]]s was on a lower subspace band. ({{ENT|Fallen Hero|Dead Stop}}; {{TNG|Ensign Ro}})
+
+Vulcans had been utilizing subspace communications as early as the [[Earth]] year [[1957]], as their ships were outfitted with [[subspace transceiver]]s. ({{ENT|Carbon Creek}})
+
+[[File:Treaty of Armens 1.jpg|thumb|EM spectrum communication in the text of the Treaty of Armen]]
+The [[Treaty of Armens]] set down EM spectrum communication as one of a number of acceptable means of communications between the [[Federation]] and the [[Sheliak Corporate]] in case something came up regarding the treaty. ({{TNG|The Ensigns of Command}}, ''[[okudagram]]'')
+
+The practice of not sending out any subspace messages and ignoring any incoming transmissions was known as [[radio silence]]. ({{ENT|Terra Prime}})
+
+== 22nd century uses ==
+[[File:Subspace amplifier.jpg|thumb|''[[Echo Two]]'', a subspace amplifier, being deployed]]
+Earth had developed subspace communication as early as [[2151]]. During this time, however, [[subspace amplifier]]s were required in order to maintain contact between [[Earth]] and [[Starfleet]] vessels over long distances. ({{ENT|Fortunate Son|Silent Enemy}}) Contact with these amplifiers was maintained with a single [[subspace antenna]]. If this antenna was damaged, a starship would only be capable of short-range communication. ({{ENT|Dead Stop}})
+
+{{bginfo|In the series bible for {{s|ENT}}, it was stated that subspace communications would be introduced in the course of the series. However, it was also imagined in the same early document that "long range, subspace communications" in which the {{class|NX}} {{NX|Enterprise}} participated would only be possible while the craft was traveling at warp.}}
+
+Orders and reports were not the only communications to and from starships. Personal messages were also sent. The crew of ''Enterprise'', for example, received personal messages from friends and family members back on Earth. [[Captain]] [[Jonathan Archer]] himself received recordings of [[water polo]] tournaments in what {{Trip Tucker}} described as the "subspace mailbag". ({{ENT|Vox Sola}})
+
+The treaty following the [[Earth-Romulan War]] was established entirely by subspace radio. No visual contact between the [[Human]]s, the [[Romulan]]s, or their allies was ever established. ({{TOS|Balance of Terror}}) However, subspace communication was not available to all Earth ships during this period. The ''{{dis|Horizon|starship}}'' was not able to communicate via subspace when the ship made contact with [[Sigma Iotia II]] in [[2168]]. Thus, their [[report]] was not received by [[Starfleet Command]] until [[2268|a hundred years later]]. ({{TOS|A Piece of the Action}})
+
+Before being destroyed, a group of [[Borg drone]]s in the [[Alpha Quadrant]] sent a subspace message to the [[Borg]] in the [[Delta Quadrant]] in [[2153]]. The message would have taken at least two hundred [[year]]s to reach its destination and, if received, may have been the way the Borg of the [[24th century]] learned of the existence and location of Earth. ({{ENT|Regeneration}}) In [[2374]], however, the {{USS|Voyager}} was able to communicate almost instantaneously between the Delta and Alpha Quadrants using a system of ancient [[relay station]]s, proving that subspace communication signals slow down over [[time]] unless amplified by a relay station. ({{VOY|Message in a Bottle}})
+
+==23rd century uses==
+By the [[23rd century]], subspace communication was in wide use throughout the [[Federation]]. ({{s|TOS}}) During this time, a starship's [[communications officer]] was required to create [[subspace log]]s detailing all messages sent and received. ({{TOS|The Man Trap}})
+
+In some cases, [[subspace radio marriage|marriages]] were performed entirely on subspace radio. [[Magda Kovacs]] and [[Ruth Bonaventure]] were married to two of the three miners on the [[Rigel XII]] mining colony via subspace radio in [[2266]]. ({{TOS|Mudd's Women}})
+
+After [[Fleet Captain]] [[Christopher Pike]] was injured upon being exposed to [[delta radiation]], months of "subspace chatter" emerged regarding the accident. Later, in [[2267]], [[Spock]] fabricated a subspace message ordering the {{USS|Enterprise|NCC-1701}} to divert to [[Starbase 11]] for the sole purpose of returning Pike, his former [[CO]], to [[Talos IV]] where Pike could live out the rest of his days in comfort. During the subsequent [[court martial]], ''Enterprise'' received subspace transmissions from Talos IV in violation of [[General Order 7]]. ({{TOS|The Menagerie, Part I}})
+
+[[Trelane]] of [[Gothos]] was able to block ''Enterprise''{{'}}s subspace communications using his [[mirror machine]]. ({{TOS|The Squire of Gothos}})
+
+The [[Eminian]]s employed a subspace transmission unit to keep in contact with the [[Vendikan]]s during their [[computer]]-fought war. This unit was tied in with [[Eminiar VII]]'s attack computers. ({{TOS|A Taste of Armageddon}})
+
+{{bginfo|An additional 23rd century reference to subspace communication was in an ultimately unused line of dialogue from the final draft script of {{TOS|Charlie X}}, in which Captain [[James T. Kirk|Kirk]] referred to a conversation he had engaged in with Captain [[Ramart]] as having been over "sub-space radio."}}
+
+==24th century uses==
+[[File:Sector 22757.jpg|thumb|A subspace network]]
+By the [[24th century]], subspace communications were handled through [[subspace relay network]]s, replacing previous networking methods such as subspace amplifiers. These networks were maintained, at least in part, by various [[subspace relay station|relay stations]]. ({{TNG|Aquiel}})
+
+A 24th century [[professor]], [[Doctor]] [[Paul Manheim]], was renowned for his work in perfecting subspace communications. ({{TNG|We'll Always Have Paris}})
+
+[[Lore]] was able to communicate with the [[Crystalline Entity]] using subspace communications in 2364. However, a later encounter with the entity by the {{USS|Enterprise|NCC-1701-D|-D}} required the use of [[graviton]] pulses for communication. ({{TNG|Datalore|Silicon Avatar}})
+
+Unidentified subspace communications were detected by a [[class-1 probe]] that was sent to [[Nelvana III]]. ({{TNG|The Defector}})
+
+In [[2369]] [[Commander]] [[Benjamin Sisko]] sent a subspace message to [[Klaestron IV]] to verify the [[warrant]] of {{dis|Dax|symbiont}}. ({{DS9|Dax}})
+
+The same year, [[Chief]] [[Miles O'Brien|O'Brien]] received a subspace message from his [[Keiko O'Brien|wife]] who visited the [[grain processing center]] in [[Lasuma]] on [[Bajor]]. Later, when [[Odo]] tried to contact [[Starfleet Headquarters]], he learned that [[Major]] [[Kira Nerys|Kira]] had blocked all subspace communication. ({{DS9|Dramatis Personae}}) 
+
+In [[2373]], prior to the [[Second Battle of Deep Space 9|Dominion assault]] on [[Deep Space 9]], Odo suggested that all outgoing subspace communication be terminated, in order to prevent security leaks. He prepared false messages to be transmitted at random intervals, so there would be no noticeable drop in DS9's outgoing subspace traffic. ({{DS9|Call to Arms}})
+{{subspace}}
+
+==See also==
+*[[Subspace differential pulse]]
+*[[Subspace infrared algorithm]]
+
+==External link ==
+*{{wikipedia|Faster-than-light communication}}
+
+[[de:Subraumkommunikation]]
+[[fr:Communication subspatiale]]
+[[sv:Underrymdskommunikation]]
+[[Category:Subspace|communication]]
+[[Category:Communications technology]]

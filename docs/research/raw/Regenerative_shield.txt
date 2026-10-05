@@ -1,0 +1,18 @@
+[[File:Regenerative shielding.jpg|thumb|The ''Prometheus'', protected by regenerative shielding]]
+'''Regenerative shielding''' was an advanced form of [[deflector]] [[Deflector shield|shielding]] technology used  in the [[24th century]] by the [[Numiri]] culture of the [[Delta Quadrant]], and later developed independently by [[Starfleet]].
+
+In [[2371]], when the {{USS|Voyager}} was engaged in combat with two [[Numiri patrol vessel]]s, [[Commander]] [[Chakotay]] utilized an old [[Maquis]] maneuver, wherein ''Voyager'' feigned distress to lure the enemy vessels into close proximity. When one of the patrol vessels attempted to lock a [[tractor beam]] onto ''Voyager'', Chakotay ordered [[phaser]]s fired at the vessels' [[navigational deflector]]s, successfully penetrating their regenerative shields and disabling both ships. ({{VOY|Ex Post Facto}})
+
+The experimental vessel {{USS|Prometheus|Prometheus class}}, developed by Starfleet in [[2374]], was equipped with regenerative shielding, [[ablative hull armor]], and [[multi-vector assault mode]] as part of its primary battle systems. In that year, the regenerative shielding was utilized in battle with a group of [[Romulan]] [[Warbird|Warbirds]]. ({{VOY|Message in a Bottle}})
+
+==See also==
+*[[Auto-regenerative shielding]]
+*[[Multi-regenerative security field]]
+*[[Regenerative force field]]
+*[[Regenerative phaser]]
+
+==Apocrypha==
+According to the [[Pocket VOY]] {{novel}} ''{{dis|Seven of Nine|novel}}'', the Borg had assimilated regenerative shield technology from an insectoid race known as the Tuktak, who used it to protect their ships. However, it proved impractical for Borg vessels, especially the very massive [[Borg cube]]s, so the [[Borg Collective|Collective]] modified the technology for drones' personal protection instead.''
+
+[[de:Regenerativer Schutzschild]]
+[[Category:Shield technology]]

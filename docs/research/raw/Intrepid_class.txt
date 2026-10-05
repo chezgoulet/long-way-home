@@ -1,0 +1,353 @@
+{{Sidebar starship class
+|name      = ''Intrepid'' class
+|dt        = ''Intrepid'' class
+|image     = USS Voyager 2381.jpg
+|caption   = Forward quarter view
+|owner     = {{Federation}}
+|operator  = [[Starfleet]]
+|type      = [[Explorer ship|Long-range explorer]]
+|active    = [[2370s]]&ndash;[[2400s]]
+|length    = 344 [[meter]]s <!-- Selected by Rick Berman according to Rick Sternbach, but is it canon? -->
+|width     = 116 to 118 meters
+|mass      = 700,000 [[metric ton]]s
+|decks     = 15
+|crew      = 150 Approx.
+|speed     = [[Warp factor|Warp 9.975]] ''(max. sustainable [[cruise velocity]])''
+|armament  = <!-- Do NOT change this to add a number --> [[Phaser array]]s<br>[[Spatial charge]]s<br>[[Photon torpedo]]es<br>[[Tricobalt device|Tricobalt warheads]]
+|defenses  = [[Deflector shield]]s
+|image2    = USS Voyager 2381 Aft.jpg
+|caption2  = Aft view, with nacelles elevated for warp
+|image3    = Intrepid class MSD.jpg
+|caption3  = Master systems display
+}}
+{{disambiguation|the class of the same name from the distant future|Intrepid class (32nd century)}}
+
+The '''''Intrepid''-class [[starship]]''' was a [[Federation]] design that entered service in the latter half of the [[24th century]]. The ''Intrepid'' class was designed for long-term exploration missions. At less than half the size of a {{class|Galaxy}} starship, it was considered "quick and smart." ({{VOY|Someone to Watch Over Me|Scientific Method|Relativity}})
+
+== General overview ==
+When it was first commissioned, the ''Intrepid'' class featured many innovations that were then available, including the warp core's [[tricyclic input manifold]] and [[variable geometry pylon]]s. The class was also the first to use [[bio-neural gel pack]]s and had the Mark I [[Emergency Medical Holographic program|Emergency Medical Hologram]] (or EMH) system.
+
+Capabilities upon introduction were equally impressive. The class boasted the best [[navigational sensor]]s and the highest top speed of any [[Starfleet]] vessel until the development of the {{class|Prometheus}}. Its multi-mission design was backed up by a main computer processor capable of simultaneously accessing [[47]] million data channels and sustaining 575 trillion [[calculations per nanosecond]] in operational temperatures from 10 to 1,790 [[Kelvin]]. ({{VOY|Relativity|Concerning Flight}})
+
+The ''Intrepid''-class {{USS|Voyager}} had a stable crew complement of 141 when departing [[Deep Space 9]] in [[2371]]. ({{VOY|Caretaker}}) Throughout its journey in the [[Delta Quadrant]], the ship operated with a crew of approximately 150. ({{s|VOY}}) It is also noted that the ship can be operated with as few as one hundred if needed. ({{VOY|The 37's}})
+
+{{bginfo|According to the {{ste}}, the normal crew complement for the ''Intrepid''-class was about 140.|The width of the hull was stated in {{e|Parallax}} to be between 116 and 118 meters. The official length of this design, however, was exactly 1,130 feet (344.424 meters), according to [[Rick Sternbach]]. [[Rick Berman]] selected the figure from a range of possible sizes. ''{{DrexFiles|2009/02/01/enterprise-c-pictorial-deluxe/comment-page-1/#comment-982}}''}}
+
+== Class history ==
+[[File:USS Voyager in drydock.jpg|thumb|''Voyager'' in [[drydock]] at the Utopia Planitia Fleet Yards]]
+Development and construction of the ''Intrepid'' class occurred at the [[Utopia Planitia Fleet Yards]] with the class entering service by [[2370]]. The second ship, USS ''Voyager'', was commissioned in [[2371]]. It was the first ship to test the [[class 9 warp drive]] in deep space. At the time of its introduction, the ''Intrepid'' class was considered to be the most technologically advanced out of all Starfleet's starship classes, though it was superseded in that regard the following year by the {{class|Sovereign}} design. ({{VOY|Caretaker|Relativity}}; {{film|8}})
+
+The performance of the ''Intrepid'' class was well reflected by the starship ''Voyager''. That ship was notable for independently, and successfully, completing an unscheduled seven-year journey across the previously unexplored [[Delta Quadrant]], seventy thousand [[light year]]s from Federation space, from 2371 to [[2378]]. The vessel was completely cut off from communication with Starfleet until [[2374]] and had no access to any Starfleet supplies or facilities for the entire length of its journey. ([[VOY Season 1]] through [[VOY Season 7]])
+
+=== Legacy ===
+A newer {{dis|Intrepid class|32nd century|version}} of the ''Intrepid'' class was being used by Starfleet in the [[31st century|31st]] and [[32nd century|32nd centuries]]. ({{DIS|Die Trying|Scavengers}})
+
+{{bginfo|TrekCore has reported that [[CBS Studios|CBS]] confirmed the {{USS|Voyager|NCC-74656-J|-J}}, seen in {{e|Die Trying}}, to have "''the same class designation as Captain Janeway's ''Voyager'', but with 800 years of evolution beneath the hull.''" ''{{trekcore|s=blog|2020/11/star-trek-discovery-review-die-trying}}''}}
+
+== Technical data ==
+=== Physical arrangement ===
+[[File:Intrepid class saucer section.jpg|thumb|Closeup view of the ''Intrepid'' class' primary hull]]
+The hull configuration of the ''Intrepid'' class adopted the saucer-type shape of previous starship classes, which consisted of a [[primary hull]], [[secondary hull]], and [[nacelle]]s driven by the physics of warp generation and control. One of the ''Intrepid'' class' most notable characteristics was its warp nacelles, which angled when going to warp, a quality that has not been observed in any other starship. The ''Intrepid'' class used a [[duranium]] [[hull]] structure, a [[plasma]]-based power distribution system, and tricyclic life support systems. ({{VOY|Drone}})
+
+Following the Starfleet standard, Deck 1 was reserved for the [[main bridge]], with the [[briefing room]] and [[captain's ready room]] located to the port and starboard sides of the bridge. Located in the front section of Deck 2 was the crew's [[mess hall]] and the captain's private dining hall, served by three windows that offered a spectacular view of space in front of the vessel. One deck below, located in the front section of Deck 3, were the [[quarters]] of the starship's [[commanding officer]], served by five windows.
+
+{{bginfo|[[Rick Sternbach]]'s article "{{el|fsd.trekships.org/art/voyager.html|A Close Look at the USS ''Voyager'' NCC-74656}}" in {{STTM|1|16}} identified the structures at the forward end of the dorsal saucer as a diamond-shaped primary [[sensor array]], immediately beneath which is a secondary [[navigational deflector dish]].}}
+
+The dorsal saucer section was covered by four [[phaser array]]s, two of which extended from the aft curvature along the length of the saucer. The aft firing arc was covered by two smaller arrays, angled on the rear of the saucer section. The relative bottom of the ship was protected by two similar arrays as on the dorsal saucer section, extending to the rear of the saucer and following the curve towards the bow. ({{VOY|Caretaker|Basics, Part I|Unimatrix Zero}}) Docked to the underside of the ''Intrepid'' class' primary hull was the vessel's [[aeroshuttle]].
+{{bginfo|The aeroshuttle was first seen as a separate craft in {{ENT|Future Tense}}.}}
+
+[[File:USS Voyager deploying landing struts.jpg|thumb|left|The landing mechanism]]
+[[File:USS Voyager emitting graviton beam.jpg|thumb|An ''Intrepid'' class deflector emitting a [[graviton beam]]]]
+Further aft, the main [[navigational deflector]] dish was found at the foreside of the ''Intrepid'' class' secondary hull. Located right above the deflector were the forward [[photon torpedo]] [[torpedo launcher|launchers]]. On the underside of the secondary hull were located three sets of plates that supported the warp propulsion system. The forward plate covered the reserve [[intermix chamber]]; the middle plate contained the antimatter loading port, a large magnetic valve that kept the antimatter from coming in contact with matter during the transfer to the storage pods; ({{VOY|Caretaker|Projections}}) the aft cover plate contained the operational intermix chamber hatch for ejecting the warp core in case of emergency. ({{VOY|Day of Honor}})
+
+One of the few Starfleet starship classes capable of atmospheric entry and planetary landing, the ''Intrepid''-class starship was equipped with [[antigravity]] generators as well as impulse and lifters strategically placed at the mass and stress points on the bottom portion of the secondary hull. Prior to and during landing or takeoff procedures, the vessel typically went to [[blue alert]], indicating to the crew they were to assume their code-blue stations. ({{VOY|The 37's}})
+
+==== Decks ====
+With fifteen decks and a mass of 700,000 metric tons, there were 257 rooms on an ''Intrepid''-class vessel. ({{VOY|Relativity|Scientific Method}}) Entire deck sections could be jettisoned in case of emergency. ({{VOY|Warhead}})
+
+:''See: [[Intrepid class decks]].''
+
+<gallery>
+USS Voyager briefing room.jpg|A briefing room on the ''Intrepid''-class
+File:USS Voyager corridor.jpg|A typical corridor on the ''Intrepid''-class
+File:Species 8472 on Voyager hull.jpg|Outer doors to Cargo Bay 2
+File:USS Voyager deck 14.jpg|Deck 14 on the ''Intrepid''-class
+File:USS Voyager deck 15.jpg|Deck 15 on the ''Intrepid''-class
+</gallery>
+
+=== Command and control systems ===
+[[File:Voyager Bridge.jpg|thumb|''Intrepid'' class main bridge]]
+The [[Bridge|main bridge]] of the ''Intrepid''-class starship was ovoid and served as the nerve center of the vessel.
+
+{{bginfo|The ''Intrepid'' class bridge was the largest bridge built for a hero ship of any ''Star Trek'' series up to that point. It was built on three levels, whereas all its predecessors had incorporated merely two levels each. (''[[A Vision of the Future - Star Trek: Voyager]]'', p. 79-80)}}
+
+At the bridge's rear was a large bank of consoles and data readout screens. Center of that area was the master systems display; control consoles flanked it on both sides. ({{s|VOY}})
+
+{{bginfo|The ''Intrepid'' master systems display was designed by scenic artist [[Doug Drexler]]. Even though he usually worked only in {{s|DS9}}{{'}}s art department, Drexler designed the ''Intrepid'' MSD for {{s|VOY}} after being personally asked, by production designer [[Richard James]], to lend a hand with graphics during ''Voyager''{{'}}s lengthy preproduction period. Once he completed the design, Drexler worked in close collaboration with [[Wendy Drapanas]], who executed the final artwork. (''[[A Vision of the Future - Star Trek: Voyager]]'', p. 80)}}
+
+Starboard of the information center, past the starboard side [[turbolift]], was the station of the [[chief tactical officer]]. This area was maintained mostly for internal security and combat situations. Other systems that could be commanded by [[tactical]] included long- and short-range [[sensor array]]s, [[Probe|sensor probes]], [[message buoy]]s, and [[tractor beam]]s. An identical station was found on the other side of the bridge, where the [[operations station]] was found. This panel presented the [[operations officer]] with a continually updated list of current major shipboard activities. This list permitted Ops to set priorities and allocate resources among current operations. This was especially critical when two or more requests required the use of the same equipment, entailed mutually exclusive mission profiles, or involved some unusual safety or tactical considerations. ({{VOY|Parallax|The Cloud|Emanations|Elogium|Worst Case Scenario}})
+
+[[File:Voyager ready room.jpg|thumb|left|Section of the ''Intrepid'' class captain's ready room]]
+Forward of the upper ship operations areas were doorways to the briefing room at one side and the captain's ready room at the other. There, the commanding officer could engage in administrative work with all relevant office equipment at hand without interfering with bridge operations, while still being close to the bridge in case of emergency. Also, this room was usually the preferred place where the captain could hold private discussions or receive classified communications. Aboard the ''Intrepid''-class starship, the work desk was the focal point of the ready room, located ahead of the main entrance door. A raised level in the forward section of the room featured a small table, a curved couch, and a [[replicator]]. The wall behind the couch featured three windows looking toward the bow of the vessel. Compared with the much larger {{class|Galaxy}} starship, the ''Intrepid'' class had a more spacious, luxurious ready room. ({{VOY|Caretaker|Eye of the Needle|Year of Hell|The Omega Directive}}; {{s|TNG}})
+
+The ''Intrepid'' class could not execute an [[auto-destruct]] sequence if the [[secondary command processor]]s were damaged. ({{VOY|Basics, Part I}})
+
+[[File:Intrepid class command chairs.jpg|thumb|The chairs of the captain and first officer on the ''Intrepid'' class bridge]]
+In the center of the ''Intrepid'' class' bridge was the command area. Here, seating was provided for the vessel's commanding officer and his or her [[first officer]], seated to the captain's left. Between these chairs was a miniaturized status display. Using [[keyboard]] or vocal commands, the commanding officer could use these controls to override the basic operation of the starship. Directly aft of this area, integrated in the handrail encircling the aft section of the central command area, was another command console that could be operated to perform more bridge duties. ({{VOY|Parturition|Maneuvers|Collective|Unimatrix Zero, Part II|Endgame}})
+
+{{bginfo|On ''Voyager'', it was shown to be a console that assisted mostly in operations and tactical stations, due to [[Seven of Nine]]'s expertise.}}
+
+Directly forward of and two steps lower than the central command area was the [[conn]] station. From here, the [[flight control officer]] served as helmsman and navigator for the starship. Despite many of these functions being heavily automated, their critical nature demanded a humanoid officer to oversee these operations at all times. During spaceflight at [[impulse]], conn monitored relativistic effects as well as inertial damping system status. When the ship was traveling at [[warp speed]], conn monitored the [[subspace]] field geometry in parallel with the engineering department. During warp flight, the conn console continually updated long-range sensor data and made automatic course corrections to adjust for minor variations in the density of the interstellar medium. ({{VOY|Parallax|The Cloud|Tattoo|Vis à Vis|Cathexis}})
+
+To the right of conn sat the [[chief engineer]]. Though the position was far better served in [[main engineering]], situations arose where the engineer's presence was needed on the bridge. The console allowed complete control over all engineering systems. Directly opposite sat the [[chief science officer]] at a similar console. From this console, [[LN2 exhaust conduit]]s were vented to expel exhaust from the ''Intrepid'' class. ({{VOY|Caretaker|Ex Post Facto}})
+
+=== Propulsion systems ===
+[[File:Intrepid class, main engineering.jpg|thumb|Main engineering]]
+Main engineering aboard an ''Intrepid''-class starship was located on Deck 11. The room was constructed around the [[matter-antimatter reaction assembly]] [[warp core]], a [[class 9 warp drive]] with a tricyclic input manifold. ({{VOY|Relativity}}) The core provided a maximum output of four thousand teradynes per second. ({{VOY|Drone}}) The warp drive was designed to operate for up to three years before refueling. The [[reaction chamber]] was equipped with a [[theta-matrix compositor|compositor]], which allowed recrystallization of [[dilithium]]. ({{VOY|Innocence}}) The warp drive allowed the ship a top sustainable [[cruise velocity]] of [[warp factor]] 9.975. ({{VOY|Caretaker|3=Relativity}}) It also allowed the ship to travel at warp 9.75 for twelve [[hour]]s. ({{VOY|The Swarm}}) The ''Intrepid'' class also featured a secondary warp assembly. ({{VOY|Alice}})
+
+{{bginfo|The secondary warp assembly was never seen as a set on-screen, but was featured in the MSD as a second warp core in the secondary hull of the ship.}}
+
+The main engineering room featured two levels. In front of the warp core was a large monitoring area on the lower engineering level. Also located on this level was the chief engineer's office and an open work area for special projects or situational analysis. A second tier ringed the upper level of main engineering. A small, single-person elevator, as well as a ladder on the opposite side, provided access to this [[catwalk]]. ({{VOY|Caretaker}})
+
+The main [[impulse engine]]s on an ''Intrepid''-class starship were located on the aft end of the pylons leading to the [[warp nacelle]]s. ''Intrepid''-class starships were also equipped with auxiliary impulse reactors. ({{VOY|Phage}})
+
+==== Warp core ejection ====
+[[File:USS Voyager warp core.jpg|thumb|left|The class 9 warp core of an ''Intrepid''-class starship]]
+In the event of a [[warp core breach]], the ''Intrepid''-class starship could [[Warp core ejection system|eject the warp core]]. This procedure required the [[authorization code]] of the chief engineer or a member of the [[senior staff]]. The core was ejected through the ejection port on the underside of the secondary hull. Magnetic rails inside the channel accelerated the core once disengaged from the vessel and fired it away from the ship. Under normal circumstances, the vessel then moved away from the core as fast as possible under impulse power. ({{VOY|Cathexis|Day of Honor|Renaissance Man}})
+
+Should the core not go critical, the vessel could recover it with [[tractor beam]]s and careful manipulation. ({{VOY|Day of Honor|Renaissance Man}})
+
+=== Tactical systems ===
+==== Phaser systems ====
+[[File:USS Voyager firing ventral phasers.jpg|thumb|An ''Intrepid''-class starship firing its phasers]]
+<!-- Do NOT change this without looking at the talk page. -->The ''Intrepid'' class utilized a ship-mounted phaser array system. The dorsal saucer section was covered by four phaser arrays, two of which extended from the aft curvature, along the length of the saucer and stop short of the auxiliary deflector incision. One smaller phaser array extended behind the bridge. ({{VOY|Resolutions}}) The aft firing arc was covered by two smaller arrays, angled on the rear of the saucer section. The relative bottom of the ship was protected by two similar arrays as on the dorsal saucer section, extending to the rear of the saucer and following the curve to the auxiliary deflector incision. More protection was provided by an array that extended across the [[ventral]] [[engineering hull]] just fore of the warp core ejection port. Far-aft strips were provided on the underside of the [[variable geometry pylon|variable-geometry nacelle pylons]] and under the shuttlebay landing deck on the underside of the ship for a total ship's complement of fourteen phaser arrays. ({{s|VOY}})
+
+Additional [[phaser bank]]s included at least four separate [[phaser emitter]]s, two in the aft [[torpedo launcher]], ({{VOY|Dragon's Teeth|Prophecy}}) one aft phaser bank located behind the second tractor beam emitter, in the aft section of Deck 14, ({{VOY|Think Tank}}) and an embedded emitter on the ventral surface of the ship's right nacelle. ({{VOY|Unimatrix Zero}})
+
+{{bginfo|The ''Intrepid''-class model only has thirteen discernible phaser arrays, with the large array strips being the same [[Phaser#Other types of starship phasers|type-10 phaser arrays]] used by {{class|Galaxy}} starships, according to [[Rick Sternbach]]. ''{{el|fsd.trekships.org/art/voyager.html}}'' Other phaser emitter locations were seen in "Think Tank", "Unimatrix Zero", "Prophecy", "Resolutions", and "Dragon's Teeth".}}
+
+==== Torpedo systems ====
+The ''Intrepid'' class housed four<ref>Rick Sternbach and Michael Okuda, ''Star Trek: Voyager Technical Manual'', Pocket Books, 1995, pp. 21–22.</ref> standard [[torpedo launcher]]s (two fore and two aft). The USS ''Voyager'' was loaded with Type 6 [[photon torpedo]]es in [[2371]]. The ship also had class-9 and at least four class-10 photon torpedoes and two [[tricobalt device]]s in her torpedo arsenal. ({{VOY|Caretaker|Resolutions|Scorpion, Part II|In the Flesh|Bliss}})
+
+In addition, the ship also carried [[spatial charge]]s, which could also be used as subspatial charges to cause [[subspace disturbance]]. There were also [[photon charge]]s and [[photon burst]]s. The ship also had [[gravimetric charge]]s, which could be installed into photon torpedoes, turning them into extremely destructive [[gravimetric torpedo]]es. [[Cardassian]] [[quantum torpedo]]es were also compatible with ''Intrepid''-class launchers, with some modification. ({{VOY|Relativity|Think Tank|Elogium|The Omega Directive}}, ''et al''.)
+
+==== Deflector shields ====
+[[File:Voyager shields.jpg|thumb|The ''Intrepid'' class' deflector shields react under incoming fire]]
+There were a total of fourteen external shield grids on an ''Intrepid''-class starship. ({{VOY|Equinox, Part II}})
+
+The shields of ''Intrepid''-class vessels were superior to earlier designs. They included [[Multiphasic shield|multiphasic]] and [[multi-spectrum shielding]]. ({{VOY|Flashback|The Omega Directive|Live Fast and Prosper}}) The shields allowed the ship to survive near a binary pulsar for a few minutes and even a planetary explosion at short range. ({{VOY|Scientific Method|Think Tank}})
+
+==== Tractor beam ====
+Each ''Intrepid'' class [[tractor beam]] emitter was directly mounted to the primary members of the vessel's framework. The forward emitter was located on the underside of the secondary hull under the main [[deflector dish]]. The second emitter was located at the aft end of the secondary hull in the aft section of Deck 14. ({{VOY|Parallax|Message in a Bottle}})
+
+=== Crew support systems ===
+==== Medical facilities ====
+[[File:Intrepid class sickbay, 2374.jpg|thumb|The main ward]]
+There was one large [[sickbay]] facility located on deck 5, equipped with an intensive care unit (ICU), bio-hazard support, critical care, a [[morgue]], the [[chief medical officer]]'s office, a load-out of three standard [[biobed]]s and one surgical bed in the main ward, and a small medical laboratory. It is the same design as seen in ''Sovereign''-class starships. ({{film|8}}) The standard medical staff consisted of a doctor and a [[nurse]], supplemented by the [[Emergency Medical Hologram]], the ''Intrepid'' class being one of the first to be equipped with this medical technology. ({{VOY|Tuvix}})
+
+[[File:Intrepid class sickbay.jpg|thumb|left|The intensive care unit]]
+Three biobeds lined the walls of sickbay's ICU; these were for patients receiving medical care and were equipped with [[biofunction monitor]]s. Located in the corner of the main ward was a surgical bed, where major surgeries were performed and critical patients were treated. A large, sophisticated sensor cluster was installed in the ceiling directly above this bed. Working with a [[medical tricorder]], the sensor suite could give detailed information about a patient's condition. The bed was also designed to use a surgical support frame. The small area that the surgical bed was located in could be isolated by a [[force field]]. If necessary, surgery could be conducted in the intensive care ward if there was an overflow of patients or if another patient was present to donate [[blood]]. ({{VOY|Phage|Latent Image}})
+
+Located in the center of the sickbay facility was the chief medical officer's office. Here, the CMO was provided with an area to work in privacy or conduct meetings with patients, staff, and others. Its proximity allowed the CMO to be present in sickbay almost immediately. Located behind this office was a small medical laboratory facility. The medical staff or other associated personnel could monitor experiments or run tests here during their duty shifts. Just off the medical lab was located a tiny area for storage of the deceased. ({{VOY|Macrocosm|Basics, Part II}})
+
+==== Recreational facilities ====
+[[File:Voyager holodeck.jpg|thumb|A holodeck on an ''Intrepid''-class vessel]]
+[[File:Voyager messhall.jpg|thumb|Crew mess hall on board an ''Intrepid''-class vessel]]
+There were two [[holodeck]]s aboard the ship. Located on Deck 6, these holodecks were proprietary [[Federation]] technology, being able to impersonate matter even at the molecular level. ({{VOY|Phage|Flesh and Blood}}) They operated on separate [[holodeck reactor]]s whose [[energy matrix]] were incompatible with the ship's primary power systems; even when a ship was low on power, the holodecks could function on a separate power source. ({{VOY|Parallax|Night}}) Though by [[2376]], ''Voyager'' was able to draw power from holodecks in an emergency along with other secondary power sources. ({{VOY|Fair Haven}})
+
+{{bginfo|The series established early on that the holodecks were not a drain on the ship's main power supply to justify holodeck use in ''Voyager''{{'}}s situation. {{ste|4|1|343}} It had previously been established that the holodecks automatically shut down when ships' energy dropped below safe levels. ''({{TNG|Booby Trap}})''}}
+
+On the ''Intrepid''-class vessels, the [[mess hall]] was on Deck 2, Section 13. Some ships were equipped with four food [[replicator]]s, with a private [[captain's dining room]] just behind the mess hall. This dining room could be reconfigured to serve as a [[kitchen]], as done by [[Neelix]] aboard ''Voyager''. The {{USS|Bellerophon|NCC-74705}}'s mess hall was also fitted in this manner. ({{VOY|Phage}}; {{DS9|Inter Arma Enim Silent Leges}})
+
+The mess hall was typically host to many social gatherings, including diplomatic affairs, birthday parties, memorial services, weddings, and holiday celebrations. The mess hall could also serve as a makeshift sickbay whenever that facility was disabled or otherwise overwhelmed. ({{VOY|Coda|Someone to Watch Over Me|Latent Image|Macrocosm|Homestead}}, {{e|Before and After}}, {{e|Year of Hell}}, {{e|Course: Oblivion}}, {{e|Memorial}})
+
+A crew's lounge was located in the far aft section of the vessel's secondary hull, providing a view of space aft of the ''Intrepid''-class starship. ({{VOY|Endgame}}, etc.)
+
+{{bginfo|The aft lounge was only seen on screen in cutaways and through the windows in exterior shots of the ''Voyager''. It was named in the writer's room wall cutaway diagram. ''{{DrexFiles|2011/03/26/voyager-writers-room-diagram/}}''}}
+
+The ''Intrepid'' class also had a [[gymnasium]]. ({{VOY|Eye of the Needle}})
+
+==== Crew accommodations ====
+[[File:Intrepid class crew quarters.jpg|thumb|Officers' quarters on board an ''Intrepid''-class starship]]
+[[File:Janeways Bathroom.jpg|thumb|The captain's bathroom]]
+All crew and officers' quarters (except the captain's quarters on Deck 3) were located on Decks 2, 4, 8, 9, and 13, with special variable environment quarters on Deck 11 for crew with special comforts. Although the ''Intrepid'' class was highly advanced, the quarters in general were smaller than those of other vessel classes because of its smaller dimensions. ({{VOY|The Q and the Grey|Q2}})
+
+There were several types of [[crew quarters]] aboard:
+* '''Standard crew quarters:''' These small quarters units were located within the primary hull and lack windows. They included a living area, a bedroom, and a bathroom. Primarily intended as shared accommodations for [[Crewman|crewmen]], the standard quarters were also assigned as private quarters to junior officers ([[lieutenant junior grade]] and below); for example, Ensign Kim had his own quarters. The living area contained a replicator terminal and was customizable with a variety of furniture and decorations. ({{VOY|Good Shepherd}})
+
+* '''Officers' quarters:''' These quarters lined the edge of the saucer section and contained a living area, a bedroom, and a bathroom area. They were generally reserved for those of ranking [[lieutenant]] or higher. Members of the senior staff were typically assigned quarters featuring a pair of larger, wider windows. ({{VOY|Meld|Juggernaut|Live Fast and Prosper}})
+
+* '''Captain's quarters:''' The captain's quarters, located on Deck 3, were similar to the officers' quarters but were slightly larger. The captain had a large desk area and work terminal. His or her quarters featured five windows (below the navigation lamp), which offered an excellent view of space in front of the vessel; the captain's quarters were positioned below the [[mess hall]]. ({{s|VOY}})
+
+{{bginfo|The location and position of the captain's quarters was confirmed in the writer's room wall cutaway diagram of the ''Voyager''. ''{{DrexFiles|2011/03/26/voyager-writers-room-diagram/}}'' Rick Sternbach commented, "''The only place Captain Janeway's quarters logically fit was on deck three. It was the only logical place we could plant a bay consisting of five big windows.''" (''[[Cinefantastique]]'', Vol. 27, No. 4/5, p. 45)}}
+
+=== Scientific capabilities ===
+[[File:Voyager science lab.jpg|thumb|A science lab aboard the USS ''Voyager'']]
+The ''Intrepid''-class starship housed multiple [[Science laboratory|scientific research labs]], which included [[biology]], [[medical]], [[stellar cartography]], and [[holographic research lab|holographic research]]. ({{VOY|Day of Honor|Parallax|Revulsion|Fair Haven}})
+{{clear}}
+
+=== Transport and cargo ===
+==== Transporter rooms ====
+[[File:Transporter room, Jetrel.jpg|thumb|''Intrepid'' class transporter room]]
+The ''Intrepid'' class featured three [[transporter]] facilities that were located on Deck 4. In case of emergencies, injured personnel could be directly transported to [[sickbay]] from anywhere in transporter range, including inside the ship. ({{VOY|Shattered}})
+
+Like many Federation starships, the ''Intrepid'' class' transporters had six standard pads located in front of a control console. Here the transporter controls were located in an elevated booth, and two officers could operate them in conjunction with a wall panel for more complicated transports. Like most systems aboard the ''Intrepid'' class, the transporters utilized bio-neural gel packs in their processor systems. ({{VOY|Shattered|Counterpoint}})
+
+==== Cargo bays ====
+[[File:USS Voyager cargo bay 2371.jpg|thumb|A cargo bay on the ''Intrepid'' class]]
+Cargo Bay 2 was designed for organic storage, with adjustable [[environmental control]]s. ({{VOY|Parallax}})
+{{clear}}
+
+==== Auxiliary spacecraft systems ====
+Located on Deck 10, in the aft dorsal portion of the secondary hull, [[Shuttlebay]] 1 was the primary port for entrance and egress for auxiliary craft and [[shuttle]]s. Shuttlebay 1 was a large L-shaped room. ({{VOY|Alice|Q2}}) It had an [[arresting field]] to assist in slowing down incoming craft. ({{VOY|Barge of the Dead}})
+
+Behind the main shuttlebay was an even larger [[hangar]], known as Shuttlebay 2, where the construction, repair and maintenance of auxiliary craft was performed. Shuttlebay 2 could also be depressurized, and spacecraft could be launched from there. ({{VOY|Threshold|Extreme Risk|In the Flesh}})
+
+The ''Intrepid''-class starship was typically equipped with the following types of shuttlecraft: the [[Class 2 shuttle]], the [[Type 6 shuttlecraft]], and the [[Type 8 shuttlecraft]]. As well, it was also equipped with a [[runabout]]-size [[aeroshuttle]], which was integrated into the underside of the ship when it was docked to the hull. ({{VOY|Extreme Risk}}, ''et al.''; {{ENT|Future Tense}})
+
+{{bginfo|[[Rick Sternbach]] has stated that the Shuttlebay 2, mentioned in dialogue, was the name of the maintenance bay. ''{{eas|articles/delta-size.htm}}'' The [[:File:Intrepid class MSD.jpg|''Intrepid''-class MSD]] also appeared to show the silhouettes of two [[cargo management unit]]s stored a deck above the shuttlecraft service bay.}}
+
+<gallery>
+File:Class 2 shuttle exiting Voyager's shuttlebay.jpg|A [[Class 2 shuttle]] leaving the Shuttlebay 1
+File:Class 2 shuttle entering shuttlebay.jpg|Interior view during landing procedures
+File:Delta Flyer II in shuttlebay.jpg|Interior view of the shuttlebay, ''Delta Flyer'' departing
+File:Delta Flyer in its hanger.jpg|The ''Delta Flyer'' under construction in the hangar
+File:Aeroshuttle docked.jpg|The aeroshuttle docked
+</gallery>
+
+== Ships in class ==
+<!-- Please do not list the Voyager-J here. See [[Talk:Intrepid class (32nd century)]] for more information. Failure to follow this notice will result in you being blocked from editing. -->
+;Named
+{|class="grey sortable" style="width:100%" cellspacing="3" cellpadding="3" align="center"
+|- class="infoboxheader"
+!Name !! Registry !! Notes !! Status !! Date
+|-
+|{{USS|Bellerophon|NCC-74705}}||[[NCC]]-74705||||Active||[[2375]]
+|-
+|{{USS|Voyager}}||NCC-74656||Disappeared in [[2371]]; later found in the [[Delta Quadrant]]||Preserved||[[2401]]
+|}
+
+;Parallel universe
+{|class="grey sortable" style="width:100%" cellspacing="3" cellpadding="3" align="center"
+|- class="infoboxheader"
+!Name !! Registry !! Notes !! Status !! Date
+|-
+|{{USS|Endeavour|parallel universe}}||||Pulled into the [[prime universe]]||Active||[[2382]]
+|}
+
+;Replica
+{|class="grey sortable" style="width:100%" cellspacing="2" cellpadding="2" align="center"
+|- class="infoboxheader"
+!Name !! Registry !! Notes !! Status !! Date
+|-
+|[[Silver Blood#USS Voyager|USS ''Voyager'']]||NCC-74656||Biomimetic copy created by [[Silver Blood]]||Disintegrated||2375
+|-
+|}
+
+;Uncertain
+{|class="grey sortable" style="width:100%" cellspacing="2" cellpadding="2" align="center"
+|- class="infoboxheader"
+!Name !! Registry !! Notes !! Status !! Date
+|-
+|{{USS|Intrepid|NCC-74600}}||NCC-74600||||Out of service||2401
+|-
+|{{USS|Valiant|NCC-75418}}||NCC-75418||||Active||2379
+|-
+|}
+
+;Unnamed
+* [[Unnamed Intrepid class starships|Unnamed ''Intrepid''-class starships]]
+
+== Appendices ==
+=== Appearances ===
+<div class="appear">
+* {{DS9}}
+** {{e|Favor the Bold}} {{small|([[USS Defiant (NX-74205) library computer|LCARS graphic]])}}
+** {{e|Sacrifice of Angels}} {{small|(LCARS graphic)}}
+** {{e|Tears of the Prophets}} {{small|(LCARS graphic)}}
+** {{e|Inter Arma Enim Silent Leges}}
+* {{VOY}} {{small|(all 176 episodes; first appearance)}}
+* {{ENT}}
+** {{e|Future Tense}} {{small|([[Daniels' database|database graphic]])}}
+* {{PIC}}
+** {{e|The Star Gazer}} {{small|(commemorative plaque)}}
+** {{e|The Next Generation}} {{small|(display graphic)}}
+** {{e|The Bounty}}
+** {{e|Võx}}
+* {{LD}}
+** {{e|We'll Always Have Tom Paris}} {{small|(image on [[Voyager plate|plate]])}}
+** {{e|An Embarrassment Of Dooplers}} {{small|(photograph)}}
+** {{e|Twovix}}
+** {{e|Parth Ferengi's Heart Place}} {{small|(model)}}
+** {{e|The Best Exotic Nanite Hotel}}
+* {{PRO}}
+** {{e|Starstruck}} {{small|(digital image)}}
+** {{e|Masquerade}} {{small|(model)}}
+</div>
+
+=== Background information ===
+Some of the information in this article is adapted from [[Rick Sternbach]]'s guide to the development of the class from {{STTM|3|1}}, under the [[Starfleet Technical Database]] banner.
+
+When [[Rick Berman]] was faced with the task of deciding the name of this ship class, [[Michael Okuda]] sent Berman a memo featuring a list of approximately a dozen suggestions. Berman initially chose the name "''Mercury''", but subsequently changed his mind, selecting "''Intrepid''" instead. (''[[A Vision of the Future - Star Trek: Voyager]]'', p. 256)
+
+[[Ronald D. Moore]] stated that he believed ''Voyager'' had a [[Saucer separation|detachable saucer section]]. {{AOLchat|Ronald D. Moore|ron040|1997}}
+
+The {{ste|4|2|374|449|&}} identified the {{USS|Intrepid|NCC-74600}} and {{USS|Valiant|NCC-75418}} as ''Intrepid''-class, though they were never seen on screen.
+
+==== Development ====
+The process of developing the ''Intrepid''-class began in mid-{{y|1993}}, during secretive development meetings that served as the starting point for {{s|VOY}}. With the meetings having begun in July of that year, Executive Producer [[Jeri Taylor]], on {{d|3|August|1993}}, noted in a summary of the discussions thus far, "''The ship is a sleek, nifty, new-generation vessel, with some improvements, though smaller than the ''[[USS Enterprise (NCC-1701-D)|Enterprise]]." (''[[A Vision of the Future - Star Trek: Voyager]]'', p. 175)
+
+[[Rick Sternbach]] and [[Michael Okuda]] were brought into the development proceedings in early September 1993 and, in late September, Sternbach started sending memos to Executive Producer [[Rick Berman]], concerning the ship class. (''[[A Vision of the Future - Star Trek: Voyager]]'', pp. 198 & 208) One of these memos, dated [[25 September]], was a four-page document in which Sternbach commented on the class' size, saying that a ship half the size of the ''Enterprise''-D would still be "an impressive vessel" and that &ndash; if it was instead about three quarters of the ''Enterprise''{{'}}s size &ndash; it would still be in good company, being roughly the same size as the {{class|Vor'cha}} or {{class|Ambassador}} ships. Sternbach also updated Berman by saying he was about to begin sketching "some rough doodles" for the class' physical configuration. Somewhat concerned about how to differentiate the class from past vessels while simultaneously keeping a sense of lineage, Okuda wrote a memo to Berman, [[27 September|two days later]], expressing this concern. (''[[A Vision of the Future - Star Trek: Voyager]]'', p. 207)
+
+In the first draft [[script]] of {{VOY|Caretaker}} (dated {{d|8|June|1994}}), the ''Intrepid''-class was referred to as "''a sleek bullet of a ship, built for action, capable of holding a crew complement of one hundred and twenty-five.''" This was different in the final draft of the teleplay (dated {{d|1|September|1994}}), which had a scene description that still referred to the ''Intrepid''-class as "''a sleek bullet of a ship, built for action.''" The crew complement, however, was now said, in dialogue, to be 141.
+
+==== Warp drive capabilities ====
+According to ''[[Star Trek: Starship Spotter]]'' and the ''[[Star Trek: Voyager Technical Manual]]'', warp factor 6 is the actual cruising speed for the ''Intrepid''-class. {{e|Dragon's Teeth}} would support this, as the episode begins with ''Voyager'' cruising at warp 6, as does {{e|Pathfinder}}, in which the average speed of warp 6.2 was estimated as the speed ''Voyager'' was traveling towards the [[Alpha Quadrant]]. According to the text of the ''Technical Manual'', warp 9.2 is supposed to be the maximum sustainable speed, while warp 9.6 is the rated top speed and warp 9.9 is a speed that can be sustained for only a few minutes. In a speed chart, the ''Manual'' contradicts itself by giving instead warp 9.975 as the top-rated speed, which could be maintained for 12 hours. According to the chart, the 9.975 speed corresponds to a velocity of 3,056 times the [[speed of light]]. This would be much slower than what warp 9.9 was canonically established to be in {{e|The 37's}}, well over twenty-one thousand times the speed of light.
+
+Canonically, in {{e|Caretaker}}, {{e|Relativity}}, and {{e|Barge of the Dead}}, ''Voyager'' is specifically stated having the maximum ''cruising'' speed of warp 9.975. In the episode {{e|Threshold}}, when accelerating to and attempting to match warp 9.97, the computer warned of imminent structural collapse. In the episode {{e|The Swarm}}, it is only possible to maintain warp 9.75 for twelve hours. It is also stated in the episode by [[Chakotay]] that ''Voyager'' is not able to sustain its maximum warp at that time. The maximum warp is however used in several episodes before and after "The Swarm" for extended periods. Finally, the maximum warp is given a canonical speed estimate in two episodes. In {{e|Friendship One}}, the ship is capable of crossing 132 light years in one month at maximum warp. This turns out to be only about 1,554 - 1,721 times the speed of light. In {{e|Scorpion, Part II}}, the ship is capable of crossing forty light years in five days at maximum warp. This in turn is 2,922 times the speed of light. The later estimate is closer to the 3,056 times the speed of light mentioned in the ''Manual''.
+
+The reasons for ''Voyager''{{'}}s lack of ability to maintain optimal warp speeds are given in the ''Star Trek: Voyager Technical Manual''. There were very limited refueling and overhaul assets available during the journey, and the crew had to allow the engines down time for cooling. Furthermore, according to the ''Manual'', the 75-year travel time figure established in "Caretaker" was never meant to be a realistic estimate. It was based on the assumption that ''Voyager'' would maintain warp 9.6 or warp 9.99 and travel uninterruptedly directly to [[Earth]]. A figure of two to four hundred years to cross the Delta Quadrant and into the [[Beta Quadrant]] was a more realistic estimate of the predicament at the beginning of the series.
+
+==== Studio models ====
+:''See [[Intrepid class model|''Intrepid'' class model]].''
+
+==== Designing the bridge ====
+[[File:Intrepid class bridge concept.jpg|thumb|A Jim Martin concept art for the ''Intrepid'' class' bridge]]
+After six years as production designer on ''The Next Generation'', [[Richard James]] was no stranger to the legacy of ''Star Trek'' and the production requirements of episodic television. When given the assignment to create a new starship from the inside out, he had to start up from scratch. Nothing had yet been established, and thus for his first meeting with {{s|VOY}}'s creators and producers, James decided to push the boundaries of everything that had gone before. (''[[The Art of Star Trek]]'')
+
+The script for {{VOY|Caretaker}} described the ''Intrepid'' class bridge as "''the most advanced, impressive Bridge facility in the history of ''Star Trek''.''"
+
+Early concept sketches show bridge designs without the large viewscreen in the front of the bridge and command functions decentralized, obviously breaking the traditional bridge mold. However, by exhaustively re-examining the dramatic requirements and technological underpinnings of the ''Star Trek'' bridge without preconceptions, Richard James rediscovered the strengths of the basic template laid out by Matt Jefferies almost thirty years earlier. With the broad strokes of the bridge's layout firmly embedded in ''Star Trek''{{'}}s past, James and his team went on to bring a new interpretation to the bridge. (''[[The Art of Star Trek]]'')
+
+The ''Intrepid'' class bridge included eleven monitors, all of which were fed composite video from the bridge's video control unit. This consisted of a wheeled cart with five 3/4-inch video decks and a couple of computers. Usage of the computers was only occasional and varied between either a single computer or both of them. (''[[Star Trek: Communicator]]'' issue 144, pp. 29 & 30)
+
+=== Apocrypha ===
+[[File:Intrepid class Legacy.jpg|thumb|The ''Intrepid'' class in ''Star Trek Legacy'']]
+The ''Intrepid''-class starship was featured in [[Activision]]'s ''[[Star Trek: Armada II]]'' and ''[[Star Trek: Starfleet Command III]]'', while the USS ''Voyager'' appeared in ''[[Star Trek: Voyager - Elite Force]]'' and ''[[Star Trek: Elite Force II]]''.
+
+In [[Bethesda Softworks]]' ''[[Star Trek: Legacy]]'', the ''Intrepid'' class is a playable ship, with the USS ''Voyager'' as one of the possible names of this class of ship. ''[[Star Trek Online]]'' also features it as a playable ship for players ranked Captain or above, wherein it is referred to as a long-range science vessel. ''Star Trek Online'' also features, in addition to the standard ''Intrepid'' class, three additional variants are available: The {{mb|Bellerophon class|''Bellerohon'' class}}, with a [[photonic shockwave]] torpedo, for players ranked Captain and above; an ''Intrepid'' retrofit with [[ablative generator]]s, for players ranked Vice Admiral and above; and the {{mb|Pathfinder class|''Pathfinder'' class}}, a modernized successor to the ''Intrepid'' with a launchable [[aeroshuttle]], also for players ranked Vice Admiral and above.
+
+=== Sources ===
+* ''[[The Art of Star Trek]]'', [[Judith Reeves-Stevens|Judith]] and [[Garfield Reeves-Stevens]], Pocket Books, 1997.
+* "Designing the U.S.S. ''Voyager''", {{STTM|1|19}} (November 2000) and {{STTM|2|3}} (July 2001).
+
+=== References ===
+<references/>
+
+=== External links ===
+* {{mbeta|Intrepid class|''Intrepid'' class}}
+* {{mbeta|Discovery class (25th century)|''Discovery'' class}}
+* {{mbeta|Pathfinder class|''Pathfinder'' class}}
+
+[[Category:Federation starship classes]]
+
+[[cs:Třída Intrepid]]
+[[de:Intrepid-Klasse]]
+[[es:Clase Intrepid]]
+[[fr:Classe Intrepid]]
+[[it:Classe Intrepid]]
+[[ja:イントレピッド級]]
+[[nl:Intrepid klasse]]
+[[pl:Klasa Intrepid]]
+[[ru:Интрепид класс]]
+[[sv:Intrepidklass]]
