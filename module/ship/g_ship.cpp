@@ -659,6 +659,18 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "seal" ) && a[0] ) ship::RepairDeck( vessel, atoi( a ), 1.0f );
 	else if ( !Q_stricmp( cmd, "board" ) && a[0] && b[0] ) ship::Board( vessel, atoi( a ), atoi( b ) );
 	else if ( !Q_stricmp( cmd, "borg" ) && a[0] && b[0] ) ship::BoardBorg( vessel, atoi( a ), atoi( b ) );
+	else if ( !Q_stricmp( cmd, "order" ) && a[0] )
+	{//ship order repair <system>|security <deck>|evacuate <deck>   (0 or "none" clears it)
+		bool ok = false;
+		if ( !Q_stricmp( a, "repair" ) ) ok = ship::OrderRepairFirst( vessel, FindSystem( b ) );
+		else if ( !Q_stricmp( a, "security" ) ) ok = ship::OrderSecurityTo( vessel, atoi( b ) );
+		else if ( !Q_stricmp( a, "evacuate" ) ) ok = ship::OrderEvacuate( vessel, atoi( b ) );
+		if ( !ok ) { gi.Printf( "SHIP: order refused: only whoever commands the ship gives orders\n" ); return; }
+		gi.Printf( "SHIP: standing orders: repair first %s, security to deck %d, evacuate deck %d\n",
+			vessel.orderRepairFirst >= 0 ? ship::Spec( static_cast<ship::SystemId>( vessel.orderRepairFirst ) ).name : "nothing in particular",
+			vessel.orderSecurityTo, vessel.orderEvacuate );
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "character" ) && a[0] && b[0] && gi.argc() > 4 )
 	{//ship character <name> <department 0-4> <rank 0-4>
 		const int who = ship::CreateCharacter( vessel, a, static_cast<ship::Department>( atoi( b ) ), atoi( gi.argv( 4 ) ) );
@@ -724,6 +736,7 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "       ship damage|repair <system> <0..1> | breach <deck> <0..1> | source core|impulse|auxiliary|batteries on|off\n" );
 		gi.Printf( "       ship seal <deck> | board <deck> <boarders> | borg <deck> <drones> | counterhack <system> <0..1>\n" );
 		gi.Printf( "       ship chart | jump <beacon> | fire | character <name> <department> <rank>\n" );
+		gi.Printf( "       ship order repair <system> | order security <deck> | order evacuate <deck>\n" );
 		return;
 	}
 	ship::Tick( vessel, 0.0f );

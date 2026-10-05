@@ -36,11 +36,9 @@ evidenced by `tests/ship`, with the settings exposed in the game as cvars.
 
 ## What S10 still needs
 
-- **Enforcement: clearance and ironman are now enforced in the game** (both below). Being in command
-  still issues no orders to anyone.
+- **Enforcement: clearance and ironman are now enforced in the game** (both below).
+- **Orders exist** (below) but only from the console: no screen gives them yet.
 - **A character-creation screen**, and the player's character being the body the player walks in.
-- **Orders**: in-command play needs the crew to carry out what is ordered — power priorities, alert,
-  repair and security teams — which is the hierarchy the owner asked for.
 - **Wall-clock catch-up has run only in tests.** The game calls it on load; no session has spanned
   a real absence.
 
@@ -80,3 +78,19 @@ PASS  ironman refuses a save and a load by hand, and writes its one save forward
 Not done: the save and load *menus* still offer what will be refused; a save on quitting; and
 loading the ironman save a second time is not prevented (copying the file aside defeats it, as in
 any game with an ironman mode).
+
+## Orders (later the same day)
+
+What being in command is for. Three standing orders, given only by whoever commands
+(`PlayerMayCommand`), obeyed until changed, and kept in the save:
+
+| order | effect | tested |
+|---|---|---|
+| repair first | the damage-control party sees to that system before any other, critical or not | with life support and the holodecks both damaged, the party goes to the holodecks |
+| security to a deck | a guard of four goes there whether or not anyone has boarded | four more on the deck; when boarders arrive the guard is already fighting them |
+| evacuate a deck | nobody stays: stations there are left on automation, off-duty crew go to the mess | the deck empties and the warp drive runs at half; vented with boarders aboard, the boarders die and no crew are lost; resealed and refilled, the crew return |
+
+Nobody in particular, and an ensign, are refused. The last row found a real sequence: sent back the
+moment the hull was sealed, the crew arrived on a deck with no air yet and were injured. The order
+has to stand until the deck is breathable — which the test now does, and which is the captain's to
+judge.

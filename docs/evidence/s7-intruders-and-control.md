@@ -48,7 +48,7 @@ boarders on a vented deck do not all die: those who had already taken the torped
   them as bodies too, rather than by a rate, when the player is there to see it.
 - **The puzzle on a screen: done** (`scripts/s9-check.sh`): any console's countermeasures key asks
   the ship for a puzzle for the selected system and presents it; the picks are sent back and scored
-  by the ship. It has no timer yet, and nobody has played it by hand.
+  by the ship. It runs against a thirty-second trace: when time is up, what has been entered is what is sent. Nobody has played it by hand.
 - **Who the boarders are.** One kind, one behaviour. Species, weapons, objectives: later.
 - **How they arrive** — transporters, breaching pods — belongs with the outside loop (S9).
 - Every rate is invented and in the lore ledger.

@@ -215,6 +215,11 @@ struct Ship {
 	Enemy enemy;
 	uint32_t hits = 0;           // how many hits have landed: decides, deterministically, where the next one does
 
+	// standing orders from whoever commands (S10): -1 / 0 = none
+	int orderRepairFirst = -1;   // a system the damage-control party is to see to before any other
+	int orderSecurityTo = 0;     // a deck security is to go to, boarders or not
+	int orderEvacuate = 0;       // a deck everyone is to leave
+
 	// the player
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
 	uint64_t wallSeconds = 0;    // wall-clock time when the ship was last saved (CLOCK_WALL catches up from it)
@@ -356,13 +361,23 @@ bool PlayerMayCommand(const Ship &s);
 // the complement does not grow -- with the name and rank chosen (rank 0..4: nobody is created a
 // commander). Returns the roster index, or -1 if the name is empty or the rank out of range.
 int CreateCharacter(Ship &s, const std::string &name, Department dept, int rank);
+// Orders. Given by whoever commands; the crew carry them out until they are changed. They are the
+// ship's standing orders, so they persist when the one who gave them walks away -- and in the save.
+//   repair first   the damage-control party goes to this system before any other, however minor
+//   security to    security with no station goes to this deck, boarders or not, before answering others
+//   evacuate       nobody stays on this deck: stations there are left, off-duty crew go to the mess
+// Each returns false, changing nothing, if the player may not command. -1 / 0 clears an order.
+bool OrderRepairFirst(Ship &s, int system);
+bool OrderSecurityTo(Ship &s, int deck);
+bool OrderEvacuate(Ship &s, int deck);
+
 // Sets the role; ROLE_MUNRO makes the player Alexander Munro.
 void SetRole(Ship &s, PlayerRole role);
 
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 6;   // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player
+const uint16_t SAVE_VERSION = 7;   // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

@@ -365,9 +365,9 @@ static void TestSave()
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[6] = 7; // a different complement
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[39] = 5; // an alert condition that does not exist
+	bad = blob; bad[42] = 5; // an alert condition that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[43] = 0x7f; // a health that is not a fraction
+	bad = blob; bad[46] = 0x7f; // a health that is not a fraction
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[16] = 9; // a play mode that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
@@ -937,6 +937,85 @@ static void TestRankAndRoles()
 	CHECK(Pack(back) == blob);
 }
 
+// Orders: what being in command is for.
+static void TestOrders()
+{
+	g_test = "orders";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	// Nobody in particular may not give them.
+	CHECK(!OrderRepairFirst(s, SYS_HOLODECKS) && !OrderSecurityTo(s, 4) && !OrderEvacuate(s, 9));
+	CHECK(s.orderRepairFirst == -1 && s.orderSecurityTo == 0 && s.orderEvacuate == 0);
+	CreateCharacter(s, "Ensign Reyes", DEPT_ENGINEERING, 1);
+	CHECK(!OrderEvacuate(s, 9)); // nor an ensign
+	SetRole(s, ROLE_IN_COMMAND);
+
+	// Repair first: with life support and the holodecks both down, the party would see to life
+	// support. Ordered to the holodecks, it goes there first.
+	DamageSystem(s, SYS_LIFE_SUPPORT, 0.5f);
+	DamageSystem(s, SYS_HOLODECKS, 0.5f);
+	CHECK(OrderRepairFirst(s, SYS_HOLODECKS));
+	Ship unordered = s;
+	unordered.orderRepairFirst = -1;
+	Tick(s, Hours(s, 0.5f));
+	Tick(unordered, Hours(unordered, 0.5f));
+	CHECK(s.systems[SYS_HOLODECKS].health >= unordered.systems[SYS_HOLODECKS].health);
+	CHECK(s.systems[SYS_HOLODECKS].repairing == REPAIR_TEAM_MAX);
+	CHECK(OrderRepairFirst(s, -1) && s.orderRepairFirst == -1);
+
+	// Security to a deck: a guard goes there though nobody has boarded.
+	Ship g = NewShip();
+	SetRole(g, ROLE_IN_COMMAND);
+	Tick(g, 1.0f);
+	int before = 0, after = 0;
+	for (const CrewMember &c : g.crew)
+		if (c.dept == DEPT_SECURITY && c.deck == 9) ++before;
+	CHECK(OrderSecurityTo(g, 9));
+	Tick(g, 1.0f);
+	for (const CrewMember &c : g.crew)
+		if (c.dept == DEPT_SECURITY && c.deck == 9) ++after;
+	CHECK(after >= before + 3 && after <= before + 4);
+	// And when boarders come to that deck, the guard is already fighting them.
+	Board(g, 9, 2);
+	Tick(g, 1.0f);
+	CHECK(g.decks[8].defenders >= 4);
+
+	// Evacuate: nobody stays, and the stations there go unmanned.
+	Ship e = NewShip();
+	SetRole(e, ROLE_IN_COMMAND);
+	Tick(e, 1.0f);
+	CHECK(!CrewOnDeck(e, 11).empty() && e.systems[SYS_WARP_DRIVE].manned > 0);
+	CHECK(OrderEvacuate(e, 11));
+	Tick(e, 1.0f);
+	CHECK(CrewOnDeck(e, 11).empty());
+	CHECK(e.systems[SYS_WARP_DRIVE].manned == 0 && e.systems[SYS_WARP_DRIVE].output == 0.5f); // on automation
+	// So a deck can be cleared before it is vented: boarders die, the crew do not.
+	Board(e, 11, 3);
+	BreachDeck(e, 11, 1.0f);
+	Tick(e, Hours(e, 0.5f));
+	int lost = 0;
+	for (const CrewMember &c : e.crew)
+		if (c.status != CREW_FIT) ++lost;
+	CHECK(e.decks[10].intruders == 0.0f && lost == 0);
+	// Seal it, let the air come back, and only then let them return -- sending them back at once
+	// would put them on a deck that is sealed but not yet breathable.
+	RepairDeck(e, 11, 1.0f);
+	Tick(e, Hours(e, 2.0f));
+	CHECK(e.decks[10].atmosphere == 1.0f && CrewOnDeck(e, 11).empty());
+	CHECK(OrderEvacuate(e, 0));
+	Tick(e, 1.0f);
+	CHECK(e.systems[SYS_WARP_DRIVE].manned > 0); // and they go back
+
+	// Orders are the ship's, so they are in the save.
+	Ship w = NewShip();
+	SetRole(w, ROLE_IN_COMMAND);
+	OrderRepairFirst(w, SYS_SENSORS); OrderSecurityTo(w, 4); OrderEvacuate(w, 9);
+	const std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.orderRepairFirst == SYS_SENSORS && back.orderSecurityTo == 4 && back.orderEvacuate == 9);
+}
+
 static void TestStations()
 {
 	g_test = "stations";
@@ -1035,6 +1114,7 @@ int main(int argc, char **argv)
 	TestCombat();
 	TestModesAndClocks();
 	TestRankAndRoles();
+	TestOrders();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

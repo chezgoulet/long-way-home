@@ -226,7 +226,12 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 	int wantRepair[SYS_COUNT], nWant = 0;
 	for (int id = 0; id < SYS_COUNT; ++id)
 		if (s.systems[id].health < 1.0f) wantRepair[nWant++] = id;
-	std::stable_sort(wantRepair, wantRepair + nWant, [&](int a, int b) { return s.systems[a].priority < s.systems[b].priority; });
+	std::stable_sort(wantRepair, wantRepair + nWant, [&](int a, int b) {
+		// the system the captain has ordered seen to comes before the critical ones
+		const bool fa = a == s.orderRepairFirst, fb = b == s.orderRepairFirst;
+		if (fa != fb) return fa;
+		return s.systems[a].priority < s.systems[b].priority;
+	});
 	int treated = 0;
 	for (Deck &d : s.decks) d.defenders = d.stripping = 0;
 	// Where security is needed: the deck with the most boarders first.
@@ -234,6 +239,7 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 	for (int d = 0; d < DECKS; ++d)
 		if (s.decks[d].intruders > 0.0f) hot[nHot++] = d;
 	std::stable_sort(hot, hot + nHot, [&](int a, int b) { return s.decks[a].intruders > s.decks[b].intruders; });
+	int posted = 0; // security sent to the deck the captain ordered held
 
 	for (CrewMember &c : s.crew) {
 		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) {
@@ -252,6 +258,16 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		case ACT_MEAL: c.deck = MESS_DECK; break;
 		case ACT_RECREATION: c.deck = s.systems[SYS_HOLODECKS].output > 0.0f ? HOLODECK_DECK : MESS_DECK; break;
 		default: c.deck = c.quartersDeck; break;
+		}
+
+		// An evacuated deck is left: whoever the routine would put there goes to the mess hall instead,
+		// station or not. (Security ordered to that same deck is the exception: that is what a guard is.)
+		if (s.orderEvacuate >= 1 && c.deck == s.orderEvacuate && !(c.dept == DEPT_SECURITY && s.orderSecurityTo == s.orderEvacuate)) {
+			c.deck = static_cast<uint8_t>(s.orderEvacuate == MESS_DECK ? HOLODECK_DECK : MESS_DECK);
+			if (a == ACT_ON_DUTY && c.post < SYS_COUNT && SPECS[c.post].deck == s.orderEvacuate) {
+				c.activity = ACT_PERSONAL; // off their station, by order
+				a = ACT_PERSONAL;
+			}
 		}
 
 		// The injured are in sickbay if there is a bed, and are treated there as fast as sickbay runs.
@@ -288,12 +304,19 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		else c.fatigue -= hours / 40.0f;
 		c.fatigue = std::min(1.0f, std::max(0.0f, c.fatigue));
 
-		if (a == ACT_ON_DUTY && c.post < SYS_COUNT) ++s.systems[c.post].manned;
 
 		// Security on duty with no station answers a boarding: enough to outnumber each party, worst first.
 		if (a == ACT_ON_DUTY && c.post == SYS_COUNT && c.dept == DEPT_SECURITY) {
+			// ordered to a deck: a guard of four goes there first, whether or not anyone has boarded it
+			if (s.orderSecurityTo >= 1 && s.orderSecurityTo <= DECKS && posted < 4) {
+				++posted;
+				c.deck = static_cast<uint8_t>(s.orderSecurityTo);
+				if (s.decks[s.orderSecurityTo - 1].intruders > 0.0f) ++s.decks[s.orderSecurityTo - 1].defenders;
+				goto placed;
+			}
 			for (int k = 0; k < nHot; ++k) {
 				Deck &d = s.decks[hot[k]];
+				if (hot[k] + 1 == s.orderEvacuate) continue; // an evacuated deck is left to whoever is on it
 				if (d.defenders > static_cast<int>(d.intruders) + 1) continue;
 				++d.defenders;
 				c.deck = static_cast<uint8_t>(hot[k] + 1);
@@ -301,12 +324,16 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 			}
 		}
 
+		placed:
+		if (a == ACT_ON_DUTY && c.post < SYS_COUNT) ++s.systems[c.post].manned;
+
 		// An engineer on duty with no station of their own joins the damage-control party.
 		if (a == ACT_ON_DUTY && c.post == SYS_COUNT && c.dept == DEPT_ENGINEERING) {
 			bool busy = false;
 			for (int k = 0; k < nWant && !busy; ++k) {
 				System &sys = s.systems[wantRepair[k]];
 				if (sys.repairing >= REPAIR_TEAM_MAX) continue;
+				if (SPECS[wantRepair[k]].deck == s.orderEvacuate) continue; // not on a deck that has been cleared
 				++sys.repairing;
 				c.deck = static_cast<uint8_t>(SPECS[wantRepair[k]].deck); // they go to the work
 				busy = true;
@@ -721,6 +748,27 @@ int CreateCharacter(Ship &s, const std::string &name, Department dept, int rank)
 	return -1;
 }
 
+bool OrderRepairFirst(Ship &s, int system)
+{
+	if (!PlayerMayCommand(s)) return false;
+	s.orderRepairFirst = system >= 0 && system < SYS_COUNT ? system : -1;
+	return true;
+}
+
+bool OrderSecurityTo(Ship &s, int deck)
+{
+	if (!PlayerMayCommand(s)) return false;
+	s.orderSecurityTo = deck >= 1 && deck <= DECKS ? deck : 0;
+	return true;
+}
+
+bool OrderEvacuate(Ship &s, int deck)
+{
+	if (!PlayerMayCommand(s)) return false;
+	s.orderEvacuate = deck >= 1 && deck <= DECKS ? deck : 0;
+	return true;
+}
+
 void SetRole(Ship &s, PlayerRole role)
 {
 	s.cfg.role = role;
@@ -925,6 +973,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.F(s.cfg.dayScale);
 	w.U8(s.cfg.mode); w.U8(s.cfg.clockMode); w.U8(s.cfg.role);
 	w.U16(static_cast<uint16_t>(s.player));
+	w.U8(static_cast<uint8_t>(s.orderRepairFirst + 1)); w.U8(static_cast<uint8_t>(s.orderSecurityTo)); w.U8(static_cast<uint8_t>(s.orderEvacuate));
 	w.U64(s.wallSeconds);
 	// A created character's name and rank are not in the seed.
 	const bool custom = s.player >= 0 && s.player < static_cast<int>(s.crew.size());
@@ -975,6 +1024,8 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	BuildSector(s);
 	if (count != s.crew.size()) return false;
 	s.player = static_cast<int16_t>(r.U16());
+	s.orderRepairFirst = r.U8() - 1; s.orderSecurityTo = r.U8(); s.orderEvacuate = r.U8();
+	if (s.orderRepairFirst >= SYS_COUNT || s.orderSecurityTo > DECKS || s.orderEvacuate > DECKS) return false;
 	s.wallSeconds = r.U64();
 	std::string name;
 	for (int n = r.U8(); n > 0 && r.ok; --n) name.push_back(static_cast<char>(r.U8()));

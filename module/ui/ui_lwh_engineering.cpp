@@ -48,9 +48,11 @@ struct Screen {
 	char targets[160];
 	int picks[8], npicks;
 	int line;           // the cell the cursor is on, within the row or column the rules allow
+	int deadline;       // when the intruders' trace completes and whatever has been entered is sent
 } screen;
 
 const int BREACH_SIZE = 5, BREACH_BUFFER = 7;
+const int BREACH_MS = 30000;    // the operator has this long
 
 // "name|a b c ..." -- the name may contain spaces, the numbers follow the bar.
 bool ReadRow( const char *cvar, char *name, int nameSize, int *out, int count )
@@ -151,6 +153,7 @@ void BreachBegin( void )
 	screen.breaching = true;
 	screen.npicks = 0;
 	screen.line = 0;
+	screen.deadline = ui.Milliseconds() + BREACH_MS;
 }
 
 void BreachSubmit( void )
@@ -187,8 +190,17 @@ bool BreachAct( int key )
 	return true;
 }
 
+void BreachSubmit( void );
+
 void BreachDraw( void )
 {
+	// Time is part of the puzzle: when it runs out, what has been entered is what is sent.
+	const int left = screen.deadline - ui.Milliseconds();
+	if ( left <= 0 )
+	{
+		if ( screen.npicks ) BreachSubmit(); else screen.breaching = false;
+		return;
+	}
 	char system[64];
 	ui.Cvar_VariableStringBuffer( "lwh_breach_system", system, sizeof( system ) );
 	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
@@ -218,6 +230,9 @@ void BreachDraw( void )
 			UI_DrawProportionalString( 380, 84 + row * 28, seq, UI_SMALLFONT, colorTable[CT_LTBLUE1] );
 	}
 	UI_DrawProportionalString( 44, 330, va( "BUFFER  %d / %d", screen.npicks, BREACH_BUFFER ), UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 380, 330, va( "TRACE COMPLETES IN %d", ( left + 999 ) / 1000 ), UI_SMALLFONT, colorTable[left < 10000 ? CT_RED : CT_LTGOLD1] );
+	UI_FillRect( 380, 352, 200, 6, colorTable[CT_DKPURPLE3] );
+	UI_FillRect( 380, 352, 200 * left / BREACH_MS, 6, colorTable[left < 10000 ? CT_RED : CT_LTBLUE1] );
 	for ( int i = 0; i < screen.npicks; ++i )
 		UI_DrawProportionalString( 60 + i * 56, 348, screen.codes[screen.picks[i]], UI_SMALLFONT, colorTable[CT_WHITE] );
 	UI_DrawProportionalString( 44, 426, "ARROWS move along the lit line   ENTER take the code   S send what you have   ESC abandon",

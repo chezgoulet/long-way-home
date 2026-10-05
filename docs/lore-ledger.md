@@ -139,6 +139,8 @@ outline. The thresholds are invented.
 | Commands | commander and above (the captain and first officer) |
 | A created character | at most lieutenant commander |
 | Wall-clock catch-up | at most 30 days per absence |
+| A guard ordered to a deck | 4 security |
+| The breach puzzle's trace | 30 seconds |
 
 ## Stations
 
