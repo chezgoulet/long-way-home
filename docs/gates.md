@@ -98,6 +98,14 @@ G3 proceeds in parallel, because its code can be written without a session even 
 
 ## G3 — reactive crew ⏳ pending
 
+**Foundation added 2026-10-05:** the ship is a **state model**, not the maps --
+see `docs/ship-model.md`. Its first artifact (the ship blob, the crew record, the system
+table, the clock, and the per-deck load/unload adapter) lands inside G3, because G3's crew
+records must be written into that shape from the first line of code rather than retrofitted.
+Crossing decks therefore becomes a field on a crew record, and Borg assimilation becomes a state
+transition on one. G3's own bar is unchanged.
+
+
 5–10 NPCs, one deck, no new animations, reused barks, posts and acknowledgement, with the measurable
 criteria in the charter (post coverage over a sampled run, bounded time to post, zero navigation
 failures, save/load restores posts and schedules, an explicit per-NPC save-size budget, no ICARUS
