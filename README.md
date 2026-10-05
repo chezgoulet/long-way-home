@@ -30,7 +30,8 @@ The gate ledger, `docs/gates.md`, is the authority; this is its summary.
 | S3 | the whole ship as one map: fifteen decks, toured by turbolift | built and verified headless; not yet walked by a person |
 | S4 | every station's console | first slice: four stations open from the ship's own panels; their deeper controls and in-world status are not built |
 | S5 | crew daily lives | first slice: the crew on your deck are the ones the ship's routine has there |
-| S6–S10 | damage, intruders, the Borg, the outside, play modes | not started; see `docs/ship-programme.md` |
+| S6 | damage, repair and casualties | first slice in the ship core: crewed repair that costs parts, airless decks that injure and kill, sickbay recovery |
+| S7–S10 | intruders, the Borg, the outside, play modes | not started; see `docs/ship-programme.md` |
 
 ## Building and checking
 

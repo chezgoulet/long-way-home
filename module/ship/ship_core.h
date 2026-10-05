@@ -76,6 +76,7 @@ struct System {
 	int priority = 0;       // current shedding order (consoles may change it)
 	int allocated = 0;      // EPS units granted this tick
 	int manned = 0;         // on-duty crew at the station this tick
+	int repairing = 0;      // damage-control crew working on it this tick
 	float output = 0.0f;    // 0..1: what the system is actually delivering
 };
 
@@ -101,6 +102,7 @@ struct Stores {
 	float antimatter = 1.0f;     // fraction of pods; the warp core burns it
 	float batteries = 1.0f;      // fraction of emergency cell charge
 	int torpedoes = 38;          // not replaceable
+	float spareParts = 100.0f;   // what repairs are made of; a system rebuilt from nothing costs PARTS_PER_SYSTEM
 };
 
 // ---- crew -------------------------------------------------------------------------------------
@@ -118,6 +120,8 @@ struct CrewMember {
 	uint8_t quartersDeck = 0;
 	uint8_t status = CREW_FIT;
 	float fatigue = 0.0f;    // 0 rested .. 1 exhausted
+	float exposure = 0.0f;   // seconds spent on a deck without air; injures, then kills
+	float recovery = 0.0f;   // 0..1 progress of an injured crew member's treatment
 
 	// derived each tick
 	uint8_t activity = ACT_SLEEP;
@@ -173,11 +177,30 @@ void DamageSystem(Ship &s, SystemId id, float amount);
 void DamageSource(Ship &s, SourceId id, float amount);
 void BreachDeck(Ship &s, int deck, float amount);   // hull damage; atmosphere then vents by itself
 void Repair(Ship &s, SystemId id, float amount);
+void RepairDeck(Ship &s, int deck, float amount);   // seal the hull; life support then refills the deck
+
+// ---- damage control and casualties (S6) -------------------------------------------------------------
+//
+// Nothing repairs itself. Engineers on duty who stand no station are the damage-control party: each
+// tick they go, up to REPAIR_TEAM_MAX to a system, to whatever is damaged, most critical first, and
+// what they restore is paid for in spare parts. With no parts, or no engineers, damage stays.
+// A deck without air injures whoever is on it within a minute and kills within five. The injured
+// stand no watch; sickbay returns them to duty at a rate set by its own output, a few at a time.
+
+const int REPAIR_TEAM_MAX = 3;
+const float REPAIR_HOURS_PER_SYSTEM = 6.0f;  // one engineer rebuilding a destroyed system [inv]
+const float PARTS_PER_SYSTEM = 12.0f;        // spare parts to rebuild one from nothing [inv]
+const float EXPOSURE_INJURES = 60.0f;        // seconds without air [inv]
+const float EXPOSURE_KILLS = 300.0f;
+const float AIRLESS = 0.25f;                 // a deck's atmosphere below this cannot be breathed [inv]
+const int SICKBAY_BEDS = 6;                  // treated at once [inv]
+const float TREATMENT_HOURS = 12.0f;         // per patient, with sickbay at full output [inv]
+const int SICKBAY_DECK = 5;
 
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 1;
+const uint16_t SAVE_VERSION = 2;   // 2: spare parts, exposure, recovery
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

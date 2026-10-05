@@ -280,6 +280,7 @@ static void TestDamageAndRepair()
 {
 	g_test = "damage caps output; repair restores it";
 	Ship s = NewShip();
+	s.stores.spareParts = 0.0f; // nothing to mend with: damage stays exactly where it is put
 	DamageSystem(s, SYS_SENSORS, 0.4f);
 	Tick(s, 1.0f);
 	CHECK(std::fabs(s.systems[SYS_SENSORS].output - 0.6f) < 1e-5f);
@@ -330,10 +331,13 @@ static void TestSave()
 	s.stores.torpedoes = 31;
 	s.crew[40].status = CREW_DEAD;
 	s.crew[41].status = CREW_ASSIMILATED;
+	s.crew[42].status = CREW_INJURED;
+	s.crew[42].recovery = 0.4f;
+	s.stores.spareParts = 37.5f;
 	Tick(s, Hours(s, 5.5f));
 
 	const std::vector<uint8_t> blob = Pack(s);
-	CHECK(blob.size() < 2048); // the whole ship and its 141 crew
+	CHECK(blob.size() < 3072); // the whole ship and its 141 crew
 	Ship back;
 	CHECK(Unpack(blob.data(), blob.size(), back));
 	CHECK(Pack(back) == blob);
@@ -366,6 +370,105 @@ static void TestSave()
 	bad = blob; bad[28] = 0x7f; // a health that is not a fraction
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	CHECK(Describe(untouched) == before);
+}
+
+// S6. Nothing repairs itself: it takes engineers, time and parts.
+static void TestDamageControl()
+{
+	g_test = "damage control";
+	Ship s = NewShip();
+	DamageSystem(s, SYS_SENSORS, 0.5f);
+	Tick(s, 1.0f);
+	CHECK(s.systems[SYS_SENSORS].repairing == REPAIR_TEAM_MAX); // a party goes to it, and no more than a party
+	CHECK(s.systems[SYS_WARP_DRIVE].repairing == 0);            // nobody is sent to mend what is whole
+	const float parts = s.stores.spareParts;
+	Tick(s, Hours(s, 0.5f));
+	CHECK(s.systems[SYS_SENSORS].health > 0.7f && s.systems[SYS_SENSORS].health < 0.8f); // 3 engineers, half an hour: a quarter
+	CHECK(std::fabs((parts - s.stores.spareParts) - 0.25f * PARTS_PER_SYSTEM) < 0.2f);     // and paid for
+	Tick(s, Hours(s, 1.0f));
+	CHECK(s.systems[SYS_SENSORS].health == 1.0f);
+	const float after = s.stores.spareParts;
+	Tick(s, Hours(s, 1.0f));
+	CHECK(s.stores.spareParts == after && s.systems[SYS_SENSORS].repairing == 0); // done: the party stands down
+
+	// Two systems down: the critical one gets hands first, and both are worked.
+	DamageSystem(s, SYS_HOLODECKS, 0.9f);
+	DamageSystem(s, SYS_LIFE_SUPPORT, 0.9f);
+	Tick(s, Hours(s, 0.25f));
+	CHECK(s.systems[SYS_LIFE_SUPPORT].repairing == REPAIR_TEAM_MAX && s.systems[SYS_HOLODECKS].repairing > 0);
+	CHECK(s.systems[SYS_LIFE_SUPPORT].health >= s.systems[SYS_HOLODECKS].health);
+
+	// No parts, no repair -- however many engineers stand over it.
+	Ship poor = NewShip();
+	poor.stores.spareParts = 1.2f; // a tenth of a system's worth
+	DamageSystem(poor, SYS_SHIELDS, 1.0f);
+	Tick(poor, Hours(poor, 12.0f));
+	CHECK(poor.stores.spareParts == 0.0f);
+	CHECK(std::fabs(poor.systems[SYS_SHIELDS].health - 0.1f) < 0.01f);
+
+	// No engineers to spare, no repair: with the off-station engineers of every watch dead, damage stays.
+	Ship thin = NewShip();
+	for (CrewMember &c : thin.crew)
+		if (c.dept == DEPT_ENGINEERING && c.post == SYS_COUNT) c.status = CREW_DEAD;
+	DamageSystem(thin, SYS_SENSORS, 0.5f);
+	Tick(thin, Hours(thin, 6.0f));
+	CHECK(thin.systems[SYS_SENSORS].health == 0.5f && thin.stores.spareParts == 100.0f);
+}
+
+static void TestCasualties()
+{
+	g_test = "casualties";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int onEleven = static_cast<int>(CrewOnDeck(s, 11).size());
+	CHECK(onEleven >= 5);
+	BreachDeck(s, 11, 1.0f); // Main Engineering opens to space
+	Tick(s, Hours(s, 0.08f)); // five minutes: the air goes
+	Tick(s, Hours(s, 0.03f)); // and two more without it
+	int injured = 0, dead = 0;
+	for (const CrewMember &c : s.crew) {
+		if (c.status == CREW_INJURED) ++injured;
+		if (c.status == CREW_DEAD) ++dead;
+	}
+	CHECK(injured >= onEleven && dead == 0); // hurt within a minute, not yet lost
+	CHECK(s.systems[SYS_WARP_DRIVE].manned == 0); // the injured stand no station
+	for (const CrewMember &c : s.crew)
+		if (c.status == CREW_FIT) CHECK(c.exposure == 0.0f || c.deck == 11);
+
+	// Sickbay takes six at a time.
+	int inSickbay = 0;
+	for (const CrewMember &c : s.crew)
+		if (c.status == CREW_INJURED && c.recovery > 0.0f) ++inSickbay; // under treatment (some merely have quarters on deck 5)
+	CHECK(inSickbay == (injured < SICKBAY_BEDS ? injured : SICKBAY_BEDS));
+
+	// While the deck is open, mending people only sends them back to be hurt again.
+	Tick(s, Hours(s, 13.0f));
+	int stillHurt = 0;
+	for (const CrewMember &c : s.crew)
+		if (c.status == CREW_INJURED) ++stillHurt;
+	CHECK(stillHurt > 0);
+	// Seal the hull, and half a day later sickbay has returned its first patients to duty for good.
+	RepairDeck(s, 11, 1.0f);
+	Tick(s, Hours(s, 14.0f));
+	int hurtAfter = 0;
+	for (const CrewMember &c : s.crew)
+		if (c.status == CREW_INJURED) ++hurtAfter;
+	CHECK(hurtAfter < stillHurt);
+	CHECK(s.decks[10].atmosphere == 1.0f);
+
+	// Someone hurt, with no bed free and quarters on a deck without air, has nowhere to go: they die.
+	Ship held = NewShip();
+	held.decks[0].atmosphere = 0.0f;
+	held.decks[0].hull = 0.0f;
+	for (int i = 0; i < SICKBAY_BEDS; ++i) held.crew[i].status = CREW_INJURED; // the beds are taken
+	CrewMember &last = held.crew[COMPLEMENT - 1];
+	last.status = CREW_INJURED;
+	last.quartersDeck = 1;
+	Tick(held, Hours(held, 0.05f)); // three minutes
+	CHECK(last.status == CREW_INJURED && last.deck == 1);
+	Tick(held, Hours(held, 0.05f)); // six
+	CHECK(last.status == CREW_DEAD && last.deck == 0);
+	CHECK(CrewOnDeck(held, 1).size() < CrewOnDeck(NewShip(), 1).size() + 1);
 }
 
 static void TestStations()
@@ -457,6 +560,8 @@ int main(int argc, char **argv)
 	TestSave();
 	TestStations();
 	TestCrewOnDeck();
+	TestDamageControl();
+	TestCasualties();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

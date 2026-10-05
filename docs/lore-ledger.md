@@ -73,6 +73,19 @@ ship cannot run everything at once — the core tension of the design.
 | Batteries | three hours at full draw, critical systems only | invented |
 | Atmosphere | a deck open to space empties in 5 minutes; a sealed deck without life support lasts 12 hours; restored in 1 hour | invented |
 
+## Damage control and casualties
+
+All invented. Canon shows repair teams, casualties and a sickbay that fills up; it gives no rates.
+
+| fact | value |
+|---|---|
+| Damage-control party | engineers on duty with no station; at most 3 to a system |
+| Rebuilding a destroyed system | 6 engineer-hours and 12 spare parts |
+| Spare parts aboard | 100 |
+| A deck is unbreathable below | 25% atmosphere |
+| Exposure injures / kills after | 60 s / 300 s |
+| Sickbay | 6 under treatment at once; 12 hours each at full output |
+
 ## Stations
 
 | fact | value | confidence |

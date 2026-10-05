@@ -218,7 +218,14 @@ static int DutyDeck(const CrewMember &c)
 static void UpdateCrew(Ship &s, float shipSeconds)
 {
 	const int sod = s.SecondOfDay();
-	for (int id = 0; id < SYS_COUNT; ++id) s.systems[id].manned = 0;
+	for (int id = 0; id < SYS_COUNT; ++id) s.systems[id].manned = s.systems[id].repairing = 0;
+
+	// Damage control: which systems want hands, most critical first.
+	int wantRepair[SYS_COUNT], nWant = 0;
+	for (int id = 0; id < SYS_COUNT; ++id)
+		if (s.systems[id].health < 1.0f) wantRepair[nWant++] = id;
+	std::stable_sort(wantRepair, wantRepair + nWant, [&](int a, int b) { return s.systems[a].priority < s.systems[b].priority; });
+	int treated = 0;
 
 	for (CrewMember &c : s.crew) {
 		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) {
@@ -229,7 +236,7 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		Activity a = ScheduledActivity(c.watch, sod);
 		// Red alert is all hands: anyone awake goes to their station.
 		if (s.alert == ALERT_RED && a != ACT_SLEEP) a = ACT_ON_DUTY;
-		if (c.status == CREW_INJURED) a = ACT_PERSONAL; // confined to quarters or sickbay; S6 refines this
+		if (c.status == CREW_INJURED) a = ACT_PERSONAL; // off the watch bill until sickbay returns them
 		c.activity = a;
 
 		switch (a) {
@@ -239,6 +246,33 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		default: c.deck = c.quartersDeck; break;
 		}
 
+		// The injured are in sickbay if there is a bed, and are treated there as fast as sickbay runs.
+		if (c.status == CREW_INJURED && treated < SICKBAY_BEDS) {
+			++treated;
+			c.deck = SICKBAY_DECK;
+			c.recovery += s.systems[SYS_SICKBAY].output * shipSeconds / (TREATMENT_HOURS * 3600.0f);
+			if (c.recovery >= 1.0f) {
+				c.status = CREW_FIT;
+				c.recovery = 0.0f;
+				c.exposure = 0.0f;
+			}
+		}
+
+		// A deck without air.
+		if (c.deck >= 1 && c.deck <= DECKS && s.decks[c.deck - 1].atmosphere < AIRLESS) {
+			c.exposure += shipSeconds;
+			if (c.exposure >= EXPOSURE_KILLS) {
+				c.status = CREW_DEAD;
+				c.activity = ACT_SLEEP;
+				c.deck = 0;
+				continue;
+			}
+			if (c.exposure >= EXPOSURE_INJURES && c.status == CREW_FIT) c.status = CREW_INJURED;
+		} else if (c.status == CREW_FIT) {
+			c.exposure = std::max(0.0f, c.exposure - shipSeconds); // catching their breath
+		}
+		if (c.status != CREW_FIT) continue; // the injured man no station and mend nothing
+
 		const float hours = shipSeconds / 3600.0f;
 		if (a == ACT_ON_DUTY) c.fatigue += hours / 20.0f;       // a double watch leaves you spent [inv]
 		else if (a == ACT_SLEEP) c.fatigue -= hours / 8.0f;     // a night's sleep clears it [inv]
@@ -246,6 +280,28 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		c.fatigue = std::min(1.0f, std::max(0.0f, c.fatigue));
 
 		if (a == ACT_ON_DUTY && c.post < SYS_COUNT) ++s.systems[c.post].manned;
+
+		// An engineer on duty with no station of their own joins the damage-control party.
+		if (a == ACT_ON_DUTY && c.post == SYS_COUNT && c.dept == DEPT_ENGINEERING) {
+			for (int k = 0; k < nWant; ++k) {
+				System &sys = s.systems[wantRepair[k]];
+				if (sys.repairing >= REPAIR_TEAM_MAX) continue;
+				++sys.repairing;
+				c.deck = static_cast<uint8_t>(SPECS[wantRepair[k]].deck); // they go to the work
+				break;
+			}
+		}
+	}
+
+	// The work itself: paid for in parts, and it stops when they run out.
+	for (int k = 0; k < nWant; ++k) {
+		System &sys = s.systems[wantRepair[k]];
+		if (!sys.repairing || s.stores.spareParts <= 0.0f) continue;
+		float gain = sys.repairing * shipSeconds / (REPAIR_HOURS_PER_SYSTEM * 3600.0f);
+		gain = std::min(gain, 1.0f - sys.health);
+		gain = std::min(gain, s.stores.spareParts / PARTS_PER_SYSTEM);
+		sys.health += gain;
+		s.stores.spareParts = std::max(0.0f, s.stores.spareParts - gain * PARTS_PER_SYSTEM);
 	}
 }
 
@@ -413,6 +469,11 @@ void Repair(Ship &s, SystemId id, float amount)
 	if (id < SYS_COUNT && amount > 0.0f) s.systems[id].health = Clamp01(s.systems[id].health + amount);
 }
 
+void RepairDeck(Ship &s, int deck, float amount)
+{
+	if (deck >= 1 && deck <= DECKS && amount > 0.0f) s.decks[deck - 1].hull = Clamp01(s.decks[deck - 1].hull + amount);
+}
+
 // ---- persistence ------------------------------------------------------------------------------
 
 namespace {
@@ -455,8 +516,9 @@ std::vector<uint8_t> Pack(const Ship &s)
 	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); }
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
+	w.F(s.stores.spareParts);
 	// Names, types, departments and stations come back from the seed; only what changes is stored.
-	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.U8(c.watch); w.U8(c.post); }
+	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); }
 	return w.b;
 }
 
@@ -485,11 +547,16 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	for (Deck &d : s.decks) { d.atmosphere = r.Unit(); d.hull = r.Unit(); }
 	s.stores.deuterium = r.Unit(); s.stores.antimatter = r.Unit(); s.stores.batteries = r.Unit();
 	s.stores.torpedoes = r.U16();
+	s.stores.spareParts = r.F();
+	if (!(s.stores.spareParts >= 0.0f && s.stores.spareParts <= 100000.0f)) return false;
 	for (CrewMember &c : s.crew) {
 		c.status = r.U8();
 		c.fatigue = r.Unit();
 		c.watch = r.U8();
 		c.post = r.U8();
+		c.exposure = r.F();
+		c.recovery = r.Unit();
+		if (!(c.exposure >= 0.0f && c.exposure <= 1.0e6f)) return false;
 		if (c.status > CREW_ASSIMILATED || c.watch >= WATCHES || c.post > SYS_COUNT) return false;
 	}
 	if (!r.ok || r.left != 0) return false;
@@ -521,8 +588,9 @@ std::string Describe(const Ship &s)
 	std::snprintf(line, sizeof(line), "day %d %02d:%02d  %s watch  condition %s  crew fit %d of %d\n", s.Day(), sod / 3600,
 		sod % 3600 / 60, WATCH[s.Watch()], ALERTS[s.alert], s.CrewFit(), static_cast<int>(s.crew.size()));
 	out += line;
-	std::snprintf(line, sizeof(line), "power %d supplied, %d allocated  deuterium %.1f%%  antimatter %.1f%%  batteries %.0f%%  torpedoes %d\n",
-		s.PowerAvailable(), s.PowerAllocated(), s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes);
+	std::snprintf(line, sizeof(line), "power %d supplied, %d allocated  deuterium %.1f%%  antimatter %.1f%%  batteries %.0f%%  torpedoes %d  parts %.0f\n",
+		s.PowerAvailable(), s.PowerAllocated(), s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes,
+		s.stores.spareParts);
 	out += line;
 	for (int i = 0; i < SRC_COUNT; ++i) {
 		std::snprintf(line, sizeof(line), "  source %-22s %4d of %4d  health %3.0f%%%s\n", SOURCES[i].name, s.sources[i].output,
@@ -531,9 +599,9 @@ std::string Describe(const Ship &s)
 	}
 	for (int i = 0; i < SYS_COUNT; ++i) {
 		const System &sys = s.systems[i];
-		std::snprintf(line, sizeof(line), "  %-24s deck %2d  power %3d/%3d  manned %d/%d  health %3.0f%%  output %3.0f%%%s\n", SPECS[i].name,
+		std::snprintf(line, sizeof(line), "  %-24s deck %2d  power %3d/%3d  manned %d/%d  health %3.0f%%  output %3.0f%%%s%s\n", SPECS[i].name,
 			SPECS[i].deck, sys.allocated, SPECS[i].demand, sys.manned, SPECS[i].crewNeeded, sys.health * 100, sys.output * 100,
-			sys.enabled ? "" : "  OFF");
+			sys.enabled ? "" : "  OFF", sys.repairing ? "  UNDER REPAIR" : "");
 		out += line;
 	}
 	return out;

@@ -133,7 +133,8 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 | **S3** whole-ship map | 🔶 one map, fifteen decks (five generated placeholders), toured by turbolift 15 of 15, game frame 2.3 ms; awaiting a person walking it | `docs/evidence/s3-merged-map-measured.md`, `scripts/s3-check.sh` |
 | **S4** every station's console | 🔶 first slice: stations in the core; Engineering, Tactical, Ops and Conn consoles open from the ship's own panels and operate within their authority | `docs/evidence/s4-station-consoles.md`, `scripts/s4-check.sh` |
 | **S5** crew daily lives | 🔶 first slice: the crew embodied on the player's deck are whoever the ship's routine has there, arriving and leaving with it and walking to a place; checked on one deck; not on the merged ship, places not yet real stations | `scripts/s5-check.sh`, plan in `docs/HANDOFF.md` |
-| **S6–S10** | ⏳ pending | |
+| **S6** damage, repair, resources | 🔶 first slice, in the core: crewed repair that costs parts, casualties from airless decks, sickbay recovery; not yet visible in the game | `docs/evidence/s6-damage-and-casualties.md` |
+| **S7–S10** | ⏳ pending | |
 
 ## Adopted from RPG-X prior art (2026-10-04)
 
