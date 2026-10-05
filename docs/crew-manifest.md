@@ -120,6 +120,43 @@ qualified name on two critical bills, and the manifest should make that visible:
 transporter chief aboard* -- canon says exactly that, because the first transporter chief was killed in the
 crossing.
 
+## How many are on duty at any moment
+
+The tempting answer -- "a third, because there are three watches" -- is wrong, and the reason is the split
+between watch-standers and day specialists. Of 141 crew, roughly **80 stand watches** in rotation (about 27 per
+watch) and **61 work a day shift**: labs, administration, fabrication, quartermaster, airponics, most
+maintenance. The crew's presence therefore is not flat, it swings.
+
+| watch | hours | on duty | actually at a post | off watch |
+|---|---|---|---|---|
+| **Alpha** | 0800-1600 | ~88 (62%) | ~34 (24% of the crew) | ~53 |
+| **Beta** | 1600-2400 | ~37 (26%) | ~22 | ~104 |
+| **Gamma** | 0000-0800 | ~29 (20%) | **~12 (9% of the crew)** | ~112 |
+
+Three different questions, three different numbers, and it pays to keep them apart:
+
+- **On duty** -- awake, aboard, working. 88 in the day watch, 29 in the night watch.
+- **At a post** -- actually manning a station. 34 by day, **12 at 0300**. That is the whole skeleton: an officer
+  of the deck, a conn, an ops, a tactical, the night engineer on rounds, a medic, a patrol plus the brig watch,
+  and one transporter room.
+- **Off watch** -- the people you can wake. 112 of them at night, and every one you wake costs sleep, then
+  morale, then tomorrow's performance at their post.
+
+### What the swing does for the design
+
+- **The ship feels different by watch**, which is free atmosphere: a crowded Alpha watch with the labs buzzing,
+  and a Gamma watch where you can hear the deck plates.
+- **Attrition bites asymmetrically.** Watches are fixed teams, so twenty casualties is under a quarter of the
+  day watch and can be most of a night watch. *We lost most of Gamma's engineering section* is a state the
+  ship can be in, and the manifest should say so.
+- **Everything that leaves the ship comes out of the on-duty slice.** Sending eight people away on a shuttle
+  at 0300 removes a third of the night watch -- which is why departures are timed, argued about, and sometimes
+  refused.
+- **And the floor is real.** Twelve people can hold the ship at stations, and canon has her operable with a
+  hundred of the 141. So the ship can *run* on very little -- but below a threshold she stops being
+  *maintainable*: the job queue grows, maintenance slips, and the failures arrive later
+  (`docs/crew-work.md`, `docs/failure-is-content.md`). That is the attrition curve, expressed as a rota.
+
 ## The Hazard Team: the unit the manifest is missing
 
 Elite Force's own invention, and the game's lore hands us a roster that is already most of what Tier A needs. It
