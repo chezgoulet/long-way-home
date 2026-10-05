@@ -158,6 +158,40 @@ Read from `src/game/`, so the design above rests on named mechanisms rather than
 - **The reaction layer G3 must not fight is a known file**: `NPC_reactions.cpp`, alongside
   `NPC_behavior`, `NPC_goal`, `NPC_move`, `NPC_senses`, `NPC_sounds`, `NPC_formation`, `NPC_spawn`.
 
+## 4b. Deck-to-deck movement: scope, and the cheap version
+
+Raised by the owner, and the instinct is right: people moving between decks is a large part of what makes
+a ship feel alive. It is nonetheless G4, and the reason is mechanical rather than budgetary.
+
+**Each deck is a separate map, so crossing between them is a level change.** `target_level_change` is the
+retail mechanism for it, and a level change tears the game module down and re-initialises it -- our own
+logs show the sequence on every map load (`SP_SpawnServer` -> `SP_LoadGame` -> `ge->Init`, with the
+entity string and ICARUS state rebuilt from scratch). Crew are server entities, so **nothing about them
+survives the boundary in memory**.
+
+Moving a crew member between decks therefore requires:
+
+- a **persistent identity** for each crew member, written into the save and re-applied at spawn on the
+  far side, so the same person comes back rather than a fresh copy;
+- **spawn suppression**: the far deck's own NPC entity must be skipped when that person is recorded
+  elsewhere, or the deck gains a duplicate;
+- a **transit record** -- who is in transit, to where, arriving when -- and a rule for what happens if
+  the player changes decks mid-transit.
+
+That is a persistence contract spanning maps. G3 only has to satisfy one *within* a single map, and the
+save-size measurement exists precisely because this is where the cost lands: five crew first, then thirty.
+
+It also multiplies the space problem rather than relieving it. §3b found that most decks have almost
+nothing to stand at, so sending crew between decks distributes them into emptier rooms before they hold a
+post in a full one.
+
+**The cheap version that buys the feeling now.** Within one deck, crew can come and go *through the lift*:
+walk to a lift or door, leave, and reappear from it later on a rotation. No persistence, no level change --
+and `BS_REMOVE` ("waits for the player to leave PVS then removes itself") already provides the removal
+half, with `NPC_spawn` handling the arrival. That reads as a working ship, with people arriving and
+leaving, without paying for cross-map identity. Recommended as an optional G3 add-on; genuine transit
+stays in G4.
+
 ## 5. Acceptance — measurable, and how each is measured
 
 The charter's bar, with the measurement named for each:
