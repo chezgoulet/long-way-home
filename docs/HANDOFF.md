@@ -149,16 +149,16 @@ The crew direction layer (G3) embodies a *declared* roster and walks it to posts
    `ship::CrewOnDeck`, checked by `scripts/s5-check.sh`. Next for this step: run it on the merged
    ship with `g_shipDeckPitch` (the code path exists, untested); raise the cap toward 20-30 and
    measure frame time; one in ten gave up reaching a place on deck04 — find out why.
-2. A crew member's post is their system's station (`ship::Spec(post).deck/station`); stations need
-   positions on the merged map — a table from station name to a waypoint, authored per deck.
-   Off-duty crew go to the mess hall, the holodeck, their quarters: more positions.
-   **Blocker found 2026-10-07:** the published decks carry no *named* station entities. Deck 1's
-   bridge has the station **models** (`models/mapobjects/bridge/{station,stationsleft,helm,conflight}.md3`)
-   but no `targetname`/usable entity to stand at, and nothing named tactical/ops/conn/engineering;
-   sickbay and transporter exist only as `target_interface` screens. So "real stations" is authoring
-   first: place per-deck station markers (a first table can use the model origins, recorded as
-   invented), then have `g_crew` send a post-holder to their system's marker. Do not invent bridge
-   positions blind — read the deck or do it with the owner.
+2. (mechanism done 2026-10-07 — `docs/evidence/s5-stations.md`) A crew member on duty at a system
+   stands at a map marker named `lwh_station_<system>` if one exists (`StationFor` in `g_crew.cpp`),
+   otherwise the deck's navigation as before. The generated decks 6 and 12 carry their markers
+   (`lwh_station_17` holodecks, `lwh_station_0` life support), so a post-holder on those decks walks
+   to a real station. Still to author: markers on the published decks. Deck 1's bridge has the
+   station **models** (`models/mapobjects/bridge/{station,stationsleft,helm,conflight}.md3`) but no
+   named entity to stand at, and sickbay/transporter exist only as `target_interface` screens — so
+   the bridge/engineering/sickbay/mess/transporter markers must be placed at chosen fixtures,
+   recorded as invention. Do not invent bridge positions blind — read the deck or do it with the
+   owner. Off-duty crew still need their places (mess, holodeck, quarters).
 3. Watch change is then just the roster query changing; the layer already handles arrival,
    holding, yielding to scripts, and save/load.
 4. **Doors** — "crew cannot open doors" (as recorded in G3) is probably too strong. Read from the

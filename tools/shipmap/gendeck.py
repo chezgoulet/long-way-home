@@ -26,6 +26,10 @@ X0, Y0, FLOOR = -4608, -4096, -4000   # inside the footprint the published decks
 W, D, H, T = 1536, 1024, 192, 16
 WALL, FLOOR_TEX = "hall/hallcomp2", "hall/hallfloor1"
 
+# The system worked on this deck (ship_core's table): a crew member on duty at that system stands at
+# the marker named "lwh_station_<system>" (module/crew/g_crew.cpp). Decks with no system here have none.
+STATION_SYSTEM = {6: 17, 12: 0}   # holodecks on deck 6, life support on deck 12
+
 
 def deck_map(n):
     x1, y1, z0, z1 = X0 + W, Y0 + D, FLOOR, FLOOR + H
@@ -46,6 +50,9 @@ def deck_map(n):
     out.append(entity([("classname", "info_player_start"), ("origin", "%d %d %d" % (X0 + 96, Y0 + D // 2, z0 + 24)), ("angle", "0")]))
     for lx in range(X0 + 256, x1, 512):
         out.append(entity([("classname", "light"), ("light", "350"), ("origin", "%d %d %d" % (lx, Y0 + D // 2, z1 - 32))]))
+    if n in STATION_SYSTEM:
+        out.append(entity([("classname", "info_notnull"), ("targetname", "lwh_station_%d" % STATION_SYSTEM[n]),
+                           ("origin", "%d %d %d" % (X0 + 256, cy - 256, z0 + 24))]))
     for wx in range(X0 + 128, x1, 128):
         for wy in range(Y0 + 128, y1, 128):
             # No waypoint inside the status screen, or the engine refuses the map ("waypoint in solid").

@@ -488,6 +488,25 @@ gentity_t *FindByName( const std::string &name )
 	return NULL;
 }
 
+// A station on the ship's map: a marker named "lwh_station_<system>", placed where that system is
+// worked (the bridge, Main Engineering, the mess hall, ...). A crew member on duty stands there
+// rather than at an arbitrary navigation node. No marker, no station: the deck's navigation is used.
+bool StationFor( int system, vec3_t out )
+{
+	char name[32];
+	Com_sprintf( name, sizeof( name ), "lwh_station_%d", system );
+	for ( int n = 1; n < globals.num_entities; ++n )
+	{
+		gentity_t *e = &g_entities[n];
+		if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, name ) )
+		{
+			VectorCopy( e->currentOrigin, out );
+			return true;
+		}
+	}
+	return false;
+}
+
 void SyncShipRoster( void )
 {
 	ship::Ship *vessel = Ship_Get();
@@ -548,19 +567,27 @@ void SyncShipRoster( void )
 		const std::string name = RosterName( idx );
 		vec3_t at;
 		bool placed = false;
-		for ( size_t tries = 0; tries < nodes.size() && !placed; ++tries )
+
+		// On duty at a system the ship's map gives a station to: stand at that station.
+		const ship::CrewMember &who = vessel->crew[idx];
+		if ( who.activity == ship::ACT_ON_DUTY && who.post < ship::SYS_COUNT
+			&& StationFor( who.post, at ) && Distance( at, player->currentOrigin ) >= SPAWN_CLEAR )
+		{
+			placed = true;
+		}
+		else for ( size_t tries = 0; tries < nodes.size() && !placed; ++tries )
 		{
 			navigator.GetNodePosition( nodes[( idx * 7919u + tries * 31u ) % nodes.size()], at );
 			placed = Distance( at, player->currentOrigin ) >= SPAWN_CLEAR;
 		}
 		if ( !placed ) continue;
 
-		// their place on this deck: the same node whenever they are here
+		// their place on this deck: a station if there is one, else the same node whenever they are here
 		crew::Post p;
 		p.name = "place_" + name;
 		p.holder = name;
 		p.hasOrigin = true;
-		navigator.GetNodePosition( nodes[( idx * 104729u + 13u ) % nodes.size()], p.origin );
+		VectorCopy( at, p.origin );
 		bool known = false;
 		for ( crew::Post &q : cs.posts )
 		{
