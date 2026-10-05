@@ -32,7 +32,8 @@ The gate ledger, `docs/gates.md`, is the authority; this is its summary.
 ```
 scripts/bootstrap-upstream.sh     # clone the pinned upstream, apply patches/, build the game modules and tools
 scripts/test.sh                   # every check that needs no game data (this is what CI runs)
-scripts/check.sh ...              # G0's corpus checks; needs the Game Development Kit
+scripts/fetch-gdk.sh              # fetch the official GDK content G0 is checked against, into build/gdk
+scripts/check.sh ...              # G0's corpus checks; needs that content
 scripts/g3-measure.sh             # G3's measured run; needs your own copy of the game
 scripts/run-engine.sh             # play (see docs/playtest.md)
 scripts/run-scenario.sh           # play a crewed deck

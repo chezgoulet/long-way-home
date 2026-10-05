@@ -15,7 +15,7 @@ it passed, on what evidence, and what is still open.
 | scenario validator | six fault classes each caught *and named*; run against all 106 published map sources | `docs/evidence/g0-validator.md` |
 | entity dictionary | 262 classes + 2 family templates; 237 of 239 used classes covered | `docs/evidence/g0-roundtrip-and-dictionary.md` |
 
-Reproduce with `scripts/bootstrap-upstream.sh` and `scripts/check.sh`.
+Reproduce with `scripts/bootstrap-upstream.sh`, `scripts/fetch-gdk.sh` and `scripts/check.sh`.
 
 ## G1 — client playable ✅ closed 2026-10-04, signed off by the owner
 
@@ -141,12 +141,16 @@ Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere con
 
 ## Residuals (named, queued, not forgotten)
 
-- **The Game Development Kit is no longer on the playtest host** (it was extracted under `/tmp`).
-  `scripts/check.sh` and the game-pack builder need it; G0's corpus checks cannot be re-run until it
-  is extracted again, somewhere durable. `scripts/test.sh` covers everything that needs no content.
+- ~~**The Game Development Kit was no longer on the playtest host**~~ **Closed 2026-10-05** — it had
+  been extracted under `/tmp` and was lost. `scripts/fetch-gdk.sh` now restores it into `build/gdk`
+  from the Internet Archive, checksummed, and G0 was re-run against it: validator negative tests all
+  pass; dictionary 262 classes + 2 templates, 237 of 239 used classes covered across 106 map sources
+  (unchanged); corpus 2,016 of 2,024 scripts compile and read back, the 8 rejections being the three
+  named in `docs/evidence/g0-script-compiler.md` plus five files that are not scripts. This archive's
+  script set is smaller than the 2,408 files counted originally, which included the GDK's own copies.
 - **The entity dictionary's flags and keys were wrong until 2026-10-05** — a header pattern ran on
-  into each description. Class names, and so G0's coverage figures, were unaffected; the dictionary
-  should be regenerated when the GDK is back.
+  into each description. Class names, and so G0's coverage figures, were unaffected. Regenerated
+  from the restored GDK: 211 classes with documented keys, 232 with spawnflag sets.
 - **Crew cannot open doors.** Two suggested starting positions on deck04 were one waypoint from their
   posts and unreachable. Scenario layouts must be measured, and G4's schedules will meet this.
 
