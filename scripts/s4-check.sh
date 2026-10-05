@@ -38,5 +38,21 @@ echo "PASS  opened by the retail panel's command, the Tactical console set the c
 grep -q '^SHIP: phasers priority 7$' "$HOME_DIR/s4-tactical.out" \
   || fail "a priority key at Tactical changed the power order, which is Engineering's to set"
 echo "PASS  the power order cannot be changed from Tactical"
+
+# Clearance. The player becomes a security ensign and tries four things at two consoles.
+find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
+echo "==> clearance"
+SDL_AUDIODRIVER=dummy timeout 180 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
+    +set s_useOpenAL 0 +set g_ship 1 +set g_shipTest 7 +map tour/deck04 >"$HOME_DIR/s4-clearance.out" 2>&1 || true
+grep -h '^SHIP: .* refused\|^SHIP: you are\|^SHIP: clearance test' "$HOME_DIR/s4-clearance.out" | sed 's/^SHIP: /    /' || true
+grep -q '^SHIP: off refused at MAIN ENGINEERING: you are not cleared for this station' "$HOME_DIR/s4-clearance.out" \
+  || fail "a security ensign was not refused at the Engineering console"
+grep -q '^SHIP: alert refused at TACTICAL: calling the alert needs a lieutenant or above' "$HOME_DIR/s4-clearance.out" \
+  || fail "an ensign was allowed to call the alert"
+grep -q '^SHIP: off refused at TACTICAL: that system is not operated from this station' "$HOME_DIR/s4-clearance.out" \
+  || fail "Tactical was allowed to switch a system that is not its own"
+grep -q '^SHIP: clearance test: sensors on, phasers off, condition 0$' "$HOME_DIR/s4-clearance.out" \
+  || fail "the ship's state after the clearance test is not what the refusals imply"
+echo "PASS  a security ensign operates Tactical's own systems and nothing else, and does not call the alert"
 [ -f "$SHOT" ] || fail "no screenshot of the console"
 echo "      screenshot: $SHOT"

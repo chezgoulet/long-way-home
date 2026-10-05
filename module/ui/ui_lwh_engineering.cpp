@@ -90,9 +90,12 @@ void Refresh( void )
 	if ( screen.cursor >= screen.systems ) screen.cursor = screen.systems ? screen.systems - 1 : 0;
 }
 
+// Every command goes out under the station's name, so the ship can hold it to that station's
+// authority and the operator's clearance; the screen itself decides nothing.
 void Send( const char *command )
 {
-	ui.Cmd_ExecuteText( EXEC_APPEND, va( "%s\n", command ) );
+	if ( !Q_stricmpn( command, "ship ", 5 ) ) ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship as %d %s\n", screen.station, command + 5 ) );
+	else ui.Cmd_ExecuteText( EXEC_APPEND, va( "%s\n", command ) );
 }
 
 void Bar( int x, int y, int w, int h, int percent, int colour )
@@ -125,6 +128,10 @@ void Draw( void )
 	UI_DrawProportionalString( 44, 19, TITLES[screen.station], UI_SMALLFONT, colorTable[CT_BLACK] );
 	UI_DrawProportionalString( 44, 46, screen.header, UI_SMALLFONT, colorTable[CT_LTGOLD1] );
 	UI_DrawProportionalString( 44, 62, screen.stores, UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+
+	char refusal[128];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_refusal", refusal, sizeof( refusal ) );
+	if ( refusal[0] ) UI_DrawProportionalString( 44, 412, va( "REFUSED: %s", refusal ), UI_TINYFONT, colorTable[CT_RED] );
 
 	if ( !screen.systems )
 	{
@@ -192,7 +199,6 @@ bool Act( int key )
 		Send( va( "ship %s \"%s\"", r.enabled ? "off" : "on", r.name ) );
 		return true;
 	case K_LEFTARROW: // earlier in the list: fed sooner. Just ahead of the system above it.
-		if ( screen.station != 0 ) return true; // the power order is Engineering's to set
 		if ( screen.cursor > 0 )
 		{
 			Send( va( "ship priority \"%s\" %d", r.name, screen.sys[screen.cursor - 1].priority - 1 ) );
@@ -200,17 +206,16 @@ bool Act( int key )
 		}
 		return true;
 	case K_RIGHTARROW:
-		if ( screen.station != 0 ) return true;
 		if ( screen.cursor + 1 < screen.systems )
 		{
 			Send( va( "ship priority \"%s\" %d", r.name, screen.sys[screen.cursor + 1].priority + 1 ) );
 			++screen.cursor;
 		}
 		return true;
-	// the alert condition is called from Engineering or Tactical, not from the transporter room
-	case '1': if ( screen.station <= 1 ) Send( "ship alert green" ); return true;
-	case '2': if ( screen.station <= 1 ) Send( "ship alert yellow" ); return true;
-	case '3': if ( screen.station <= 1 ) Send( "ship alert red" ); return true;
+	// whether this station, and this operator, may call the alert is the ship's to say
+	case '1': Send( "ship alert green" ); return true;
+	case '2': Send( "ship alert yellow" ); return true;
+	case '3': Send( "ship alert red" ); return true;
 	}
 	return false;
 }

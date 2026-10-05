@@ -189,6 +189,26 @@ void RunTest( void )
 		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}
+	if ( g_shipTest->integer == 7 )
+	{//the player as a security ensign: what each console lets them do
+		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 3000, "ship character Reyes 2 1\n" },   // department 2 security, rank 1 ensign
+			{ 3500, "ship as 0 off sensors\n" },      // Engineering: not their station
+			{ 4000, "ship as 1 off phasers\n" },      // Tactical: theirs
+			{ 4500, "ship as 1 alert red\n" },        // but an ensign does not call the alert
+			{ 5000, "ship as 1 off sensors\n" },      // and sensors are not Tactical's
+		};
+		static size_t step = 0;
+		if ( level.time < 1000 ) step = 0;
+		while ( step < sizeof( STEPS ) / sizeof( STEPS[0] ) && level.time >= STEPS[step].ms )
+			gi.SendConsoleCommand( STEPS[step++].command );
+		if ( tested || level.time < 6500 ) return;
+		tested = true;
+		gi.Printf( "SHIP: clearance test: sensors %s, phasers %s, condition %d\n", vessel.systems[ship::SYS_SENSORS].enabled ? "on" : "off",
+			vessel.systems[ship::SYS_PHASERS].enabled ? "on" : "off", vessel.alert );
+		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
 	if ( g_shipTest->integer == 6 )
 	{//walk up to the Tactical panel as the retail game would have it opened, and operate it
 		static const struct { int ms; const char *command; } STEPS[] = {
@@ -404,10 +424,48 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "ship: the simulation is off (set g_ship 1 and load a map)\n" );
 		return;
 	}
-	const char *cmd = gi.argc() > 1 ? gi.argv( 1 ) : "status";
-	const char *a = gi.argc() > 2 ? gi.argv( 2 ) : "";
-	const char *b = gi.argc() > 3 ? gi.argv( 3 ) : "";
+	// A console says which station it is: "ship as <station> <command...>". What follows is then
+	// held to that station's authority and to the player's clearance. Typed bare at the game's own
+	// console the commands are a developer's, and unrestricted.
+	int first = 1, station = -1;
+	if ( gi.argc() > 2 && !Q_stricmp( gi.argv( 1 ), "as" ) )
+	{
+		station = atoi( gi.argv( 2 ) );
+		first = 3;
+		if ( station < 0 || station >= ship::STN_COUNT ) return;
+	}
+	const char *cmd = gi.argc() > first ? gi.argv( first ) : "status";
+	const char *a = gi.argc() > first + 1 ? gi.argv( first + 1 ) : "";
+	const char *b = gi.argc() > first + 2 ? gi.argv( first + 2 ) : "";
 	const int sys = FindSystem( a );
+
+	if ( station >= 0 )
+	{
+		const ship::Station st = static_cast<ship::Station>( station );
+		const char *why = NULL;
+		const bool isAlert = !Q_stricmp( cmd, "alert" );
+		const bool isSwitch = !Q_stricmp( cmd, "on" ) || !Q_stricmp( cmd, "off" );
+		const bool isPriority = !Q_stricmp( cmd, "priority" );
+		// until a character is chosen the player is nobody in particular, and is not held to a rank
+		const bool anyone = vessel.player < 0 && vessel.cfg.role != ship::ROLE_IN_COMMAND;
+		if ( !isAlert && !isSwitch && !isPriority ) why = "that is not a console's to do";
+		else if ( !anyone && !ship::PlayerMayOperate( vessel, st ) ) why = "you are not cleared for this station";
+		else if ( isAlert && !( st == ship::STN_ENGINEERING || st == ship::STN_TACTICAL ) ) why = "the alert is not called from this station";
+		else if ( isAlert && !anyone && vessel.cfg.role != ship::ROLE_IN_COMMAND && !ship::MayCallAlert( vessel.crew[vessel.player], st ) )
+			why = "calling the alert needs a lieutenant or above";
+		else if ( isPriority && st != ship::STN_ENGINEERING ) why = "the power order is Engineering's to set";
+		else if ( ( isSwitch || isPriority ) && ( sys < 0 || !ship::OperatedFrom( static_cast<ship::SystemId>( sys ), st ) ) )
+			why = "that system is not operated from this station";
+		else if ( ( isSwitch || isPriority ) && ship::Hijacked( vessel, static_cast<ship::SystemId>( sys ) ) )
+			why = "the system does not answer: it is not ours";
+		if ( why )
+		{
+			gi.Printf( "SHIP: %s refused at %s: %s\n", cmd, ship::StationName( st ), why );
+			gi.cvar_set( "lwh_ship_refusal", why );
+			return;
+		}
+		gi.cvar_set( "lwh_ship_refusal", "" );
+	}
 
 	if ( !Q_stricmp( cmd, "status" ) ) { PrintStatus(); return; }
 	if ( !Q_stricmp( cmd, "crew" ) )

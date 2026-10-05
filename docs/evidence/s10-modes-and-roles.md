@@ -36,11 +36,30 @@ evidenced by `tests/ship`, with the settings exposed in the game as cvars.
 
 ## What S10 still needs
 
-- **Enforcement in the game.** The rules exist; nothing yet applies them. Ironman does not stop a
-  manual save or a load; the consoles do not ask `PlayerMayOperate` before acting; being in command
-  issues no orders to anyone.
+- **Enforcement, partly done.** Clearance is now enforced in the game (below). Ironman still does
+  not stop a manual save or a load, and being in command issues no orders to anyone.
 - **A character-creation screen**, and the player's character being the body the player walks in.
 - **Orders**: in-command play needs the crew to carry out what is ordered — power priorities, alert,
   repair and security teams — which is the hierarchy the owner asked for.
 - **Wall-clock catch-up has run only in tests.** The game calls it on load; no session has spanned
   a real absence.
+
+## Clearance, enforced in the game (later the same day)
+
+Consoles now send every command under their station's name (`ship as <station> ...`), and the ship
+holds it to that station's authority and to the player's clearance; the screen decides nothing and
+shows the ship's refusal in red. `scripts/s4-check.sh` makes the player a security ensign and tries
+four things:
+
+```
+    you are Reyes, crew number 97
+    off refused at MAIN ENGINEERING: you are not cleared for this station
+    alert refused at TACTICAL: calling the alert needs a lieutenant or above
+    off refused at TACTICAL: that system is not operated from this station
+    clearance test: sensors on, phasers off, condition 0
+PASS  a security ensign operates Tactical's own systems and nothing else, and does not call the alert
+```
+
+Until a character is chosen the player is nobody in particular and is not held to a rank; a
+hijacked system refuses any console. Commands typed bare at the game's own console remain a
+developer's and are unrestricted.
