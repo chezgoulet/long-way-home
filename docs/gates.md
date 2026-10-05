@@ -27,7 +27,11 @@ Reproduce with `scripts/bootstrap-upstream.sh` and `scripts/check.sh`.
 
 Signed off by Christopher, 2026-10-04, on the mechanics being demonstrated plus his own play session.
 
-## G2 — Virtual Voyager ⏳ next
+## G2 — Virtual Voyager ✅ reported working (2026-10-05)
+
+**Reported working by the owner from his own play session** -- "single player game works great.
+virtual voyager works great" -- with the decks, turbolift and station menus exercised by hand.
+Awaiting his explicit sign-off, as with G1.
 
 Content confirmed present rather than assumed: the expansion pak carries **32 maps including
 `maps/tour/deck01`–`deck04` and beyond** — the VV decks — plus 274 turbolift/virtual-voyager assets.
@@ -54,26 +58,39 @@ Recorded in full in `docs/client-modes.md`. The client offers:
 
 Two decisions that go with it:
 
-- **One engine, two game modules — not two clients.** Our engine is the same lineage as cMod's and the
-  multiplayer game source is released, so one binary loads either module, with cMod's improvements folded
-  in rather than shipped as a second application. Two engines would drift.
+- **Mode 2 is cMod as shipped, not our engine.** Revised 2026-10-05 under the "inherit, don't own"
+  principle: our delta from upstream is the rebase cost, so mode 2 runs cMod's own client with **zero**
+  delta from us, inheriting twenty years of connect-path fixes rather than re-earning them. The earlier
+  "one engine, two game modules" idea is kept as an option for later, not the plan. Modes 1 and 3 are our
+  engine; mode 2 is a separate application, and the two share the same game data.
 - **The compatibility promise:** "full original" means compatibility of *gameplay and content* — retail
   maps, saves, configuration and demos behaving as they did — not a byte-identical binary. cMod's
   rendering and limit changes are wanted, not violations.
 
-## G6 — retail single player, including the Expansion Pack ⏳ next
+## G6 — retail single player, including the Expansion Pack ✅ reported working (2026-10-05)
+
+Proven in the owner's session: the retail campaign runs, and Virtual Voyager works (G2's bar met). One
+item of the bar remains unconfirmed: a save surviving a switch between modes inside the client.
 
 The original game as a *mode*, not a stepping stone. Bar: the campaign runs; the Virtual Voyager decks,
 turbolift and station menus work (G2's bar); retail configuration and saves behave; and a save survives
 switching modes inside the client. Needs sessions; almost no new code.
 
-## G7 — retail multiplayer, LAN and over a VPN ⏳ next
+## G7 — retail multiplayer, LAN and over a VPN 🔶 server half proven
 
-Bar: a match between two machines on a LAN, and the same over a VPN address; bots as the fallback
-population; and **the control fault from the first playtest explained and closed** — the difference
-between "Holomatch boots" and "Holomatch is playable". Open question to settle here: keep running the
-retail `qagame.qvm` through the interpreter (proven working) or build the released Holomatch source into
-a native module.
+**Server half proven 2026-10-05**, headless: cMod v1.30's dedicated server locates the retail data
+(19,451 files across 5 pk3s, 2,268 shaders), loads `hm_borg1` with AAS bot navigation, and opens 32
+client slots. Staged in `build/cmod`, launched by `scripts/run-cmod.sh`; evidence in
+`docs/evidence/g7-cmod-staged.md`.
+
+Still needs a human: the client's menus, the server browser, connecting to a local server, and input.
+The bar is a match between two machines on a LAN and the same over a VPN address, with bots filling the
+population.
+
+**The control fault from the first playtest is no longer ours to close.** It appeared in our engine's
+Holomatch path, and mode 2 now runs cMod's client, whose changelog already carries the connect-path
+fixes ours lacked. The open question is narrower: whether our engine keeps a Holomatch path at all, or
+whether modes 1 and 3 simply do not need one.
 
 Agreed ordering: **G6 and G7 before G4 and G5.** They are cheap, they make the client useful now, and
 they are the recruitment path for the multiplayer programme — Track D's hardest constraint is population.
