@@ -133,3 +133,37 @@ brushes), and `func_usable` is 134, not 86. The conclusion is unchanged.
 Not yet done: triggers as boxes (step 2), the limits patch (step 3), visibility for a whole ship,
 the 268 renamed names against the scripts that use them, turbolifts that travel between decks
 instead of changing level, and the five decks that have no source.
+
+## Step 3 begun: past the entity limit, and the two walls behind it (same day)
+
+`patches/0008` raises the entity index to 12 bits in both trees and the game's memory pool to
+24 MB. With it, the merged ship gets this far:
+
+```
+EFSP: SP_SpawnServer: 900 inline models, entity string 416174 bytes
+SHIP: simulation active, 141 crew, a day every 24 minutes
+EFSP: SP_SpawnServer: ge->Init done. num_entities=2802 linked=1579
+EFSP: SP_StartClient: client connected+begun
+EFSP: SP_StartClient: first snapshot numEntities=1024 ps.origin=(-3654 -3203 -3975)
+...loaded 43821 faces, 7113 meshes, 229 trisurfs
+...found 48224 VBO surfaces (414898 vertexes, 997557 indexes)
+```
+
+Every entity of ten decks spawns, the player is placed on deck 1, the renderer loads the world.
+Then two things stop it:
+
+1. **A crash in the client game during load** — `CG_BuildSolidList`, called from the load screen's
+   first draw (backtrace taken with gdb). Not yet diagnosed.
+2. **The snapshot has no visibility culling.** The single-player bridge builds each snapshot from
+   the first in-use entities in number order until it has 1,024, wherever they are. On one deck
+   that is everything. On a whole ship it is deck 1 and part of deck 2; nothing below would ever be
+   drawn or animated. This is the real engine work of S3: snapshots culled by the potentially
+   visible set, which also means the merged map needs a visibility pass and area portals at the
+   deck boundaries.
+
+A bug found on the way, fixed in the same patch: the bridge sized its entity tables with a literal
+1024, so since the limit was first raised every entity numbered above 1023 had been left out of
+linking, clipping and traces. Retail maps never reached that number, which is why nothing showed.
+
+With the patch applied G3's measurement and S2's check still pass. Saves from before it do not
+load, which the patch says.

@@ -46,7 +46,7 @@ scripts/run-scenario.sh           # play a crewed deck
 
 | path | what |
 |---|---|
-| `patches/` | our delta from the pinned upstream port: seven patches, one concern each |
+| `patches/` | our delta from the pinned upstream port: eight patches, one concern each |
 | `engine/` | the native Linux build of the single-player engine (GPL-2.0) |
 | `module/` | our game logic, compiled into the game module (STEF licence) — the crew direction layer and the ship simulation |
 | `tools/` | script compiler, validator, entity dictionary, map generator, crew authoring |
