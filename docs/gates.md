@@ -164,8 +164,11 @@ Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere con
 - **The entity dictionary's flags and keys were wrong until 2026-10-05** — a header pattern ran on
   into each description. Class names, and so G0's coverage figures, were unaffected. Regenerated
   from the restored GDK: 211 classes with documented keys, 232 with spawnflag sets.
-- **Crew cannot open doors.** Two suggested starting positions on deck04 were one waypoint from their
-  posts and unreachable. Scenario layouts must be measured, and G4's schedules will meet this.
+- **Crew are stopped by some doors — probably the ones meant to be shut.** Two suggested starting
+  positions on deck04 were one waypoint from their posts and unreachable. Reading the source and
+  the map afterwards: ordinary doors open for any client, NPCs included; 26 of the ship's doors are
+  security doors and 34 open only by script (the turbolift's among them). Not yet confirmed in the
+  engine; it is S5's first task.
 
 - **~30 `Cmd_AddCommand: … already defined`** on each level transition. Harmless, but it means the SP
   path's console registrations are not idempotent.

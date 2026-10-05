@@ -130,8 +130,16 @@ The crew direction layer (G3) embodies a *declared* roster and walks it to posts
    Off-duty crew go to the mess hall, the holodeck, their quarters: more positions.
 3. Watch change is then just the roster query changing; the layer already handles arrival,
    holding, yielding to scripts, and save/load.
-4. **Doors**: crew cannot open them (found in G3). Before S5 can pass, either doors open for crew
-   (look at how `func_door` decides who may trigger it) or routes must avoid them.
+4. **Doors** — "crew cannot open doors" (as recorded in G3) is probably too strong. Read from the
+   source and the ship's map on 2026-10-06, not yet tested in the engine: a door's own trigger
+   opens for any client, NPCs included (`Touch_DoorTrigger`, `g_mover.cpp`). Of the ship's 192
+   doors, 124 are ordinary automatic doors (most with `MUST_FACE`: they open within 32 units, or
+   within 72 if you are walking at them), **26 are security doors** (spawnflag 32) and **34 are
+   named** — opened only by a script or trigger, which is how the turbolift doors work. The two
+   places crew were blocked in G3 were beside the turbolift and at a dead end, i.e. probably named
+   or security doors. So the likely truth is "crew cannot pass doors that are meant to be shut".
+   First S5 task: confirm in the engine by walking a crew member through an ordinary door, then
+   decide what clearance means for security doors (that is S10's rank model arriving early).
 5. Measure as G3 was measured (`tools/crewgen/g3report.py` is reusable): station coverage across a
    watch change, at 20-30 embodied.
 
