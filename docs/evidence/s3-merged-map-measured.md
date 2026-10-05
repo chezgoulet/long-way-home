@@ -36,10 +36,38 @@ cannot simply be offset by a deck's height and merged: each would sit inside the
 geometry. The stitcher has to separate each deck's own structure from whatever fills the rest of
 its volume before anything can be stacked at canonical heights.
 
+## Two follow-up measurements, and a correction (same day)
+
+**The brush-model count above is wrong: it is 1,275, not 2,011.** The first count treated every
+entity containing a patch as a brush model as well. Counted properly, by class:
+
+| class | count | must it be a model? |
+|---|---|---|
+| `trigger_multiple`, `trigger_once`, `trigger_location`, `trigger_hurt` | 501 | Only as a volume. A trigger needs a box, not geometry; the game could take `mins`/`maxs` instead. |
+| `func_group` | 323 | **No.** An editor grouping; the compiler folds it into the world. Never a model at run time. |
+| `func_door` | 192 | Yes: it moves. |
+| `func_static`, `func_wall` | 118 | Mostly no: static geometry, foldable into the world where nothing targets it. |
+| `func_usable` | 86 | Yes: used, toggled, sometimes swapped. |
+| `target_interface` | 42 | Yes: the station panels. |
+| `func_breakable` | 13 | Yes. |
+| **total** | **1,275** | |
+
+So the run-time figure is about **950** as authored (everything but `func_group`), and about
+**335** if triggers become boxes and static pieces are folded in — doors, usables, panels and
+breakables. Against a limit of 256 that is one more bit of index, not eight times the budget.
+
+**The decks do stack.** The 4,100-unit height was an artefact: every deck's geometry lies in a band
+about 512 units thick near z = -4096, plus a single stray brush near the origin, which accounts for
+the whole apparent extent. Decks 8 and 9 are the exceptions, with two bands each (they contain
+two-level spaces — astrometrics and the cargo bay are the likely reasons, not yet confirmed).
+Dropping the stray brush, each deck is a slab that can be placed at its own height.
+
 ## What this means for S3
 
-"Stitch the ten sources into one BSP" does not survive measurement as stated. Two of the three
-excesses are in the engine's protocol-level limits, not in the map. The options, for the owner:
+With the corrected figures, the choice the owner made — stitch and generate — **is feasible**, by
+option 2 below with a small part of option 1: fold what is static, turn triggers into boxes, and
+raise the model index by one bit and the entity index by one. The options as first written, kept
+for the record:
 
 1. **Raise the limits and merge.** Model index to 12 bits, entities to 12 bits, compiler entity
    limit raised; touches the snapshot protocol, the save format and both copies of `q_shared.h`.
@@ -51,5 +79,18 @@ excesses are in the engine's protocol-level limits, not in the map. The options,
    numbers above are the argument for it: the engine holds a few adjacent decks at once and moves
    the set as the player moves.
 
-None of these is started. The next step is the two missing measurements: what occupies each deck's
-extra 4,000 units, and how many brush models are static.
+## Plan for S3, from the measurements
+
+1. The stitcher: read each deck source, drop the stray origin brush, dissolve `func_group`, fold
+   untargeted `func_static`/`func_wall` into the world, rewrite triggers as boxes, prefix every
+   targetname and script reference with its deck so names cannot collide, and place the slab at its
+   deck's height. Emit one `.map`.
+2. The game module: triggers that take `mins`/`maxs` in place of a brush model (in `module/`, with
+   one attach point).
+3. The engine: model index 9 bits, entity index 12 bits, compiler and loader entity limits — one
+   capability patch, with the save format's version moved.
+4. Then compile, load, walk, and measure frame time with ~335 brush models and the whole ship's
+   visibility.
+
+Still unmeasured: live entity count for the merged ship (the 2,400 above is an extrapolation from
+one deck), and whether per-deck scripts survive the renaming.

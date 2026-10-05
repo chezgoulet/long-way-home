@@ -130,7 +130,7 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 |---|---|---|
 | **S1** ship core | ✅ done 2026-10-05 | `docs/evidence/s1-ship-core.md` |
 | **S2** Engineering console in game | 🔶 built and verified headless; awaiting the owner at the console | `docs/evidence/s2-engineering-console.md` |
-| **S3** whole-ship map | ⏳ measured, not started: ten decks exceed the model and entity limits, and do not stack as authored — a decision for the owner | `docs/evidence/s3-merged-map-measured.md` |
+| **S3** whole-ship map | ⏳ measured and planned, stitcher not started: feasible with triggers as boxes, static pieces folded, and one more bit of model and entity index | `docs/evidence/s3-merged-map-measured.md` |
 | **S4–S10** | ⏳ pending | |
 
 ## Adopted from RPG-X prior art (2026-10-04)
