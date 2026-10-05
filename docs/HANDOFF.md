@@ -26,7 +26,7 @@ round is done and its answers are in `docs/ship-programme.md`. **Do not re-ask t
 
 - Branch **`feature/g3-reactive-crew`**, branched from `testing`. **All work is local commits;
   nothing has been pushed and no PR is open.** Pushing needs the owner's go-ahead.
-- The upstream checkout is `../upstream` (pinned commit, with `patches/0001`–`0012` applied as
+- The upstream checkout is `../upstream` (pinned commit, with `patches/0001`–`0013` applied as
   uncommitted changes — that is how `scripts/bootstrap-upstream.sh` leaves it). The engine build is
   `build-engine/` (plain `make -j12` there rebuilds it); the game modules build in
   `../upstream/efgame/build-linux`.
@@ -76,7 +76,7 @@ measurement is running — bash reads scripts incrementally and the module is lo
 | S1 | done — `module/ship/ship_core.*`, `tests/ship` |
 | S2 | built and verified headless; the owner has not operated the console. Open by command only (`ship console`), keyboard only, flat colour. |
 | S3 | **in progress — see below** |
-| S4 | **first slice done** (`scripts/s4-check.sh`): stations in the core; one screen serves Engineering, Tactical, Ops, Conn (and Sickbay); the retail panel commands `ui_engineeringstatus`/`ui_tactical`/`ui_ops`/`ui_navigation` open them when `g_ship 1`. Remaining: each station's real controls (needs core state: targets, course, transporter, medical), live status drawn on panels in the world (engine work), the other retail panels, mouse, artwork. See `docs/evidence/s4-station-consoles.md`. |
+| S4 | **first slice done** (`scripts/s4-check.sh`): stations in the core; one screen serves Engineering, Tactical, Ops, Conn (and Sickbay); the retail panel commands `ui_engineeringstatus`/`ui_tactical`/`ui_ops`/`ui_navigation` open them when `g_ship 1`. **The glance's anchored half is in** (`patches/0013` + `module/cgame/lwh_panel_glance.cpp`; `scripts/s4-glance-check.sh`): the ship's live state is drawn at the panel the player stands at. Remaining: each station's real controls (needs core state: targets, course, transporter, medical), painting live state onto the panel surface (the glance's second, renderer half), the other retail panels, a person at a panel, mouse, artwork. See `docs/evidence/s4-station-consoles.md`. |
 | S5 | **first slice** (2026-10-06): with `g_crew 1 g_ship 1 g_crewFromShip 1` the crew on the player's deck are whoever the ship has there (`SyncShipRoster` in `g_crew.cpp`): they arrive and leave with their routine, each is given a place from the deck's navigation, and they walk to it. Seen on `tour/deck04` standing in for deck 2 (`+set g_crewDeck 2`): 41 aboard at breakfast, none an hour later, back at each meal; 7 of 10 embodied reached their places within 35 s, one failed. `scripts/s5-check.sh` checks it (count follows the ship through four meals; most reach their place; those leaving walk out of sight). **On the merged ship it runs** (`+set g_shipDeckPitch 3072 +map voyager`): at 08:00 the ship has 13 on deck 1 — the bridge watch, Janeway and Chakotay among them — and ten are embodied; five reached their places and four gave up, because a "place" is an arbitrary navigation node and some are behind doors that stay shut. **That is the next thing to fix: real stations for places** (a table of positions per deck). Cap is 10. Plan below. |
 | S6 | **first slice, core only** (`tests/ship`): damage-control parties (engineers, parts, time), exposure casualties, sickbay beds and recovery, `RepairDeck`. Save format is now version 2. Not in the game beyond `ship status`. Next: show it (crew walking to repairs = S5's places becoming real), give hull repair a crew and a cost, make fatigue matter, more causes of injury. See `docs/evidence/s6-damage-and-casualties.md`. |
 | S7 | **first slice, core only** (`tests/ship`): `Board`, per-system `control`, `Hijacked` (refuses console, delivers nothing), `CounterHack`, security response and attrition, boarders advancing, `MakeBreach`/`BreachScore`. Save format is version 3. Console: `ship board <deck> <n>`, `ship counterhack <system> <0..1>`. **Bodies are done** (`SyncIntruders` in `g_crew.cpp`, checked by `scripts/s7-check.sh`): the ship's boarders on the player's deck are Klingon raiders or Borg drones, hostile to the crew, capped at six, and one killed is one fewer in the ship's count. **The breach screen is done** (`H` on any console; `ship as N breach <sys>` / `solve <cells>`; checked by `scripts/s9-check.sh`). The puzzle has a 30 s timer. Next: security fighting as bodies. See `docs/evidence/s7-intruders-and-control.md`. |
@@ -109,13 +109,16 @@ To load the ship by hand: `scripts/build-ship.sh --out build/home/baseEF`, then
 Next steps for S3, in dependency order:
 1. (done) lit ship loaded and measured.
 2. (done) `patches/0005` regenerated with the scope hooks.
-3. (done 2026-10-06) Turbolift links: the stitcher rewrites deck-to-deck `target_level_change`
+3. (done 2026-10-07) Turbolift links and menu: the stitcher rewrites deck-to-deck `target_level_change`
    into `target_teleporter` -> `dNN_arrival`; verified in the engine by firing deck 1's links
    (`g_shipTest 4` with `g_shipTestPos <targetname>` uses that entity). The retail menu's own commands (`use tour_turbo_NN`,
    unprefixed) now work: an unscripted lookup resolves on the player's deck (`g_scope.cpp`), and
-   panels keep their interface names. Still to do here: the menu lists only the ten retail decks
-   (`ext_data/sp_turbolift.dat` — ship an overriding copy listing fifteen), open and click the menu
-   itself, and restore whatever each level change's original `target` fired.
+   panels keep their interface names. The menu's own ten-deck list is overridden by ours
+   (`tools/shipmap/data/sp_turbolift.dat`, tracked and packaged by `build-ship.sh`); `lwh_ui_turbolift`
+   proves the UI's filesystem loads fifteen decks, and `g_shipTest 12` opens the real menu and
+   photographs it. `scripts/s3-check.sh` asserts both. Still to do here: click the menu's selection
+   UI (it pauses the game, so a `Ship_Frame`-driven harness cannot; needs a key-injection seam), and
+   restore whatever each level change's original `target` fired.
 4. (done 2026-10-06) Triggers as boxes: `patches/0011` + the stitcher + `inject.py`; brush models
    900 -> 406; a boxed trigger proven to fire (`g_shipTest 4` with `g_shipTestWatch "x y z"`).
 5. (done 2026-10-06, as placeholders) Decks 6, 7, 12, 13, 14: `tools/shipmap/gendeck.py` makes a
@@ -129,8 +132,9 @@ Next steps for S3, in dependency order:
    Someone walks it. S3's exit criterion is every deck reachable on foot. **This is the main thing
    left in S3** and needs either the owner in a session or a harness that walks: e.g. for each
    deck, ride the link, then check the baked navigation connects the arrival point to that deck's
-   waypoints. Also still open: drive the real turbolift menu; investigate why `num_entities` at
-   init differed between two loads of the same map (3,323 vs 2,543); frame time for fifteen decks.
+   waypoints. Also still open: click the real turbolift menu (it opens and lists fifteen decks, but
+   selecting pauses the game); investigate why `num_entities` at init differed between two loads of
+   the same map (3,323 vs 2,543); frame time for fifteen decks.
 
 Known risks in S3: all ten decks' scripts now run at once in one level, which they were never
 written for; the worst-case game frame was 26 ms before rendering; crew cannot open doors (found in

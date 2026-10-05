@@ -1,8 +1,9 @@
 # Evidence: S4 — station consoles, first slice
 
-Date: 2026-10-06. Gate S4 of `docs/ship-programme.md` asks for every station's console with its
-canonical purpose, and live status on the panels in the world. This is the first slice of it.
-Reproduce with `scripts/s4-check.sh`.
+Date: 2026-10-06, updated 2026-10-07. Gate S4 of `docs/ship-programme.md` asks for every station's
+console with its canonical purpose, and live status on the panels in the world. The consoles are the
+first slice; the glance's anchored half is a later section. Reproduce with `scripts/s4-check.sh` and
+`scripts/s4-glance-check.sh`.
 
 ## What is built
 
@@ -39,16 +40,51 @@ ship at condition red; down and ENTER switches the phasers off; a priority key i
 phasers' place in the power order is unchanged afterwards. A screenshot is left at
 `build/g3-home/baseEF/screenshots/lwh_tactical.tga`.
 
+## The glance: the ship's state at the panel (2026-10-07)
+
+The owner asked for **both**: live status on the panel in the world, and a full-screen console. The
+console is above. This is the first of the two halves of the glance — a compact readout anchored to
+the panel the player is standing at, before the engine paints live state onto the surface itself.
+
+**How it is wired.** Only cgame draws the HUD, so `patches/0013` adds the one seam that lets our
+module do it: `cgame/lwh_cgame_hooks.h` (an empty inline unless `LWH_MODULE_DIR` is set) and a single
+call in `CG_Draw2D`. Everything else is ours, in `module/cgame/lwh_panel_glance.cpp`: it takes the
+panel under the crosshair, or failing that the nearest usable within a pace, projects its top to the
+screen, and draws three lines of live state — day and watch, condition and power, crew and stores,
+with a boarders/Borg/damage alarm when there is one — in a small LCARS block coloured by the alert.
+
+The state is read straight from the live ship (`Ship_Get()`), not from a copy; the game module and
+cgame share their entity array in this port, and the ship's published cvars are not needed for it.
+
+One limitation, named: the map does not yet say which usable panel is a *station* console, so the
+fallback is any `func_usable` within a pace — a light switch can show the readout too. The per-deck
+station table that S5 needs (`docs/HANDOFF.md`) is also what narrows this to a console.
+
+**What was proven** (`scripts/s4-glance-check.sh`, one headless run on deck 4):
+
+```
+SHIP: glance test: standing at (-2614 -3814 -3858) looking at buzz (func_usable)
+LWH: ship glance at liftlights (func_usable)
+PASS  the ship's live state is drawn at the panel the player stands at
+      screenshot: build/g3-home/baseEF/screenshots/lwh_glance.tga
+```
+
+The screenshot shows the block over the panel with `DAY 0 08:00  CONDITION GREEN`, `POWER
+1160/1160  CREW FIT 141/141`, `TORPEDOES 38`. With `g_ship 0` the hook draws nothing and retail play
+is unchanged. The whole 13-patch series was re-verified from a clean clone
+(`scripts/bootstrap-upstream.sh`): it applies, builds, and exports the intended entry points only.
+
 ## What S4 still needs
 
 - **Each station's real purpose.** Tactical can switch its weapons on and off; it cannot target or
   fire, because there is nothing outside the ship yet (S9). Conn cannot set a course. The
   transporter, sickbay, astrometrics and replicator panels have no ship console at all — their
   retail screens still open. Each needs its own controls, and the core needs the state they act on.
-- **Live status on the panels in the world** — the "glance" half of the owner's "both". Needs
-  drawing ship state onto panel surfaces: an engine capability not started.
-- **A person at a panel.** The commands were issued by the harness; nobody has walked up to the
-  tactical station on the bridge of the merged ship and pressed use.
+- **The second half of the glance: the surface itself painted with state.** The anchored readout
+  above is the first half; a renderer capability to upload live state into a texture bound to the
+  panel's shader is the next, larger step (see `docs/engine-extension-policy.md`).
+- **A person at a panel.** The commands and the readout were exercised by the harness and the
+  camera; nobody has walked up to the tactical station on the bridge of the merged ship by hand.
 - **The station table's edges are invention** (structural integrity and life support under
   Operations, the tractor beam under Tactical); see the lore ledger.
 - Mouse support and LCARS artwork, as for S2.

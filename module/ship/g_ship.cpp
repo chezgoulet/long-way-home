@@ -46,6 +46,8 @@ bool active = false;
 bool tested = false;
 ship::Ship vessel;
 std::vector<uint8_t> pendingSave;
+vec3_t glanceAngles = { 0, 0, 0 }; // where the glance test points the player, re-applied each frame
+bool haveGlanceAim = false;
 
 void WriteFile( const char *path, const void *data, int len )
 {
@@ -413,6 +415,85 @@ void RunTest( void )
 		tested = true;
 		gi.Printf( "SHIP: phasers priority %d\n", vessel.systems[ship::SYS_PHASERS].priority );
 		WriteReport( "ship/tactical.txt" );
+		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 13 )
+	{//stand at a panel and photograph the ship's live state drawn at it (S4's "glance")
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			// find any usable brush the player can stand in front of. A panel's facing is its thinnest
+			// axis; stand a pace out along it, on the floor, and look back at the panel.
+			gentity_t *chosen = NULL;
+			vec3_t stand = { 0, 0, 0 }, dir = { 0, 0, 0 };
+			for ( int i = 1; i < globals.num_entities && !chosen; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( !e->inuse || !e->classname || Q_stricmp( e->classname, "func_usable" ) ) continue;
+				if ( !e->model || e->model[0] != '*' ) continue;
+				vec3_t span;
+				for ( int a = 0; a < 3; ++a ) span[a] = e->absmax[a] - e->absmin[a];
+				if ( span[0] <= 0.0f || span[1] <= 0.0f || span[2] <= 0.0f ) continue;
+				int axis = span[0] <= span[1] ? 0 : 1;
+				if ( span[2] < span[axis] ) axis = 2;      // a floor panel: not a standing console
+				if ( axis == 2 ) continue;
+				vec3_t center;
+				for ( int a = 0; a < 3; ++a ) center[a] = ( e->absmin[a] + e->absmax[a] ) * 0.5f;
+				for ( int sign = 1; sign >= -1 && !chosen; sign -= 2 )
+				{
+					vec3_t at = { center[0], center[1], center[2] }, eye;
+					at[axis] = center[axis] + sign * ( span[axis] * 0.5f + 40.0f );
+					eye[0] = at[0]; eye[1] = at[1]; eye[2] = center[2];
+					trace_t tr;
+					gi.trace( &tr, eye, vec3_origin, vec3_origin, center, 0, MASK_OPAQUE | CONTENTS_BODY | CONTENTS_ITEM | CONTENTS_CORPSE );
+					if ( tr.entityNum != i ) continue;
+					vec3_t from = { at[0], at[1], e->absmax[2] + 64.0f }, to = { at[0], at[1], e->absmin[2] - 128.0f };
+					gi.trace( &tr, from, vec3_origin, vec3_origin, to, 0, MASK_PLAYERSOLID );
+					if ( tr.fraction == 1.0f ) continue; // no floor: cannot stand here
+					VectorCopy( at, stand );
+					stand[2] = tr.endpos[2] + 1.0f;
+					VectorSubtract( center, stand, dir );
+					chosen = e;
+				}
+			}
+			if ( chosen )
+			{
+				vec3_t angles;
+				vectoangles( dir, angles );
+				TeleportPlayer( &g_entities[0], stand, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: glance test: standing at %s looking at %s (%s)\n", vtos( stand ),
+					chosen->targetname ? chosen->targetname : "?", chosen->classname );
+			}
+			else
+				gi.Printf( "SHIP: glance test: no usable panel with a standable side found\n" );
+			step = 1;
+		}
+		// Pmove overwrites the view from the client's input each frame; hold it on the panel
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_glance\n" ); step = 2; }
+		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 12 )
+	{//the turbolift's own menu: report the deck list it reads, then open it exactly as a panel does
+		// Opening the menu pauses the game, which stops Ship_Frame, so the screenshot and the quit
+		// must ride the engine's own command buffer behind it; `wait` lets frames pass first.
+		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 3000, "lwh_ui_turbolift\n" },        // what the UI's FS loads for the menu
+			{ 4000, "genericmenu turbolift\nwait 60\nscreenshot lwh_turbolift\nwait 20\nquit\n" },
+		};
+		static size_t step = 0;
+		if ( level.time < 1000 ) step = 0;
+		while ( step < sizeof( STEPS ) / sizeof( STEPS[0] ) && level.time >= STEPS[step].ms )
+			gi.SendConsoleCommand( STEPS[step++].command );
+		if ( tested || level.time < 8000 ) return;
+		tested = true;
+		gi.Printf( "SHIP: turbolift menu test done\n" );
 		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}

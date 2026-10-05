@@ -423,11 +423,57 @@ int KeyByName( const char *name )
 	return name[0] && !name[1] ? name[0] : 0;
 }
 
+// Read the turbolift's deck list exactly as the menu reads it (UI_LanguageFilename + ui.FS_ReadFile,
+// so the same pak search order), and report it. The merged ship's pak carries our fifteen-deck list
+// to override the retail ten-deck one; a headless run needs to see which one wins, and the menu
+// itself offers no way to ask. Each deck's command is the third quoted string on its line.
+void ReportTurboliftDecks( void )
+{
+	char base[] = "ext_data/sp_turbolift", ext[] = "dat", filename[MAX_QPATH];
+	UI_LanguageFilename( base, ext, filename );
+	void *buf = NULL;
+	const int len = ui.FS_ReadFile( filename, &buf );
+	if ( len <= 0 || !buf )
+	{
+		ui.Printf( "LWH: turbolift deck list %s not found\n", filename );
+		return;
+	}
+	const char *text = static_cast<const char *>( buf );
+	int decks = 0, highest = 0;
+	for ( const char *p = text; *p; )
+	{
+		if ( p[0] == 'D' && p[1] == 'E' && p[2] == 'C' && p[3] == 'K' && p[4] >= '0' && p[4] <= '9' )
+		{
+			const int n = atoi( p + 4 );
+			char command[64] = "";
+			const char *q = p;
+			int quotes = 0;
+			while ( *q && *q != '\n' && quotes < 6 )
+			{
+				if ( *q++ != '"' ) continue;
+				if ( ++quotes != 5 ) continue;
+				int i = 0;
+				while ( *q && *q != '"' && i < static_cast<int>( sizeof( command ) ) - 1 ) command[i++] = *q++;
+				command[i] = 0;
+			}
+			++decks;
+			highest = n;
+			ui.Printf( "LWH: turbolift deck %d: %s\n", n, command );
+			p = q;
+			continue;
+		}
+		++p;
+	}
+	ui.Printf( "LWH: turbolift deck list %s: %d decks, highest %d\n", filename, decks, highest );
+	ui.FS_FreeFile( buf );
+}
+
 } // namespace
 
 qboolean LWH_UI_ConsoleCommand( const char *cmd )
 {
 	if ( LWH_UI_CommandScreens( cmd ) ) return qtrue;
+	if ( !Q_stricmp( cmd, "lwh_ui_turbolift" ) ) { ReportTurboliftDecks(); return qtrue; }
 	if ( !Q_stricmp( cmd, "ui_lwh_engineering" ) )
 	{
 		Open( 0 );

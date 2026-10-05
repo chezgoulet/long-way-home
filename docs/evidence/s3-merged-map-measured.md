@@ -382,7 +382,34 @@ running is now resolved on the deck the player is standing on.
 `scripts/s3-check.sh` now rides the whole ship by issuing exactly the menu's commands
 (`use tour_turbo_NN`): 15 of 15, game frame 2.0 ms average and 4.5 ms worst.
 
-Still not done: the retail menu lists ten decks, so the five generated ones can be reached by
-command but not chosen from it; and the menu itself has not been opened and clicked.
-
 The same file settles a point of lore the ledger had guessed: the computer core is on deck 9.
+
+## The turbolift's own menu carries fifteen decks (2026-10-07)
+
+The retail `ext_data/sp_turbolift.dat` lists the ten decks that were separate levels. The merged
+ship has fifteen, so it ships its own list — `tools/shipmap/data/sp_turbolift.dat`, authored, tracked
+and packaged by `scripts/build-ship.sh` into `longway_voyager.pk3` beside the map. It has one `DECKn`
+line per deck with the menu's own `use tour_turbo_NN` command, and is pinned by
+`tests/tools/test_shipmap.py` (every deck once, 1–15, the command the menu expects, within the menu's
+`MAX_DECKS`).
+
+That the merged ship's copy actually wins the pak search — and is not shadowed by the retail
+`pakN.pk3` — is proven in the UI module, because only the UI's filesystem load matters here. A small
+command, `lwh_ui_turbolift`, reads the file the way the menu does (`UI_LanguageFilename` then
+`ui.FS_ReadFile`) and reports it:
+
+```
+LWH: turbolift deck 15: use tour_turbo_15
+LWH: turbolift deck list ext_data/sp_turbolift.dat: 15 decks, highest 15
+```
+
+The real menu is then opened with `genericmenu turbolift` — the exact command a turbolift panel's
+`target_interface` fires — and photographed. It shows two columns, decks 1–8 and 9–15, with Engage
+and Return:
+
+    screenshot: build/g3-home/baseEF/screenshots/lwh_turbolift.tga
+
+`scripts/s3-check.sh` now runs both: it asserts the fifteen-deck read and that the screenshot was
+taken. The menu's own selection UI is not clicked headlessly — opening it pauses the simulation, so
+the `Ship_Frame`-driven harness cannot act again without an engine key-injection seam — but the list
+the menu reads and the commands it would fire are both proven (the latter by the fifteen-deck tour).

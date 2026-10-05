@@ -227,6 +227,35 @@ class Stitch(unittest.TestCase):
             self.run_stitch({1: '{\n"classname" "worldspawn"\n'})
 
 
+class TurboliftDeckList(unittest.TestCase):
+    """The deck list that ships with the merged map (ext_data/sp_turbolift.dat). The game's own list
+    covers only the ten decks that were separate levels; our copy adds the five generated ones and
+    must be a tracked artifact the ship build actually packages."""
+
+    PATH = os.path.join(ROOT, "tools", "shipmap", "data", "sp_turbolift.dat")
+
+    def entries(self):
+        with open(self.PATH) as f:
+            text = f.read()
+        return [(int(m.group(1)), m.group(2))
+                for m in re.finditer(r'^DECK(\d+)\s+"[^"]*"\s+"[^"]*"\s+"([^"]*)"', text, re.M)]
+
+    def test_lists_every_deck_once_with_the_menus_own_command(self):
+        entries = self.entries()
+        self.assertEqual([n for n, _ in entries], list(range(1, 16)), "one line per deck, 1..15")
+        self.assertEqual(len(entries), len(set(n for n, _ in entries)), "no deck listed twice")
+        for n, command in entries:
+            self.assertEqual(command, "use tour_turbo_%02d" % n)
+        # the menu's own array is MAX_DECKS=16 (ui_turbolift.cpp): fifteen must fit
+        self.assertLessEqual(len(entries), 16)
+
+    def test_the_ship_build_packages_the_tracked_copy(self):
+        with open(os.path.join(ROOT, "scripts", "build-ship.sh")) as f:
+            build = f.read()
+        self.assertIn("tools/shipmap/data/sp_turbolift.dat", build,
+                      "build-ship.sh must copy the authored list, not an ignored scratch file")
+
+
 class Inject(unittest.TestCase):
     def test_entities_are_appended_and_nothing_else_moves(self):
         import struct

@@ -28,9 +28,11 @@ mkdir -p "$ROOT/build/ship" "$OUT"
 # The five decks nobody ever published get a generated placeholder each (tools/shipmap/gendeck.py).
 python3 "$ROOT/tools/shipmap/gendeck.py" --deck 6 --deck 7 --deck 12 --deck 13 --deck 14 --out "$ROOT/build/ship/generated"
 
-# What goes in the pak beside the map: the turbolift's deck list for fifteen decks.
+# What goes in the pak beside the map: the turbolift's deck list for fifteen decks. It is ours,
+# authored under tools/shipmap/data (the game's own list covers only the ten published decks), and
+# it must override the retail ext_data/sp_turbolift.dat in the pak search order.
 mkdir -p "$ROOT/build/ship/files/ext_data"
-cp "$ROOT/tools/shipmap/ext_data/sp_turbolift.dat" "$ROOT/build/ship/files/ext_data/"
+cp "$ROOT/tools/shipmap/data/sp_turbolift.dat" "$ROOT/build/ship/files/ext_data/"
 
 python3 "$ROOT/tools/shipmap/stitch.py" --decks "$DECKS" --decks "$ROOT/build/ship/generated" --out "$ROOT/build/ship/voyager.map" \
   --report "$ROOT/build/ship/stitch-report.json"

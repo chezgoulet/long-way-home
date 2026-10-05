@@ -1,0 +1,49 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 13/13] cgame: an attach point for drawing our own readouts
+
+The ship's state at a panel is drawn in the world's HUD, which only cgame draws. This adds the one
+seam that lets our module do it: a header whose call is empty unless LWH_MODULE_DIR is set, and a
+single call in CG_Draw2D. The logic is in module/cgame/, not here.
+---
+diff --git a/efgame/src/cgame/cg_draw.cpp b/efgame/src/cgame/cg_draw.cpp
+index e149bbc..d9efeed 100755
+--- a/efgame/src/cgame/cg_draw.cpp
++++ b/efgame/src/cgame/cg_draw.cpp
+@@ -8,6 +8,7 @@
+ #include "../game/speakers.h"
+ #include "../speedrun/PlayerOverbouncePrediction.hpp"
+ #include "../speedrun/strafe_helper/strafe_helper.h"
++#include "lwh_cgame_hooks.h"
+ #include <cmath>
+ 
+ 
+@@ -2494,6 +2495,7 @@ static void CG_Draw2D( void )
+ 		CG_DrawAmmoWarning();
+ 		CG_DrawCrosshair();
+ 		CG_DrawCrosshairNames();
++		LWH_CG_DrawPanelGlance(); // Long Way Home: the ship's state at the panel being looked at
+ 		CG_DrawTED();
+ 		CG_DrawWeaponSelect();
+ 		CG_DrawPickupItem();
+diff --git a/efgame/src/cgame/lwh_cgame_hooks.h b/efgame/src/cgame/lwh_cgame_hooks.h
+new file mode 100644
+index 0000000..f29f056
+--- /dev/null
++++ b/efgame/src/cgame/lwh_cgame_hooks.h
+@@ -0,0 +1,16 @@
++// lwh_cgame_hooks.h -- where Long Way Home's own client (cgame) drawing attaches to cgame.
++//
++// Like game/lwh_hooks.h and ui/lwh_ui_hooks.h: the logic itself is not in this tree. It is compiled
++// in from LWH_MODULE_DIR (which defines LWH_CREW) as module/cgame/*.cpp. Without it this is an empty
++// inline and cgame draws exactly as upstream does.
++
++#ifndef LWH_CGAME_HOOKS_H
++#define LWH_CGAME_HOOKS_H
++
++#ifdef LWH_CREW
++void LWH_CG_DrawPanelGlance( void );
++#else
++inline void LWH_CG_DrawPanelGlance( void ) {}
++#endif
++
++#endif

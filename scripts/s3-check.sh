@@ -3,10 +3,13 @@
 #
 #   scripts/s3-check.sh [--rebuild]
 #
-# Builds the ship if it has not been built (scripts/build-ship.sh; --rebuild forces it), then two
+# Builds the ship if it has not been built (scripts/build-ship.sh; --rebuild forces it), then three
 # headless engine runs on it:
 #   tour      rides the turbolift from deck to deck, all fifteen in one run with no level load, and
 #             on each checks the player arrived on that deck, standing on a floor, clear of solid
+#   menu      reports the deck list the retail turbolift menu reads (the merged ship's pak must
+#             override the retail ten-deck file with our fifteen), then opens the real menu and
+#             photographs it
 #   measure   twenty seconds with every deck's entities and scripts live, for the game-frame time
 #
 # What it does not check is the rest of S3's bar: that a person can walk each deck once there.
@@ -46,6 +49,8 @@ engine() {
 }
 
 engine tour    +set g_shipTest 5 +map voyager
+rm -f "$GAME_DIR/screenshots/lwh_turbolift.tga"
+engine menu    +set g_shipTest 12 +map voyager
 engine measure +set g_crew 0 +set g_crewRun 20 +set g_crewQuit 1 +map voyager
 
 fail() { echo "FAIL  $1"; exit 1; }
@@ -54,6 +59,13 @@ grep -h '^SHIP: deck ' "$HOME_DIR/s3-tour.out" | sed 's/^SHIP: /    /' || true
 grep -q '^SHIP: turbolift tour: 15 of 15 decks reached standing and clear' "$HOME_DIR/s3-tour.out" \
   || fail "the turbolift tour did not reach all fifteen decks (see $HOME_DIR/s3-tour.out)"
 echo "PASS  one map, fifteen decks, each reached by turbolift from the one before with no level load"
+
+grep -h '^LWH: turbolift deck' "$HOME_DIR/s3-menu.out" | sed 's/^LWH: /    /' || true
+grep -q '^LWH: turbolift deck list ext_data/sp_turbolift.dat: 15 decks, highest 15' "$HOME_DIR/s3-menu.out" \
+  || fail "the menu's deck list is not the merged ship's fifteen (see $HOME_DIR/s3-menu.out)"
+[ -f "$GAME_DIR/screenshots/lwh_turbolift.tga" ] || fail "the menu did not open (no screenshot)"
+echo "PASS  the retail turbolift menu reads our fifteen-deck list, and opens on the merged ship"
+echo "      screenshot: $GAME_DIR/screenshots/lwh_turbolift.tga"
 
 BASE="$GAME_DIR/crew/voyager.baseline.json"
 [ -f "$BASE" ] || fail "the measured run did not finish"
