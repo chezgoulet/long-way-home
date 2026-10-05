@@ -1,0 +1,90 @@
+# Failure is content
+
+The owner's rule, 2026-10-05: **system fail states and player error are canonical content, and embraced.**
+Mishandle a transporter and someone comes back wrong -- or comes back twice. Stress the warp core too long
+and you risk a breach. This is the identity of the game, not a concession to it.
+
+## Why it is the right rule
+
+The north star is attrition with no reset, and a ship that cannot fail in *interesting* ways has no stakes.
+More to the point: **canon is made of these failures.** Voyager's own episodes include a crew member created
+by a transporter merge, a duplicate left behind by a transporter accident, a duplicate ship and duplicate
+crew in "Deadlock", transporter psychosis from inadequate pattern buffers, warp breaches that are "almost
+always irreversible" once safety systems fail, core ejections that are "often unreliable", holodeck
+safeties defeated, inertial dampers and gravity failures that kill people, and consoles exploding in
+people's faces because the EPS grid was overloaded.
+
+None of that is decoration. Each one is a scene, and in our game each one should be a **consequence of
+something a person did**.
+
+## Two clocks at different scales
+
+This is the rule that reconciles failure-as-content with the earlier intrusion design:
+
+- **Ship systems need dwell time to fail.** They degrade where the crew can watch: a gel pack running warm
+  for two days, a conduit reading high, a crystal down to sixty-two percent.
+- **Operators can fail instantly.** A transporter mistake, a sealed hatch behind someone, a decompression
+  ordered without checking the compartment, a core stressed one command too far.
+
+So the ship's degradation is slow, legible and arguable; the operator's error is fast, personal and
+irreversible. Both belong in the design, and they are different kinds of threat. The first asks *what do we
+spend*; the second asks *did you understand what you were doing.*
+
+## Three severities, every system
+
+Design each system with three failure states, so failure has a range rather than a switch:
+
+1. **Degraded** -- it still works, worse. Output down, range shorter, a scar that will not heal. Recoverable
+   with maintenance in the job queue.
+2. **Acute** -- it hurts now: the breach countdown, the pattern starting to drift, the injury, the deck
+   losing atmosphere. The crew act, or it becomes catastrophic.
+3. **Catastrophic** -- permanent. Death, loss, transformation, or the ship.
+
+**The catastrophic tier must open content, not merely subtract it.** Canon shows how: a transporter accident
+that duplicates a crew member does not kill the episode, it creates a *person* with an identity problem and
+a captain who has to decide what to do about them. A merge creates one crew member out of two and asks who
+they are. A mangled arrival is a sickbay problem, a morale problem and a command failure all at once, and it
+leaves a mark on the ship's record.
+
+## Failure writes to the crew records
+
+The crew model is what makes failure land, and each kind of failure writes differently:
+
+- **Mangled**: the record gains injuries, permanent if they are bad enough. The person is still the person.
+- **Cloned**: a **new record** with the same face, an ambiguous legal status, and every relationship they had
+  now doubled. Whether both live is a decision the ship has to make.
+- **Merged**: one record replaces two. Somebody is gone, and the resulting person is not either of them.
+- **Assimilated and recovered**: the record carries it forever, per the Borg design.
+- **Dead**: the record closes, the post empties, and **the roster promotes to fill the gap** -- which is how
+  rank rises in a run with no reset button.
+
+## The three rules that keep it fair
+
+Failure-as-content becomes cruelty if it is random. So:
+
+1. **You can see the risk before you act.** The console says the pattern buffer is degraded, the core says the
+   coolant is falling, the compartment says pressure is dropping. A competent operator has the information.
+2. **The consequence traces back to what you did.** *I stressed the core for twenty minutes and it blew* is a
+   story. *It blew* is a bug report.
+3. **A competent path avoids it.** There is always a way to do the thing carefully, slower, at a cost. Failure
+   should be what happens when you decide the cost is worth paying, or when you did not understand the system.
+
+Rolled catastrophes feel like bugs. Earned ones become war stories, and war stories are what the crew's
+memory is made of.
+
+## The one exception
+
+**The warp core breach is the real ending.** The ship is gone, and unlike a transporter accident or a lost
+shuttle, there is no content on the other side of it. It should therefore be reachable only by a *chain* of
+decisions -- skimping on coolant, running past the limits, refusing the ejection -- and never by a single
+roll. Everything else in this document is a fork; that one is a wall, and the crew should be able to see it
+coming for a long time before they reach it.
+
+## Acceptance
+
+- Every modelled system has three failure states designed, not just one.
+- Each catastrophic failure has a written consequence in the crew records, the ship state or the chart.
+- Warnings exist for every failure that a competent operator could avoid.
+- After any catastrophic failure, the ship's log can narrate *why* -- action, consequence, and the decision
+  that made it.
+- The core breach is gated behind a chain of decisions, and is the only unwinnable end state in the design.
