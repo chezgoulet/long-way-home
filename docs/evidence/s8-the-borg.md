@@ -33,7 +33,8 @@ evidenced by `tests/ship`. In the game it is reachable from the console (`ship b
 - **To be seen.** The owner asked for the ship's assets to *turn Borg* and be stripped back. That
   is replacing a section's textures and models at run time by `assimilated`, which is an engine
   capability that does not exist yet. The number that would drive it does.
-- **Drones as bodies**, and assimilated crew appearing as drones with their own faces.
+- **Drones as bodies: done for the player's deck** (`scripts/s7-check.sh`, the Borg run). Assimilated
+  crew do not yet appear as drones with their own faces.
 - **Per-section rather than per-deck.** A deck is the unit; the request was "parts of the ship".
 - The Borg adapting, regenerating, a cube outside: S9 and beyond.
 - Every rate is invented and in the lore ledger.

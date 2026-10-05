@@ -44,11 +44,30 @@ boarders on a vented deck do not all die: those who had already taken the torped
 
 ## What S7 still needs
 
-- **Bodies.** Boarders are a number on a deck. The owner asked for intruders the crew "go
-  physically fight": hostile NPCs spawned where the count says, the fight resolved by the game's
-  combat rather than a rate when the player is present.
+- **Bodies: done for the player's deck** (below). Still to do: the ship's own security fighting
+  them as bodies too, rather than by a rate, when the player is there to see it.
 - **The puzzle on a screen.** The rules exist and are solvable; the console screen that presents
   the grid, takes the picks under a timer and calls `CounterHack` does not.
 - **Who the boarders are.** One kind, one behaviour. Species, weapons, objectives: later.
 - **How they arrive** — transporters, breaching pods — belongs with the outside loop (S9).
 - Every rate is invented and in the lore ledger.
+
+## Boarders as bodies (later the same day)
+
+With `g_crewFromShip` on, the boarders the ship counts on the player's deck are hostile NPCs there
+(`SyncIntruders`, `module/crew/g_crew.cpp`): raiders are the game's Klingons, drones its Borg, up to
+six at once, placed away from the player. The tie runs both ways. `scripts/s7-check.sh`:
+
+```
+    boarder body lwh_boarder_000: type Klingon2, team 4, hostile to team 1
+    boarder body lwh_boarder_001: type Klingon2, team 4, hostile to team 1
+    boarder body lwh_boarder_002: type Klingon, team 4, hostile to team 1
+    boarding test: 3 bodies for 3 boarders the ship counts
+    a boarder is down on deck 11; the ship counts 2 left there
+    boarding test: after one was killed the ship counts 2
+PASS  three raiders board, are embodied hostile to the crew, and one killed is one fewer aboard
+PASS  three Borg drones board, are embodied hostile to the crew, and one killed is one fewer aboard
+```
+
+Team 1 is Starfleet. That the raiders are Klingons is a stand-in — they are the hostile humanoids
+the game ships — not a statement about who boards Voyager.

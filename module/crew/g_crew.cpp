@@ -31,6 +31,8 @@
 extern void NPC_Respond( gentity_t *self, int userNum );
 extern void NPC_SetLookTarget( gentity_t *self, int entNum, int clearTime );
 extern void SP_NPC_starfleet( gentity_t *self );
+extern void SP_NPC_klingon( gentity_t *self );
+extern void SP_NPC_borg( gentity_t *self );
 extern SavedGameJustLoaded_e g_eSavedGameJustLoaded;
 extern CNavigator navigator;
 
@@ -610,6 +612,87 @@ void SyncShipRoster( void )
 	}
 }
 
+// ---- boarders, embodied (S7, S8) --------------------------------------------------------------
+//
+// The ship simulation counts the boarders on each deck. On the deck the player is on they are
+// bodies: hostile NPCs, as many as the count says (to a cap), drones if the party is Borg. The tie
+// runs both ways -- when the count falls, bodies out of sight are withdrawn; when a body is killed,
+// by the player or by anyone, the ship has one boarder fewer.
+
+const int INTRUDER_CAP = 6;
+struct IntruderBody { std::string name; int deck; };
+std::vector<IntruderBody> intruderBodies;
+int intruderSerial = 0;
+
+void SyncIntruders( void )
+{
+	ship::Ship *vessel = Ship_Get();
+	if ( !vessel ) return;
+	const int deck = PlayersDeck();
+	if ( deck < 1 || deck > ship::DECKS ) return;
+	const gentity_t *player = &g_entities[0];
+	ship::Deck &where = vessel->decks[deck - 1];
+
+	for ( size_t k = 0; k < intruderBodies.size(); )
+	{
+		gentity_t *e = FindByName( intruderBodies[k].name );
+		if ( intruderBodies[k].deck != deck )
+		{//the player has left that deck: its boarders go back to being a number
+			if ( e ) G_FreeEntity( e );
+			intruderBodies.erase( intruderBodies.begin() + k );
+			continue;
+		}
+		if ( !e ) { intruderBodies.erase( intruderBodies.begin() + k ); continue; }
+		if ( e->health <= 0 )
+		{//killed: the ship has one fewer aboard
+			where.intruders = std::max( 0.0f, where.intruders - 1.0f );
+			gi.Printf( "CREW: a boarder is down on deck %d; the ship counts %.0f left there\n", deck, std::ceil( where.intruders - 1e-3f ) );
+			intruderBodies.erase( intruderBodies.begin() + k );
+			continue;
+		}
+		++k;
+	}
+
+	const int want = std::min( INTRUDER_CAP, static_cast<int>( std::ceil( where.intruders - 1e-3f ) ) );
+	// fewer than there are bodies (the ship's own defenders have accounted for some): withdraw the unseen
+	for ( size_t k = 0; k < intruderBodies.size() && static_cast<int>( intruderBodies.size() ) > want; )
+	{
+		gentity_t *e = FindByName( intruderBodies[k].name );
+		if ( e && gi.inPVS( player->currentOrigin, e->currentOrigin ) && Distance( player->currentOrigin, e->currentOrigin ) < 1024.0f ) { ++k; continue; }
+		if ( e ) G_FreeEntity( e );
+		intruderBodies.erase( intruderBodies.begin() + k );
+	}
+	if ( static_cast<int>( intruderBodies.size() ) >= want ) return;
+
+	const std::vector<int> nodes = DeckNodes( deck );
+	if ( nodes.empty() ) return;
+	while ( static_cast<int>( intruderBodies.size() ) < want )
+	{
+		vec3_t at;
+		bool placed = false;
+		for ( size_t tries = 0; tries < nodes.size() && !placed; ++tries )
+		{
+			navigator.GetNodePosition( nodes[( intruderSerial * 2654435761u + tries * 97u ) % nodes.size()], at );
+			placed = Distance( at, player->currentOrigin ) >= 2 * SPAWN_CLEAR;
+		}
+		if ( !placed ) return;
+		gentity_t *sp = G_Spawn();
+		if ( !sp ) return;
+		const std::string name = Fmt( "lwh_boarder_%03d", intruderSerial++ );
+		vec3_t angles = { 0, 0, 0 };
+		G_SetOrigin( sp, at );
+		VectorCopy( at, sp->s.origin );
+		G_SetAngles( sp, angles );
+		sp->NPC_targetname = G_NewString( name.c_str() );
+		sp->spawnflags = SFB_SILENTSPAWN;
+		if ( where.borg ) SP_NPC_borg( sp );
+		else SP_NPC_klingon( sp );
+		intruderBodies.push_back( { name, deck } );
+		gi.Printf( "CREW: a %s is on deck %d (%d embodied of %.0f the ship counts)\n", where.borg ? "drone" : "boarder", deck,
+			static_cast<int>( intruderBodies.size() ), std::ceil( where.intruders ) );
+	}
+}
+
 // Declared crew with a type and a position are spawned through the map's own spawner, exactly as
 // an NPC_starfleet entity in the map would be: an existing character, its own model and voice.
 void SpawnDeclaredCrew( void )
@@ -1034,6 +1117,7 @@ void Crew_Init( void )
 	cs = CrewState();
 	shipEmbodied.clear();
 	shipLeaving.clear();
+	intruderBodies.clear();
 	if ( !g_crew || !g_crew->integer )
 	{
 		cs.baseline = g_crewRun && g_crewRun->integer > 0;
@@ -1090,7 +1174,7 @@ void Crew_Frame( void )
 	if ( level.time >= cs.nextScanMs )
 	{
 		cs.nextScanMs = level.time + ROSTER_SCAN_MS;
-		if ( g_crewFromShip->integer ) SyncShipRoster();
+		if ( g_crewFromShip->integer ) { SyncShipRoster(); SyncIntruders(); }
 		ScanRoster();
 	}
 	//Decisions are taken every frame, after every entity has thought. A script that takes an NPC

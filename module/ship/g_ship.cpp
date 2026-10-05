@@ -189,6 +189,41 @@ void RunTest( void )
 		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}
+	if ( g_shipTest->integer == 8 )
+	{//board the player's deck, then kill one of the bodies and see the ship's count follow
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		const int deck = static_cast<int>( gi.cvar( "g_crewDeck", "0", 0 )->value );
+		if ( step == 0 && level.time >= 3000 )
+		{
+			if ( g_shipTestPos->string[0] == 'b' ) ship::BoardBorg( vessel, deck, 3 ); else ship::Board( vessel, deck, 3 );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 9000 )
+		{
+			int bodies = 0;
+			gentity_t *victim = NULL;
+			for ( int i = 1; i < globals.num_entities; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( !e->inuse || !e->client || !e->script_targetname || Q_stricmpn( e->script_targetname, "lwh_boarder_", 12 ) ) continue;
+				++bodies;
+				victim = e;
+				gi.Printf( "SHIP: boarder body %s: type %s, team %d, hostile to team %d\n", e->script_targetname,
+					e->NPC_type ? e->NPC_type : "?", e->client->playerTeam, e->client->enemyTeam );
+			}
+			gi.Printf( "SHIP: boarding test: %d bodies for %d boarders the ship counts\n", bodies, ship::Intruders( vessel ) );
+			if ( victim ) G_Damage( victim, &g_entities[0], &g_entities[0], NULL, victim->currentOrigin, 10000, 0, MOD_UNKNOWN );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 13000 )
+		{
+			gi.Printf( "SHIP: boarding test: after one was killed the ship counts %d\n", ship::Intruders( vessel ) );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 3;
+		}
+		return;
+	}
 	if ( g_shipTest->integer == 7 )
 	{//the player as a security ensign: what each console lets them do
 		static const struct { int ms; const char *command; } STEPS[] = {
