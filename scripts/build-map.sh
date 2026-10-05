@@ -10,6 +10,7 @@
 # --light     also run the visibility and lighting passes (slower; a test room does not need them)
 # --entities FILE
 #             entities to add to the compiled map without compiling them (tools/shipmap/inject.py)
+# --files DIR  a directory whose contents go into the .pk3 beside the map, at the same paths
 # --allow-missing-shaders
 #             report shaders that did not resolve and carry on. For published sources, which name a
 #             few textures the shipped game no longer has; never for a map of our own.
@@ -27,7 +28,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC=""; NAME=""; OUT="$ROOT/build/home/baseEF"; Q3MAP2=""; LIGHT=0; ALLOW_MISSING=0; EXTRA_ENTS=""
+SRC=""; NAME=""; OUT="$ROOT/build/home/baseEF"; Q3MAP2=""; LIGHT=0; ALLOW_MISSING=0; EXTRA_ENTS=""; EXTRA_FILES=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --name)   NAME="$2"; shift 2 ;;
@@ -36,6 +37,7 @@ while [ $# -gt 0 ]; do
     --light)  LIGHT=1; shift ;;
     --allow-missing-shaders) ALLOW_MISSING=1; shift ;;
     --entities) EXTRA_ENTS="$2"; shift 2 ;;
+    --files) EXTRA_FILES="$2"; shift 2 ;;
     -*)       echo "unknown argument: $1" >&2; exit 2 ;;
     *)        SRC="$1"; shift ;;
   esac
@@ -92,5 +94,8 @@ OUT="$(cd "$OUT" && pwd)"   # absolute: the archive is written from inside the w
 PK3="$OUT/longway_$NAME.pk3"
 rm -f "${PK3:?}"
 (cd "$WORK" && zip -q -X "$PK3" "maps/$NAME.bsp")
+if [ -n "$EXTRA_FILES" ]; then
+  (cd "$EXTRA_FILES" && zip -q -X -r "$PK3" .)
+fi
 echo "wrote $PK3"
 echo "in game: map $NAME"
