@@ -245,3 +245,22 @@ That cannot be fixed in the map. The remedy is in the game: when a script owned 
 deck N looks a name up, try the deck-scoped name first. Every entity already carries its deck
 (`lwh_deck`), so the information is there; the lookup sites in the script interface are the work.
 Not started.
+
+## Lit, with visibility, and scripts scoped to their deck (2026-10-06)
+
+`scripts/build-ship.sh` now runs the visibility and lighting passes: **three minutes** for the
+whole ship, a 54 MB BSP with 15 MB of visibility data and lightmaps. It needs a larger engine
+memory hunk than a retail level (`+set com_hunkMegs 768`; the default fails with `Hunk_Alloc failed
+on 15282144`). Stood on deck 4 again, the turbolift door and its frame are now shaded.
+
+Twenty seconds headless, as before: game frame **3.0 ms average, 18 ms worst** (structure-only
+build: 3.1 / 26).
+
+Deck-scoped names are in (`module/ship/g_scope.*`, on with `+set g_shipDeckPitch 3072`): while a
+script runs for an entity, a name it looks up is tried scoped to that entity's deck first. In an
+eight-second run standing on deck 4: 10 script name lookups, 1 redirected to its own deck. That is
+the mechanism working, not a measure of coverage — most deck scripts wait for the player to do
+something, and nobody did.
+
+To load it: `scripts/build-ship.sh --out build/home/baseEF`, then
+`scripts/run-engine.sh +set com_hunkMegs 768 +set g_ship 1 +set g_shipDeckPitch 3072 +map voyager`.

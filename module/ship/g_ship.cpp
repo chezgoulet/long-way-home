@@ -8,6 +8,7 @@
 
 #include "ship_core.h"
 #include "g_ship.h"
+#include "g_scope.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -179,6 +180,9 @@ void RunTest( void )
 		{
 			gentity_t *player = &g_entities[0];
 			gi.Printf( "SHIP: standing at %s\n", vtos( player->currentOrigin ) );
+			int lookups = 0, resolved = 0;
+			LWH_ScopeStats( &lookups, &resolved );
+			gi.Printf( "SHIP: script name lookups %d, resolved to the script's own deck %d\n", lookups, resolved );
 			gi.SendConsoleCommand( "quit\n" );
 			step = 3;
 		}

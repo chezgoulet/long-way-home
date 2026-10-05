@@ -1,14 +1,14 @@
 From: Long Way Home <noreply@long-way-home.invalid>
-Subject: [PATCH 5/7] attach points for Long Way Home's own game logic
+Subject: [PATCH 5/10] attach points for Long Way Home's own game logic
 
-Eighteen one-line calls and a build option. The logic itself is not in this tree: it is compiled
+Twenty-one one-line calls and a build option. The logic itself is not in this tree: it is compiled
 in from LWH_MODULE_DIR (the long-way-home repository's module/), and game/lwh_hooks.h and
 ui/lwh_ui_hooks.h turn every call into an empty inline when that is unset, so this patch alone
 changes no behaviour.
 
-Three things attach here: the crew direction layer (Crew_*), the ship simulation (Ship_*), and our
-screens in the UI module (LWH_UI_ConsoleCommand; sources under LWH_MODULE_DIR/ui go to the UI
-library, everything else to the game library):
+Four things attach here: the crew direction layer (Crew_*), the ship simulation (Ship_*),
+deck-scoped names for scripts on the merged ship (LWH_Scope*), and our screens in the UI module
+(LWH_UI_ConsoleCommand; sources under LWH_MODULE_DIR/ui go to the UI library, the rest to the game):
   G_InitCvars / InitGame       register cvars; start once the map's entities exist
   G_RunFrame (first, last)     the frame clock, then each system's turn after every entity has thought
   ShutdownGame                 the ship's state is carried through a level change
@@ -16,6 +16,7 @@ library, everything else to the game library):
   NPC_Touch                    being walked into
   G_LoadSave_*MiscData         one optional save chunk each, written only while the system is on
   ConsoleCommand (game, ui)    the "crew" and "ship" commands; our screens' commands
+  CTaskManager::Update, G_Find while a script runs, a name is looked up on its owner's deck first
 ---
 diff --git a/efgame/CMakeLists.txt b/efgame/CMakeLists.txt
 --- a/efgame/CMakeLists.txt
@@ -196,6 +197,47 @@ diff --git a/efgame/src/game/g_svcmds.cpp b/efgame/src/game/g_svcmds.cpp
  	if (Q_stricmp (cmd, "Command") == 0) {
  		Svcmd_Comm_f ();
  		return qtrue;
+diff --git a/efgame/src/game/g_utils.cpp b/efgame/src/game/g_utils.cpp
+--- a/efgame/src/game/g_utils.cpp
++++ b/efgame/src/game/g_utils.cpp
+@@ -3,6 +3,7 @@
+ #include "g_local.h"
+ #include "g_functions.h"
+ #include "g_nav.h"
++#include "lwh_hooks.h"
+ 
+ #define ACT_ACTIVE		qtrue
+ #define ACT_INACTIVE	qfalse
+@@ -132,6 +133,8 @@
+ 	else
+ 		from++;
+ 
++	match = (char *) LWH_ScopedName( match );
++
+ 	for ( ; from < &g_entities[globals.num_entities] ; from++)
+ 	{
+ 		if (!from->inuse)
+diff --git a/efgame/src/icarus/TaskManager.cpp b/efgame/src/icarus/TaskManager.cpp
+--- a/efgame/src/icarus/TaskManager.cpp
++++ b/efgame/src/icarus/TaskManager.cpp
+@@ -3,6 +3,7 @@
+ //	-- jweier
+ 
+ #include "icarus.h"
++#include "lwh_hooks.h"
+ #include <assert.h>
+ extern void Com_Printf( const char *fmt, ... );
+ 
+@@ -327,7 +328,9 @@
+ 	m_count = 0;	//Needed for runaway init
+ 	m_resident = true;
+ 
++	LWH_ScopeBegin( m_ownerID );
+ 	int returnVal = Go();
++	LWH_ScopeEnd();
+ 
+ 	m_resident = false;
+ 
 diff --git a/efgame/src/ui/ui_atoms.cpp b/efgame/src/ui/ui_atoms.cpp
 --- a/efgame/src/ui/ui_atoms.cpp
 +++ b/efgame/src/ui/ui_atoms.cpp
@@ -222,7 +264,7 @@ diff --git a/efgame/src/game/lwh_hooks.h b/efgame/src/game/lwh_hooks.h
 new file mode 100644
 --- /dev/null
 +++ b/efgame/src/game/lwh_hooks.h
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,38 @@
 +// lwh_hooks.h -- where Long Way Home's own game logic attaches to the game module.
 +//
 +// The logic itself is not in this tree: it is compiled in when the build sets LWH_MODULE_DIR
@@ -235,6 +277,7 @@ new file mode 100644
 +#ifdef LWH_CREW
 +#include "g_crew.h"
 +#include "g_ship.h"
++#include "g_scope.h"
 +#else
 +struct gentity_s;
 +inline void Crew_RegisterCvars( void ) {}
@@ -254,6 +297,9 @@ new file mode 100644
 +inline void Ship_WriteSave( void ) {}
 +inline void Ship_ReadSave( void ) {}
 +inline void Svcmd_Ship_f( void ) {}
++inline void LWH_ScopeBegin( int ) {}
++inline void LWH_ScopeEnd( void ) {}
++inline const char *LWH_ScopedName( const char *name ) { return name; }
 +#endif
 +
 +#endif

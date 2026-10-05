@@ -74,19 +74,18 @@ Done and committed:
   `g_shipTestPos "x y z"`).
 - The ship compiles **with visibility and lighting** in about three minutes (54 MB BSP).
 
-In progress at the moment of writing — **uncommitted, check `git status`**:
-- `module/ship/g_scope.{h,cpp}`: deck-scoped name lookup, so a deck's script that says `alarm`
-  finds `d04_alarm`. Two attach points were added to the upstream tree
-  (`icarus/TaskManager.cpp` `CTaskManager::Update`, and `game/g_utils.cpp` `G_Find`) plus three
-  stubs in `game/lwh_hooks.h`. **`patches/0005` has not been regenerated to include them yet.**
-  It is switched on by `+set g_shipDeckPitch 3072`.
-- The lit ship has not yet been loaded successfully: the first attempt failed only because the
-  module had not been re-configured after adding `g_scope.cpp` (see the cmake note above).
+Also done and committed (2026-10-06):
+- `module/ship/g_scope.{h,cpp}`: deck-scoped name lookup, on with `+set g_shipDeckPitch 3072`;
+  its attach points are in `patches/0005` (regenerated, series verified).
+- The lit ship (visibility + lighting) loads with `+set com_hunkMegs 768`, draws deck 4 shaded,
+  and runs at 3.0 ms average / 18 ms worst game frame.
+
+To load the ship by hand: `scripts/build-ship.sh --out build/home/baseEF`, then
+`scripts/run-engine.sh +set com_hunkMegs 768 +set g_ship 1 +set g_shipDeckPitch 3072 +map voyager`.
 
 Next steps for S3, in dependency order:
-1. Re-configure and rebuild the module; load the lit ship; screenshot deck 4; read the
-   "script name lookups N, resolved M" line; re-measure frame time with visibility data present.
-2. Regenerate `patches/0005` with the scope hooks; verify the series; run both regressions; commit.
+1. (done) lit ship loaded and measured.
+2. (done) `patches/0005` regenerated with the scope hooks.
 3. Turbolifts that travel within the map instead of changing level (look at `ui_turbolift.cpp` and
    how the deck maps' turbolift entities call for a level change; arrival points are the
    `dNN_arrival` `info_notnull` entities the stitcher leaves).

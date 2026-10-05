@@ -39,7 +39,7 @@ maintenance, and to keep our own delta thin enough to rebase onto it whenever th
 rule, 2026-10-04: *"I'd rather be in the best position to inherit community work than increase our support
 of more stuff."*
 
-Current delta from the pinned upstream: **51 files, +322/−132 lines, in ten patches by concern.**
+Current delta from the pinned upstream: **52 files, +332/−132 lines, in ten patches by concern.**
 
 | patch | concern | why it is separate |
 |---|---|---|
@@ -47,7 +47,7 @@ Current delta from the pinned upstream: **51 files, +322/−132 lines, in ten pa
 | `0002` | explicit 15-bit `rand` at every call site | mechanical, 32 files, and it exists only because the shim's macro poisoned libstdc++ headers |
 | `0003` | 64-bit correctness in released source | upstream-relevant independently of us: a pointer-width write and an overlapping `strcpy` |
 | `0004` | raise the content and entity ceilings | a policy choice, not a fix; ours to justify |
-| `0005` | attach points for our own game logic (crew layer, ship simulation, our UI screens) | eighteen one-line calls and a build option; inert unless `LWH_MODULE_DIR` is set, so it changes nothing on its own |
+| `0005` | attach points for our own game logic (crew layer, ship simulation, our UI screens) | twenty-one one-line calls and a build option; inert unless `LWH_MODULE_DIR` is set, so it changes nothing on its own |
 | `0006` | SP: console commands reach the game module | an upstream-relevant fix: the released game's own developer commands were unreachable in this port |
 | `0007` | SP: menus that do not pause the game | our first engine capability under the revised policy: a ship console is operated while the ship runs |
 | `0008` | entities to 4,096, and the bridge tables the earlier raise left at 1,024 | a limits policy like `0004`, plus a fix for what `0004` missed |
