@@ -1,17 +1,18 @@
 From: Long Way Home <noreply@long-way-home.invalid>
-Subject: [PATCH 5/5] attach points for the crew direction layer
+Subject: [PATCH 5/5] attach points for Long Way Home's own game logic
 
-Ten one-line calls and a build option. The layer itself is not in this tree: it is compiled in
-from LWH_MODULE_DIR (the long-way-home repository's module/), and game/lwh_hooks.h turns every
+Seventeen one-line calls and a build option. The logic itself is not in this tree: it is compiled
+in from LWH_MODULE_DIR (the long-way-home repository's module/), and game/lwh_hooks.h turns every
 call into an empty inline when that is unset, so this patch alone changes no behaviour.
 
-Where the calls sit, and why there:
-  G_InitCvars / InitGame       register the layer's cvars; start it once the map's entities exist
-  G_RunFrame (first, last)     the frame clock, then the layer's turn after every entity has thought
+Two systems attach here, the crew direction layer (Crew_*) and the ship simulation (Ship_*):
+  G_InitCvars / InitGame       register cvars; start once the map's entities exist
+  G_RunFrame (first, last)     the frame clock, then each system's turn after every entity has thought
+  ShutdownGame                 the ship's state is carried through a level change
   NPC_Use / NPC_Respond        time the player's address against the acknowledgement
   NPC_Touch                    being walked into
-  G_LoadSave_*MiscData         one optional save chunk, written only while the layer is on
-  ConsoleCommand               the "crew" server command
+  G_LoadSave_*MiscData         one optional save chunk each, written only while the system is on
+  ConsoleCommand               the "crew" and "ship" server commands
 ---
 diff --git a/efgame/CMakeLists.txt b/efgame/CMakeLists.txt
 --- a/efgame/CMakeLists.txt
@@ -32,7 +33,7 @@ diff --git a/efgame/CMakeLists.txt b/efgame/CMakeLists.txt
  add_library(efgame SHARED ${EFGAME_SRC})
  target_include_directories(efgame PRIVATE ${EF_INCLUDES})
 +if(LWH_MODULE_DIR)
-+  target_include_directories(efgame PRIVATE ${LWH_MODULE_DIR}/crew)
++  target_include_directories(efgame PRIVATE ${LWH_MODULE_DIR}/crew ${LWH_MODULE_DIR}/ship)
 +  target_compile_definitions(efgame PRIVATE LWH_CREW)
 +endif()
  target_compile_options(efgame PRIVATE ${EF_COPTS})
@@ -85,23 +86,33 @@ diff --git a/efgame/src/game/g_main.cpp b/efgame/src/game/g_main.cpp
  
  extern CNavigator		navigator;
  
-@@ -170,6 +171,7 @@
+@@ -170,6 +171,8 @@
  	g_fixFreezeBorg1 = gi.cvar( "g_fixFreezeBorg1", "1", CVAR_ARCHIVE );
  	g_snapVelocity = gi.cvar( "g_snapVelocity", "1", CVAR_CHEAT );
  	g_showPaths = gi.cvar( "g_showPaths", "", CVAR_ARCHIVE );
 +	Crew_RegisterCvars();
++	Ship_RegisterCvars();
  }
  
  /*
-@@ -341,6 +343,7 @@
+@@ -341,6 +344,8 @@
  	}
  
  	speedrun::InitSoundSkipping();
++	Ship_Init();
 +	Crew_Init();
  }
  
  
-@@ -833,6 +836,7 @@
+@@ -351,6 +356,7 @@
+ */
+ void ShutdownGame( void ) {
+ 	gi.Printf ("==== ShutdownGame ====\n");
++	Ship_Shutdown();
+ 
+ 	gi.Printf ("... ICARUS_Shutdown\n");
+ 	ICARUS_Shutdown ();	//Shut ICARUS down
+@@ -833,6 +839,7 @@
  	gentity_t	*ent;
  	int			msec;
  
@@ -109,28 +120,31 @@ diff --git a/efgame/src/game/g_main.cpp b/efgame/src/game/g_main.cpp
  	level.framenum++;
  	level.previousTime = level.time;
  	level.time = levelTime;
-@@ -954,6 +958,8 @@
+@@ -954,6 +961,9 @@
  		ClientEndFrame( ent );
  	}
  
++	Ship_Frame();
 +	Crew_Frame();
 +
  	//DEBUG STUFF
  	NAV_ShowDebugInfo();
  	NPC_ShowDebugInfo();
-@@ -977,6 +983,7 @@
+@@ -977,6 +987,8 @@
  void G_LoadSave_WriteMiscData(void)
  {
  	gi.AppendToSaveGame('LCKD', &player_locked, sizeof(player_locked));
 +	Crew_WriteSave();
++	Ship_WriteSave();
  }
  
  
-@@ -984,5 +991,6 @@
+@@ -984,5 +996,7 @@
  void G_LoadSave_ReadMiscData(void)
  {
  	gi.ReadFromSaveGame('LCKD', &player_locked, sizeof(player_locked), NULL);
 +	Crew_ReadSave();
++	Ship_ReadSave();
  }
  
 diff --git a/efgame/src/game/g_svcmds.cpp b/efgame/src/game/g_svcmds.cpp
@@ -144,12 +158,17 @@ diff --git a/efgame/src/game/g_svcmds.cpp b/efgame/src/game/g_svcmds.cpp
  
  extern int ICARUS_RunScript( gentity_t *ent, const char *name );
  extern team_t TranslateTeamName( const char *name );
-@@ -125,6 +126,11 @@
+@@ -125,6 +126,16 @@
  		return qtrue;
  	}
  
 +	if (Q_stricmp (cmd, "crew") == 0) {
 +		Svcmd_Crew_f ();
++		return qtrue;
++	}
++
++	if (Q_stricmp (cmd, "ship") == 0) {
++		Svcmd_Ship_f ();
 +		return qtrue;
 +	}
 +
@@ -160,10 +179,10 @@ diff --git a/efgame/src/game/lwh_hooks.h b/efgame/src/game/lwh_hooks.h
 new file mode 100644
 --- /dev/null
 +++ b/efgame/src/game/lwh_hooks.h
-@@ -0,0 +1,26 @@
-+// lwh_hooks.h -- where the Long Way Home direction layer attaches to the game module.
+@@ -0,0 +1,34 @@
++// lwh_hooks.h -- where Long Way Home's own game logic attaches to the game module.
 +//
-+// The layer itself is not in this tree: it is compiled in when the build sets LWH_MODULE_DIR
++// The logic itself is not in this tree: it is compiled in when the build sets LWH_MODULE_DIR
 +// (which defines LWH_CREW). Without it every hook below is an empty inline, so the module
 +// builds and behaves as it always has.
 +
@@ -172,6 +191,7 @@ new file mode 100644
 +
 +#ifdef LWH_CREW
 +#include "g_crew.h"
++#include "g_ship.h"
 +#else
 +struct gentity_s;
 +inline void Crew_RegisterCvars( void ) {}
@@ -184,6 +204,13 @@ new file mode 100644
 +inline void Crew_WriteSave( void ) {}
 +inline void Crew_ReadSave( void ) {}
 +inline void Svcmd_Crew_f( void ) {}
++inline void Ship_RegisterCvars( void ) {}
++inline void Ship_Init( void ) {}
++inline void Ship_Frame( void ) {}
++inline void Ship_Shutdown( void ) {}
++inline void Ship_WriteSave( void ) {}
++inline void Ship_ReadSave( void ) {}
++inline void Svcmd_Ship_f( void ) {}
 +#endif
 +
 +#endif

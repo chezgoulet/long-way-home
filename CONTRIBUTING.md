@@ -39,7 +39,7 @@ maintenance, and to keep our own delta thin enough to rebase onto it whenever th
 rule, 2026-10-04: *"I'd rather be in the best position to inherit community work than increase our support
 of more stuff."*
 
-Current delta from the pinned upstream: **42 files, +210/−115 lines, in five patches by concern.**
+Current delta from the pinned upstream: **42 files, +229/−115 lines, in five patches by concern.**
 
 | patch | concern | why it is separate |
 |---|---|---|
@@ -47,7 +47,7 @@ Current delta from the pinned upstream: **42 files, +210/−115 lines, in five p
 | `0002` | explicit 15-bit `rand` at every call site | mechanical, 32 files, and it exists only because the shim's macro poisoned libstdc++ headers |
 | `0003` | 64-bit correctness in released source | upstream-relevant independently of us: a pointer-width write and an overlapping `strcpy` |
 | `0004` | raise the content and entity ceilings | a policy choice, not a fix; ours to justify |
-| `0005` | attach points for the crew direction layer | ten one-line calls and a build option; inert unless `LWH_MODULE_DIR` is set, so it changes nothing on its own |
+| `0005` | attach points for our own game logic (crew layer, ship simulation) | seventeen one-line calls and a build option; inert unless `LWH_MODULE_DIR` is set, so it changes nothing on its own |
 
 Rules that keep this shape:
 

@@ -36,3 +36,12 @@ crew write      the report, written to crew/<map>.report.json under the home pat
 ```
 
 `g_crewDebug 1` prints every change of decision; `2` adds a once-a-second trace of anyone walking.
+
+## ship/ — the ship simulation (gates S1, S2)
+
+| file | what it is |
+|---|---|
+| `ship_core.h/.cpp` | The ship as a working system: power, systems, decks, stores, clock, the 141-crew roster and its watches. No game header; tested by `tests/ship`. |
+| `g_ship.h/.cpp` | Hosts it in the game: ticks it, saves it, carries it across level changes, and exposes the `ship` console command. Off by default (`g_ship 0`). |
+
+Programme and gates: `docs/ship-programme.md`. Every figure: `docs/lore-ledger.md`.

@@ -129,7 +129,7 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 | gate | state | evidence |
 |---|---|---|
 | **S1** ship core | ✅ done 2026-10-05 | `docs/evidence/s1-ship-core.md` |
-| **S2** Engineering console in game | ⏳ next | |
+| **S2** Engineering console in game | 🔶 ship hosted in the game and verified; the LCARS screen is next | `scripts/s2-check.sh` |
 | **S3–S10** | ⏳ pending | |
 
 ## Adopted from RPG-X prior art (2026-10-04)
