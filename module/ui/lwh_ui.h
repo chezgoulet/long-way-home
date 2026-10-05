@@ -6,4 +6,7 @@
 // Handles our UI console commands (ui_lwh_engineering, ...). True if the command was ours.
 qboolean LWH_UI_ConsoleCommand( const char *cmd );
 
+// The command console and character creation (ui_lwh_command.cpp); called by the above.
+qboolean LWH_UI_CommandScreens( const char *cmd );
+
 #endif

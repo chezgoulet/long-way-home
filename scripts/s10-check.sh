@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gate S10, the part that is enforced in the game: ironman.
+# Gate S10, the parts that are in the game: ironman, the personnel screen, and the command console.
 #
 #   scripts/s10-check.sh
 #
@@ -34,3 +34,17 @@ grep -q "^Ironman: load 'auto' refused" "$OUT" || fail "going back to the level'
 grep -q '^SHIP: ironman test done' "$OUT" || fail "the run did not continue after the refused load"
 [ -f "$GAME_DIR/saves/ironman.sav" ] || fail "the game's own forward save was not written"
 echo "PASS  ironman refuses a save and a load by hand, and writes its one save forward"
+
+# The personnel and command screens: report for duty as a security ensign, be refused an order,
+# then take command and give three.
+CMD_OUT="$HOME_DIR/s10-command.out"
+find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
+echo "==> command"
+SDL_AUDIODRIVER=dummy timeout 180 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
+    +set s_useOpenAL 0 +set g_ship 1 +set g_shipTest 11 +map tour/deck04 >"$CMD_OUT" 2>&1 || true
+grep -h '^SHIP: you are\|^SHIP: order refused\|^SHIP: command test' "$CMD_OUT" | sed 's/^SHIP: /    /' || true
+grep -q '^SHIP: you are Okoro' "$CMD_OUT" || fail "the personnel screen did not create the character chosen on it"
+grep -q '^SHIP: order refused: only whoever commands the ship gives orders' "$CMD_OUT" || fail "an ensign's order was not refused"
+grep -q '^SHIP: command test: player Okoro, orders repair 2 guard 4 evacuate 5$' "$CMD_OUT" \
+  || fail "the three orders given from the command console are not the ship's standing orders"
+echo "PASS  a character is created on the personnel screen; an ensign's order is refused; in command, three orders given at the console stand"

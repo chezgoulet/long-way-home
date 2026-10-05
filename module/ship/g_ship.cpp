@@ -162,6 +162,18 @@ void Publish( void )
 		gi.cvar_set( "lwh_ship_aboard", aboard.c_str() );
 	}
 
+	// Standing orders and who the player is, for the command console and the personnel screen.
+	{
+		std::string orders;
+		if ( vessel.orderRepairFirst >= 0 ) orders += Fmt( "SEE FIRST TO %s.   ", ship::Spec( static_cast<ship::SystemId>( vessel.orderRepairFirst ) ).name );
+		if ( vessel.orderSecurityTo ) orders += Fmt( "GUARD ON DECK %d.   ", vessel.orderSecurityTo );
+		if ( vessel.orderEvacuate ) orders += Fmt( "DECK %d EVACUATED.", vessel.orderEvacuate );
+		gi.cvar_set( "lwh_ship_orders", orders.c_str() );
+		static const char *const RANKS[] = { "Crewman", "Ensign", "Lt. j.g.", "Lieutenant", "Lt. Commander", "Commander", "Captain" };
+		const bool chosen = vessel.player >= 0 && vessel.player < static_cast<int>( vessel.crew.size() );
+		gi.cvar_set( "lwh_ship_player", chosen ? Fmt( "%s %s", RANKS[vessel.crew[vessel.player].rank], vessel.crew[vessel.player].name.c_str() ).c_str() : "" );
+	}
+
 	int order[ship::SYS_COUNT];
 	for ( int i = 0; i < ship::SYS_COUNT; ++i ) order[i] = i;
 	std::stable_sort( order, order + ship::SYS_COUNT, []( int a, int b ) { return vessel.systems[a].priority < vessel.systems[b].priority; } );
@@ -221,6 +233,32 @@ void RunTest( void )
 		gi.Printf( "SHIP: life support priority %d, structural integrity priority %d\n",
 			vessel.systems[ship::SYS_LIFE_SUPPORT].priority, vessel.systems[ship::SYS_STRUCTURAL_INTEGRITY].priority );
 		WriteReport( "ship/operated.txt" );
+		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 11 )
+	{//report for duty through the personnel screen, be refused an order, then command and give three
+		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 3000, "ui_lwh_character\n" },
+			{ 3300, "lwh_new_key n\nlwh_new_key right\nlwh_new_key right\nlwh_new_key up\n" }, // Okoro, security, ensign
+			{ 3800, "lwh_new_key enter\n" },
+			{ 4300, "ui_lwh_command\n" },
+			{ 4600, "lwh_cmd_key g\n" },                    // an ensign posts no guards
+			{ 5600, "screenshot lwh_personnel\n" },
+			{ 6000, "set g_shipRole 1\nship role\n" },
+			{ 6500, "lwh_cmd_key down\nlwh_cmd_key down\nlwh_cmd_key r\n" },   // third system in the power order first
+			{ 6800, "lwh_cmd_key right\nlwh_cmd_key right\nlwh_cmd_key right\nlwh_cmd_key g\n" }, // guard to deck 4
+			{ 7100, "lwh_cmd_key right\nlwh_cmd_key v\n" },                     // evacuate deck 5
+			{ 8200, "screenshot lwh_command\n" },
+		};
+		static size_t step = 0;
+		if ( level.time < 1000 ) step = 0;
+		while ( step < sizeof( STEPS ) / sizeof( STEPS[0] ) && level.time >= STEPS[step].ms )
+			gi.SendConsoleCommand( STEPS[step++].command );
+		if ( tested || level.time < 9000 ) return;
+		tested = true;
+		gi.Printf( "SHIP: command test: player %s, orders repair %d guard %d evacuate %d\n",
+			vessel.player >= 0 ? vessel.crew[vessel.player].name.c_str() : "nobody", vessel.orderRepairFirst, vessel.orderSecurityTo, vessel.orderEvacuate );
 		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}
@@ -634,6 +672,12 @@ void Svcmd_Ship_f( void )
 	}
 
 	if ( !Q_stricmp( cmd, "status" ) ) { PrintStatus(); return; }
+	if ( !Q_stricmp( cmd, "role" ) )
+	{//take up the role g_shipRole names (0 any post, 1 in command, 2 Munro)
+		ship::SetRole( vessel, g_shipRole->integer == 1 ? ship::ROLE_IN_COMMAND : g_shipRole->integer == 2 ? ship::ROLE_MUNRO : ship::ROLE_ANY_POST );
+		Publish();
+		return;
+	}
 	if ( !Q_stricmp( cmd, "crew" ) )
 	{//who the ship says is on a deck now -- the people S5 will embody there
 		static const char *const DOING[] = { "on duty", "at a meal", "at recreation", "personal time", "asleep" };
@@ -665,10 +709,12 @@ void Svcmd_Ship_f( void )
 		if ( !Q_stricmp( a, "repair" ) ) ok = ship::OrderRepairFirst( vessel, FindSystem( b ) );
 		else if ( !Q_stricmp( a, "security" ) ) ok = ship::OrderSecurityTo( vessel, atoi( b ) );
 		else if ( !Q_stricmp( a, "evacuate" ) ) ok = ship::OrderEvacuate( vessel, atoi( b ) );
+		gi.cvar_set( "lwh_ship_order_refused", ok ? "" : "only whoever commands the ship gives orders" );
 		if ( !ok ) { gi.Printf( "SHIP: order refused: only whoever commands the ship gives orders\n" ); return; }
 		gi.Printf( "SHIP: standing orders: repair first %s, security to deck %d, evacuate deck %d\n",
 			vessel.orderRepairFirst >= 0 ? ship::Spec( static_cast<ship::SystemId>( vessel.orderRepairFirst ) ).name : "nothing in particular",
 			vessel.orderSecurityTo, vessel.orderEvacuate );
+		Publish();
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "character" ) && a[0] && b[0] && gi.argc() > 4 )

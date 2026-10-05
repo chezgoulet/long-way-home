@@ -427,6 +427,7 @@ int KeyByName( const char *name )
 
 qboolean LWH_UI_ConsoleCommand( const char *cmd )
 {
+	if ( LWH_UI_CommandScreens( cmd ) ) return qtrue;
 	if ( !Q_stricmp( cmd, "ui_lwh_engineering" ) )
 	{
 		Open( 0 );

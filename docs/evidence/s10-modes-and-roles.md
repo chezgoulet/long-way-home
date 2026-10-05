@@ -37,8 +37,11 @@ evidenced by `tests/ship`, with the settings exposed in the game as cvars.
 ## What S10 still needs
 
 - **Enforcement: clearance and ironman are now enforced in the game** (both below).
-- **Orders exist** (below) but only from the console: no screen gives them yet.
-- **A character-creation screen**, and the player's character being the body the player walks in.
+- **Orders are given from a command console** and **a character is created on a personnel screen**
+  (`ui_lwh_command`, `ui_lwh_character`; checked by `scripts/s10-check.sh`). Names are chosen from a
+  short invented list — there is nowhere to type one yet — and neither screen is reached from a
+  panel in the world.
+- **The player's character being the body the player walks in.**
 - **Wall-clock catch-up has run only in tests.** The game calls it on load; no session has spanned
   a real absence.
 
