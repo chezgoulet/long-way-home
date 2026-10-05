@@ -10,33 +10,8 @@
 # Shipped content is supplied rather than vendored: none of it belongs in this repository.
 
 set -euo pipefail
-# Pick a CMake generator that exists on this machine: ninja when present, otherwise the
-# Makefiles generator. The playtest host has cmake and make but no ninja, and a build script
-# that refuses to run there is a build script that does not work where it is needed.
-if command -v ninja >/dev/null 2>&1; then
-  GENERATOR="Ninja"
-elif command -v make >/dev/null 2>&1; then
-  GENERATOR="Unix Makefiles"
-else
-  echo "neither ninja nor make found: install one of them" >&2
-  exit 1
-fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Locate cmake/ninja. They are frequently installed rootlessly in a venv rather than system-wide;
-# a bare `cmake: command not found` deep inside a build is a bad way to learn that.
-if ! command -v cmake >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1; then
-  for candidate in "$HOME/.cache/lwh-venv/bin" "$ROOT/.venv/bin" "$ROOT/../.venv/bin" "/usr/local/bin"; do
-    if [ -x "$candidate/cmake" ]; then PATH="$candidate:$PATH"; break; fi
-  done
-fi
-if ! command -v cmake >/dev/null 2>&1; then
-  echo "cmake not found on PATH." >&2
-  echo "  install it, or do this without root:" >&2
-  echo "    python3 -m venv .venv && .venv/bin/pip install cmake ninja" >&2
-  exit 1
-fi
-# ninja is preferred, not required: see the GENERATOR choice above.
 
 SOURCE_MAP=""; SCRIPT_CORPUS=""; BUILD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/../upstream"
 while [ $# -gt 0 ]; do
@@ -48,14 +23,19 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$SOURCE_MAP" ] && [ -n "$SCRIPT_CORPUS" ] || { echo "usage: check.sh --source-map PATH --script-corpus PATH"; exit 2; }
+for tool in "$BUILD_ROOT/ibize-build/ibize" "$BUILD_ROOT/ibi-dump-build/ibi-dump"; do
+  [ -x "$tool" ] || { echo "$tool not built -- run scripts/bootstrap-upstream.sh first" >&2; exit 1; }
+done
+
+echo "==> checks that need no game content"
+"$ROOT/scripts/test.sh"
+echo
 
 IBIZE="$BUILD_ROOT/ibize-build/ibize"
 IBI_DUMP="$BUILD_ROOT/ibi-dump-build/ibi-dump"
 DICT="$BUILD_ROOT/entities.json"
 
 echo "==> entity dictionary"
-python3 "$ROOT/tools/entitydict/entitydict.py" parse \
-  --def "$BUILD_ROOT/efgame/../SP_entities.def" 2>/dev/null || true
 if [ -f "$BUILD_ROOT/SP_entities.def" ] && [ -f "$BUILD_ROOT/HM_entities-def.txt" ]; then
   python3 "$ROOT/tools/entitydict/entitydict.py" parse \
     --def "$BUILD_ROOT/SP_entities.def" --def "$BUILD_ROOT/HM_entities-def.txt" --json "$DICT"
@@ -74,7 +54,9 @@ echo "==> compiler corpus pass (every shipped script: compile, then read back)"
 python3 - "$IBIZE" "$IBI_DUMP" "$SCRIPT_CORPUS" <<'PY'
 import os, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
+import tempfile
 ibize, dump, corpus = sys.argv[1], sys.argv[2], sys.argv[3]
+work = tempfile.mkdtemp(prefix="lwh-check-")
 scripts = sorted(os.path.join(r, f) for r, _, fs in os.walk(corpus) for f in fs if f.lower().endswith(".txt"))
 
 # NOTE: the interpreter reports errors with printf(), i.e. on STDOUT, while the tokenizer reports
@@ -82,7 +64,7 @@ scripts = sorted(os.path.join(r, f) for r, _, fs in os.walk(corpus) for f in fs 
 # failures -- which is exactly how an earlier version of this script reported a false all-clear.
 def one(i_and_s):
     i, s = i_and_s
-    o = f"/tmp/check-{i}.IBI"
+    o = os.path.join(work, f"check-{i}.IBI")
     r = subprocess.run([ibize, s, o], capture_output=True, timeout=30)
     msg = (r.stdout + r.stderr).decode(errors="replace").strip().replace("\n", " ")
     if r.returncode != 0:
@@ -104,5 +86,7 @@ for kind, path, msg in (compile_err + dump_err)[:20]:
     print(f"      {kind}: {rel}" + (f"  |  {msg}" if msg else "  |  (no diagnostic printed)"))
 if len(compile_err) + len(dump_err) > 20:
     print(f"      ... and {len(compile_err) + len(dump_err) - 20} more")
+import shutil
+shutil.rmtree(work, ignore_errors=True)
 sys.exit(1 if (compile_err or dump_err) else 0)
 PY

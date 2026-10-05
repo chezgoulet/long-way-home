@@ -29,7 +29,7 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$ENGINE" ] || ENGINE="$(find "$ROOT" -maxdepth 3 -name longwayhome -type f 2>/dev/null | head -1)"
-[ -n "$ENGINE" ] || { echo "engine binary not found; build it first (see engine/README.md)" >&2; exit 1; }
+[ -n "$ENGINE" ] || { echo "engine binary not found; build it first (see engine/CMakeLists.txt, or run scripts/playtest-host-setup.sh)" >&2; exit 1; }
 [ -d "$BUILD_DIR/baseEF" ] || { echo "no baseEF in $BUILD_DIR -- run scripts/playtest-host-setup.sh" >&2; exit 1; }
 
 # Library search path, in the order the loader will use it:
