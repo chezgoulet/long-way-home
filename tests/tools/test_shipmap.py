@@ -71,7 +71,8 @@ class Stitch(unittest.TestCase):
         self.assertEqual(report["decks"][3]["z"], [-4096 - 2 * 2048, -3900 - 2 * 2048])
         self.assertEqual(report["overlaps"], [])
         origins = [k["origin"] for k, _ in ents if "origin" in k]
-        self.assertEqual(origins, ["100 100 -3976", "100 100 %d" % (-3976 - 4096)])
+        # deck 1: the arrival point and the player start, in the same place; deck 3: its arrival point
+        self.assertEqual(origins, ["100 100 -3976", "100 100 -3976", "100 100 %d" % (-3976 - 4096)])
 
     def test_only_plane_points_move_and_textures_stay(self):
         world, _, _, _ = self.run_stitch({2: deck()})
@@ -125,7 +126,23 @@ class Stitch(unittest.TestCase):
         classes = [k["classname"] for k, _ in ents]
         self.assertEqual(classes.count("info_player_start"), 1)
         arrivals = sorted(k["targetname"] for k, _ in ents if k["classname"] == "info_notnull")
-        self.assertEqual(arrivals, ["d02_arrival", "d05_arrival"])
+        self.assertEqual(arrivals, ["d01_arrival", "d02_arrival", "d05_arrival"])
+
+    def test_turbolift_travels_within_the_ship(self):
+        lift = (ent(classname="target_level_change", targetname="tour_turbo_03", mapname="tour/deck03", target="door")
+                + ent(classname="target_level_change", targetname="tour_turbo_07", mapname="tour/deck07")
+                + ent(classname="target_level_change", targetname="gotobrig", mapname="_brig"))
+        _, ents, report, _ = self.run_stitch({1: deck(lift), 3: deck(lift)})
+        by_name = {k.get("targetname"): k for k, _ in ents}
+        to3 = by_name["d01_tour_turbo_03"]
+        self.assertEqual((to3["classname"], to3["target"]), ("target_teleporter", "d03_arrival"))
+        self.assertNotIn("mapname", to3)
+        self.assertIn("d03_arrival", by_name)
+        # deck 7 is not in this ship, and the brig is not a deck: both still change level
+        self.assertEqual(by_name["d01_tour_turbo_07"]["classname"], "target_level_change")
+        self.assertEqual(by_name["d01_gotobrig"]["mapname"], "_brig")
+        self.assertEqual(report["turbolift_links"], 2)
+        self.assertEqual(report["level_changes_left"], ["_brig", "tour/deck07"])
 
     def test_every_entity_knows_its_deck_and_the_output_parses(self):
         _, ents, report, reparsed = self.run_stitch({1: deck(), 9: deck()})

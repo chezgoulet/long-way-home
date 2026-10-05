@@ -171,8 +171,14 @@ void RunTest( void )
 		if ( step == 0 && level.time >= 3000 )
 		{
 			vec3_t to = { 0, 0, 0 }, angles = { 0, 0, 0 };
-			sscanf( g_shipTestPos->string, "%f %f %f", &to[0], &to[1], &to[2] );
-			TeleportPlayer( &g_entities[0], to, angles, 0 );
+			if ( sscanf( g_shipTestPos->string, "%f %f %f", &to[0], &to[1], &to[2] ) == 3 )
+			{
+				TeleportPlayer( &g_entities[0], to, angles, 0 );
+			}
+			else
+			{//not a position: the name of something to use, as the turbolift's menu would
+				gi.SendConsoleCommand( Fmt( "use %s\n", g_shipTestPos->string ).c_str() );
+			}
 			step = 1;
 		}
 		if ( step == 1 && level.time >= 7000 ) { gi.SendConsoleCommand( "screenshot lwh_ship\n" ); step = 2; }

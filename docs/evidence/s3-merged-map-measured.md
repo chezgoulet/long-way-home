@@ -264,3 +264,21 @@ something, and nobody did.
 
 To load it: `scripts/build-ship.sh --out build/home/baseEF`, then
 `scripts/run-engine.sh +set com_hunkMegs 768 +set g_ship 1 +set g_shipDeckPitch 3072 +map voyager`.
+
+## The turbolift travels within the ship (2026-10-06)
+
+On each deck the turbolift's menu fires a `target_level_change` naming the deck's map. The stitcher
+now turns every one that names a deck of this ship into a `target_teleporter` aimed at that deck's
+arrival point — **90 links** — and leaves the 11 that go elsewhere (the brig, the holodeck
+programs, the campaign) as level changes.
+
+Run in the engine, using deck 1's links as the menu would:
+
+| used | player ends at | which is |
+|---|---|---|
+| `d01_tour_turbo_04` | (-3936 -2778 -13151) | deck 4's arrival point |
+| `d01_tour_turbo_11` | (-3206 -3684 -34575) | on deck 11 |
+
+No level load, no loading screen: the ship is one place. What this is not yet: the turbolift
+*menu* has not been driven (the links were fired by name), the ride is instant, and the original
+`target` of each level change — whatever it fired on departure — is dropped.

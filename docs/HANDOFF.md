@@ -86,9 +86,11 @@ To load the ship by hand: `scripts/build-ship.sh --out build/home/baseEF`, then
 Next steps for S3, in dependency order:
 1. (done) lit ship loaded and measured.
 2. (done) `patches/0005` regenerated with the scope hooks.
-3. Turbolifts that travel within the map instead of changing level (look at `ui_turbolift.cpp` and
-   how the deck maps' turbolift entities call for a level change; arrival points are the
-   `dNN_arrival` `info_notnull` entities the stitcher leaves).
+3. (done 2026-10-06) Turbolift links: the stitcher rewrites deck-to-deck `target_level_change`
+   into `target_teleporter` -> `dNN_arrival`; verified in the engine by firing deck 1's links
+   (`g_shipTest 4` with `g_shipTestPos <targetname>` uses that entity). Still to do here: drive the
+   real turbolift *menu* (`ui_turbolift.cpp`) on the merged ship, and restore whatever each level
+   change's original `target` fired.
 4. Triggers as boxes (501 brush models that need only a volume) — a module change with one attach
    point; then the stitcher emits `mins`/`maxs` instead of brushes.
 5. The five decks with no source (6, 7, 12, 13, 14): generated; everything about them is invention

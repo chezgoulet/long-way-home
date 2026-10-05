@@ -15,7 +15,10 @@ own map at the same place; this puts each at its own height and merges them:
   * names that entities on more than one deck define are prefixed with their deck (d04_door1), in
     every key that carries a name, so one deck's button cannot open another deck's door. Names
     defined on one deck only, and names the maps only refer to (the player's), are left alone
-  * one player start is kept (the first deck's); the others become named arrival points
+  * one player start is kept (the first deck's); every deck gets a named arrival point (d04_arrival)
+  * a `target_level_change` to another deck of the ship becomes a `target_teleporter` to that deck's
+    arrival point: the turbolift now travels within the map. Level changes to anywhere else (the
+    brig, the holodeck programs, the campaign) are left as they were
 
 The report says what was done and what is left: brush models by class against the engine's limit,
 and the renamed names -- any ICARUS script that addresses one of those by its old name will not
@@ -157,7 +160,8 @@ def stitch(deck_files, pitch):
     world_keys = collections.OrderedDict(decks[first][0][0])
     world, out = [], []
     report = {"decks": {}, "pitch": pitch, "renamed": sorted(shared), "models": collections.Counter(),
-              "dropped_stray_brushes": 0, "folded": collections.Counter()}
+              "dropped_stray_brushes": 0, "folded": collections.Counter(), "turbolift_links": 0,
+              "level_changes_left": []}
 
     for n, ents in decks.items():
         dz = -(n - 1) * pitch
@@ -184,9 +188,27 @@ def stitch(deck_files, pitch):
                     keys[k] = tag + keys[k]
             if "origin" in keys:
                 keys["origin"] = shift_origin(keys["origin"], dz)
-            if cls == "info_player_start" and n != first:
-                keys["classname"] = "info_notnull"
-                keys["targetname"] = tag + "arrival"
+            if cls == "info_player_start":
+                # Where the turbolift sets you down on this deck. The first deck's start is also
+                # where the game begins, so it is kept as a start and given an arrival point too.
+                if n == first:
+                    arrival = collections.OrderedDict(keys)
+                    arrival["classname"], arrival["targetname"], arrival["lwh_deck"] = "info_notnull", tag + "arrival", str(n)
+                    out.append((arrival, []))
+                else:
+                    keys["classname"] = "info_notnull"
+                    keys["targetname"] = tag + "arrival"
+            if cls == "target_level_change":
+                # The turbolift asked for another level. If that level is a deck of this ship, it is
+                # now a place in the same map: go there instead.
+                m = re.match(r"tour/deck(\d+)$", keys.get("mapname", ""), re.I)
+                if m and int(m.group(1)) in decks:
+                    keys["classname"] = "target_teleporter"
+                    keys["target"] = "d%02d_arrival" % int(m.group(1))
+                    del keys["mapname"]
+                    report["turbolift_links"] += 1
+                else:
+                    report["level_changes_left"].append(keys.get("mapname", "?"))
             keys["lwh_deck"] = str(n)
             if keep:
                 report["models"][cls] += 1
@@ -199,6 +221,7 @@ def stitch(deck_files, pitch):
     report["model_limit"] = MODEL_LIMIT
     report["models"] = dict(report["models"].most_common())
     report["folded"] = dict(report["folded"])
+    report["level_changes_left"] = sorted(set(report["level_changes_left"]))
 
     # No two decks may share space.
     spans = sorted((v["z"][0], v["z"][1], n) for n, v in report["decks"].items() if v["z"])
@@ -252,6 +275,8 @@ def main(argv=None):
           f"stray brushes dropped {report['dropped_stray_brushes']}, folded into the world {report['folded']}")
     print(f"  brush models {report['brush_models']} (engine limit {MODEL_LIMIT}): {report['models']}")
     print(f"  names renamed because more than one deck uses them: {len(report['renamed'])}")
+    print(f"  turbolift links between decks: {report['turbolift_links']}; level changes left as they were "
+          f"(not decks of this ship): {len(report['level_changes_left'])}")
     for n, v in sorted(report["decks"].items()):
         print(f"  deck {n:2}: z {v['z'][0]:.0f} .. {v['z'][1]:.0f}")
     if report["overlaps"]:
