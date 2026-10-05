@@ -94,3 +94,42 @@ for the record:
 
 Still unmeasured: live entity count for the merged ship (the 2,400 above is an extrapolation from
 one deck), and whether per-deck scripts survive the renaming.
+
+## Step 1 done: the ship stitches and compiles (same day)
+
+`tools/shipmap/stitch.py` on the ten published decks, then `scripts/build-map.sh --allow-missing-shaders`:
+
+```
+10 decks -> build/ship/voyager.map
+  world brushes 32345, entities 4102, stray brushes dropped 11,
+  folded into the world {'func_group': 1011, 'func_static': 98, 'func_wall': 3}
+  brush models 899: trigger_multiple 462, func_door 192, func_usable 134, target_interface 42,
+                    trigger_once 37, func_wall 15, func_breakable 13, func_static 2, others 2
+  names renamed because more than one deck uses them: 268
+```
+
+Compiled by q3map2 in **40 seconds** (structure only, no visibility or lighting) to a 28 MB BSP that
+passes the structural check: **900 models, 2,797 entities, 26,560 brushes, 42,068 planes, 51,163
+surfaces, 542 shaders.** Seven shaders named by the published sources are not in the shipped game
+(`common/glassportal`, `common/light_floor`, `hall/hallcomp`, `hall/hallfloor2`,
+`hall/supportsegment_side3`, `sickbay/lights`, `voyager/runnerlightsra`); those surfaces will draw
+as missing until substituted.
+
+Loaded in the engine unmodified, to see which limit binds first:
+
+```
+EFSP: SP_SpawnServer: CM_LoadMap(maps/voyager.bsp)
+EFSP: SP_SpawnServer: 900 inline models, entity string 416174 bytes
+ERROR: G_Spawn: no free entities
+```
+
+The collision loader takes the map and its 900 inline models; the game runs out of entities at
+2,048, as predicted. That is the first wall, and it is step 3's to remove.
+
+Corrections to the figures above, now that they are counted by a tool rather than a one-off script:
+`func_group` is 1,011 entities, not 323 (the earlier count included only those holding plain
+brushes), and `func_usable` is 134, not 86. The conclusion is unchanged.
+
+Not yet done: triggers as boxes (step 2), the limits patch (step 3), visibility for a whole ship,
+the 268 renamed names against the scripts that use them, turbolifts that travel between decks
+instead of changing level, and the five decks that have no source.

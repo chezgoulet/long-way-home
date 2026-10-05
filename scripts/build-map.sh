@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Headless map build: .map -> q3map2 -> structural check -> a .pk3 the engine loads.
 #
-#   scripts/build-map.sh MAP_SOURCE [--name NAME] [--out DIR] [--q3map2 PATH] [--light]
+#   scripts/build-map.sh MAP_SOURCE [--name NAME] [--out DIR] [--q3map2 PATH] [--light] [--allow-missing-shaders]
 #
 # MAP_SOURCE  a .map file (from an editor, or tools/mapgen/mapgen.py)
 # --name      the map's name in game (default: the file's name)
 # --out       where the .pk3 goes (default: build/home/baseEF, where the engine finds it)
 # --q3map2    the compiler (default: on PATH, else the copy scripts/fetch-map-tools.sh fetched)
 # --light     also run the visibility and lighting passes (slower; a test room does not need them)
+# --allow-missing-shaders
+#             report shaders that did not resolve and carry on. For published sources, which name a
+#             few textures the shipped game no longer has; never for a map of our own.
 #
 # Then, in game:  map NAME      (`map`, not `spmap`: see docs/evidence/g2-authored-space-loads.md)
 # Navigation needs no step here: the engine bakes maps/NAME.nav from the map's waypoints on first load.
@@ -22,13 +25,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC=""; NAME=""; OUT="$ROOT/build/home/baseEF"; Q3MAP2=""; LIGHT=0
+SRC=""; NAME=""; OUT="$ROOT/build/home/baseEF"; Q3MAP2=""; LIGHT=0; ALLOW_MISSING=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --name)   NAME="$2"; shift 2 ;;
     --out)    OUT="$2"; shift 2 ;;
     --q3map2) Q3MAP2="$2"; shift 2 ;;
     --light)  LIGHT=1; shift ;;
+    --allow-missing-shaders) ALLOW_MISSING=1; shift ;;
     -*)       echo "unknown argument: $1" >&2; exit 2 ;;
     *)        SRC="$1"; shift ;;
   esac
@@ -65,8 +69,14 @@ if [ "$LIGHT" -eq 1 ]; then
 fi
 
 if grep -q "Couldn't find image for shader" "$LOG"; then
-  grep "Couldn't find image for shader" "$LOG" | sort -u | head -10 >&2
-  echo "shaders did not resolve: the map would load untextured or not at all" >&2; exit 1
+  missing="$(grep "Couldn't find image for shader" "$LOG" | sort -u)"
+  if [ "$ALLOW_MISSING" -eq 1 ]; then
+    echo "    $(echo "$missing" | wc -l) shader(s) did not resolve (allowed):"
+    echo "$missing" | sed 's/.*shader /      /' | head -20
+  else
+    echo "$missing" | head -10 >&2
+    echo "shaders did not resolve: the map would load untextured or not at all" >&2; exit 1
+  fi
 fi
 [ -f "$WORK/maps/$NAME.bsp" ] || { echo "q3map2 exited 0 but wrote no BSP" >&2; tail -20 "$LOG" >&2; exit 1; }
 python3 "$ROOT/tools/mapgen/check-bsp.py" "$WORK/maps/$NAME.bsp"
