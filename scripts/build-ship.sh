@@ -33,6 +33,11 @@ python3 "$ROOT/tools/shipmap/gendeck.py" --deck 6 --deck 7 --deck 12 --deck 13 -
 # it must override the retail ext_data/sp_turbolift.dat in the pak search order.
 mkdir -p "$ROOT/build/ship/files/ext_data"
 cp "$ROOT/tools/shipmap/data/sp_turbolift.dat" "$ROOT/build/ship/files/ext_data/"
+# The status panel's shader and its placeholder image: the ship's live state is drawn onto this
+# surface (gi.UpdatePanelImage), so the shader and a real image at the same size must be present.
+mkdir -p "$ROOT/build/ship/files/scripts" "$ROOT/build/ship/files/gfx/lwh"
+cp "$ROOT/tools/shipmap/data/lwh_panel.shader" "$ROOT/build/ship/files/scripts/"
+python3 "$ROOT/tools/shipmap/panelart.py" "$ROOT/build/ship/files/gfx/lwh/panel.tga"
 
 python3 "$ROOT/tools/shipmap/stitch.py" --decks "$DECKS" --decks "$ROOT/build/ship/generated" --out "$ROOT/build/ship/voyager.map" \
   --report "$ROOT/build/ship/stitch-report.json"

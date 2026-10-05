@@ -39,7 +39,7 @@ maintenance, and to keep our own delta thin enough to rebase onto it whenever th
 rule, 2026-10-04: *"I'd rather be in the best position to inherit community work than increase our support
 of more stuff."*
 
-Current delta from the pinned upstream: **55 files, +370/−134 lines, in thirteen patches by concern.**
+Current delta from the pinned upstream: **61 files, +437/−134 lines, in fourteen patches by concern.**
 
 | patch | concern | why it is separate |
 |---|---|---|
@@ -56,6 +56,7 @@ Current delta from the pinned upstream: **55 files, +370/−134 lines, in thirte
 | `0011` | triggers may be boxes | a small capability in the released game source: a trigger with `mins`/`maxs` needs no brush model |
 | `0012` | SP: ironman saves | an engine capability: one forward save while `g_ironman` is set, refused otherwise at the command |
 | `0013` | cgame: an attach point for drawing our own readouts | only cgame draws the HUD, and it is a separate concern from the game/UI hooks in `0005`; the call is empty unless `LWH_MODULE_DIR` is set, and the drawing itself lives in `module/cgame/` |
+| `0014` | live in-world panel images | only the renderer can overwrite a texture, so this routes `RemapShader` through the SP bridge and adds `RE_UpdatePanelImage` (upload RGBA into a named shader's image); the drawing and the ship logic live in `module/ship/lwh_panel.cpp` |
 
 Rules that keep this shape:
 

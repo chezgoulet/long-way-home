@@ -9,6 +9,7 @@
 #include "ship_core.h"
 #include "g_ship.h"
 #include "g_scope.h"
+#include "lwh_panel.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -510,6 +511,38 @@ void RunTest( void )
 		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}
+	if ( g_shipTest->integer == 15 )
+	{//stand at the generated deck's status screen and photograph the live surface the module draws
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			gentity_t *arrival = NULL;
+			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "d06_arrival" ) ) arrival = e;
+			}
+			if ( arrival )
+			{
+				vec3_t at, angles = { 0, 0, 0 };
+				VectorCopy( arrival->currentOrigin, at );
+				at[2] += 24.0f; // the arrival sits on the floor; the eye stands above it
+				TeleportPlayer( &g_entities[0], at, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: panel test: standing on deck 6 at %s facing the screen\n", vtos( at ) );
+			}
+			else
+				gi.Printf( "SHIP: panel test: no d06_arrival on this map\n" );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_panel\n" ); step = 2; }
+		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
 	if ( g_shipTest->integer == 12 )
 	{//the turbolift's own menu: report the deck list it reads, then open it exactly as a panel does
 		// Opening the menu pauses the game, which stops Ship_Frame, so the screenshot and the quit
@@ -692,6 +725,7 @@ void Ship_Frame( void )
 	const int ms = level.time - level.previousTime;
 	if ( ms > 0 && ms < 1000 ) ship::Tick( vessel, ms / 1000.0f );
 	if ( level.time / 250 != level.previousTime / 250 ) Publish();
+	LWH_Panel_Frame( &vessel ); // the status panel's live surface (S4's glance, second half)
 	if ( !ship::SavesAllowed( vessel.cfg ) && level.time >= nextIronmanSaveMs && !g_shipTest->integer )
 	{//ironman: the ship is saved for you, forward only
 		nextIronmanSaveMs = level.time + IRONMAN_SAVE_MS;

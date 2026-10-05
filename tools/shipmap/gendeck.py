@@ -37,6 +37,10 @@ def deck_map(n):
         (((X0 - T, Y0 - T, z0 - T), (x1 + T, Y0, z1 + T)), WALL), (((X0 - T, y1, z0 - T), (x1 + T, y1 + T, z1 + T)), WALL),
     ]:
         parts.append(brush(bounds, tex))
+    # A status screen a few paces in front of the arrival point: a surface the ship's live state is
+    # drawn on (Long Way Home). It is ours, and the shader it names is shipped beside the map.
+    sx, cy = X0 + 384, Y0 + D // 2
+    parts.append(brush(((sx, cy - 64, FLOOR + 40), (sx + 8, cy + 64, FLOOR + 168)), "lwh/panel"))
     parts.append("}")
     out = ["\n".join(parts)]
     out.append(entity([("classname", "info_player_start"), ("origin", "%d %d %d" % (X0 + 96, Y0 + D // 2, z0 + 24)), ("angle", "0")]))
@@ -44,6 +48,9 @@ def deck_map(n):
         out.append(entity([("classname", "light"), ("light", "350"), ("origin", "%d %d %d" % (lx, Y0 + D // 2, z1 - 32))]))
     for wx in range(X0 + 128, x1, 128):
         for wy in range(Y0 + 128, y1, 128):
+            # No waypoint inside the status screen, or the engine refuses the map ("waypoint in solid").
+            if abs(wx - sx) < 96 and abs(wy - cy) < 96:
+                continue
             out.append(entity([("classname", "waypoint"), ("origin", "%d %d %d" % (wx, wy, z0 + 24))]))
     return "\n".join(out) + "\n"
 

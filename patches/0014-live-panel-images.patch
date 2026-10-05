@@ -1,0 +1,171 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 14/14] live in-world panel images
+
+The owner asked for status on the panel itself, not only a full-screen console. Only the renderer can
+overwrite a texture, so this adds one capability: gi.RemapShader (already in the renderer, now routed
+through the SP bridge) and gi.UpdatePanelImage, which finds a named shader's base image and uploads
+32-bit RGBA into it (resampling to the image's own size, Vulkan via vk_upload_image_data with the
+update flag). The game decides what to draw and when; with the module unset the two import slots are
+null and nothing changes. Everything the panel shows is in module/ship/lwh_panel.cpp.
+---
+diff --git a/efgame/src/game/g_public.h b/efgame/src/game/g_public.h
+--- a/efgame/src/game/g_public.h
++++ b/efgame/src/game/g_public.h
+@@ -201,6 +201,13 @@
+ 	// dynamic memory allocator for things that need to be freed
+ 	void	*(*Malloc)( int bytes );
+ 	void	(*Free)( void *buf );
++
++	// Long Way Home: a world surface can show state the game recomputes. RemapShader points a
++	// texture name at a shader, and UpdatePanelImage overwrites that shader's base image with the
++	// game's live 32-bit RGBA. Both are engine capabilities; the game decides what to draw and
++	// calls them only while its simulation runs.
++	void	(*RemapShader)( const char *oldShader, const char *newShader, const char *offsetTime );
++	void	(*UpdatePanelImage)( const char *shaderName, const byte *rgba, int width, int height );
+ } game_import_t;
+ 
+ //
+diff --git a/EFAndroid-SP/app/jni/sp/sp_render.h b/EFAndroid-SP/app/jni/sp/sp_render.h
+--- a/EFAndroid-SP/app/jni/sp/sp_render.h
++++ b/EFAndroid-SP/app/jni/sp/sp_render.h
+@@ -20,6 +20,10 @@
+ int   SPR_RegisterSkin(const char* name);
+ int   SPR_RegisterShader(const char* name);
+ int   SPR_RegisterShaderNoMip(const char* name);
++// Long Way Home: live in-world panel images (see game_import_t). RemapShader points a texture at
++// another shader; UpdatePanelImage overwrites that shader's base image with 32-bit RGBA.
++void  SPR_RemapShader(const char* oldShader, const char* newShader, const char* offsetTime);
++void  SPR_UpdatePanelImage(const char* shaderName, const unsigned char* rgba, int width, int height);
+ void  SPR_LoadWorld(const char* name);
+ void  SPR_ModelBounds(int model, float* mins, float* maxs);
+ int   SPR_LerpTag(void* tag, int model, int startFrame, int endFrame, float frac, const char* tagName);
+diff --git a/EFAndroid-SP/app/jni/sp/sp_integration.c b/EFAndroid-SP/app/jni/sp/sp_integration.c
+--- a/EFAndroid-SP/app/jni/sp/sp_integration.c
++++ b/EFAndroid-SP/app/jni/sp/sp_integration.c
+@@ -96,6 +96,13 @@
+ int  SPR_RegisterSkin(const char* n){ return re.RegisterSkin ? (int)re.RegisterSkin(n) : 0; }
+ int  SPR_RegisterShader(const char* n){ return re.RegisterShader ? (int)re.RegisterShader(n) : 0; }
+ int  SPR_RegisterShaderNoMip(const char* n){ return re.RegisterShaderNoMip ? (int)re.RegisterShaderNoMip(n) : 0; }
++// Long Way Home: live in-world panel images. Both are inert until the game calls them.
++void SPR_RemapShader(const char* oldShader, const char* newShader, const char* offsetTime){
++    if(re.RemapShader) re.RemapShader(oldShader, newShader, offsetTime);
++}
++void SPR_UpdatePanelImage(const char* shaderName, const unsigned char* rgba, int width, int height){
++    if(re.UpdatePanelImage) re.UpdatePanelImage(shaderName, rgba, width, height);
++}
+ // Route b (sp_dropHM): the SP cgame loads the renderer world itself (no HM spmap). Gated so that
+ // in legacy mode (sp_dropHM 0) the HM cgame's CG_R_LOADWORLDMAP already loaded it -> no double-load.
+ void SPR_LoadWorld(const char* n){ if(re.LoadWorld && Cvar_VariableIntegerValue("sp_dropHM")) re.LoadWorld(n); }
+diff --git a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+--- a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
++++ b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+@@ -538,6 +538,9 @@
+ // Forward decls for the New-Game-respawn hunk/GPU reclaim (C1) — same proven teardown SP_FinishTransition uses.
+ extern "C" void SPR_ShutdownRenderer(void);
+ extern "C" void SPR_InitRenderer(void);
++// Long Way Home: live in-world panel images (defined in sp_integration.c).
++extern "C" void SPR_RemapShader(const char* oldShader, const char* newShader, const char* offsetTime);
++extern "C" void SPR_UpdatePanelImage(const char* shaderName, const unsigned char* rgba, int width, int height);
+ static void     SP_FillGlConfig(void);
+ // True once an SP world's models/textures occupy the permanent hunk + GPU (set by SP_SpawnServer /
+ // SP_FinishTransition). SP_SpawnServer consults it to decide whether a New Game must reclaim first (C1).
+@@ -581,6 +584,7 @@
+     gi.linkentity=W_LinkEntity; gi.unlinkentity=W_UnlinkEntity;
+     gi.EntitiesInBox=W_EntitiesInBox; gi.EntityContact=W_EntityContact;
+     gi.S_Override=g_sOverride; gi.Malloc=I_Malloc; gi.Free=I_Free;
++    gi.RemapShader=SPR_RemapShader; gi.UpdatePanelImage=SPR_UpdatePanelImage;   // Long Way Home panels
+ 
+     ge = GetGameAPI(&gi);
+     if(!ge){ blog("SP_LoadGame: GetGameAPI returned NULL\n"); return qfalse; }
+diff --git a/EFAndroid-SP/app/jni/efcode/renderercommon/tr_public.h b/EFAndroid-SP/app/jni/efcode/renderercommon/tr_public.h
+--- a/EFAndroid-SP/app/jni/efcode/renderercommon/tr_public.h
++++ b/EFAndroid-SP/app/jni/efcode/renderercommon/tr_public.h
+@@ -105,6 +105,10 @@
+ #endif
+ 	void	(*RegisterFont)(const char *fontName, int pointSize, fontInfo_t *font);
+ 	void	(*RemapShader)(const char *oldShader, const char *newShader, const char *offsetTime);
++	// Long Way Home: replace a shader's base image with live 32-bit RGBA, so a world surface (a
++	// panel) can show state the game recomputes. Bounded: the image must already exist at the
++	// given size (it is the shader's own image), and nothing is drawn until the game calls it.
++	void	(*UpdatePanelImage)(const char *shaderName, const byte *rgba, int width, int height);
+ 	qboolean (*GetEntityToken)( char *buffer, int size );
+ 	qboolean (*inPVS)( const vec3_t p1, const vec3_t p2 );
+ 
+diff --git a/EFAndroid-SP/app/jni/efcode/renderervk/tr_common.h b/EFAndroid-SP/app/jni/efcode/renderervk/tr_common.h
+--- a/EFAndroid-SP/app/jni/efcode/renderervk/tr_common.h
++++ b/EFAndroid-SP/app/jni/efcode/renderervk/tr_common.h
+@@ -95,6 +95,8 @@
+ image_t *R_FindImageFile( const char *name, imgFlags_t flags );
+ image_t *R_CreateImage( const char *name, const char *name2, byte *pic, int width, int height, imgFlags_t flags );
+ void R_UploadSubImage( byte *data, int x, int y, int width, int height, image_t *image );
++// Long Way Home: overwrite the image a named shader uses with live RGBA (see refexport_t).
++void RE_UpdatePanelImage( const char *shaderName, const byte *rgba, int width, int height );
+ 
+ qhandle_t RE_RegisterShaderLightMap( const char *name, int lightmapIndex );
+ qhandle_t RE_RegisterShader( const char *name );
+diff --git a/EFAndroid-SP/app/jni/efcode/renderervk/tr_init.c b/EFAndroid-SP/app/jni/efcode/renderervk/tr_init.c
+--- a/EFAndroid-SP/app/jni/efcode/renderervk/tr_init.c
++++ b/EFAndroid-SP/app/jni/efcode/renderervk/tr_init.c
+@@ -2267,6 +2267,7 @@
+ 
+ 	re.RegisterFont = RE_RegisterFont;
+ 	re.RemapShader = RE_RemapShader;
++	re.UpdatePanelImage = RE_UpdatePanelImage;
+ 	re.GetEntityToken = RE_GetEntityToken;
+ 	re.inPVS = R_inPVS;
+ 
+diff --git a/EFAndroid-SP/app/jni/efcode/renderervk/tr_image.c b/EFAndroid-SP/app/jni/efcode/renderervk/tr_image.c
+--- a/EFAndroid-SP/app/jni/efcode/renderervk/tr_image.c
++++ b/EFAndroid-SP/app/jni/efcode/renderervk/tr_image.c
+@@ -836,6 +836,32 @@
+ 	ri.Hunk_FreeTempMemory( upload_data.buffer );
+ }
+ 
++// Long Way Home: overwrite a named shader's base image with live RGBA. The image must already exist
++// at this size -- the shader's own placeholder -- and this only refreshes its contents, so a world
++// surface (a panel) can show state the game recomputes each frame (see refexport_t).
++void RE_UpdatePanelImage( const char *shaderName, const byte *rgba, int width, int height ) {
++	shader_t *sh;
++	image_t *image;
++	int w, h;
++	if ( !shaderName || !rgba || width <= 0 || height <= 0 ) return;
++	sh = R_FindShaderByName( shaderName );
++	if ( !sh || sh == tr.defaultShader || !sh->stages[0] ) return;
++	image = sh->stages[0]->bundle[0].image[0];
++	if ( !image || image->uploadWidth <= 0 || image->uploadHeight <= 0 ) return;
++	R_SyncRenderThread();
++	// The image's own size is authority: the shader may have scaled or picmip'd it. Resample to it.
++	w = image->uploadWidth;
++	h = image->uploadHeight;
++	if ( w == width && h == height ) {
++		vk_upload_image_data( image, 0, 0, w, h, 1, (byte *)rgba, w * h * 4, qtrue );
++	} else {
++		byte *resampled = (byte *)ri.Hunk_AllocateTempMemory( w * h * 4 );
++		ResampleTexture( (unsigned *)rgba, width, height, (unsigned *)resampled, w, h );
++		vk_upload_image_data( image, 0, 0, w, h, 1, resampled, w * h * 4, qtrue );
++		ri.Hunk_FreeTempMemory( resampled );
++	}
++}
++
+ #else // !USE_VULKAN
+ 
+ static GLint RawImage_GetInternalFormat( const byte *scan, int numPixels, qboolean lightMap, qboolean allowCompression )
+@@ -1056,6 +1082,18 @@
+ 		Upload32( data, x, y, width, height, image, qtrue ); // subImage = qtrue
+ 	}
+ }
++
++// Long Way Home: overwrite a named shader's base image with live RGBA (GL path; see the Vulkan one).
++void RE_UpdatePanelImage( const char *shaderName, const byte *rgba, int width, int height ) {
++	shader_t *sh;
++	image_t *image;
++	if ( !shaderName || !rgba || width <= 0 || height <= 0 ) return;
++	sh = R_FindShaderByName( shaderName );
++	if ( !sh || sh == tr.defaultShader || !sh->stages[0] ) return;
++	image = sh->stages[0]->bundle[0].image[0];
++	if ( !image || image->uploadWidth != width || image->uploadHeight != height ) return;
++	R_UploadSubImage( (byte *)rgba, 0, 0, width, height, image );
++}
+ #endif // !USE_VULKAN
+ 
+ 

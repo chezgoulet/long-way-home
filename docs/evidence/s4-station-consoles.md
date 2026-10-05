@@ -2,8 +2,8 @@
 
 Date: 2026-10-06, updated 2026-10-07. Gate S4 of `docs/ship-programme.md` asks for every station's
 console with its canonical purpose, and live status on the panels in the world. The consoles are the
-first slice; the glance's anchored half is a later section. Reproduce with `scripts/s4-check.sh` and
-`scripts/s4-glance-check.sh`.
+first slice; the glance's anchored and painted halves are later sections. Reproduce with
+`scripts/s4-check.sh`, `scripts/s4-glance-check.sh` and `scripts/s4-panel-check.sh`.
 
 ## What is built
 
@@ -59,6 +59,34 @@ LWH: the transporter panel opens the OPERATIONS console
 SHIP: medical state: INJURED 0   IN TREATMENT 0   SICKBAY OUTPUT 100%   LOST 0   ASSIMILATED 0
 ```
 
+## The painted panel: state on the surface itself (2026-10-07)
+
+The anchored readout is the glance's first half; this is the second — live state drawn onto the
+surface. `patches/0014` adds the one capability the engine owes us: `gi.RemapShader` (already in the
+renderer, now routed through the SP bridge) and `gi.UpdatePanelImage`, which finds a named shader's
+base image and uploads 32-bit RGBA into it, resampling to the image's own size (Vulkan through
+`vk_upload_image_data` with the update flag). The game decides what to draw; with the module unset
+the two import slots are null and nothing changes.
+
+Everything drawn is ours, in `module/ship/lwh_panel.cpp`: a 5x7 font, a 128x128 LCARS picture (day,
+watch, condition, power, crew, stores, an alarm, a power bar), redrawn four times a second and
+uploaded. The merged ship ships `scripts/lwh_panel.shader` and a placeholder `gfx/lwh/panel.tga`; the
+generated decks carry a status screen that names that shader, and the module remaps three real
+console textures (`transporter/panel`, `sickbay/panel12`, `engineering/conpanel`) to it so the ship's
+own consoles show state too.
+
+```
+SHIP: panel test: standing on deck 6 at (-4512 -3584 -19312) facing the screen
+PASS  the ship's live state is painted onto the panel surface
+      screenshot: build/g3-home/baseEF/screenshots/lwh_panel.tga
+```
+
+The screenshot shows `DAY 0 08:04  ALPHA`, `CONDITION GREEN`, `POWER 1160/1160  CREW 141/141`,
+`ALL SYSTEMS NOMINAL`, with the alert band and the power bar. `scripts/s4-panel-check.sh` reproduces
+it. The one blemish: the generated deck's screen is world geometry whose texture coordinates span
+two tiles, so the picture repeats across it; the real consoles' own coordinates are correct. That is
+an authoring fix (screen geometry), not the capability.
+
 ## The glance: the ship's state at the panel (2026-10-07)
 
 The owner asked for **both**: live status on the panel in the world, and a full-screen console. The
@@ -101,9 +129,10 @@ is unchanged. The whole 13-patch series was re-verified from a clean clone
   but none of them has a control beyond on/off yet — the transporter needs a target and a recipient,
   sickbay needs triage, and astrometrics needs the survey; each needs its own controls and the core
   state they act on. The replicator panel still opens its retail screen.
-- **The second half of the glance: the surface itself painted with state.** The anchored readout
-  above is the first half; a renderer capability to upload live state into a texture bound to the
-  panel's shader is the next, larger step (see `docs/engine-extension-policy.md`).
+- **Panel surfaces are painted** (below): the ship's state is drawn into a texture the panel shader
+  uses. What remains is placing it: the published decks are remapped by texture name, and the
+  invented generated-deck screen tiles rather than filling its face (an authoring fix, not an engine
+  one).
 - **A person at a panel.** The commands and the readout were exercised by the harness and the
   camera; nobody has walked up to the tactical station on the bridge of the merged ship by hand.
 - **The station table's edges are invention** (structural integrity and life support under
