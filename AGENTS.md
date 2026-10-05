@@ -8,7 +8,7 @@ and its expansion are **modes of the client**, not a stepping stone: their behav
 
 Three modes, contract in `docs/client-modes.md`:
 1. the retail campaign and expansion, unmodified in behaviour;
-2. retail multiplayer, run as **cMoc as shipped** -- inherited, zero delta from us, launched by
+2. retail multiplayer, run as **cMod as shipped** -- inherited, zero delta from us, launched by
    `scripts/run-cmod.sh`;
 3. Long Way Home: our own single player and multiplayer, built on the released Raven game source.
 
