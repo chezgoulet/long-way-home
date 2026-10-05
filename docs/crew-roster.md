@@ -111,6 +111,35 @@ A model asked for 141 characters will produce 141 variations of the same three p
 Acceptance: given two crew members at random, a log can tell them apart by what they want and who they hold
 with. If it cannot, the generator has failed and the build should say so.
 
+## Public rosters, and what each is good for
+
+Checked 2026-10-05. There is more public crew data than expected, and each source answers a different
+question.
+
+| source | what it is | what to take from it |
+|---|---|---|
+| **Memory Alpha -- "USS Voyager personnel"** | canon A-Z crew manifest with roles, notes, and casualties ("Ensign Lyndsay Ballard, engineering, 2371-2374 KIA"; "Lieutenant Joe Carey, assistant engineer, 2371-2377 KIA"; "Lieutenant Commander Cavit, XO, KIA 2371") | names, roles, departments, **who died and when** -- which is directly the material for start states and for canon-shaped casualty lists. It also notes that **all Maquis crew held provisional Starfleet ranks**, which is the field-commission precedent the multiplayer premise runs on |
+| **Memory Beta -- "USS Voyager personnel roster"** and its personnel category | the licensed expanded universe: novels, comics, games | volume. Hundreds of names that sound right for a Starfleet crew, to fill Tier B and C. **Non-canon**, and must be marked as such per `docs/lore-ledger.md` |
+| **Ex Astris Scientia -- "Voyager's Crew Complement"** | a fan analysis of the on-screen count and its contradictions (141 at launch, 153 cited, 152 after the Maquis, ~150 later, operable with 100) | the arithmetic, and the honest reconciliation of the numbers we built the ship model on |
+| **the game's own bot roster** | ~60 named characters in the retail paks, with **models and skins** | the priority list for Tier A and B, because these already have faces, and they are ours to use |
+| **fan "crew manifest" projects** | hobbyist rosters, often fan fiction | texture only. Never a source of fact |
+
+### Two traps
+
+1. **Memory Alpha's manifest includes production staff.** Rick Berman, Brannon Braga, Ken Biller, Jay
+   Chattaway, Dick Brownfield, John Chichester and others appear as background characters named after the
+   people who made the show. They are real roster entries and they are not crew we want at the conn. Read
+   each line before using it.
+2. **Facts, not prose.** Names, ranks, roles and dates are facts and can be used. The sentences and
+   characterisations on those wikis cannot be copied into this repository -- and our own characterisation is
+   better anyway, because it has to work with the drives, fears and bonds in this document.
+
+### How this lands in the data
+
+Each character in the crew data files carries a **provenance** field: `canon`, `licensed`, or `ours`. That
+keeps the roster honest at a glance, matches the discipline in `docs/lore-ledger.md`, and means a character
+drawn from a novel is never presented as something the show established.
+
 ## 7. The named core we already have
 
 The game itself supplies named faces, which is why the reuse rule holds here too: the bot roster alone gives
