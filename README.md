@@ -27,7 +27,8 @@ The gate ledger, `docs/gates.md`, is the authority; this is its summary.
 | G3 | reactive crew: 5–10 NPCs holding posts on one deck | implemented and measured; awaiting the owner's judgement |
 | S1 | ship core: power, systems, decks, clock, the 141-crew roster and watches | done |
 | S2 | the ship running in the game, and Main Engineering's console driving it | built and verified headless; yours to operate |
-| S3–S10 | the whole-ship map, every station's console, crew lives, damage, intruders, the Borg, the outside | S3 next; see `docs/ship-programme.md` |
+| S3 | the whole ship as one map: fifteen decks, toured by turbolift | built and verified headless; not yet walked by a person |
+| S4–S10 | every station's console, crew lives, damage, intruders, the Borg, the outside | S4 next; see `docs/ship-programme.md` |
 
 ## Building and checking
 
@@ -38,6 +39,7 @@ scripts/fetch-gdk.sh              # fetch the official GDK content G0 is checked
 scripts/check.sh ...              # G0's corpus checks; needs that content
 scripts/g3-measure.sh             # G3's measured run; needs your own copy of the game
 scripts/build-ship.sh             # S3: stitch the published decks into one map and compile it
+scripts/s3-check.sh               # S3: tour all fifteen decks of the one map by turbolift
 scripts/s2-check.sh               # S2: the ship in the game, saved, reloaded, and operated from its console
 scripts/run-engine.sh             # play (see docs/playtest.md)
 scripts/run-scenario.sh           # play a crewed deck

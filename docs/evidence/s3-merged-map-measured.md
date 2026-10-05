@@ -340,3 +340,26 @@ the compiler then writes no visibility data. Added links are placed at their dec
 
 Unexplained and worth a look: the entity count printed at the end of game init differed between
 two loads of the same map (3,323 and 2,543).
+
+## `scripts/s3-check.sh`: fifteen decks, toured (2026-10-06)
+
+The check that reproduces the above in one command. It rides the turbolift from each deck to the
+next, all fifteen in one run with no level load, and on each asks three things of the player: on
+the right deck, standing on a floor, clear of solid.
+
+```
+    406 inline models, entity string 489261 bytes
+    deck  1: at (-3654 -3203 -3981)  standing, clear, on deck 1  ok
+    ...
+    deck 15: at (-3840 -3522 -46959)  standing, clear, on deck 15  ok
+PASS  one map, fifteen decks, each reached by turbolift from the one before with no level load
+INFO  game frame 2.3 ms average, 16.9 ms worst over 381 frames; 518 scripted entities live
+PASS  the game's average frame fits a 60 fps budget (the worst frame is reported, not judged)
+```
+
+With triggers boxed and visibility data present the game frame is 2.3 ms average for the whole
+ship. Some decks have more than one arrival point and the game picks among them, so the position
+on those decks differs from run to run.
+
+What S3 still lacks is what the check's own header says it does not do: a person walking each deck
+after arriving, and the turbolift's real menu being driven rather than its links fired by name.

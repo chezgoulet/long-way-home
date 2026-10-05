@@ -39,6 +39,7 @@ round is done and its answers are in `docs/ship-programme.md`. **Do not re-ask t
 | `scripts/g3-measure.sh` (`--seconds 30` for a quick regression) | G3, eleven criteria | game data, built engine |
 | `scripts/s2-check.sh` | S2: ship in game, save/reload, console operated | same |
 | `scripts/build-ship.sh` | S3: stitches and compiles the whole ship (~3 min with vis+light) | `fetch-gdk.sh`, `fetch-map-tools.sh` |
+| `scripts/s3-check.sh` | S3: one map, fifteen decks, each reached by turbolift, standing and clear; game frame time | the built ship (builds it if absent) |
 
 All engine runs are headless (`xvfb-run`, software Vulkan, `SDL_AUDIODRIVER=dummy`) and write under
 `build/g3-home`, never the owner's `build/home`. A stale `*.pid` file in the home's `baseEF` makes
@@ -100,7 +101,8 @@ Next steps for S3, in dependency order:
    table (66 surfaces) — chosen by name, not by eye, so look at them in the ship. Two of the seven
    (`common/glassportal`, `sickbay/lights`) are defined as shaders and only lack an editor image,
    which is harmless. `common/light_floor` has no obvious stand-in and is still missing.
-7. Someone walks it. S3's exit criterion is every deck reachable on foot. **This is the main thing
+7. (machine part done 2026-10-06: `scripts/s3-check.sh` tours all fifteen decks, 15 of 15.)
+   Someone walks it. S3's exit criterion is every deck reachable on foot. **This is the main thing
    left in S3** and needs either the owner in a session or a harness that walks: e.g. for each
    deck, ride the link, then check the baked navigation connects the arrival point to that deck's
    waypoints. Also still open: drive the real turbolift menu; investigate why `num_entities` at

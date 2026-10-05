@@ -27,8 +27,10 @@ const char *const CARRY_FILE = "ship/carry.ship";
 cvar_t *g_ship;         // 1 = the ship simulation runs
 cvar_t *g_shipDayScale; // ship seconds per game second (60 = a day in 24 minutes; 1 = real time)
 cvar_t *g_shipTest;     // harness: 1 = act, report, save, quit; 2 = report what a load restored, quit;
-                        //          3 = operate the Engineering console; 4 = go to g_shipTestPos and photograph
+                        //          3 = operate the Engineering console; 4 = go to g_shipTestPos and photograph;
+                        //          5 = ride the turbolift to every deck and report each arrival
 cvar_t *g_shipTestPos;
+cvar_t *g_shipTestPitch;
 cvar_t *g_shipTestWatch; // "x y z": report whether the trigger centred there has fired
 
 bool active = false;
@@ -183,6 +185,36 @@ void RunTest( void )
 		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}
+	if ( g_shipTest->integer == 5 )
+	{//ride the turbolift to every deck in turn, and say how the player arrived on each
+		static int deck = 0, from = 1, nextMs = 0, good = 0;
+		if ( level.time < 1000 ) { deck = 0; from = 1; nextMs = 3000; good = 0; }
+		if ( level.time < nextMs || deck > ship::DECKS ) return;
+		gentity_t *player = &g_entities[0];
+		if ( deck >= 1 )
+		{//report the arrival made a second ago
+			trace_t tr;
+			gi.trace( &tr, player->currentOrigin, player->mins, player->maxs, player->currentOrigin, 0, MASK_PLAYERSOLID );
+			const bool onFloor = player->client->ps.groundEntityNum != ENTITYNUM_NONE;
+			const bool clear = !tr.startsolid && !tr.allsolid;
+			const float depth = -player->currentOrigin[2];
+			const int arrived = static_cast<int>( ( depth - 1636.0f ) / g_shipTestPitch->value ) + 1;
+			const bool ok = onFloor && clear && arrived == deck;
+			if ( ok ) ++good;
+			gi.Printf( "SHIP: deck %2d: at %s  %s, %s, on deck %d  %s\n", deck, vtos( player->currentOrigin ),
+				onFloor ? "standing" : "NOT ON A FLOOR", clear ? "clear" : "IN SOLID", arrived, ok ? "ok" : "FAILED" );
+			from = arrived;
+		}
+		if ( ++deck > ship::DECKS )
+		{
+			gi.Printf( "SHIP: turbolift tour: %d of %d decks reached standing and clear\n", good, ship::DECKS );
+			gi.SendConsoleCommand( "quit\n" );
+			return;
+		}
+		if ( deck != from ) gi.SendConsoleCommand( Fmt( "use d%02d_tour_turbo_%02d\n", from, deck ).c_str() );
+		nextMs = level.time + 1500;
+		return;
+	}
 	if ( g_shipTest->integer == 4 )
 	{//stand somewhere else in the ship (g_shipTestPos "x y z") and photograph what is there
 		static int step = 0;
@@ -246,6 +278,7 @@ void Ship_RegisterCvars( void )
 	g_shipDayScale = gi.cvar( "g_shipDayScale", "60", 0 );
 	g_shipTest = gi.cvar( "g_shipTest", "0", 0 );
 	g_shipTestPos = gi.cvar( "g_shipTestPos", "0 0 0", 0 );
+	g_shipTestPitch = gi.cvar( "g_shipDeckPitch", "0", 0 );
 	g_shipTestWatch = gi.cvar( "g_shipTestWatch", "", 0 );
 }
 
