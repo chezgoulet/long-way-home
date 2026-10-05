@@ -107,11 +107,52 @@ weapons and shields (tier 2); damage and the repair economy (tier 3) -- because 
 frightening if the ship can be hurt and the crew can be lost; then the incursion itself. Building it
 before tier 3 gives a threat that cannot wound and a crew that cannot be spent.
 
-## Open questions for the owner
+## Owner's answers (2026-10-05)
 
-- Can the player be **assimilated** -- and if so, is that an ending, or a window in which someone else
-  can save them?
-- Does an incursion ever **end well**? Canon says the cube is destroyed or departs; our north star says
-  the cost stays.
-- How long is the **reversal window** in ship time -- minutes, as canon implies, or longer so that a
-  player can realistically reach the person in time?
+The three questions are settled, and they change the model:
+
+- **The player can be assimilated, and can be pulled back out.** Assimilation is a window, not an ending
+  -- for the player as much as for the crew.
+- **Incursions can end well.** The Borg can only assimilate a place if they are left alone with it for a
+  while, so the crew's job is often *interruption* rather than extermination. One precision to keep both
+  halves true: **wins are possible; clean wins are not.** You get the ship back, never for free -- the
+  residue stays.
+- **Reversal gets harder the longer it has been.** So it is a progress value with a rising cost, not a
+  binary window.
+
+## Two kinds of intruder, and why the model needs two fields
+
+The owner's third answer is a design correction: **other races do not assimilate.** Only the Borg take
+people and places. Everyone else -- scavengers, raiders, whoever boards -- takes **systems**: they hack,
+slice, spoof and seize control. That is why the system-hacking features exist, and it means a single
+`controller` field is not enough.
+
+Two payloads, therefore two fields per compartment:
+
+- **`controller`** -- who is physically there: `crew`, `borg`, `contested`, `sealed`, `uninhabitable`.
+  The Borg write this, and only the Borg do. Assimilation converts *bodies and places*.
+- **`compromise`** -- whether the systems in that compartment can be trusted: `clean`, `sliced`,
+  `spoofed`, `locked_out`. Intruders of any race write this, and so can a clever enemy who never sets
+  foot aboard. Hacking converts *systems*, and costs no lives directly.
+
+The combination is the interesting part: a compartment can be **held by the crew and compromised** --
+you are standing in it, and the door is theirs, the sensor feed is lying to you, and the console will not
+answer. Borg takeover and system compromise are orthogonal, and a ship can suffer both at once: drones
+coming up a Jefferies tube while the bulkhead controls are in someone else's hands. That is a much better
+disaster than either alone.
+
+They also need **different detection**, which is a gift for tension. The Borg are *visible* -- drones,
+tubules, the green of a converted conduit. A compromise is *invisible* until it bites: a door that will
+not open, a reading that does not match the window, a crew roster with a name on it that should not be
+there. **The Borg are a fire. A hack is a leak.** The crew need a way to find the leak -- diagnostics,
+log audits, an engineer who says the numbers are wrong -- or the threat has no counter-play at all.
+
+## Reversal as a decay, not a window
+
+With the owner's answer, reversal becomes a value rather than a gate:
+
+- per crew member, an assimilation **progress** (the canon five stages) that advances while they are held;
+- such a person can be recovered, and the **cost of recovery rises with progress**: more medical time,
+  more materials, more risk of failure, and a higher chance of lasting damage;
+- and reclamation of the ship is the same shape, done by *work* rather than medicine -- see
+  `docs/crew-work.md`, where stripping Borg modification is one of the four activities the crew do.
