@@ -57,14 +57,17 @@ git -C "$WORK" checkout --quiet "$UPSTREAM_SHA"
 git -C "$WORK" reset --hard --quiet "$UPSTREAM_SHA"
 git -C "$WORK" clean -qfd
 
-echo "==> applying $(ls "$PATCHES"/*.patch | wc -l) patch(es)"
+echo "==> applying $(find "$PATCHES" -name '*.patch' | wc -l) patch(es)"
 for p in "$PATCHES"/*.patch; do
   echo "    $(basename "$p")"
   git -C "$WORK" apply --whitespace=nowarn "$p"
 done
 
 echo "==> configuring"
-cmake -S "$WORK/efgame" -B "$WORK/efgame/build-linux" -G "$GENERATOR" -DCMAKE_BUILD_TYPE=Release
+# LWH_MODULE_DIR compiles this repository's own game logic (module/) into the game module; the
+# hooks patch 0005 adds are empty inlines without it.
+cmake -S "$WORK/efgame" -B "$WORK/efgame/build-linux" -G "$GENERATOR" -DCMAKE_BUILD_TYPE=Release \
+  -DLWH_MODULE_DIR="$ROOT/module"
 
 echo "==> building"
 cmake --build "$WORK/efgame/build-linux" -j"$(nproc)"
@@ -88,6 +91,19 @@ cmake -S "$ROOT/tools/ibi-dump" -B "$WORK/ibi-dump-build" -G "$GENERATOR" \
 cmake --build "$WORK/ibi-dump-build" -j"$(nproc)"
 ls -la "$WORK/ibi-dump-build/ibi-dump"
 echo
-echo "Expected exports:"
-echo "  libefgame.so : GetGameAPI, vmMain, dllEntry"
-echo "  libefui.so   : GetUIAPI"
+# The module links with --unresolved-symbols=ignore-all (engine syscalls resolve at dlopen), so a
+# missing symbol of our own would not fail the link. Check the exports instead of trusting it.
+echo "==> checking exports"
+exports="$(nm -D --defined-only "$WORK/efgame/build-linux/libefgame.so" | awk '$2 == "T" {print $3}' | sort | tr '\n' ' ')"
+ui_exports="$(nm -D --defined-only "$WORK/efgame/build-linux/libefui.so" | awk '$2 == "T" {print $3}' | sort | tr '\n' ' ')"
+echo "  libefgame.so : $exports"
+echo "  libefui.so   : $ui_exports"
+for want in GetGameAPI vmMain dllEntry; do
+  case "$exports" in *"$want"*) ;; *) echo "libefgame.so does not export $want" >&2; exit 1 ;; esac
+done
+case "$ui_exports" in *GetUIAPI*) ;; *) echo "libefui.so does not export GetUIAPI" >&2; exit 1 ;; esac
+[ "$(echo "$exports" | wc -w)" -eq 3 ] || { echo "libefgame.so exports more than its three entry points" >&2; exit 1; }
+if nm -D --undefined-only "$WORK/efgame/build-linux/libefgame.so" | grep -q 'Crew_'; then
+  echo "libefgame.so has unresolved Crew_ symbols: the direction layer was not compiled in" >&2; exit 1
+fi
+echo "  ok: the intended entry points and nothing else"
