@@ -47,6 +47,64 @@ Strategic places are strategic because of what holding them *gives* the Borg. Th
   vessel has one; destroying it severs local coordination, **but severed drones keep executing secondary
   objectives**. So a vinculum raid is a reprieve with a cost, never a win condition.
 
+## No dwell, no write: the clean intercept
+
+Owner's addition, 2026-10-05: if security reaches an intruder quickly -- before they touch a system,
+assimilate anyone, or hold ground -- then **nothing happens to the ship.** Not a smaller consequence:
+none.
+
+That is the rule that makes security a job rather than a damage report, and it is best expressed as an
+implementation principle:
+
+> **The ship's state is only written by things that last long enough to write it.**
+> Intrusion effects are *writes* to the model -- `compromise`, `controller`, crew records, the job queue
+> -- and every write requires **dwell time**. Below the threshold, nothing is written.
+
+So an intrusion is not an event that causes damage; it is a **clock the crew can beat.** Which turns the
+whole mechanic into a race between two durations:
+
+- **time to effect** -- how long the intruder needs, unopposed, to reach a system, to begin slicing, to
+  start assimilation, to hold a compartment;
+- **time to intercept** -- detection, alarm, the duty roster, where the security team is standing, how
+  fast the corridors and turbolifts carry them, whether the hatch can be sealed to buy minutes.
+
+Both are clocks, both are tunable, and neither needs a shooting engine to be tense. A turbolift that is
+two minutes away because it is carrying engineering to a repair is a *tactical* consequence of the crew
+economy in `docs/crew-work.md` -- which is exactly the kind of coupling this programme is for.
+
+### Thresholds, not a switch on boarding
+
+Per intruder group: `arrived` -> `undetected` or `detected` -> `engaged` -> dwell. The dwell timer writes
+nothing until it crosses its first threshold, then:
+
+- **first threshold** -- the compartment's `compromise` begins (someone is in the wiring);
+- **second** -- `controller` becomes contested, the intruders hold ground;
+- **third** -- Borg: assimilation of people and the compartment; others: systems seized outright.
+
+Security action reduces or resets the dwell; killing or capturing the group ends it. And the thresholds
+should be visible to whoever is watching -- a security console that says *contact, deck seven, no systems
+touched* is the crew being told they are *winning*, which no attrition game gives them often enough.
+
+### Undetected is the dangerous case
+
+The corollary, and it is where the threat lives: **if the intruders are never detected, nobody is coming,
+and the clock runs to completion.** With no-impact intercepts available, an enemy that wants to hurt the
+ship must arrive unnoticed, arrive in numbers, or create a diversion -- which is what a competent enemy
+does, and what canon shows (transported drones, a boarding party in a shuttlebay, an ally who is not
+one). Detection is therefore a *security capability* the crew can be good or bad at, and the department
+has something real to fail at besides shooting straight.
+
+### A clean intercept is a win, and must be recorded as one
+
+Because the programme's whole feel is attrition, the counter-beat has to be recorded: **no damage, and a
+line in the record.** *Security intercepted two intruders in the shuttlebay; no systems compromised; no
+casualties.* Named crew -- the one who spotted them, the team that responded -- belong in it. A game
+where the crew can only lose slowly also needs to tell them, explicitly, when they did the job well.
+
+**One tuning warning.** If interception is easy, the threat is empty; if the first threshold is tight,
+every stray intruder is a catastrophe and the big ones stop being frightening. The dial is the ratio
+between time-to-effect and time-to-intercept, and it is the single number to tune hardest.
+
 ## Growth, not respawn
 
 Battlefront's *feel* transfers: sector-by-sector fighting over places that matter, with chokepoints and
