@@ -67,13 +67,22 @@ off, to survive the interval -- while the cascade tries to form and the crew spe
 Winning is often leaving with everything still working, and the internal argument afterwards is about what
 should have been shut down earlier.
 
-## The one decision this design needs
+## Decision: how allocation handles time (2026-10-05, owner)
 
-**Does power allocation pause the game?** The reference points pull in opposite directions: the genre this
-borrows from is real-time-with-pause, where planning under pressure is the point; and canon's engineers stand
-at consoles and talk, which reads as a moment of decision. Recommendation: **the engineering console offers a
-planning mode that pauses in single player**, while multiplayer runs it live -- which is also the only version
-of this that works under one-ship-one-server, where a pause would stop the world for everybody.
+**Single player offers a planning pause; multiplayer runs live.** Resolved in favour of the recommendation,
+and it will not be revisited mid-implementation.
+
+Two consequences worth writing down, because they shape the console rather than just the clock:
+
+1. **The pause is relief, not a crutch.** Multiplayer cannot pause -- one player stopping the world would stop
+   it for everyone on the ship -- so the damage-control board must be **operable in real time**: legible at a
+   glance, allocatable in a few inputs, no nested screens. Design it live-first and offer the pause as the
+   single-player courtesy it is. A board that only works paused would break the multiplayer mode the whole
+   programme is built toward.
+2. **Pausing must not become an exploit.** Allocation, inspection and planning are allowed while paused;
+   **nothing completes** while paused. Repair orders, damage-control parties and system restarts are *queued*
+   and execute on resume, in the same order the crew would have carried them out. Otherwise the pause is free
+   labour, and the crew-hours economy in `docs/crew-work.md` stops meaning anything.
 
 ## Acceptance
 
