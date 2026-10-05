@@ -1,0 +1,25 @@
+{
+  "name": "testroom-watch",
+  "maps": ["maps/**/*.map"],
+  "scripts": [],
+  "inhabited": ["maps/lwhroom.map"],
+  "crew": {
+    "map": "lwhroom",
+    "max": 5,
+    "bounds": {"reach_ms": 60000, "ack_ms": 5000, "save_bytes_per_npc": 256},
+    "members": [
+      {"name": "watch1", "type": "Renner", "at": [528, 912, 24], "yaw": 251},
+      {"name": "watch2", "type": "Showers", "at": [144, 272, 24], "yaw": 46},
+      {"name": "watch3", "type": "Green", "at": [528, 272, 24], "yaw": 116},
+      {"name": "watch4", "type": "Lang", "at": [144, 656, 24], "yaw": 335},
+      {"name": "watch5", "type": "Inya", "at": [272, 528, 24], "yaw": 5}
+    ],
+    "posts": [
+      {"name": "post1", "at": [656, 912, 24], "yaw": 236, "holder": "watch1"},
+      {"name": "post2", "at": [144, 144, 24], "yaw": 57, "holder": "watch2"},
+      {"name": "post3", "at": [656, 272, 24], "yaw": 134, "holder": "watch3"},
+      {"name": "post4", "at": [144, 784, 24], "yaw": 316, "holder": "watch4"},
+      {"name": "post5", "at": [400, 528, 24], "yaw": 90, "holder": "watch5"}
+    ]
+  }
+}

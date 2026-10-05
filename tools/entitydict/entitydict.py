@@ -27,7 +27,10 @@ from collections import Counter
 # '?' meaning "no flags defined". Parse the shape, do not assume it.
 # The name is followed by the colour group with or without a space ("NPC_Munro (1 0 0)" vs
 # "NPC_HunterSeeker(1 0 0)"), so the name must stop at an opening bracket.
-QUAKED = re.compile(r"^/\*QUAKED\s+(?P<name>[^\s(]+)(?P<rest>[^*]*)$", re.M)
+# The header is ONE line. `rest` must not cross a newline: a class that excludes only '*' runs on
+# through the description, turning its every word into a "spawnflag" and leaving no body to find
+# keys in.
+QUAKED = re.compile(r"^/\*QUAKED\s+(?P<name>[^\s(]+)(?P<rest>[^\n]*)$", re.M)
 PARENS = re.compile(r"\(([^)]*)\)")
 
 # A documented key is either quoted ("wait" ...) or an identifier followed by ' - '.
@@ -40,15 +43,20 @@ def parse_def(path):
     raw = open(path, encoding="utf-8", errors="replace").read().replace("\r\n", "\n")
     entries = []
     for m in QUAKED.finditer(raw):
-        body_start = raw.find("\n", m.end())
-        body_end = raw.find("*/", body_start if body_start != -1 else m.end())
-        body = raw[body_start:body_end] if body_start != -1 and body_end != -1 else ""
+        rest = m.group("rest")
+        if "*/" in rest:
+            # a one-line entry closes its comment on the header line: it has no body
+            rest, body = rest.split("*/")[0], ""
+        else:
+            body_start = raw.find("\n", m.end())
+            body_end = raw.find("*/", body_start if body_start != -1 else m.end())
+            body = raw[body_start:body_end] if body_start != -1 and body_end != -1 else ""
         name = m.group("name")
-        groups = PARENS.findall(m.group("rest"))
+        groups = PARENS.findall(rest)
         color = groups[0].split() if len(groups) > 0 else []
         mins  = groups[1].split() if len(groups) > 2 else []
         maxs  = groups[2].split() if len(groups) > 2 else []
-        flags_text = PARENS.sub(" ", m.group("rest"))
+        flags_text = PARENS.sub(" ", rest)
         flags = [f for f in flags_text.replace("?", " ").split() if f not in ("x",)]
         keys = sorted(set(KEY_QUOTED.findall(body)) | set(KEY_DASHED.findall(body)))
         entries.append({
@@ -92,8 +100,10 @@ def main():
         entries = [e for f in a.deffile for e in parse_def(f)]
         doc = {e["name"]: e for e in entries}
         if a.json:
-            os.makedirs(os.path.dirname(a.json), exist_ok=True)
-            json.dump(doc, open(a.json, "w"), indent=1, sort_keys=True)
+            # abspath: a bare filename has no directory part, and makedirs("") raises
+            os.makedirs(os.path.dirname(os.path.abspath(a.json)), exist_ok=True)
+            with open(a.json, "w") as fh:
+                json.dump(doc, fh, indent=1, sort_keys=True)
         print(f"parsed {len(entries)} entity classes from {', '.join(os.path.basename(f) for f in a.deffile)}")
         print(f"  with documented keys: {sum(1 for e in entries if e['keys'])}")
         print(f"  spawnflag sets:       {sum(1 for e in entries if e['flags'])}")
@@ -103,8 +113,9 @@ def main():
     if a.cmd == "scan":
         counts, files = scan_maps(a.maps)
         if a.json:
-            os.makedirs(os.path.dirname(a.json), exist_ok=True)
-            json.dump(dict(counts), open(a.json, "w"), indent=1, sort_keys=True)
+            os.makedirs(os.path.dirname(os.path.abspath(a.json)), exist_ok=True)
+            with open(a.json, "w") as fh:
+                json.dump(dict(counts), fh, indent=1, sort_keys=True)
         print(f"{files} map files, {len(counts)} distinct entity classes")
         for name, n in counts.most_common(15):
             print(f"  {n:6d}  {name}")
