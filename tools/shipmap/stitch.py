@@ -48,6 +48,15 @@ NAME_KEYS = ("targetname", "target", "target2", "target3", "target4", "killtarge
              "closetarget", "NPC_targetname", "npc_targetname", "NPC_target", "npc_target", "script_targetname",
              "team", "ownername", "cameraGroup", "enemy", "goaltarget", "falsetarget")
 FOLDABLE = ("func_static", "func_wall")
+# Textures the published sources name that the shipped game does not have, and the nearest thing it
+# does. Chosen by name, not by eye: each is a guess to be looked at in the ship and corrected here.
+SUBSTITUTE = {
+    "hall/hallcomp": "hall/hallcomp2",
+    "hall/hallfloor2": "hall/hallfloor1",
+    "hall/supportsegment_side3": "hall/supportsegment_side2",
+    "voyager/runnerlightsra": "voyager/runnerlights",
+}
+FACE_TEXTURE = re.compile(r"^(\((?:[^()]*\)\s*\(){2}[^()]*\)\s+)(\S+)")
 STRAY_Z = -2048       # deck geometry lies well below this; the stray brush sits near zero
 MODEL_LIMIT = 256     # the engine's model index, before S3's patch
 
@@ -62,7 +71,18 @@ class Brush:
         self.zmin, self.zmax = 1e9, -1e9
         self.is_patch = False
 
+    substituted = 0
+
     def add(self, line):
+        # the texture: second token-group of a brush face, or a patch's line of its own
+        if self.is_patch and line.lower() in SUBSTITUTE:
+            line = SUBSTITUTE[line.lower()]
+            Brush.substituted += 1
+        elif line.startswith("(") and not self.is_patch:
+            m = FACE_TEXTURE.match(line)
+            if m and m.group(2).lower() in SUBSTITUTE:
+                line = m.group(1) + SUBSTITUTE[m.group(2).lower()] + line[m.end():]
+                Brush.substituted += 1
         self.lines.append(line)
         if line.startswith("patchDef"):
             self.is_patch = True
@@ -143,6 +163,7 @@ def shift_origin(value, dz):
 
 def stitch(deck_files, pitch):
     """deck_files: {deck number: path}. Returns (world_keys, world_brush_lines, entities, report)."""
+    Brush.substituted = 0
     if pitch % 1024:
         raise ValueError("pitch must be a multiple of 1024, or world-aligned textures will slip")
     decks = {n: parse(p) for n, p in sorted(deck_files.items())}
@@ -215,6 +236,7 @@ def stitch(deck_files, pitch):
             out.append((keys, [b.moved(dz) for b in keep]))
         report["decks"][n] = {"entities": len(ents), "z": [min(zs), max(zs)] if zs else None}
 
+    report["textures_substituted"] = Brush.substituted
     report["world_brushes"] = len(world)
     report["entities"] = len(out) + 1
     report["brush_models"] = sum(report["models"].values())
@@ -275,6 +297,7 @@ def main(argv=None):
           f"stray brushes dropped {report['dropped_stray_brushes']}, folded into the world {report['folded']}")
     print(f"  brush models {report['brush_models']} (engine limit {MODEL_LIMIT}): {report['models']}")
     print(f"  names renamed because more than one deck uses them: {len(report['renamed'])}")
+    print(f"  surfaces given a substitute for a texture the shipped game lacks: {report['textures_substituted']}")
     print(f"  turbolift links between decks: {report['turbolift_links']}; level changes left as they were "
           f"(not decks of this ship): {len(report['level_changes_left'])}")
     for n, v in sorted(report["decks"].items()):

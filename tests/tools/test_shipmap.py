@@ -151,6 +151,17 @@ class Stitch(unittest.TestCase):
         self.assertEqual(reparsed[0][0]["classname"], "worldspawn")
         self.assertEqual(sum(len(b) for _, b in reparsed), report["world_brushes"] + report["brush_models"])
 
+    def test_missing_textures_are_substituted_on_faces_and_patches(self):
+        patch = PATCH.replace("t/curve", "hall/hallcomp")
+        src = ent(box(-4096, -4000, tex="hall/hallfloor2") + box(-4000, -3990, tex="t/wall") + patch, classname="worldspawn")
+        world, _, report, _ = self.run_stitch({1: src})
+        text = "\n".join(l for b in world for l in b)
+        self.assertNotIn("hall/hallfloor2", text)
+        self.assertIn(") hall/hallfloor1 16 32 0 0.5 0.5 0 0 0", text)  # the alignment after the name is untouched
+        self.assertIn("\nhall/hallcomp2\n", text)
+        self.assertIn("t/wall", text)
+        self.assertEqual(report["textures_substituted"], 6 + 1)
+
     def test_overlap_and_bad_pitch_are_reported(self):
         tall = ent(box(-4096, -1500) + box(-8, 8), classname="worldspawn")
         _, _, report, _ = self.run_stitch({1: tall, 2: tall}, pitch=2048)

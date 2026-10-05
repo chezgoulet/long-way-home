@@ -95,8 +95,10 @@ Next steps for S3, in dependency order:
    point; then the stitcher emits `mins`/`maxs` instead of brushes.
 5. The five decks with no source (6, 7, 12, 13, 14): generated; everything about them is invention
    and goes in `docs/lore-ledger.md`.
-6. Seven textures the published sources name and the shipped game lacks (listed in
-   `docs/evidence/s3-merged-map-measured.md`): substitute in the stitcher.
+6. (mostly done 2026-10-06) Missing textures: four are substituted by the stitcher's `SUBSTITUTE`
+   table (66 surfaces) — chosen by name, not by eye, so look at them in the ship. Two of the seven
+   (`common/glassportal`, `sickbay/lights`) are defined as shaders and only lack an editor image,
+   which is harmless. `common/light_floor` has no obvious stand-in and is still missing.
 7. Someone walks it. S3's exit criterion is every deck reachable on foot.
 
 Known risks in S3: all ten decks' scripts now run at once in one level, which they were never

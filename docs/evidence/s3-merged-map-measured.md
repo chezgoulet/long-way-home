@@ -282,3 +282,7 @@ Run in the engine, using deck 1's links as the menu would:
 No level load, no loading screen: the ship is one place. What this is not yet: the turbolift
 *menu* has not been driven (the links were fired by name), the ride is instant, and the original
 `target` of each level change — whatever it fired on departure — is dropped.
+
+Textures: of the seven the compiler could not find, two are shaders that merely lack an editor
+image, four now get the nearest-named retail texture from the stitcher (66 surfaces — a guess by
+name, to be checked by eye), and one, `common/light_floor`, has no stand-in yet.
