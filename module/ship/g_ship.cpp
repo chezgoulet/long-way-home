@@ -29,6 +29,7 @@ cvar_t *g_shipDayScale; // ship seconds per game second (60 = a day in 24 minute
 cvar_t *g_shipTest;     // harness: 1 = act, report, save, quit; 2 = report what a load restored, quit;
                         //          3 = operate the Engineering console; 4 = go to g_shipTestPos and photograph
 cvar_t *g_shipTestPos;
+cvar_t *g_shipTestWatch; // "x y z": report whether the trigger centred there has fired
 
 bool active = false;
 bool tested = false;
@@ -134,6 +135,24 @@ void Publish( void )
 	}
 }
 
+// Reports the trigger whose centre is at g_shipTestWatch: a trigger that has fired is waiting
+// (nextthink set) before it can fire again.
+void ReportWatchedTrigger( const char *when )
+{
+	vec3_t at;
+	if ( sscanf( g_shipTestWatch->string, "%f %f %f", &at[0], &at[1], &at[2] ) != 3 ) return;
+	for ( int i = 1; i < globals.num_entities; ++i )
+	{
+		const gentity_t *e = &g_entities[i];
+		if ( !e->inuse || !e->classname || Q_stricmpn( e->classname, "trigger", 7 ) ) continue;
+		if ( DistanceSquared( e->currentOrigin, at ) > 4.0f ) continue;
+		gi.Printf( "SHIP: trigger %d (%s, %s) %s: %s; bounds %s .. %s\n", i, e->classname, e->model && e->model[0] == '*' ? "brush model" : "box",
+			when, e->nextthink > level.time ? "FIRED, waiting to re-arm" : "armed, not fired", vtos( e->absmin ), vtos( e->absmax ) );
+		return;
+	}
+	gi.Printf( "SHIP: no trigger found at %s\n", g_shipTestWatch->string );
+}
+
 // The harness (scripts/s2-check.sh): do to the ship what a console would, then prove the result
 // is what the save holds.
 void RunTest( void )
@@ -170,6 +189,7 @@ void RunTest( void )
 		if ( level.time < 1000 ) step = 0;
 		if ( step == 0 && level.time >= 3000 )
 		{
+			ReportWatchedTrigger( "before the player arrives" );
 			vec3_t to = { 0, 0, 0 }, angles = { 0, 0, 0 };
 			if ( sscanf( g_shipTestPos->string, "%f %f %f", &to[0], &to[1], &to[2] ) == 3 )
 			{
@@ -181,7 +201,8 @@ void RunTest( void )
 			}
 			step = 1;
 		}
-		if ( step == 1 && level.time >= 7000 ) { gi.SendConsoleCommand( "screenshot lwh_ship\n" ); step = 2; }
+		if ( step == 1 && level.time >= 4500 ) { ReportWatchedTrigger( "with the player inside it" ); step = 10; }
+		if ( step == 10 && level.time >= 7000 ) { gi.SendConsoleCommand( "screenshot lwh_ship\n" ); step = 2; }
 		if ( step == 2 && level.time >= 8000 )
 		{
 			gentity_t *player = &g_entities[0];
@@ -225,6 +246,7 @@ void Ship_RegisterCvars( void )
 	g_shipDayScale = gi.cvar( "g_shipDayScale", "60", 0 );
 	g_shipTest = gi.cvar( "g_shipTest", "0", 0 );
 	g_shipTestPos = gi.cvar( "g_shipTestPos", "0 0 0", 0 );
+	g_shipTestWatch = gi.cvar( "g_shipTestWatch", "", 0 );
 }
 
 void Ship_Init( void )

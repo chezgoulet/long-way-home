@@ -91,9 +91,8 @@ Next steps for S3, in dependency order:
    (`g_shipTest 4` with `g_shipTestPos <targetname>` uses that entity). Still to do here: drive the
    real turbolift *menu* (`ui_turbolift.cpp`) on the merged ship, and restore whatever each level
    change's original `target` fired.
-4. (done 2026-10-06, one check owed) Triggers as boxes: `patches/0011` + the stitcher + `inject.py`;
-   brush models 900 -> 406. **Owed: prove a boxed trigger fires** — e.g. a harness step that
-   teleports the player into a known boxed `trigger_multiple` and watches its target get used.
+4. (done 2026-10-06) Triggers as boxes: `patches/0011` + the stitcher + `inject.py`; brush models
+   900 -> 406; a boxed trigger proven to fire (`g_shipTest 4` with `g_shipTestWatch "x y z"`).
 5. The five decks with no source (6, 7, 12, 13, 14): generated; everything about them is invention
    and goes in `docs/lore-ledger.md`.
 6. (mostly done 2026-10-06) Missing textures: four are substituted by the stitcher's `SUBSTITUTE`

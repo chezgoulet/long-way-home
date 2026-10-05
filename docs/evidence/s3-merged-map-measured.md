@@ -299,5 +299,14 @@ a trigger volume's centre is often inside a wall, which it reports as a leak and
 visibility data. So the stitcher writes them beside the map (`voyager.ents`) and
 `tools/shipmap/inject.py` appends them to the compiled map's entity list.
 
-Not verified: that a boxed trigger *fires* when walked into. The game's touch test takes any
-entity's bounds, so it should; nobody has walked into one yet.
+Verified that a boxed trigger fires. The harness stands the player inside one on deck 1 and
+reports the trigger before and after:
+
+```
+SHIP: trigger 1921 (trigger_multiple, box) before the player arrives: armed, not fired;
+      bounds (-3827 -3351 -4023) .. (-3777 -3341 -3875)
+SHIP: trigger 1921 (trigger_multiple, box) with the player inside it: FIRED, waiting to re-arm
+```
+
+The bounds are the authored brush's, to the unit. One trigger of 494; the mechanism is the same
+for all of them.
