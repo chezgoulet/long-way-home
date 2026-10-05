@@ -40,6 +40,25 @@ ship at condition red; down and ENTER switches the phasers off; a priority key i
 phasers' place in the power order is unchanged afterwards. A screenshot is left at
 `build/g3-home/baseEF/screenshots/lwh_tactical.tga`.
 
+## The other station panels open their working console (2026-10-07)
+
+The maps' station panels fire `genericmenu <screen>`. With `g_ship 1` our UI intercepts the ones
+that name a station — `tactical`, `engineeringStatus`, `navigation`, and now `transporter` and
+`astrometrics` — and opens the working console for the station that works that system, instead of the
+retail screen. Operations works both the transporter and the sensors, so those two panels open the
+Operations console (the transporter/astrometrics split into their own stations is not in the table;
+that is a lore decision to make, recorded as invention). The turbolift, logs, padds and holodeck are
+not stations and keep their own menus exactly as before.
+
+Sickbay, which has no panel command of its own, gains its first real readout: the ship publishes
+`lwh_ship_medical` — injured, in treatment, sickbay output, lost and assimilated — and the Sickbay
+console draws it. `scripts/s4-check.sh` now opens the transporter's panel and the Sickbay console:
+
+```
+LWH: the transporter panel opens the OPERATIONS console
+SHIP: medical state: INJURED 0   IN TREATMENT 0   SICKBAY OUTPUT 100%   LOST 0   ASSIMILATED 0
+```
+
 ## The glance: the ship's state at the panel (2026-10-07)
 
 The owner asked for **both**: live status on the panel in the world, and a full-screen console. The
@@ -77,9 +96,11 @@ is unchanged. The whole 13-patch series was re-verified from a clean clone
 ## What S4 still needs
 
 - **Each station's real purpose.** Tactical can switch its weapons on and off; it cannot target or
-  fire, because there is nothing outside the ship yet (S9). Conn cannot set a course. The
-  transporter, sickbay, astrometrics and replicator panels have no ship console at all — their
-  retail screens still open. Each needs its own controls, and the core needs the state they act on.
+  fire, because there is nothing outside the ship yet (S9). Conn cannot set a course. The transporter
+  and astrometrics panels now open the Operations console and Sickbay shows medical state (above),
+  but none of them has a control beyond on/off yet — the transporter needs a target and a recipient,
+  sickbay needs triage, and astrometrics needs the survey; each needs its own controls and the core
+  state they act on. The replicator panel still opens its retail screen.
 - **The second half of the glance: the surface itself painted with state.** The anchored readout
   above is the first half; a renderer capability to upload live state into a texture bound to the
   panel's shader is the next, larger step (see `docs/engine-extension-policy.md`).

@@ -56,3 +56,21 @@ grep -q '^SHIP: clearance test: sensors on, phasers off, condition 0$' "$HOME_DI
 echo "PASS  a security ensign operates Tactical's own systems and nothing else, and does not call the alert"
 [ -f "$SHOT" ] || fail "no screenshot of the console"
 echo "      screenshot: $SHOT"
+
+# The other panels: the transporter's opens the Operations console, and Sickbay shows the medical
+# state. Both are the panel commands the maps carry, with the ship simulation running.
+OPS_SHOT="$GAME_DIR/screenshots/lwh_ops.tga"
+MED_SHOT="$GAME_DIR/screenshots/lwh_sickbay.tga"
+rm -f "$OPS_SHOT" "$MED_SHOT"
+find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
+echo "==> panels"
+SDL_AUDIODRIVER=dummy timeout 180 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
+    +set s_useOpenAL 0 +set g_ship 1 +set g_shipTest 14 +map tour/deck04 >"$HOME_DIR/s4-panels.out" 2>&1 || true
+grep -h 'LWH: the .* panel opens the\|SHIP: medical state:' "$HOME_DIR/s4-panels.out" | sed 's/^EFSP: /    /' || true
+grep -q 'LWH: the transporter panel opens the OPERATIONS console' "$HOME_DIR/s4-panels.out" \
+  || fail "the transporter panel did not open the Operations console"
+grep -q 'SHIP: medical state: INJURED ' "$HOME_DIR/s4-panels.out" \
+  || fail "the Sickbay console has no medical state"
+[ -f "$OPS_SHOT" ] && [ -f "$MED_SHOT" ] || fail "the panels did not open (no screenshots)"
+echo "PASS  the transporter panel opens Operations, and Sickbay shows the ship's medical state"
+echo "      screenshots: $OPS_SHOT, $MED_SHOT"

@@ -164,6 +164,19 @@ void Publish( void )
 		gi.cvar_set( "lwh_ship_aboard", aboard.c_str() );
 	}
 
+	// The medical state, for the Sickbay console (S6's first readout).
+	{
+		int injured = 0, treating = 0, lost = 0, assimilated = 0;
+		for ( const ship::CrewMember &c : vessel.crew )
+		{
+			if ( c.status == ship::CREW_INJURED ) { ++injured; if ( c.recovery > 0.0f ) ++treating; }
+			else if ( c.status == ship::CREW_ASSIMILATED ) ++assimilated;
+			else if ( c.status == ship::CREW_DEAD ) ++lost;
+		}
+		gi.cvar_set( "lwh_ship_medical", Fmt( "INJURED %d   IN TREATMENT %d   SICKBAY OUTPUT %d%%   LOST %d   ASSIMILATED %d",
+			injured, treating, static_cast<int>( vessel.systems[ship::SYS_SICKBAY].output * 100 + 0.5f ), lost, assimilated ).c_str() );
+	}
+
 	// Standing orders and who the player is, for the command console and the personnel screen.
 	{
 		std::string orders;
@@ -477,6 +490,24 @@ void RunTest( void )
 			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
 		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_glance\n" ); step = 2; }
 		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 14 )
+	{//the other station panels open the working console, and Sickbay shows the medical state
+		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 3000, "genericmenu transporter\n" },   // the transporter panel: worked from Operations
+			{ 4000, "screenshot lwh_ops\n" },
+			{ 5200, "ui_lwh_station 4\n" },          // the Sickbay console
+			{ 6400, "screenshot lwh_sickbay\n" },
+		};
+		static size_t step = 0;
+		if ( level.time < 1000 ) step = 0;
+		while ( step < sizeof( STEPS ) / sizeof( STEPS[0] ) && level.time >= STEPS[step].ms )
+			gi.SendConsoleCommand( STEPS[step++].command );
+		if ( tested || level.time < 8000 ) return;
+		tested = true;
+		gi.Printf( "SHIP: medical state: %s\n", gi.cvar( "lwh_ship_medical", "", 0 )->string );
+		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}
 	if ( g_shipTest->integer == 12 )

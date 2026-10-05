@@ -278,6 +278,11 @@ void Draw( void )
 		ui.Cvar_VariableStringBuffer( "lwh_ship_chart", line, sizeof( line ) );
 		UI_DrawProportionalString( 44, 384, line, UI_TINYFONT, colorTable[CT_LTGOLD1] );
 	}
+	if ( screen.station == 4 )
+	{
+		ui.Cvar_VariableStringBuffer( "lwh_ship_medical", line, sizeof( line ) );
+		UI_DrawProportionalString( 44, 384, line[0] ? line : "NO MEDICAL DATA", UI_SMALLFONT, colorTable[CT_LTBLUE1] );
+	}
 	char result[16];
 	ui.Cvar_VariableStringBuffer( "lwh_breach_result", result, sizeof( result ) );
 	if ( result[0] ) UI_DrawProportionalString( 320, 398, va( "LAST COUNTERMEASURE: %s%% EFFECTIVE", result ), UI_TINYFONT, colorTable[CT_LTBLUE1] );
@@ -501,6 +506,28 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 			{
 				Open( PANELS[i].station );
 				return qtrue;
+			}
+		}
+		// The ship's own panels fire "genericmenu <screen>". A station's panel opens the working
+		// console instead of the retail screen; the turbolift and the logs are not stations and fall
+		// through to the retail handler and keep their own menus.
+		if ( !Q_stricmp( cmd, "genericmenu" ) )
+		{
+			char id[32];
+			ui.Argv( 1, id, sizeof( id ) );
+			static const struct { const char *panel; int station; } STATION_PANELS[] = {
+				{ "tactical", 1 }, { "engineeringStatus", 0 }, { "navigation", 3 },
+				{ "transporter", 2 }, { "astrometrics", 2 },   // both are worked from Operations
+			};
+			static const char *const NAMES[] = { "MAIN ENGINEERING", "TACTICAL", "OPERATIONS", "CONN", "SICKBAY" };
+			for ( size_t i = 0; i < sizeof( STATION_PANELS ) / sizeof( STATION_PANELS[0] ); ++i )
+			{
+				if ( !Q_stricmp( id, STATION_PANELS[i].panel ) )
+				{
+					ui.Printf( "LWH: the %s panel opens the %s console\n", id, NAMES[STATION_PANELS[i].station] );
+					Open( STATION_PANELS[i].station );
+					return qtrue;
+				}
 			}
 		}
 	}
