@@ -60,6 +60,10 @@ Order is by dependency. S3 and S4 may overlap once S2 has fixed how a console ta
 - **S2 — built, verified headless, awaiting the owner.** The core is hosted in the game module
   (`module/ship/g_ship.*`) and Main Engineering's console is a screen in the UI module
   (`module/ui/ui_lwh_engineering.cpp`). See `docs/evidence/s2-engineering-console.md`.
+- **S3 — built, verified headless, awaiting a person.** `scripts/build-ship.sh` makes the whole
+  ship as one lit map with visibility data; `scripts/s3-check.sh` tours all fifteen decks by
+  turbolift. See `docs/evidence/s3-merged-map-measured.md` for the measurements, the patches it
+  took, and what is left.
 - **G3's direction layer** is the embodiment mechanism S5 builds on: posts, arbitration against
   scripts, the save chunk, the measurement harness.
 - **Track B's pipeline** — map generation, headless compile, the validator, the scenario manifest —

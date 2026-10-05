@@ -130,7 +130,7 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 |---|---|---|
 | **S1** ship core | ✅ done 2026-10-05 | `docs/evidence/s1-ship-core.md` |
 | **S2** Engineering console in game | 🔶 built and verified headless; awaiting the owner at the console | `docs/evidence/s2-engineering-console.md` |
-| **S3** whole-ship map | 🔶 the ten decks stitch, compile, load and run as one map (game frame 3.1 ms average); lit and with visibility; every deck is drawn when stood on; all fifteen decks present (five as generated placeholders) and linked by turbolift; 406 brush models; not yet walked | `docs/evidence/s3-merged-map-measured.md` |
+| **S3** whole-ship map | 🔶 one map, fifteen decks (five generated placeholders), toured by turbolift 15 of 15, game frame 2.3 ms; awaiting a person walking it | `docs/evidence/s3-merged-map-measured.md`, `scripts/s3-check.sh` |
 | **S4–S10** | ⏳ pending | |
 
 ## Adopted from RPG-X prior art (2026-10-04)
