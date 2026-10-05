@@ -85,6 +85,39 @@ on the same idle cycle.
 4. The crew harness on the new space, if crew will hold posts there -- coverage, yields, stuck events.
 5. The human judgement of the space. That one cannot be automated, and it is the one that closes it.
 
+## Dispatching this work — what to hand over, what to require back
+
+The failure mode of a dispatched build is not a crash. It is a room that looks fine and is wrong: plausible
+geometry, wrong proportions, invented canon detail, a post that faces a wall. So the handover is shaped to
+make wrongness *visible* rather than to make success likely.
+
+**Hand over:** the location brief (filled in), `docs/authoring-a-location.md`, the canon anchors it cites,
+and the map to copy. Nothing else is required, and the brief names everything.
+
+**Require back, in the return itself:**
+
+1. **A blockout before any detail** -- a top-down layout or a bare-brush pass, with the entries, the
+   circulation and the post positions marked. This is reviewed and approved before detail work starts. It
+   is the cheapest possible place to be wrong.
+2. **The transcript, not the claim.** Log lines for the compile, the `check-bsp.py` verdict, the headless
+   load (`CM_LoadMap`, `Munro connected`) and the `.nav` appearing. A statement that the map loads is not
+   evidence that it loads.
+3. **A source line for every canon claim**, or an explicit "invented, because canon is silent". The repo
+   has the sourced deck list; if the agent reaches past it to model memory, the invented detail must be
+   labelled as such.
+4. **What it copied** -- the existing map it re-dressed, named in the commit message.
+
+**Then three spot-checks, which are cheap and catch most of it:**
+
+- **affordances at standing distance** -- run the post generator against the new map; anything reported
+  "without standing room" is a post that will read as unnatural;
+- **no dead ends** -- walk the plan from the blockout, or load it and try to leave every room;
+- **the `.nav` exists** -- if the engine did not bake navigation, no crew can work there and the location is
+  scenery regardless of how good it looks.
+
+**And one thing that cannot be delegated:** a walkthrough by the owner. The criterion that decides is
+whether the space reads as somewhere a person works, and no transcript can answer it.
+
 ## What not to do
 
 - Do not commit game assets or third-party images into this repository.
