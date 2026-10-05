@@ -28,7 +28,7 @@ cmake -S tests/ship -B "$WORK/ship" -DCMAKE_BUILD_TYPE=Debug >/dev/null
 cmake --build "$WORK/ship" -j"$(nproc)" >/dev/null
 "$WORK/ship/test_ship_core"
 
-cho
+echo
 echo "==> tools: unit tests"
 python3 -m unittest discover -s tests/tools -q
 
