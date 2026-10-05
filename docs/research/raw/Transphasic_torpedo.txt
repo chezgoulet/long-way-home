@@ -1,0 +1,37 @@
+{{multiple}}
+[[File:Transphasic torpedo1.jpg|thumb|A transphasic torpedo fired from {{USS|Voyager}}]]
+The '''transphasic torpedo''' was an advanced type of [[torpedo]] [[weapon]] of unprecedented destructive potential used by [[Starfleet]]. The torpedoes could be launched from standard [[starship]]-mounted [[torpedo launcher]]s. A single torpedo was capable of destroying a [[Borg cube]]. This weapon technology was acquired by the crew of {{USS|Voyager}} in [[2378]] from [[Admiral]] [[Kathryn Janeway]] of an [[alternate timeline]]. ({{VOY|Endgame}})
+
+== History ==
+''In the alternate timeline, this weapon system was developed as an anti-[[Borg]] technology by [[Captain]] Janeway. The torpedoes were invented some time after they encountered the [[transwarp hub]] hidden inside a [[nebula]] in 2378, but she chose not to investigate it further. She used the technology to defend ''Voyager'' against the [[Borg]] on their voyage back to [[Earth]]. In [[2404]], Admiral Janeway embarked on an illegal mission to change history by [[time travel|traveling back in time]] through a [[temporal rift]] to secure ''Voyager''{{'}}s safe return to the [[Alpha Quadrant]] sixteen years early.''
+
+[[File:Borg cube hit by transphasic torpedo.jpg|thumb|Transphasic torpedoes in effect on a Borg cube]]
+Arriving in 2378, Admiral Janeway brought advanced technology with her on the [[shuttlecraft]] [[SC-4]] to share with the crew of ''Voyager'', including transphasic torpedoes and [[ablative generator]]-technology. Admiral Janeway assisted the crew in upgrading the torpedoes carried by ''Voyager'', turning them into transphasic torpedoes. The torpedoes subsequently proved extremely effective at combating the [[Borg starships|Borg vessel]]s guarding the transwarp hub in [[grid 986]], allowing the crew to destroy two cubes. They also used the torpedoes to blow up a [[Borg sphere]] that had captured ''Voyager'' within its internal bay.
+
+''Voyager'' used transphasic torpedoes to destroy the [[interspatial manifold]]s supporting the structure of the hub, causing the Borg's [[transwarp network]] to collapse. The manifolds weren't as vulnerable as Borg ships, as their shielding was regulated from the [[central nexus]] by the [[Borg Queen]], which allowed the collective to adapt to the transphasic torpedoes after a few of the manifolds were destroyed. Admiral Janeway was, however, able to kill the Queen with a [[neurolytic pathogen]] in time to allow the plan to succeed. ({{VOY|Endgame}})
+
+In [[2384]], the {{USS|Voyager|NCC-74656-A|-A}} was equipped with 345 transphasic torpodoes. ({{PRO|Into the Breach, Part I}})
+{{bginfo|An LCARS display on the ''Voyager''-A lists transphasic torpedoes as one of the available armaments. A clear view of the ship's Operation information panel was provided by Dominique Rossier of Wardenlight Studio. ''{{el|cdnb.artstation.com/p/assets/images/images/077/741/459/4k/dominique-rossier-prodigy-s2-pilotea10.jpg?1720212135}}''}}
+
+== Appendices ==
+=== See also ===
+* [[Transphasic warp drive]]
+
+=== Apocrypha ===
+According to the [[Pocket Books]] novel ''[[Greater than the Sum]]'', transphasic torpedoes were in fact kept by Starfleet as the weapon of last resort to be deployed to starships only when all else had failed against the Borg. They were the one and only thing Starfleet knew the Borg had not yet adapted to and for that reason wanted to keep this ace in the hole for as long as possible. As a result, during the subsequent Borg invasion in [[2380]], the {{USS|Enterprise|NCC-1701-E|-E}} was the only Federation ship equipped with transphasic torpedoes, engaging in rapid hit-and-run missions to limit the Borg's opportunities to adapt to them.
+
+The warhead technology of the torpedoes was also revealed in the novel. It is based on generating a destructive [[subspace compression]] pulse. Upon detonation the torpedo delivers the pulse in an asymmetric superposition of multiple phase states. [[Shields]] can only block one subcomponent of the pulse. The other subcomponents deliver the majority of the pulse to the target. Every torpedo has a different transphasic configuration, generated randomly by a dissonant feedback effect to prevent the Borg from predicting the configuration of the phase states.
+
+In the novel ''[[Lost Souls]]'', set in [[2381]] during a Borg invasion, the Borg finally adapted to the transphasic torpedoes when Starfleet was forced to send the torpedo specs to the entire fleet following a mass incursion of Borg cubes. According to ''[[Gods of Night]]'', set in the same year, the transphasic technology of the torpedoes could be applied to [[deflector shield]]s to create transphasic shielding and to [[phaser]] technology as well, although the phaser application was not powerful enough to be effective.
+
+In the novel ''[[Headlong Flight]]'', the ''Enterprise''-E makes contact with a version of the {{Enterprise|D}} from an alternate timeline where, among other differences, Picard died during the [[Battle of Wolf 359]] and Riker has been captain of the ''Enterprise'' for a year. Recognizing the complex nature of the current encounter in terms of the proper application of the Temporal Prime Directive, but equally aware of the danger of the Borg, Picard provides the alternate Riker and his crew with information on how to create transphasic torpedoes for themselves before the temporal rift that allowed them to travel between universes is repaired and the two ships return to their own realities.
+
+In the game ''[[Star Trek Online]]'', set in [[2409]], transphasic weaponry is used by several races, mainly by the [[Breen]] and [[Hirogen]], in regular combat, and not only against the Borg. Transphasic weapons, usually employed in torpedo or mine form, are not nearly as destructive as depicted in {{s|VOY}}, but are instead only distinguished by their ability to penetrate a target's shields. In season 9 of the game, adaptive transphasic torpedoes were introduced as a unique mission reward. They increase damage against Borg ships.
+
+=== External link ===
+* {{mbeta}}
+
+[[cs:Transfázové torpédo]]
+[[de:Transphasentorpedo]]
+[[ja:トランスフェイズ魚雷]]
+[[Category:Explosive weapons]]

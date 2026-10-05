@@ -1,0 +1,195 @@
+{{sidebar species
+| image     = Borg Drones 2370s.jpg
+| image2     = Klingon Borg First Contact.jpg
+| caption2   = A male Borg drone of Klingon origin
+| type      = [[Humanoid]]
+| language  = Various
+| planet    = [[Delta Quadrant]]
+| quadrant  = 
+| image3    = Seven of Nine as Borg, 2374.jpg
+| caption3  = A female Borg drone of Human origin
+}}
+
+
+{{ep disambiguation|VOY|Drone}}
+{{article quote|Interesting, isn't it? Not a he, not a she, not like anything you've ever seen before. An enhanced humanoid.|[[Q]]''' to '''[[Jean-Luc Picard|Picard]]|2365|Q Who}}
+'''Borg drones''' were [[assimilate]]d individuals augmented with [[Borg]] [[technology]], and joined with the [[Hive mind|hive mind]]. A drone possessed no sense of individuality, and existed only to perform its designated function within the [[Borg Collective]]. Together, they make up the entire population of the Collective.   
+
+==Physiology==
+[[File:Borg hologram, 2404.jpg|thumb|A Borg drone]]
+
+The physiology of Borg drones varied because [[Borg species|various species]] were assimilated into the Collective. Their organic bodies were enhanced, and some parts completely replaced, with [[cybernetic]] [[Borg implant|implant]]s, including its [[organic]] [[Circulatory system|cardiopulmonary system]], which was reinforced. ({{VOY|The Haunting of Deck Twelve}}; {{TNG|The Best of Both Worlds|The Best of Both Worlds, Part II}}; {{film|8}}) The nature of these implants was determined by the drone's intended function, such as [[medical repair drone|medical repairs]] or [[Tactical drone|tactical]], ({{TNG|Q Who|I Borg}}; {{VOY|Dark Frontier}}) while the original species of a drone was often considered by the Collective when assigning their function. ({{VOY|Think Tank}}) These implants gave drones greater strength than the original individual possessed before their assimilation. ({{ENT|Regeneration}}) Each drone was equipped with a homing device, which had its own unique [[translink frequency]], by which it was kept in contact with the Collective through [[subspace transceiver]]s, thus forming the [[hive mind]]. ({{VOY|Infinite Regress|Dark Frontier}}; {{ENT|Regeneration}}) 
+
+{{bginfo|It is unknown how many types of drones there are. Only the ''medical'' and ''tactical'' drones are known to exist, as well as the [[Borg Queen]].}}
+
+Although both [[male]] and [[female]]s of any susceptible [[species]] could be assimilated, Borg drones themselves were neither male nor female in a reproductive sense. ({{TNG|Q Who}}) 
+
+==Capabilities and limitations ==
+[[File:Assimilation Process Stage 7.jpg|thumb|Borg [[Exo-plating]] added on top of a Starfleet uniform.]]
+In addition to multiple implants, each drone's body was covered with insect-like [[exo-plating]], which could protect it from the rigors of [[space]], protect the drone against blunt force attacks, and withstand a [[energy|power surge]] of five million [[gigawatt]]s. However, they were unable to fully protect drones against projectile weapons. In extreme circumstances, a drone's implants, and exo-plating were able to protect the drone after being [[ice|frozen]] for at least 90 [[year]]s. ({{film|8}}; {{VOY|Revulsion}}; {{ENT|Regeneration}})
+
+{{bginfo|{{film|8}} is the only instance in which Borg drones were seen being attacked by projectile weapons. It is therefore unclear whether or not they can adapt to projectiles as effectively as they could energy weapons.}}
+[[File:Enterprise-E operations guard 3.jpg|thumb|left|A drone assimilates a Human Starfleet officer]] 
+Through assimilation, drones were equipped with offensive and defensive capabilities. Each drone had personal defensive shields, which were able to adapt to various different energy based weapons. A drone's adaptations to these weapons could then be passed along to the larger Collective. ({{film|8}}) In addition to shields, drones can possess offensive energy weapons built into their cybernetic arm implants. ({{PIC|Vox}}) However, most drones will pursue assimilation rather than kill their targets. Each drone is equipped with [[assimilation tubule]]s, which will penetrate most known materials to inject [[nanoprobe]]s in a selected target. Through this method, drones could assimilate a single individual, or an entire [[starship]], [[replicator|replicating]] components to interface with local technology. ({{ENT|Regeneration}}; {{film|8}}; {{VOY|Scorpion, Part II}})
+
+When equipped with an [[eyepiece]], a drone had the ability to see everything within the [[Electromagnetism|EM]] spectrum (similar to a [[Federation]] [[VISOR]]), as well as view the nanoscale - View the size of [[molecule]]s, analyze every facet and dimension of any object in perfect detail, and save perfect representations of those objects in physical memory. Lastly, a drone's eyepiece was capable of directly observing the geometry of multi-dimensional space-time. ({{TNG|I Borg}}; {{VOY|Scorpion, Part II}}; {{VOY|Dark Frontier}}; {{VOY|Relativity}})
+
+[[File:Assimilation Process Stage 8.jpg|thumb|A drone regenerating]]
+A Borg drone needed to periodically [[Regeneration|regenerate]] in specially fitted [[Borg alcove|alcoves]] to "feed" its organic and [[cybernetic]] parts. The organic components of a drone were fed by their implants, which synthesized organic molecules. The implants, in turn, received energy from the drone's alcove during its regeneration cycle. However, if necessary, a drone could go without regeneration for at least two hundred [[hour]]s. ({{VOY|Hunters}}) When there was no alcove at hand, a [[Federation]] [[power conduit]] could be adapted to feed a Borg drone when adjusting to the right frequency. ({{TNG|I Borg}}) 
+
+When regenerating, Borg drones shut down all non-essential bodily systems, such that their entire metabolism became integrated with the {{dis|power|physics}} system and distribution network aboard their [[Borg starships|ship]], thus merging their [[life sign]]s into their vessel. ({{TNG|Q Who}})
+
+A Borg drone, or former drone, did not react well to long periods of isolation. This is because they were accustomed to being part of the Collective, especially when the drone in question was assimilated at a young age. ({{VOY|One}}) 
+
+This could even force stranded drones to create their own Collective because they could not cope with their resurfacing personalities when disconnected from the hive mind. ({{VOY|Survival Instinct}})
+
+Borg drones have also shown to be seemingly incapable of running, possibly due to the rigidity of their exo-plating limiting their motion range, thus preventing them from performing the movements required to run. They were however shown to be capable of moving hastily, which does not require the same motion range as running.
+
+== Designations ==
+Following assimilation, a drone was given a designation appropriate to its function within the collective and position within its [[unimatrix]]. For example, the third drone in a group of nine assigned to one particular function may be given the designation "three of nine" or "third of nine". ({{VOY|Infinite Regress|Dark Frontier|Survival Instinct}})
+
+;Designated
+*[[Borg drones|List of Borg]]
+
+;Undesignated
+* [[Borg unnamed 000|Unnamed Borg]]
+
+==Borg drone technology==
+[[File:Borg arm scan.jpg|thumb|A scan of a Borg arm]]
+* [[Assimilation tubule]] ([[Injection tubule]])
+** [[Nanoprobe]]
+*** [[Microcircuit fiber]]
+* [[Cortical implant]]
+** [[Bio-synthetic gland]]
+** [[Cortical array]]
+*** [[Cortical node]]
+** [[Chronometric node]]
+** [[Cranial transceiver]]
+** [[Interlink node]]
+** [[Neural processor]]
+** [[Neuro-processing adjunct]]
+** [[Neural transceiver]]
+** [[Sensory node]]
+* [[Exo-plating]]
+** [[Microconnector]]
+** [[force field|Personal force field]]
+** [[Thoracic assembly]]
+* [[Extraction tubule]]
+* [[Forced plasma beam]]
+* [[Eyepiece]]
+* [[Proximity transceiver]]
+* [[Vocal subprocessor]]
+
+==Appendices==
+===Appearances===
+<div class="appear">
+* {{TNG}}
+** {{e|Q Who}}
+** {{e|The Best of Both Worlds}}
+** {{e|The Best of Both Worlds, Part II}}
+** {{e|I Borg}}
+** {{e|Descent}}
+** {{e|Descent, Part II}}
+* {{DS9|Emissary}}
+* {{film|8}}
+* {{VOY}}
+** {{e|Blood Fever}}
+** {{e|Unity}}
+** {{e|Scorpion}}
+** {{e|Scorpion, Part II}}
+** {{e|The Raven}} (hallucinations)
+** {{e|Living Witness}} ([[hologram]]s)
+** {{e|One}} (hallucinations)
+** {{e|Hope and Fear}}
+** {{e|Drone}}
+** {{e|Infinite Regress}}
+** {{e|Dark Frontier}}
+** {{e|Survival Instinct}}
+** {{e|Tinker Tenor Doctor Spy}} (holograms)
+** {{e|Collective}}
+** {{e|Child's Play}}
+** {{e|Unimatrix Zero}}
+** {{e|Unimatrix Zero, Part II}}
+** {{e|Imperfection}}
+** {{e|Flesh and Blood}} (hologram)
+** {{e|Shattered}}
+** {{e|Q2}}
+** {{e|Endgame}}
+* {{ENT|Regeneration}}
+* {{PIC}}
+** {{e|Maps and Legends}}
+** {{e|The End is the Beginning}}
+* {{LD}}
+** {{e|Envoys}} (holograms)
+** {{e|Temporal Edict}}
+** {{e|Crisis Point}} (hologram)
+** {{e|I, Excretus}} (holograms)
+** {{e|Wej Duj}}
+* {{PRO|Let Sleeping Borg Lie}}
+</div>
+
+===Background information===
+[[File:David Fisher and Rick Sternbach Borg drone sketches.jpg|thumb|Initial concept sketches of the Borg drone by David Fisher (left) and Rick Sternbach (right)]]
+[[File:Rick Sternbach sketches of Borg drone arms.jpg|thumb|Rick Sternbach's concept sketches of a drone's arm attachment]]
+The original story concept for the Borg had described them as a race of insects, hence the term "drone". But due to budget constraints, this was changed to a race of cybernetic beings &ndash; Human-machine hybrids who had an insect-like social culture and a hive [[mentality]] in which the drones relentlessly carried out the commands of the collective. The first concept for the drone came from costume designer [[Durinda Rice Wood]], who had sketched out a rough illustration showing a man in a suit with tubes running around it and plugged in at different spots. The sketches made it clear that the Borg look would have to be an integration of make-up and costume in a way that no other characters had been before. Illustrators {{dis|David Fisher|illustrator}} and [[Rick Sternbach]] also contributed their own designs for the Borg drone. (''[[Star Trek: The Next Generation - The Continuing Mission]]'', pp. 90-92; ''[[Star Trek: Aliens & Artifacts]]'', p. 82)
+
+The original helmets for the first drones seen in {{e|Q Who}} were actually fabricated in the makeup department while the wardrobe department was assembling the suits out of a dark, spandex-type fabric and metallic urethane. The two departments worked together initially, to make sure the helmet and suit designs integrated properly. (''[[Star Trek: Aliens & Artifacts]]'', p. 82)
+
+The helmet headpieces were made out of foam rubber, cast from clay sculpture molds. Foam rubber was the material of choice so that the helmets would be comfortable for the actors to wear, especially on ten-hour-long shooting days. The helmets were then colored to match the dark costume. An important element of the helmets was that they not be full head coverings. They had to look like alien headpieces hardwired into the brain, not bathing caps. That was why, even from the beginning, the helmets only covered part of the skull, leaving other areas exposed. When the helmets were completed and in place, clamps were then attached to the headpiece for the tubing that was already sewn into the suits to be run around the actor's body and attached to the helmet. With that in place, the makeup artist attached the unique bits of the machinery parts that helped to individualize each drone. (''[[Star Trek: Aliens & Artifacts]]'', pp. 82-83)
+
+Originally, the parts were fabricated out of urethane, but eventually the makeup department started experimenting with other materials, such as old parts torn out of electric equipment and pieces of motors. These odds-and-ends parts actually looked hi-tech, but reinforced the factory assembly-line look of the drones. At the same time, it added to the distinctive look each drone had, meaning no two looked identical. (''[[Star Trek: Aliens & Artifacts]]'', p. 83)
+
+To make the drone costume even more machine-like, every time the costume left an exposed part of the body, the makeup artist would run one of the tubes directly into it. To make the tube insertion look realistic, the artists created a latex appliance that looked like a bullet hole and glued it directly to the actor's skin. They then glued the tube to the appliance. (''[[Star Trek: Aliens & Artifacts]]'', p. 83)
+
+From the initial appearance of the Borg, the makeup department realized the drones' skin tone had to match that of the "walking dead" feel that defines the drone behavior. The makeup base they chose was a product from {{w|William J. Tuttle|William Tuttle}}'s Custom Color Cosmetics, in a shade called Shibui. The makeup department wanted a dead white look that blocked out all of the actor's skin tones. The Borg had to appear zombie-like on camera so that the audience would know, viscerally as well as intellectually, that the drones were devoid of any individuality and reason, responsive only to their programming. Before applying the base coat, the makeup artist glued the small foam latex plugs to the skin for tube attachments. The Shibui base coat was then applied, and the actor's face was shaded to give him a skull-like appearance. (''[[Star Trek: Aliens & Artifacts]]'', p. 83)
+
+After {{e|The Best of Both Worlds}}, the makeup department decided to utilize airbrush techniques for the drone makeup. This was first used in {{e|I Borg}} but quickly became standard throughout the course of ''[[Star Trek: The Next Generation|The Next Generation]]'' due to the speed at which it could be applied and its ability to "individualize" each drone, showcasing the many different races that the Borg had assimilated. Once the base makeup had been applied, the actors would line up, like an assembly line, to be airbrushed. Make-Up Supervisor [[Michael Westmore]] then started shadowing the eyes and the sides of the neck where the helmet met with the face. He then worked on the cheek bones and finally the backs of the head. He liked the use of airbrushing as a technique for a number of reasons. "''It gave me greater control over the final appearance of the character,''" he explained, "''and was much faster for me to move down the assembly line than to give specific directions to individual artists.''" Westmore used ComArt's transparent smoke gray because it gave the right shadowing and still rendered a cadaver-like appearance for the drones. (''[[Star Trek: Aliens & Artifacts]]'', p. 84)
+
+<gallery>
+File:Bradley Look works on Borg drone makeup.jpg|The initial application
+File:Bradley Look airbrushes Borg drone actor.jpg|The edges of the appliance are airbrushed
+File:Bradley Look attaches larger Borg makeup.jpg|The larger pieces are added
+File:Bradley Look attaches tubes to Borg actor.jpg|The tubes are connected
+File:Bradley Look final airbrushing Borg actor.jpg|A final touch of airbrushing
+</gallery>
+
+The drones went through a number of modifications through subsequent seasons of ''The Next Generation''. "''We not only had Borg mob scenes, but we had to Borg-ify [[Patrick Stewart]] with special electronics such as his laser headpiece,''" recalled Westmore. "''By the time we were creating Third of Five for 'I Borg', we were using airbrush techniques and even more elaborate headpieces.''". (''[[Star Trek: Aliens & Artifacts]]'', p. 84)
+
+[[File:Deborah Everton and Gina Flanagan First Contact Borg sketch.jpg|thumb|A concept sketch for the ''Star Trek: First Contact'' drone]]
+The look of the Borg drone was changed further still for their appearance on the big screen in ''Star Trek: First Contact''. The first thing that [[Rick Berman]] wanted to change was the Borg helmet, so as to reveal the supposed biomechanical components underneath. As Michael Westmore recalled, "''Instead of having an entire helmet, now we have these individual pieces that are on the head, so you get this bald look. That way the pieces look like they're clamped into the head individually, instead of being a full cap that pulls over the top.''" (''[[Star Trek: The Next Generation - The Continuing Mission]]'', pp. 245 & 248)
+
+This change in appearance presented an issue when the drones were to return in {{s|VOY}}, which had a tighter budget. Initially, because the Borg heads were encased in a helmet that was pre-painted, the only thing makeup had to do was the facial makeup. The tubing, the attachments, and the hand appliances were all prefabricated and had only to be fitted into place. This made the makeup job relatively simple and only took half an hour to complete. With the ''First Contact'' drones, makeup took around five hours to complete, down to four hours by the [[VOY Season 6|sixth season]] of ''Voyager''. (''[[Star Trek: Aliens & Artifacts]]'', p. 159)
+
+Indeed, much of the Borg makeup and costumes used in ''Voyager'' first appeared in ''First Contact''. (''{{dis|Delta Quadrant|reference book}}'', p. 188)
+
+The heap of Borg corpses seen in {{e|Scorpion}} was not an on-set element but was filmed using a pile of [[Playmates Toys]], and later added in post-production. Visual Effects Producer [[Dan Curry]] later recalled, "''We didn't have the budget or the time to create full-scale body chunks, because of the cost and time it would take to do that. So, I asked our licensing department for a bunch of Borg toy action figures [....] And kudos to the person who sculpted those toys, because the detail &ndash; especially the facial detail &ndash; was so good that I was able to take the toy action figures, cut them up with a Dremel cutting tool, and then I stacked them up with hot glue and shot them at home against a little [[blue screen|bluescreen]] cove.''" To complete the scene in which the away team members from ''Voyager'' pass the pile of corpses, the live-action footage that Dan Curry had already shot of the actors was composited together with the Borg drone models. Curry remarked, "''By compositing the stack of action figures, it looked very real. And the toy faces were sculpted so well that I was able to do close-ups on a [tiny] head, [...] filling the TV screen with them, and they looked very good. Of course, it was in kind of a smoky environment, but um.... So, the toys served us well and saved the production company lots of money.''" ("Red Alert: Amazing Visual Effects", [[VOY Season 3 DVD]] special feature) Visual Effects Supervisor [[Ronald B. Moore]] commented, "''That was something we all knew immediately was perfect for Dan [....] He really had a lot of fun painting it, showing it to everybody. He'd come in and tell us, 'It's real disgusting now,' and he had a big smile on. It was great. We used it in a couple of shots, one with our crew, and one without.''" (''[[Cinefantastique]]'', Vol. 29, No. 6/7, p. 96)
+
+Numerous Borg drone related items were sold off in the [[It's A Wrap! sale and auction]], from concept sketches to costume and makeup parts to props used by drones across their many ''[[Star Trek]]'' appearances. {{el|startrekpropcollector.com/trekauctions/search.pl?t{{=}}Borg+drone}}
+
+Michael Westmore highly approved of the Borg makeup. When asked to identify his favorite of the ''Star Trek'' makeup designs he had done, he noted, "''The Borg were interesting, and the evolution of the Borg.''" However, Westmore also specified that they weren't the aliens he enjoyed the most (giving that distinction to the [[Cardassian]]s). (''[[Star Trek: The Official Starships Collection]]'', issue 103, p. 15)
+
+===Apocrypha===
+[[File:Elite Force comic - Borg.jpg|thumb|The Hazard Team fights off several Borg drones in ''Elite Force'']]
+In the ''[[Star Trek: Odyssey]]'' {{novel}} ''[[The Return]]'', Starfleet R&D believes that a group of five Borg drones is enough to produce their own group mind.
+
+In the {{comic}} ''[[An Inconvenient Truth]]'', the Starfleet conspiracy that is later discovered by the crew of the {{USS|Enterprise|NCC-1701-D|-D}} in [[2370]] stores a Borg drone and Borg alcove in its secret facility near [[Earth]]. 
+
+Borg drones also make an appearance in the [[Games|video game]] ''[[Star Trek: Voyager - Elite Force]]'' and its accompanying comic book ''{{dis|Elite Force|comic}}'', in which they are vulnerable to the "Infinity Modulator", a weapon designed by Seven of Nine that continuously rotates its modulation to prevent adaptation by Borg shielding. In the sequel ''[[Star Trek: Elite Force II]]'', the introductory level features a boss battle with an enhanced Borg drone featuring increased shielding, weaponry and the ability to transport itself from location to location.
+
+Borg drone are also featured on numerous cards within the ''[[Star Trek Customizable Card Game]]''.
+
+===External links===
+* {{mbeta}}
+* {{wikipedia|drone|Drone}}
+
+{{featured|id=1734208|date=July 2015}}
+
+[[Category:Borg|Drone]]
+[[Category:Occupations|Drone]]
+
+[[de:Borg-Drohne]]
+[[fr:Drone Borg]]
+[[it:Drone Borg]]
+[[ja:ボーグ・ドローン]]
+[[nl:Borg dar]]
+[[ru:Дроны Борга]]

@@ -1,0 +1,130 @@
+{{multiple}}
+[[File:Vahklas astrometrics lab.jpg|thumb|A Vulcan astrometrics lab in 2151]]
+'''Astrometrics''' was a specialized [[lab]] used aboard [[starship]]s and facilities for [[stellar cartography]] purposes.
+
+In the [[22nd century]], there was a powerful astrometric [[computer]] located in [[San Francisco]]. When [[Klaang]] was [[kidnap]]ped from {{EnterpriseNX}} in [[2151]], [[Sub-Commander]] [[T'Pol]] suggested returning to [[Earth]] to make use of the computer in analyzing a [[spatial distortion]] registered by ''Enterprise''{{'}}s [[sensor]]s. ({{ENT|Broken Bow}})
+
+Later that year, a [[Vulcan]] astrometrics lab aboard the {{type|Vahklas}} ''[[Vahklas]]'' was used by T'Pol and [[Tolaris]] to study the [[Arachnid Nebula]]. The room contained a small [[statue]] of [[Surak]], even though the ship was a ''[[V'tosh ka'tur]]'' vessel, and figured into a [[dream]] T'Pol experienced during the ship's visit to the [[nebula]]. ({{ENT|Fusion}})
+
+{{bginfo|This otherwise-unidentified area isn't referred to as "astrometrics lab" on-screen but is defined as such in the final draft [[script]] of "Fusion". In the first draft of the episode's script (which had the [[working title]] "Equilibrium"), the room was termed simply "astrometrics" and was described, in one of the teleplay's stage directions, as "''a small, high-tech chamber with consoles and monitors showing various views of the dark nebula. A few [[Vulcan]] artifacts are visible, giving the room a subtly spiritual flair.''" This description was changed in the final draft of the installment's script, with the first line of the stage direction instead referring to it as "''a small, high-tech room filled with consoles and monitors that show various astronomical data and graphic images,''" though the second sentence remained the same.}}
+
+''Enterprise'' NX-01 had an astrometrics section. In [[2153]], while preparing to survey a [[hypergiant]], [[Captain]] [[Jonathan Archer|Archer]] noted that astrometrics must be "chomping at the bit" to start their studies. While secretly visiting the [[cogenitor]] [[Charles]] aboard a [[Vissian starship]], working in the astrometrics lab was one cover story that [[Commander]] [[Charles Tucker III|Charles "Trip" Tucker]] told the [[Vissian]]s aboard the ship. ({{ENT|Cogenitor}})
+
+[[File:Astrometrics.jpg|thumb|left|The main screen of ''Voyager''{{'}}s astrometrics lab]]
+One particular example was the astrometrics lab on the {{USS|Voyager}}, which was designed by [[Ensign]] [[Harry Kim]] and [[Seven of Nine]]. Incorporating [[Borg]] technology, it could "measure the [[radiation|radiative]] flux of up to three billion [[star]]s simultaneously", resulting in readings "ten times more accurate" than was previously possible. Astrometrics was used for charting [[star]]s, [[planet]]s, [[nebula]]e, and other stellar bodies and determine the ship's position relative to the [[galactic core]]. It contained a large, wraparound, [[holographic]] wall screen which could display a stellar region three-dimensionally. There were a series of control panels to manipulate the screen. The area below the screen and in front of the control panels could be used as a stage during presentations. Astrometrics also included three workstations on the side wall. The lab became Seven's primary workspace, where she mapped and catalogued interstellar bodies which the ship encountered. ({{VOY|Year of Hell}})
+
+[[File:Astrometrics, 2374.jpg|thumb|Workstations in the astrometrics aboard ''Voyager'']]
+For convenience or advanced analysis, astrometrics could also be used for communications purposes or even as a workplace for easy access to sensor information. Astrometrics was used by the crew of ''Voyager'' to communicate with Earth, once contact was established through the [[Pathfinder Project]]. 
+[[File:Astrometrics lab.png|thumb|left|The astrometrics lab on ''Voyager'' as viewed from the door]]
+
+Kim and Seven updated ''Voyager''{{'}}s astrometrics lab at the request of [[Commander]] [[Chakotay]] in [[2374]]. According to Chakotay, the lab had not been updated since ''Voyager'' left [[spacedock]]. ({{VOY|Revulsion}})
+
+In [[2375]], when Seven suffered a type of [[multiple personality disorder]], she took on the persona of [[Ferengi]] [[DaiMon]] [[Torrot]] and offered [[Captain]] [[Kathryn Janeway|Janeway]] twenty bars of [[latinum]] for the large astrometrics screen. ({{VOY|Infinite Regress}})
+
+''In an [[alternate timeline]], [[Naomi Wildman]] and [[Icheb]] worked in astrometrics.'' ({{VOY|Shattered}})
+
+{{bginfo|The astrometrics lab first appeared in {{e|Year of Hell}}. It displayed many images from the [[Hubble Space Telescope]] including the [[Milky Way Galaxy]], [[Veil Nebula]], [[Cat's Eye Nebula]], [[47 Tucanae]], [[Eagle Nebula]], and [[Saturn]]'s rings. ''{{st.com|article/strange-new-worlds-2-the-voyager-hubble-connection}}''
+
+|Many of the displays in ''Voyager''{{'}}s astrometrics lab were done using [[CGI]] by [[Robert Bonchune]], as he had had experience of producing on-screen graphics for the futuristic television series ''Seaquest DSV'' (''[[Star Trek: The Official Starships Collection]]'', p. 16). The set of ''Voyager''{{'}}s astrometrics lab was built on [[Paramount Stage 16]].
+|A small stretch of ''Voyager'' corridor was erected outside the set, and was seen through the open doorway any time the room's single entrance was used. This corridor was only seen in its entirety once, in the episode {{e|Shattered}} as Chakotay and Janeway rounded the corner to step into the lab. This stretch of corridor can be distinguished from the existing Stage 9 corridor set by the coloration of its carpet: the carpet colors on both the Stage 8 and Stage 9 corridor sets are primarily dark grey, with a lighter grey stripe along the edges; the corridor stretch on Stage 16, by contrast, features a blue stripe along the outer edges (the same color as the outer stripe inside the lab itself) as opposed to light grey.}}
+
+[[File:Starfleet Cartography.jpg|thumb|Captain Picard and Data view an [[uplink]] from Starfleet Cartography]]
+The {{USS|Enterprise|NCC-1701-E|-E}} was equipped with an astrometrics lab in which a direct link with [[Starfleet Cartography]] could be established. Interference from nearby astronomical phenomena (such as the [[Bassen Rift]]) could interfere with the lab's link with Starfleet Cartography. [[Captain]] [[Jean-Luc Picard|Picard]] and [[Lieutenant Commander]] [[Data]] utilized the lab to plot the ''Enterprise''{{'}}s rendezvous with [[Star Fleet Battle Group Omega]] in [[2379]]. ({{film|10}})
+
+{{bginfo|While not stated in dialogue, the shooting script of ''Nemesis'' identified this location as the ship's astrometrics facility. ''{{st-minutiae|resources/scripts/nem.txt}}'' In {{film|8}}, astrometric readings and scans aboard the ''Enterprise''-E were done from the [[operations station]] on the [[bridge]].}}
+
+== Appendices ==
+=== Appearances ===
+<div class="appear">
+* {{ENT}}
+** {{e|Broken Bow}} (Season 1, mention only)
+** {{e|Fusion}}
+** {{e|Shuttlepod One}} (Season 1, mentioned only)
+** {{e|Cogenitor}} (Season 2, mention only)
+* {{VOY}}
+** {{e|Revulsion}} (Season 4, mention only)
+** {{e|Year of Hell}}
+** {{e|Year of Hell, Part II}} (mention only)
+** {{e|Concerning Flight}}
+** {{e|Mortal Coil}}
+** {{e|Message in a Bottle}}
+** {{e|Hunters}}
+** {{e|Prey}} (mention only)
+** {{e|Retrospect}}
+** {{e|The Omega Directive}}
+** {{e|Unforgettable}}
+** {{e|Demon}}
+** {{e|One}}
+** {{e|Hope and Fear}}
+** {{e|Night}} (Season 5)
+** {{e|Drone}}
+** {{e|Extreme Risk}}
+** {{e|In the Flesh}}
+** {{e|Once Upon a Time}}
+** {{e|Infinite Regress}}
+** {{e|Counterpoint}}
+** {{e|Latent Image}}
+** {{e|Bride of Chaotica!}}
+** {{e|Gravity}}
+** {{e|Bliss}}
+** {{e|Dark Frontier}}
+** {{e|The Disease}}
+** {{e|Course: Oblivion}}
+** {{e|The Fight}}
+** {{e|Think Tank}}
+** {{e|Juggernaut}}
+** {{e|Someone to Watch Over Me}}
+** {{e|11:59}}
+** {{e|Warhead}}
+** {{e|Equinox}}
+** {{e|Equinox, Part II}} (Season 6)
+** {{e|Survival Instinct}}
+** {{e|Tinker Tenor Doctor Spy}}
+** {{e|Alice}}
+** {{e|Riddles}}
+** {{e|Dragon's Teeth}}
+** {{e|One Small Step}}
+** {{e|The Voyager Conspiracy}}
+** {{e|Pathfinder}}
+** {{e|Fair Haven}}
+** {{e|Blink of an Eye}}
+** {{e|Virtuoso}}
+** {{e|Memorial}}
+** {{e|Tsunkatse}}
+** {{e|Collective}}
+** {{e|Ashes to Ashes}}
+** {{e|Child's Play}}
+** {{e|Good Shepherd}}
+** {{e|Life Line}}
+** {{e|The Haunting of Deck Twelve}}
+** {{e|Unimatrix Zero, Part II}} (Season 7)
+** {{e|Imperfection}}
+** {{e|Drive}}
+** {{e|Repression}}
+** {{e|Inside Man}}
+** {{e|Flesh and Blood}}
+** {{e|Shattered}}
+** {{e|Lineage}}
+** {{e|Repentance}}
+** {{e|Prophecy}}
+** {{e|The Void}}
+** {{e|Workforce}}
+** {{e|Human Error}}
+** {{e|Q2}}
+** {{e|Author, Author}}
+** {{e|Friendship One}}
+** {{e|Natural Law}}
+** {{e|Homestead}}
+** {{e|Renaissance Man}}
+** {{e|Endgame}}
+</div>
+
+=== See also ===
+* {{dis|Stellar cartography|section}} (Starship section)
+
+=== External link ===
+* {{mbeta}}
+
+[[de:Astrometrisches Labor]]
+[[ja:天体測定部]]
+[[Category:Spacecraft sections]]

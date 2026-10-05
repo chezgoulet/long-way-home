@@ -1,0 +1,21 @@
+{{Pna-incomplete}}
+[[File:Short-range scan.jpg|thumb|A displayed short-range scan]]
+[[File:Short range scan.jpg|thumb|A short range scan]]
+A '''short range scan''' was a type of [[scan]] that looked for objects in close proximity to the scan's origin point.
+
+In [[2151]], {{EnterpriseNX}} performed a short-range scan of [[Archer's Comet]]. ({{ENT|Breaking the Ice}})
+
+While performing a short range scan, [[Captain]] [[Kathryn Janeway]] located a planet near her location at the [[Caretaker's array]], {{dis|Ocampa|planet}}. ({{VOY|Caretaker}})
+
+The crew of ''Voyager'' performed another short range scan in [[2371]] to gather more information about the [[omicron particle]] quantity of the [[nucleogenic cloud being]]. ({{VOY|The Cloud}})
+
+Captain Janeway, [[The Doctor]], and B'Elanna Torres watched the results of a short range scan in the [[EMH]]'s [[office]] after scanning a [[photonic lattice]]. ({{VOY|Heroes and Demons}})
+
+In [[2373]], Captain Kathryn Janeway [[order]]ed [[Chakotay]] to obtain a short range scan of an unknown [[biomass]] inside a [[Borg cube]]. ({{VOY|Scorpion}})
+
+In [[2375]], [[Chief Engineer]] [[B'Elanna Torres]] performed a short range scan of the [[hull]] of the {{USS|Voyager}} and found a [[silicon-based parasite]]. ({{VOY|The Disease}})
+
+== See also ==
+* [[Long range scan]]
+* [[Short-range tactical scan]]
+[[Category:Scans]]

@@ -1,0 +1,11 @@
+'''Phaser power''' was the source from which [[phaser energy]] was derived, inasmuch as it could be delivered at variable levels. 
+
+The rerouting of "all but [[emergency maintenance power]] to the [[shields]]" on the original {{class|Constitution}} [[starship]], would reduce the ship's phaser power by fifty [[percent]]. ({{TOS|The Tholian Web}})
+
+Later, in the redesigned ''Constitution''-class [[refit]], phaser power was increased" by channeling it through the [[main engine]]s," so when if the ship experienced an [[antimatter imbalance]], its phasers were automatically cut off. ({{film|1}})
+
+Phaser power aboard the {{USS|Defiant|2370}} was "almost doubled" by "running the [[plasma conduit]] through the primary [[phaser coupling]]". The process, which normally would affect a starship's [[warp drive]] [[efficiency]], actually increased the ''Defiant''{{'}}s by thirty percent. ({{DS9|Defiant}})
+
+== See also ==
+* [[Disruptor power]]
+[[Category:Physics]]

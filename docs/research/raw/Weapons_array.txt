@@ -1,0 +1,33 @@
+{{multiple}}
+'''Weapons array''' was a term used to describe the interconnected series of [[starship]]-mounted offensive technologies used by a particular vessel.
+
+In [[2151]], {{EnterpriseNX}} managed to disable the [[shields]] of an attacking [[Malurian vessel]] by [[beaming]] an [[antimatter reactor]] into close proximity to the [[Malurian]]s and detonating it with a [[torpedo]]. [[Sub-Commander]] [[T'Pol]] then ordered [[Lieutenant]] [[Malcolm Reed]] to disable the ship's weapons array. ({{ENT|Civilization}})
+
+In [[2368]], while investigating recovered wreckage of a [[Apollo class|Vulcan ship]], [[Lieutenant Commander]] [[Geordi La Forge|La Forge]] initially suspected that the debris in the possession of the {{USS|Enterprise|NCC-1701-D}} was part of a weapons array, but the [[Vulcan]]s reported no stolen weapons. ({{TNG|Unification I}})
+
+In [[2370]], the powering-up of the weapons array of a [[Borg type 03|rogue Borg vessel]] was detected by the crew of the ''Enterprise'', allowing [[Doctor]] [[Beverly Crusher]], who was in temporary command at the time, to raise the ship's [[shields]] in time to defend itself from an attack. ({{TNG|Descent, Part II}})
+
+Later that year, while the ''Enterprise'' was engaged in battle with a [[Prak's Marauder|Ferengi starship]], [[Captain]] [[Jean-Luc Picard|Picard]] ordered Lieutenant [[Worf]] to target the [[Ferengi]]s' weapons array only, in order to minimize the damage that would be inflicted on the rest of the ship. ({{TNG|Force of Nature}})
+
+That same year, while testing a new [[photon torpedo]] guidance system, Lieutenant Worf performed thirteen separate tests of the ''Enterprise''{{'}}s weapons array to determine why a fired torpedo had veered off course, but was unable to find an explanation. ({{TNG|Genesis}})
+
+[[Commander]] [[Benjamin Sisko]], aboard the [[runabout]] {{USS|Rio Grande}}, managed to disable the [[power coupling]]s to the weapons array of [[Federation attack fighter|a Maquis vessel]] with which he was engaged in combat. This forced the pilot of the [[Maquis]] ship, former [[Starfleet]] officer, Lieutenant Commander [[Calvin Hudson]], to make a strategic retreat. ({{DS9|The Maquis, Part II}})
+
+In [[2371]], the {{USS|Voyager}}'s weapons array took a direct hit while engaged in battle with a number of [[Kazon]] vessels. [[Chakotay]] subsequently decided to beam his entire [[Maquis]] crew over to ''Voyager'', and use [[Val Jean|his ship]] to ram one of the Kazon vessels, inflicting serious damage. ({{VOY|Caretaker}})
+
+Later that year, while trapped in a delusional state, [[The Doctor]] fantasized that he was the last person left on board ''Voyager'' after a Kazon attack. Upon asking the [[computer]] for a [[damage report]], he learned that, amongst other problems, the ship's weapons array was offline. ({{VOY|Projections}})
+
+That same year, [[Krajensky (Changeling)|a Changeling infiltrator]] managed to bring the weapons array of the {{USS|Defiant|2370}} online and take control of the ship, with the intention of attacking a [[Tzenkethi]] outpost and starting a war between them and the [[Federation]]. The [[Changeling]] was eventually foiled by the crew of the ''Defiant''. ({{DS9|The Adversary}})
+
+Following the emergence of the Dominion threat, [[Deep Space 9]] underwent a massive overhaul of its weapons array in [[2371]]. It was first used in combat against the [[Klingon]]s in the [[First Battle of Deep Space 9]] and a year later during the [[Second Battle of Deep Space 9]] against the Dominion. ({{DS9|The Way of the Warrior|Call to Arms}})
+
+In [[2372]], while attempting to find a vulnerability in [[Reptohumanoid vessel|an alien vessel]], Lieutenant [[Tuvok]] detected a slight [[phase retraction]] when [[auxiliary power]] was transferred to the aliens' aft weapons systems, and that a [[covariant phaser pulse]] to their aft control systems might disable the vessels' entire phaser array. When testing this theory in combat, however, it did not work. ({{VOY|Parturition}})
+
+Later that year, while engaged in battle with Kazon ships, ''Voyager''{{'}}s weapons array was disabled, as were their shields.
+
+While ''Voyager'' was engaged in battle with the [[Botha]], they managed to fire upon one of the enemy vessels' weapons array, but not enough to severely damage it. It was later determined, however, that the enemy vessels were not actually real, and that the Botha were using their [[telepathic]] abilities to create illusory starships. ({{VOY|Persistence of Vision}})
+
+A {{dis|Vidiian ship|2371-2372}} was able to destroy the {{USS|Voyager}}'s weapons array via the use of a [[hyper-thermic charge]]. ({{VOY|Deadlock}})
+
+That same year, in [[mirror universe|a parallel universe]], a Klingon officer reported to [[Regent]] {{mu|Worf}} that [[ISS Defiant|a new vessel]] was being constructed by Terran rebels that displayed "an impressive weapons array." ({{DS9|Shattered Mirror}})
+[[Category:Military technology]]

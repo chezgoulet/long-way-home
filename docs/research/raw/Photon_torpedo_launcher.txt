@@ -1,0 +1,76 @@
+{{multiple}}
+[[File:Torpedo bay display.jpg|thumb|Display showing the torpedo bay, launcher, and tube]]
+'''Torpedo launcher''' or '''torpedo bank''' was a common term for systems that deployed projectiles such as [[torpedo]]es and [[probe]]s. Polities known to have used such devices include the [[Cardassian Union]], the [[Dominion]], the [[Klingon Empire]], the [[Romulan Star Empire]], and the [[United Federation of Planets]]. A [[torpedo tube]] was a part of a torpedo launcher. Torpedo launchers could usually be accessed by personnel from a [[torpedo bay]]. ({{TOS|Arena|Elaan of Troyius}}; {{film|2}}; {{TNG|Where Silence Has Lease}}; etc.) Those torpedo launchers dedicated to firing [[photon torpedo]]es were called '''photon launchers'''.
+
+In the original configuration of {{Class|Constitution}} starships, the torpedo launching structure also housed the ship's main [[phaser bank]]s. On several starships, the torpedo launchers themselves doubled as [[directed energy weapon]] emitters. The {{Class|Intrepid}} aft launchers had phaser banks; the [[Klingon]] {{class|K't'inga}} and the [[Romulan]] {{class|D'deridex}} forward launchers had [[disruptor]]s. ({{TOS|Arena}}; {{VOY|Dragon's Teeth}}; {{DS9|The Way of the Warrior|Tears of the Prophets}}) In the pop-up Starfleet torpedo launchers, installed to [[Deep Space 9]] in [[2372]], the torpedo tubes were surrounded by a [[phaser array]] ring. ({{DS9|The Way of the Warrior|Call to Arms}})
+
+{{bginfo|In the original version of {{TNG|Darmok}}, the forward torpedo launcher of the {{Class|Galaxy}} {{USS|Enterprise|NCC-1701-D|-D}} was depicted as having an integrated phaser bank as well. The effect was however replaced in the remastered release of the episode with the phaser blasts coming from the saucer section phaser array.}}
+__NOTOC__
+
+== Hardware history ==
+The [[United Earth]] [[Starfleet]] already employed [[spatial torpedo]]es and equipped the {{class|NX}} with launchers. After the introduction of [[photonic torpedo]]es, the existing launchers needed to be extensively reconfigured and integrated into the ships' [[power grid]]. ({{ENT|Fight or Flight|The Expanse}})
+
+Starships and installations of the [[Federation]] [[Starfleet]] made use of [[photon torpedo]]es and their launchers by at least [[2233]]. By the mid-24th century, some Starfleet launchers were able to fire up to at least 5 projectiles in a single salvo and launch torpedoes in rapid fire. ({{TNG|The Arsenal of Freedom|The Survivors}}; {{Film|11}})
+
+<gallery>
+File:NX class armory, 2152.jpg|[[Spatial torpedo]] launching rails in the armory
+File:USS Kelvin photon torpedo launchers.jpg|USS ''Kelvin'' torpedo launchers
+File:USS Enterprise fires photon torpedo.jpg|USS ''Enterprise'' torpedo launcher
+File:USS Enterprise (alternate universe) torpedo launcher.jpg|Alternate reality USS ''Enterprise'' torpedo launcher
+File:Dreadnought class weapon.jpg|USS ''Vengeance'' advanced torpedo launcher
+File:USS Enterprise torpedo launcher.jpg|USS ''Enterprise'' (refit) torpedo launchers
+File:USS Reliant, torpedo tubes.jpg|USS ''Reliant'' forward torpedo launchers
+File:USS Enterprise-B, upper torpedo launcher.jpg|USS ''Enterprise''-B torpedo launcher
+File:Galaxy forward torpedo launcher.jpg|A ''Galaxy''-class forward torpedo launcher
+File:USS Enterprise-D, aft torpedo launcher and impulse drive.jpg|Aft torpedo launcher on a ''Galaxy''-class vessel
+File:USS Enterprise-E torpedo launcher.jpg|Forward [[quantum torpedo]] launcher on a {{class|Sovereign}} vessel
+File:DS9 torpedo launcher.jpg|[[Deep Space 9]]'s torpedo launchers firing
+File:Val Jean, aft twin torpedo launcher.jpg|Aft firing torpedo launcher assembly on the small [[Maquis raider]]
+File:USS Voyager firing from aft torpedo launcher.jpg|{{Class|Intrepid}} {{USS|Voyager}} firing aft torpedoes
+</gallery>
+
+{{bginfo|According to the many [[MSD]] of Starfleet ships shown, torpedo launchers could vary greatly in size. The launchers of a Galaxy class ship for example dwarfed the ones of such classes as the Sovereign, the Defiant, or the Intrepid.}}
+
+''In [[2259]] of the {{NIR}}, the {{USS|Enterprise|NCC-1701 alternate reality}} was outfitted with torpedo launchers across its [[secondary hull]].'' ({{film|12}})
+
+In [[2266]], the {{USS|Enterprise|NCC-1701}} encountered a [[Romulan Bird-of-Prey|Romulan vessel]] with a launcher capable of firing powerful [[plasma torpedo]]es. Plasma torpedoes and launchers capable of firing them would remain in the Romulan arsenal well into the [[24th century]]. ({{TOS|Balance of Terror}}; {{DS9|Image in the Sand}})
+
+The {{class|K't'inga}} was equipped with photon torpedo launchers by the [[2270s]] when a trio of such ships made use of them in an unsuccessful strike against ''[[V'ger]]''. ({{film|1}})
+
+It was not only on capital ships that torpedo launchers were installed; the [[Maquis]] were known to have their usually relatively small vessels equipped with launchers, including the modestly sized [[Maquis raider]], which sported no less than four launchers, of which two were aft firing. ({{VOY|Caretaker}}).
+
+Encounters with the Dominion before and during the [[Dominion War]] revealed that [[Jem'Hadar]] ships were also able to launch ordnance, including torpedoes purchased from the [[Karemma]]. ({{DS9|Starship Down|Valiant}})
+
+During the Dominion War, the Cardassians deployed plasma torpedo launchers aboard [[Cardassian orbital weapon platform]]s such as those encountered in the [[Chin'toka system]]. ({{DS9|Tears of the Prophets}})
+
+In [[2384]], the location of the torpedo launcher on the {{USS|Dauntless|NCC-80816}} was labeled on the [[master situation display]]. It was on Deck F. ({{PRO|Mindwalk}})
+
+{{bginfo|A clear view of the MSD was provided by Dominique Rossier of Wardenlight Studio. [https://www.artstation.com/artwork/xY8J1R]}}
+
+== Appendices ==
+=== See also ===
+* [[Grenade launcher]]
+* [[Missile launcher]]
+* [[Rocket launcher]]
+
+=== Background information ===
+==== Technical Manual ====
+The ''[[Star Trek: The Next Generation Technical Manual]]'' suggests that the launcher systems of the 24th century combine something similar to a {{w|light gas gun}} and a {{w|mass driver}}, as there is gas pressure chamber with launch-assist gas generators and an electromagnetic accelerator. The launcher tube is also strung with sequential field induction coils. They give a hand-off warp field to the probes and torpedoes that are powered by internal warp sustainer engines. This allows the torpedo to achieve a faster warp speed than the ship when traveling at warp. The {{class|Galaxy}} starship launchers can fire up to 10 torpedoes simultaneously from a single launch tube. (pp. 118 diagram, 129, 130)
+
+According to ''[[Star Trek: Deep Space Nine Technical Manual]]'', the 24th-century photon and quantum torpedoes can launch without a large launcher assembly. {{class|Danube}} runabouts can be fitted with four-torpedo modules to the midsection of the ship that uses a {{w|fire-and-forget}} guidance system. (p. 149)
+
+==== Microtorpedo launchers ====
+Even though [[microprobe]]s carried by the {{USS|Voyager}} are [[canon]]ical and the [[photon burst]]s seen in {{VOY|False Profits}} were identified as miniature photon torpedoes in ''[[Star Trek: Voyager - Elite Force]]'', the existence of microtorpedoes and microtorpedo launchers has never been conclusively confirmed on-screen. All information concerning them comes from background sources and production staff interviews.
+
+It is stated in the ''Star Trek: Deep Space Nine Technical Manual'' that some of the smaller Starfleet craft such as shuttles (p. 143), runabouts (p. 149), and even the [[Deep Space 9]]'s weapon sail towers (p. 82, 83) utilize micro torpedo launchers. They are simple delivery systems, without magnetic accelerators, as microtorpedoes use a miniature fusion thruster for propulsion. Even a micro-[[quantum torpedo]] launcher is depicted on page 149.
+
+According to [[Rick Sternbach]] there is a distinct micro torpedo launcher on the runabout model. {{bl|starshipdatalink.net/art/runabout.htm}}
+
+Even though the script and dialogue called for only standard torpedoes, according to [[John Eaves]], on the VFX team's suggestion, powerful micro torpedo launchers were indeed added to the rotary weapon arrays on DS9. The model and effects seem to confirm six round torpedo tubes on each rotary array. Extremely small compared to the larger regular torpedo tubes on the other weapon arrays. {{bl|starshipdatalink.net/art/armingds9.html}}
+
+=== External link ===
+* {{mbeta}}
+
+[[ja:魚雷ランチャー]]
+[[Category:Projectile weapons]]
+[[Category:Spacecraft components]]

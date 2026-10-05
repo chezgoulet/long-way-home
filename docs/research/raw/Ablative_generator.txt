@@ -1,0 +1,48 @@
+{{multiple}}
+'''Ablative generators''' were an advanced armor technology used by [[Starfleet]]. [[Shield emitter]]s generated a nearly-impenetrable layer of [[Ablative armor]] around the [[hull]] of a ship so equipped. This defensive technology was acquired by the crew of {{USS|Voyager}} in [[2378]] from [[Admiral]] [[Kathryn Janeway]] of an [[alternate timeline]]. ({{VOY|Endgame}})
+
+{{bginfo|According to a production sketch by [[Rick Sternbach]], dated 02-01, the armor was [[Nanotechnology|nanotech]] [[Molecule|molecular]] [[armor]] [[Hull plating|plating]]. ''{{el|http://www.neutralzone.de/database/Federation/Shuttle/_Type18HShuttleUprated.gif}}}}
+
+==History==
+''In the alternate timeline, ablative generators were developed as an anti-[[Borg]] technology by [[Captain]] Janeway, invented some time after ''Voyager'' encountered a [[transwarp hub]] hidden inside a [[Unnamed Delta Quadrant nebulae#Grid 986 nebula|nebula]] in [[2378]] but chose not to investigate it further. Janeway used the technology to protect ''Voyager'' against the Borg on their voyage back to [[Earth]]. By [[2404]], ablative generators had not yet become standard equipment on Starfleet vessels. Ships like the {{USS|Rhode Island}} were not equipped with them. Also, the [[Klingon]]s did not yet possess ablative generators.'' 
+
+''During that year, Admiral Janeway embarked on an illegal mission to change history by [[time travel|traveling back in time]] to help secure ''Voyager''{{'}}s safe return to the [[Alpha Quadrant]] sixteen years early. Janeway utilized a [[Starfleet Command]] [[shuttlecraft]], the [[SC-4]], equipped with ablative generators. She met with [[Korath]], a [[Klingon]] scientist who had developed the [[chrono deflector]], a device capable of generating [[temporal rift]]s for time travel. Janeway [[stole]] the chrono deflector and used the ablative armor to defend the shuttle against [[nadion]] discharges fired by Korath's [[Negh'Var warship|''Negh'Var'' warship]] in a retaliatory attack.'' 
+
+After successfully traveling back in time to 2378, Admiral Janeway assisted ''Voyager''{{'}}s crew in manufacturing and installing the advanced armor technology aboard the ship. The crew used the armor to defend themselves against Borg attacks while attempting to access the transwarp hub located in [[grid 986]]. When the [[Borg Queen]] [[assimilate]]d Admiral Janeway, she also assimilated knowledge of how to construct the armor technology, but was killed by the [[neurolytic pathogen]] Janeway was infected with. Eventually ''Voyager''{{'}}s armor integrity began to fail due to a pursuing [[Borg sphere]] and the crew had to allow the ship to be captured. They were, however, able to use [[transphasic torpedo]]es to destroy the sphere upon exiting the [[transwarp conduit]] near Earth. ({{VOY|Endgame}})
+
+<gallery>
+File:SC-4.jpg|SC-4 with ablative generators installed
+File:SC-4 activates ablative generator 1.jpg|[[SC-4]] as its ablative generators activate
+File:SC-4 activates ablative generator 2.jpg|SC-4 in the process of deploying armor
+File:SC-4 activates ablative generator 3.jpg|SC-4 with armor deployed
+File:USS Voyager during ablative generator installation.jpg|Installation of ablative generators on {{USS|Voyager}}
+File:USS Voyager with ablative generators equipped.jpg|Ablative generators fully installed on ''Voyager''
+File:USS Voyager deploying hull armor 1.jpg|Ablative generators activate
+File:USS Voyager deploying hull armor 2.jpg|Armor deployment starting at the bow
+File:USS Voyager deploying hull armor 3.jpg|Armor deploys at the bridge
+File:USS Voyager deploying hull armor 4.jpg|Armor reaching the aft
+File:USS Voyager deploying hull armor 5.jpg|Armor enveloping the aft section
+File:Borg cubes fail to destroy USS Voyager.jpg|The ship remains protected against Borg weapons
+</gallery>
+
+== Appendices ==
+=== Background information ===
+The look of the ablative armor in "Endgame" was developed by [[Foundation Imaging]]. [[Russ Isler]], a visual effects artist at Foundation, was instrumental in working out the effect. At [[Paramount Pictures|Paramount]], Visual Effects Supervisor [[Mitch Suskin]] and Supervising Producer [[Peter Lauritson]] were relatively happy with the effect, soon after Foundation submitted it for their appraisal. "''I think Mitch had asked for a slight color change; I think I had chosen orange, but the blue ended up looking a lot better,''" reckoned Foundation's Visual Effects Supervisor [[Robert Bonchune]]. "''So it was a good call on Mitch Suskin's part.''" ({{STM|82|16 & 18}})
+
+After its critical role in "Endgame", the armor was not shown to be deployed on Federation starships in any subsequent ''Star Trek'' production, such as the {{USS|Enterprise|NCC-1701-E|-E}} seen in {{film|10}} or the ''{{dis|Jellyfish|ship}}'' in {{film|11}}. This armor technology should not be confused with the [[ablative armor]] that was already used on [[Borg sphere]]s, the {{USS|Defiant|2370}}, and {{USS|Prometheus|Prometheus class}} starships. 
+
+According to ''[[Mr. Scott's Guide to the Enterprise]]'' (p. 14), the [[deflector shield]]s of the {{Class|Constitution II}} were a similar technology, while only the [[defense field]]s protecting the top decks were traditional force fields. The main shield grid was a massive [[replicator]] system, projecting an invisible hull layer, molecularly identical to the [[diburnium]]-[[osmium]] alloy used to build the [[Kalandan outpost]]. 
+
+In fact, shield impacts from Klingon [[photon torpedo]]es were shown to hit the {{USS|Enterprise|NCC-1701-A|-A}} at the armor plating level in {{film|6}} leaving some scorch marks from the detonation and small electric arcs, instead of impacting a "shield bubble" such as the shield effect had been established in {{s|TNG}}, which was in production of [[TNG Season 5|season 5]] at the time of the film's release.
+
+===Apocrypha===
+The ablative generators were mentioned in the ''[[Star Trek: Destiny]]'' trilogy of novels: they were initially examined by Starfleet as a part of Project Full Circle but were abandoned as anti-Borg technology because the Borg Queen had assimilated this technology from Admiral Janeway. 
+
+The ablative generator technology appears on the ''Intrepid''-class retrofit available to players of ''[[Star Trek Online]]''.
+
+[[cs:Ablativní pancéřování]]
+[[de:Ablativgenerator]]
+[[ja:アブレーティブ・ジェネレーター]]
+
+[[Category:Spacecraft components]]
+[[Category:Shield technology]]

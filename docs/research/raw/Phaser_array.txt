@@ -1,0 +1,34 @@
+[[File:USS Odyssey firing phasers.jpg|thumb|The USS ''Odyssey'', a ''Galaxy''-class starship using its main phaser array on a Dominion Jem'Hadar attack vessel]]
+A '''phaser array''' was a weapon comprised of a linear arrangement of numerous [[phaser emitter]]s located in strategic areas of a [[starship]], [[space station]], or other [[vessel]]. In the [[23rd century]], phaser arrays had smaller numbers of emitters, and were commonly referred to as [[phaser bank]]s often like gun turrets on 20th century warships ({{TOS|The Corbomite Maneuver|Balance of Terror}}) By the [[24th century]], [[Starfleet]] began to fit its vessels and facilities with phaser arrays that spanned across the ship's hull and contained much larger numbers of emitters; these were often called "Phaser strips." The arrays aboard a {{class|Galaxy}} starship could channel vast energy in a short time frame, capable of cutting through a mile of solid granite in seconds. ({{TNG|The Best of Both Worlds|Legacy|A Matter Of Time|Inheritance}})
+
+During the firing sequence of some ship-mounted arrays, phaser energies would travel along the emitter strip and converge at the best position for targeting. ({{s|TNG}})
+
+{{class|Galaxy}} ships, in the docked configuration, generally exhibited eleven phaser arrays. Two large arrays encircled the [[dorsal]] and [[ventral]] surfaces of the [[saucer section]]. The other nine arrays were on the [[stardrive section]]: two upper aft arrays inward of the saucer [[impulse engine]]s, one on the ventral surface of the engineering section, two lateral arrays on the [[warp nacelle]] pylons, and two aft arrays each on the dorsal and ventral pylon surfaces proximate to the aft [[photon torpedo]] launcher. An additional array, on the "cobra head" of the engineering module, was only exposed and usable when the [[saucer separation|ship was separated into its two components]]. ({{s|TNG}})
+
+{{bginfo|This information, which supports twelve phaser arrays, is from visual inspection of ''Galaxy''-class ships and is further supported by the [[Star Trek: The Next Generation Technical Manual]]. Curiously, in {{TNG|Conundrum}}, Worf stated that the ''Galaxy''-class ''Enterprise-D'' only had ten "phaser banks."}}
+
+{{class|Intrepid}} vessels were equipped with thirteen phaser arrays plus at least four separate phaser banks. On the [[primary hull]], there were two main arrays (one starboard, one port) on each of the dorsal and ventral surfaces, and two smaller aft arrays (also one starboard and one port) on each surface. One behind the bridge. The other five arrays were on the engineering section: one on the ventral surface, two lateral ventral arrays on the warp nacelle pylons, and two aft arrays on the underside of the lateral pylon. ({{s|VOY}}; {{VOY|Resolutions}}) Two separate phaser banks in the aft torpedo launchers ({{VOY|Dragon's Teeth}}), one aft phaser bank was located behind the second tractor beam emitter, in the aft section of [[Intrepid class decks|Deck 14]] ({{VOY|Think Tank}}), and an embedded emitter was located on the ventral surface of the ships right nacelle. ({{VOY|Unimatrix Zero}})
+
+The later {{class|Sovereign}} starships originally had twelve arrays, including seven dorsal arrays and five ventral arrays. ({{film|8}}) By [[2379]], four additional arrays were added to the [[nacelle pylon]]s of the ''Sovereign''-class {{USS|Enterprise|NCC-1701-E|-E}}, bringing the total complement of arrays to sixteen. ({{film|10}})
+
+In [[2371]], [[Korinas]] asked [[Benjamin Sisko]] for information on the {{USS|Defiant|2370}}'s phaser array. ({{DS9|Defiant}}) In the early months of the [[Dominion War]], the crew of the ''Defiant'' placed depleted phaser array [[power cell]]s in the [[mess hall]] as a sign they would not stop fighting. ({{DS9|Behind the Lines}})
+
+[[Cardassian]] {{class|Galor}} vessels were equipped with multiple phaser arrays which could cover 360 degrees. These were used during [[Operation Return]] primarily to destroy [[Federation attack fighter]]s. ({{DS9|Sacrifice of Angels}})
+
+{{bginfo|According to ''[[Star Trek: The Next Generation Technical Manual]]'', the ''Galaxy''-class arrays were designated Type-X. StarTrek.com however uses a picture of the ''Enterprise''-D firing its phaser array to depict the [[Type 8 phaser|phaser type-8]]. {{st.com|bl=1|archivedate=20230000000000|database_article/phaser-type-8}} The ''Sovereign''-class arrays were designated Type-XII according to the ''[[Star Trek: Starship Spotter]]''.}}
+<gallery>
+File:USS Voyager fights Borg probe.jpg|The USS ''Voyager'' employing its phaser array strips against a Borg probe
+File:Galor class, weapons array, bridge and aft dorsal.jpg|A [[Galor class|Cardassian ship]] using two of its phaser arrays
+File:USS Enterprise-D phaser array power up.jpg|The USS ''Enterprise''-D powers up its dorsal phaser array
+File:USS Enterprise-D firing phaser array.jpg|The USS ''Enterprise''-D releasing a phaser blast from its ventral phaser array.
+</gallery>
+
+==External link==
+*{{mbeta}}
+
+{{Phaser technology}}
+
+[[bg:Фазерна бойна редица]]
+[[de:Phaserphalanx]]
+[[ja:フェイザー・アレイ]]
+[[Category:Directed energy weapons]]

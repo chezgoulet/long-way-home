@@ -1,0 +1,549 @@
+{{multiple}}
+{{disambiguation|the starship classification|Transport ship}}
+{{aquote|A cranky transporter's a mighty finicky piece of machinery to be gambling your life on, sir.|[[Montgomery Scott]]''', to [[James T. Kirk]]'''<nowiki/>|2267|The Doomsday Machine}}
+[[File:Constitution II class transporter (aft).jpg|thumb|''Constitution II''-class transporter room]]
+[[File:Defiant larger transporter room.jpg|thumb|''Defiant''-class transporter room]]
+
+The '''transporter''' was a type of teleportation machine, or simply [[teleporter]]. It was a [[subspace]] [[device]] capable of almost instantaneously [[Teleportation|transporting an object from one location to another]], by using [[matter-energy conversion]] to transform [[matter]] into [[energy]], then '''beam''' it to or from a [[Transporter chamber|chamber]], where it was reconverted back or '''materialize''' into its original pattern. ({{TOS|The Squire of Gothos|The Savage Curtain}}; {{PRO|First Con-tact}})
+
+Alternate names for the transporter included '''[[matter stream]] converter''', '''energy-matter scrambler''', or '''transporting device'''. ({{TOS|The Savage Curtain|The Empath}}; {{ENT|Broken Bow|Vanishing Point}}; {{TNG|Ship In A Bottle}}; {{VOY|Ex Post Facto}}; {{SNW|The Broken Circle}}) The [[Organian]]s referred to [[Klingon]] transporters as '''material transmission units'''. ({{TOS|Errand of Mercy}}) The [[Ferengi]] referred to theirs as a '''matter-energy device'''. ({{TNG|The Last Outpost}}) [[Spock]] determined that the device used by the [[Vian]]s that beamed himself, [[Leonard McCoy]], and [[James T. Kirk]] to an underground location on the [[planet]] [[Minara II]], was what he described as a '''matter-energy scrambler'''. ({{TOS|The Empath}})
+
+Someone who was transported by a transporter beam was known as a '''transportee'''. ({{TOS|Day of the Dove}})
+
+{{Bginfo|On the Sci-Fi Diner podcast, [[Catherine Hicks]] recalled "''"[I] said to Bill and Leonard before a take where we beam up, I said, 'Where should I be playing here? I mean, what does it feel like to beam up?' And they said, 'It tingles.'"''" {{EL|https://scifidinerpodcast.com/2012/09/scifi-diner-classic-ep-23-our-interview-with-catherine-hicks-from-star-trek-the-voyage-home/}}}}
+
+== History ==
+=== 20th century ===
+The [[Vulcan]]s had teleporter [[technology]] since at least as early as the late [[20th century]]. This might have been an early version of the standard transporters that were later used in the [[Federation]]. ({{PIC|Mercy}})
+
+=== 21st century ===
+Circa [[2069]], the [[planet]] [[Terra 10]] was [[colony|colonized]] by a group of [[Human]]s from [[Earth]]. They were considered a [[colony|lost colony]] as they had lost [[communication]] contact with [[United Earth]] until the [[23rd century]], when they were re-discovered by the [[crew]] of the {{USS|Enterprise|NCC-1701}}.
+
+During this period, the [[Terratin]]s either retained prior knowledge of transporter technologies or developed their own. It might have predated development of the technology on Earth. ({{TAS|The Terratin Incident}})
+
+=== 22nd century ===
+[[File:Emory and Danica Erickson.jpg|thumb|Emory Erickson, the inventor of the transporter, with daughter, Danica Erickson circa 2154]]
+Although transporters had been used by many [[civilization]]s throughout [[history]], the first transporter to be made on Earth was invented sometime prior to [[2121]], originated by [[Emory Erickson]], who was revered as the "[[Father]] of the Transporter". The first operable transporter was developed around [[2124]].
+
+Erickson later recalled his experience as the first person to go through a transporter, which he was terrified to attempt. According to Erickson, "''that original transporter took a full [[minute]] and a half to [[transporter cycle|cycle]] through. Felt like a [[year]]. You could actually feel yourself being taken apart and put back together. When I materialized, first thing I did was [[vomiting|lose my lunch]]. Second thing I did was get stone [[drunk]].''" Years later, Erickson lamented that "''during the initial tests for the transporter, some [[Transporter test victims 001|brave men and women]] were lost,''" adding, "''not a day goes by that I don't think about them.''" Though his vision was a success, he could never recapture his past glory, as his follow up efforts with [[sub-quantum teleportation]] were never realized, an effort that ultimately led to the loss of his son, [[Quinn Erickson|Quinn]]. ({{ENT|Daedalus}})
+
+In an illusion created during [[Hoshi Sato]]'s eight [[second]]s in the [[pattern buffer]], her mind created a fictional story of a man named [[Cyrus Ramsey]]. In this apparent [[ghost story]], as told through an illusion of {{Trip Tucker}}, an event occurred in [[Madison, Wisconsin|Madison]], [[Wisconsin]] in [[May]] [[2146]], where "''Ramsey was a test subject for the first long-range transport. Just one hundred [[meter]]s. Something went wrong with the pattern buffer. He never rematerialized.''" [[Malcolm Reed]], who couldn't believe that Sato had never heard the story before, since one could not "''go on a survival overnight without hearing a story about someone seeing Ramsey's [[molecule]]s rematerializing on a [[fog]]gy [[night]].''" ({{ENT|Vanishing Point}})
+
+{{Bginfo|Long before the transporter was established as having been invented by Emory Erickson, [[Gene Roddenberry]] imagined the transporter as a Human invention, rather than a [[Vulcan]] one. ({{STC|142|72}})}}
+
+Early [[Starfleet]] efforts in the application of transporter technology were similar to [[24th century]] transporters used by the [[Ligonian]]s, but Ligonian transporters used the [[Heglenian shift]] method to convert matter and energy. ({{TNG|Code of Honor}})
+
+{{EnterpriseNX}} was one of the first Starfleet [[starship]]s to be equipped with a transporter authorized for transporting biological objects. Initially, however, it was utilized only sparingly, due to a general distrust of the technology held by ''Enterprise'' crew members. (The captain himself refused to put [[Porthos|his dog]] through the system.) Its use became much more common during ''Enterprise''{{'}}s search of the [[Delphic Expanse]]. ({{ENT|Broken Bow|Strange New World|The Andorian Incident|Fortunate Son|Hatchery}}; {{E|Countdown}}, ''et al.'')
+{{Bginfo|As an indication of the abilities of this type of early transporter, [[Matthew Ryan]] stated, in the first draft [[script]] of "Fortunate Son", that a dozen of them would enable the crew of the {{ECS|Fortunate}} to unload that [[freighter]] in an hour.}}
+
+<gallery>
+File:NX class transporter.jpg|A [[22nd century]] transporter platform from Earth Starfleet
+File:NX-class transporter pad and console.jpg|...and its console
+</gallery>
+These early transporters were not very reliable, and, even after ''Enterprise''{{'}}s mission, most were authorized for non-biological transports only. Even when transporter use became commonplace, most Humans and other [[species|races]] at a similar stage of technological development preferred traditional methods of travel. ({{ENT|Strange New World|The Andorian Incident|Daedalus}})
+
+As Starfleet continued its exploration of space, dependence on transporters grew significantly. Transporters could simplify [[away mission]]s considerably by eliminating the need for a [[shuttlecraft]]. In case of emergencies (medical or otherwise), the time saved could mean the difference between life or death. ({{ENT|Strange New World}})
+
+Before [[2164]], on at least {{Class|Freedom|22nd century}} [[starship]]s, the transporters were only meant for cargo and not organic matter. However, they could be modified to transport organic matter with some risk. ({{Film|13}})
+
+=== 23rd century ===
+With the advent of safer transporters, biological transport became increasingly common, which led to the appearance of the first transporter-related diseases. The best-known disease was [[transporter psychosis]], which was diagnosed in [[2209]] on [[Delinia II]]. Following the perfection of the [[multiplex pattern buffer]]s, such cases were virtually eliminated. ({{TNG|Realm Of Fear}})
+
+[[File:Walker class lateral vector transporter.jpg|thumb|A Lateral Vector Transporter in use in 2249]]
+By [[2249]], further advancements were made in perfecting the technology, this time by reducing power consumption. Older units, such as [[lateral vector transporter]]s had been discarded on {{Dis|Vulcan|planet}} due to the massive amount of power they required. Starfleet had also phased them out, but some older ships, such as the {{Class|Walker}} {{USS|Shenzhou}}, still had them installed. ({{DIS|Battle at the Binary Stars}})
+
+=== 24th century ===
+Transporters became the most reliable form of short-range transport by the [[24th century]]. ({{TNG|Realm Of Fear}})
+
+Most space-faring civilizations of the [[Alpha Quadrant|Alpha]] and [[Beta Quadrant]]s employed transporter technology for short-range transport of personnel and equipment; however, the technology was still rather unknown in the far reaches of the [[Delta Quadrant]]. To these species, the many advantages to utilizing transporters and replicators made the technology a point of contention, especially between the [[Kazon]] and the crew {{USS|Voyager}}. ({{VOY|Caretaker|Maneuvers}}, et al.)
+
+Traveling by transporter was essentially instantaneous and an individual's sense of time while transporting was effectively [[Non-existence|non-existent]]. [[Benjamin Sisko]] and [[Harry Kim]], while training at [[Starfleet Academy]] in [[San Francisco]], frequently transported to [[New Orleans]] and [[South Carolina]], respectively, to see their parents. ({{DS9|Explorers}}; {{VOY|Non Sequitur}})
+
+Innovations in transporter technology around this time included safer [[site-to-site transport]], which allowed for transport between two locations without first returning to a [[transporter room]]. ({{TNG|The Game}}, et al.)
+
+=== 25th century ===
+In 2401, Starfleet's transporter systems were tampered with by rogue [[Changeling]]s allied with the [[Borg]]. They infiltrated Starfleet and implanted [[Jean-Luc Picard]]'s Borg-altered DNA into the transporter system as 'common biology' that would only manifest in those whose brains had yet to finish development (in Humans under 25). The result was that every Starfleet officer within those criteria had been given Picard's 'receiver' gene, which would render them susceptible to [[Jack Crusher]]'s transmitter gene. The [[Borg Queen]] assimilated Jack and exploited this to assimilate all affected Starfleet personnel on [[Frontier Day]]. ({{PIC|Võx}}). Following the defeat of the Borg, Doctor [[Beverly Crusher]] devised a method of using the transporters to remove the Borg-altered DNA and to uncover disguised Changelings. ({{PIC|The Last Generation}})
+
+=== Later Eras ===
+By the [[29th century]], Starfleet had developed [[temporal transporter]] technology that allowed travel through time in a very similar manner to standard transporters of earlier centuries. ({{VOY|Relativity}})
+
+By the [[32nd century]], [[portable transporter]]s were ubiquitous in all walks of life, and were small enough to be worn. They also had the capacity to beam themselves along with the wearer. They could beam much faster than 23rd century transporters, taking only a second for the process to complete, and were harder to trace when rematerializing underwater. ({{DIS|That Hope Is You, Part 1}}). Starfleet had integrated the transporter into [[Tricom badge]]. Furthermore, the use of site-to-site transporter is now part of the standard construction of starbases and starships, connecting the different sections together. The transport function is also a setting for [[phaser]], which can be locked for game purpose such as [[Calica]].
+
+== Operations ==
+[[File:Wyatt.jpg|thumb|[[Transporter chief]] [[Wyatt]]]]
+In general, a [[transporter chief]] was responsible for the operational readiness, maintenance and repair of a ship or station's transporter systems.
+
+A typical transport sequence, generally initiated by the request to "energize", began at the [[transporter console]]. The process started with transporter pre-sequencing. Once this was complete, [[transporter coordinates]] were established on the object or destination by the [[targeting scanner]]s, thereafter a [[transporter lock]] was made. ({{VOY|Jetrel|Initiations|Twisted}})
+
+Simultaneously, the object was broken down into a stream of subatomic particles, also known as the [[matter stream]]. ({{TNG|Datalore}}) The [[transporter signal]] was then transferred to the pattern buffer before being relayed to the [[emitter array]]. ({{VOY|Eye of the Needle|Twisted}})  Subsequently, the matter stream was transmitted to its destination across a [[subspace domain]]. ({{TNG|The Best of Both Worlds, Part II}}) When used, a transporter left residual [[ion]]ization in the [[air]]. ({{TNG|The High Ground}})
+
+Throughout this entire process, the subject experienced no physical sensation. ({{TNG|The Dauphin}})
+
+[[File:Constitution class (alternate reality), transporter in use.jpg|thumb|Transporter effect of the {{NIR}}'s {{USS|Enterprise|NCC-1701 alternate reality}}]]
+''In [[2258]] of the {{NIR}}, the transporter operation process included the use of the annular confinement beam, followed by [[electromagnetic focusing]] and the use of a [[gravitational compensator]]. The transporter operator then applied a [[temporal differential]] and engaged a [[particle lock]].'' ({{Film|11}})
+{{Bginfo|The information about the alternate reality transporter process comes from on-screen graphics of the transporter control panel, [[:File:Lt. J. Kirk.jpg|shown]] in several scenes of the [[Star Trek films|film]] ''Star Trek''.}}
+
+[[23rd century]] [[Klingon]] transporter systems shared the same basic technology as Federation transporter systems. Even though the transporter systems of an {{Class|Intrepid}} were much more sophisticated than those of a [[D7 class]], the [[targeting scanner]]s worked on the same principles. With exception of the more advanced systems having had the ability to expand transporter buffer capacity, they really were not all that different. ({{VOY|Prophecy}})
+
+As of [[2368]], [[Cardassian]] transporting systems still operated with active feed pattern buffers. ({{TNG|The Wounded}})
+
+Also during this time frame, Romulan transporters were known to operate on a similar [[subspace frequency]] to those used aboard Federation starships, and with only a few minor adjustments, they could be made to simulate the transporter [[carrier wave]]s used by their Federation counterparts. ({{TNG|Data's Day}})
+
+From its earliest incarnations until the [[2270s]], transporters generally immobilized the subject being beamed during dematerialization and rematerialization. Advances in transporter technology after that point allowed a person being transported to move or converse, during the process, in a limited fashion. ({{Film|1}}, {{Film|2}})
+
+By the 24th century, [[emergency transporter armband]]s, [[transponder]]s and [[combadge]]s could be programmed to remotely activate a transporter. Normally, remote transporter activation was limited to emergencies or when the [[crew]] of a vessel was not on board. ({{TNG|The Best of Both Worlds|Realm Of Fear}}; {{DS9|The Jem'Hadar}})
+
+=== Safety features, protocols, and components ===
+As with other Starfleet technology, the transporter had its own set of safety features, protocols, and procedures. In an emergency, many of these safety systems could be modified or circumvented.
+
+Early versions of the transporter in the [[22nd century]] appeared to have no protection against external incursions into an active transport. "Foreign matter," such as blowing debris, could get caught up in the transport and become embedded or integrated into the subject. ({{ENT|Strange New World}}) Energy weapons fire would also affect the subject, unless it was sufficiently far into the transport that the fire passed through it harmlessly. ({{ENT|Broken Bow|Countdown}}) By the late [[23rd century]], however, transporters shielded the subject from these external incursions. ({{Film|6}}; {{TNG|A Matter of Perspective}}) They could even neutralize particle weapon fire initiated during transport. ({{TNG|The Most Toys}})
+
+[[File:Seven of Nine's transporter data.jpg|thumb|left|Seven of Nine's transporter data]]
+[[Biofilter]]s were uniformly used on all [[Federation]] transporters by the 24th century. These filters functioned to decontaminate transported objects and prevent harmful substances, pathogens, and even certain forms of [[radiation]] (including [[theta radiation]]), from contaminating the rest of the ship or station. This process replaced earlier systems that required the subject to be fully rematerialized on the transport platform before applying an energy-based process to topically decontaminate the transportee. ({{VOY|Macrocosm|Night}}; {{TOS|The Naked Time}})
+
+Though the biofilters performed a general contaminant removal with each transport, they were far from perfect; previously unknown infections or viruses occasionally failed to register, requiring the filters to be recalibrated to recognize the new threat. As such, biofilters were incapable of filtering out certain types of substances and pathogens, most notably psychic energy. ({{TNG|Lonely Among Us|Power Play}})
+
+Biofilters were also unable to detect and filter certain types of phased reality lifeforms without prior calibration. Biofilters also functioned to detect and disable weapons and explosives ([[remat detonator]]s, for example). ({{TNG|Realm Of Fear|The Schizoid Man|The Most Toys}})
+
+The transporter also saved biological data of the individuals transported. In [[2374]], [[The Doctor]] was able to give a diagnosis on [[Seven of Nine]]'s irrational behavior after studying her last recorded transporter data. ({{VOY|The Raven}})
+
+When knowingly transporting material considered a [[biohazard]], such as a [[virus]], a bio-transport authorization was used to document the material's nature and approve the transport. ({{TNG|The Child}})
+
+Except in cases of extreme emergency, protocols prohibited transporting objects while traveling at [[warp]] speed. ({{TNG|The Schizoid Man}}) Such transports are possible, however, if the two vessels match warp velocities. ({{TNG|The Best of Both Worlds}}; {{VOY|Maneuvers}})
+
+=== Range {{anchor|Range 001}} ===
+During the 22nd century, standard [[Earth]] transporter systems had a range of ten thousand [[kilometer]]s; however, by the 24th century, the maximum range of standard transporter systems was about forty thousand kilometers, though a special type of transport, called [[subspace transporter|subspace transport]], could beam over several [[light year]]s. ({{ENT|Rajiin}}; {{TNG|A Matter Of Honor|Bloodlines}}) Many 24th century starships were equipped with an emergency transporter system, but these only had a range of, at best, ten kilometers. ({{VOY|Future's End}})
+
+Although having a maximum range of about forty thousand kilometers, some conditions adversely affected the effective range. In at least one instance &ndash; due to missing components of ''Voyager''{{'}}s primary computer systems &ndash; the starship ''Voyager'' had to be within five hundred kilometers of a planet's surface to use transporters on [[Kathryn Janeway]] and a [[hologram]] of {{Dis|Leonardo da Vinci|hologram}}. ({{VOY|Concerning Flight}})
+{{Bginfo|For context, five hundred kilometers above the surface of Earth would place the ship inside the ionosphere, but it would be still around one hundred kilometers higher than the orbit maintained by the International Space Station.}}
+
+The maximum range of a transporter differed by species, depending on what kind of technologies they used to build it. The transporter with the longest known range was that of the [[Sikarian]]s, with a range of about forty thousand light years; however, this was due to [[Sikaris|their planet]]'s large quartz mantle, which amplified their transporter signal. Because of this, Sikarian transporter technology worked only on their [[homeworld]]. ({{VOY|Prime Factors}})
+
+[[The Travellers]] allotted the {{Dis|Supervisor|title}}s, such as Gary Seven, with transporter technology with a range of at least a thousand light years, according to [[Spock]]. [[Montgomery Scott]] later noted that Seven's beam was so powerful it fused all recording circuits, and therefore he could not say exactly how far it transported Seven, or even whether it transported him through time. Exactly how they achieved this effect remains unknown during the [[24th century]], but there are other indications that their technology was considerably advanced beyond that of the 23rd century Federation. ({{TOS|Assignment: Earth}})
+
+The [[Vedala]], one of the oldest space-faring races, also possessed transporter technology capable of beaming people and equipment to and from other planets (presumably in different star systems). ({{TAS|The Jihad}}) [[Dominion]] transporter technology, enhanced with a [[homing transponder]], was said to have had a range of at least three light years. ({{DS9|Covenant}})
+
+=== Diagnostic and maintenance tools ===
+* [[Magneton scanner]]
+* [[Micro-resonator]]
+* [[Parametric scanner]]
+* [[Synchronic meter]]
+* [[Test cylinder]]
+
+=== System components ===
+[[File:Level 4 diagnostic.jpg|thumb|A [[level 4 diagnostic]] listing several key components]]
+* [[Annular confinement beam]]
+* [[Biofilter assembly]]
+* [[Emitter array]]
+* [[Gravitational compensator]]
+* [[Heisenberg compensator]]
+* [[Imaging scanner]]
+* [[Inducer module]]
+* [[Materializer]]
+* [[Molecular imaging scanner]]
+* [[Particle lock]]
+* [[Pattern buffer]]
+* [[Phase discriminator]]
+* [[Phase inducer]]
+* [[Phase transition coil]]
+* [[Primary energizing coil]]
+* [[Rematerialization subroutine]]
+* [[Rotational compensation]]
+* [[Site-to-site transport interlock]]
+* [[Targeting scanner]]
+* [[Transporter console]]
+
+== Transporter types {{anchor|Types 001}} ==
+Almost all [[Starfleet]] facilities and [[starship]]s were equipped with at least one transporter device. The number of transporter devices differed; for example, most [[shuttlecraft]] had one transporter while {{Class|Galaxy}} starships had twenty. ({{TNG|11001001}})
+
+On ships where [[cargo bay]]s were present, cargo transporters could often be found, as well.
+
+Production of [[Mark V transporter]]s was halted in [[2356]]. By [[2371]], [[Mark VI transporter]]s were considered outdated. [[Mark VII transporter]]s were able to transport unstable [[biomatter]], as long as the [[phase transition inhibitor]] was adjusted. ({{DS9|Family Business}})
+
+=== Personnel ===
+[[File:Transporter console, 2254.jpg|thumb|Transporter console, [[2254]]]]
+[[File:Constitution class transporter console, 2267.jpg|thumb|Standard [[duotronic]] [[transporter console]] (ca. [[2260s]])]]
+[[File:USS Enterprise (alternate reality) transporter console.jpg|thumb|Transporter console in the {{NIR}}'s [[2258]]]]
+The most commonly used type of transporter was the personnel transporter, designed primarily for personnel.
+
+Personnel transporter rooms usually consisted of a [[transporter console]], a [[transporter platform]] with an overhead [[molecular imaging scanner]], [[primary energizing coil]]s, and [[phase transition coil]]s.
+
+A [[pattern buffer]] with a [[biofilter]] was typically located on the deck below the transporter room. The outer [[hull]] of a starship incorporated a number of emitter pads for the transporter beam. ({{TNG|Realm Of Fear}}; {{VOY|Macrocosm}})
+
+Personnel transporters worked on the [[quantum level]] to enable secure transport of lifeforms. Biofilters built into the transporter systems prevented dangerous microorganisms from boarding the ship.
+
+Transporter platforms had a variable number of pads, arranged in various layouts (by model and by manufacturing race).
+
+The transporters installed on Earth's NX-class starships featured one large circular pad that took up the entire platform. It was large enough to transport two to three people, provided they stood close together.
+
+By the 23rd century, Federation transporter platforms featured multiple independent pads, typically six in a hexagonal configuration. One- and two-pad platforms were also available.
+
+This became something of a standard layout for Federation transporters well into the next century. As an example, the platforms used on board {{Class|Galaxy}} starships had the familiar six individual pads, with an over-sized pad (in the center of the platform) that could handle small cargo.
+
+The model of transporter installed on board {{Class|Defiant}} starships featured a &frac34; circular platform and three personnel pads in a triangular formation.
+
+Some 23rd century Klingon platforms featured six hexagonal pads in a straight line. Others, such as those on [[Klingon Bird-of-Prey|Birds-of-Prey]], featured a small number of platforms in a tight group. ({{Film|4}}; {{Film|6}})
+
+Cardassian transporter platforms in the 24th century featured three to five triangular pads placed close together, such as those installed on [[Deep Space 9]].
+
+{{Bginfo|[[Armin Shimerman]] considered the transporters on Deep Space 9 as integral to the station. ({{ds9c|695}})}}
+
+The personnel transporter was a reliable but sometimes fragile piece of equipment. The [[phase coil]]s, in particular, were vulnerable to feedback patterns and could be severely damaged as result of power surges or low-level [[phaser]] fire. ({{TNG|Brothers}})
+
+=== Cargo ===
+[[File:Cargo transporter.jpg|thumb|left|A cargo transporter aboard a ''Galaxy''-class starship]]
+[[Cargo transporter]]s were larger-scale versions of personnel transporters and were optimized for the transport of inanimate objects. These transporters were adapted to handle massive quantities of material. ({{TNG|Symbiosis|The Hunted|Power Play}})
+
+In case of an emergency, cargo transporters could be reset to quantum-level mode, making lifeform transport possible. One reason for such a reconfiguration was to expedite an evacuation of personnel. ({{TNG|11001001}})
+
+Cargo transporters were mostly found inside the cargo bay of a starship or [[space station]]. On Level 97-C of the {{Type|Spacedock}} [[Starbase 74]], there were four cargo transporters. ({{TNG|11001001}})
+
+Dedicated cargo transporter platforms used by Starfleet in the 24th century typically featured one large circular or oblong pad. ({{S|TNG}})
+
+[[File:USS Franklin transporter.jpg|thumb|A transporter aboard the USS ''Franklin'']]
+''In the {{NIR}}, the {{USS|Franklin}} was only equipped with cargo transporters. After the discovery of the ''Franklin''{{'}}s wreckage, {{NIR|Montgomery Scott}} was able to modify the transporters to beam lifeforms, though he only beamed {{NIR|Spock}} and {{NIR|Leonard McCoy}} on board one at a time so as not to risk [[transporter accident#Merge|splicing them together]]. With aid from {{NIR|Pavel Chekov}}, Scott was able to further modify the transporters to beam groups of twenty at a time though the transporters needed to recharge after at least two groups of twenty in a row. After Scott's modifications, the transporters were also able to beam two lifeforms and [[PX70 motorcycle|a motorcycle]] in motion to a destination.'' ({{Film|13}})
+
+=== Portable ===
+[[Portable transporter]]s were self-contained units capable of direct [[site-to-site transport]]. While having the capability to be moved from one place to another, they were known to be rather large and bulky. ({{DS9|Visionary}})
+
+''In [[2372]] of an [[alternate timeline]], [[Tom Paris]] owned an advanced, portable, [[site-to-site transporter]] device capable of transporting itself along with its payload. This device was small enough to be carried easily on a person.'' ({{VOY|Non Sequitur}})
+
+=== Emergency ===
+[[File:Emergency transport unit.jpg|thumb|An emergency transport unit]]
+Emergency transporters were a special type that had a low power requirement; in case of a ship-wide power failure, the crew could use these transporters for emergency evacuation. (''[[Star Trek: The Next Generation Technical Manual]]''; {{VOY|Future's End}})
+
+{{Bginfo|In older technical manuals and other non-[[canon]] background materials, these are sometimes referred to as "evacuation" transporters or "combat" transporters. Typically, they are said to be platforms with a dozen or more pads each. In addition to emergency evacuation, they are used in any high-volume movement of personnel, such as in troop deployment.}}
+
+By the late 24th century, emergency transport was further improved through Starfleet's development of a single-person, single-use, one-way [[emergency transport unit]]. The device was small enough to be hand-held and could transport to specified coordinates with a single touch. Because of its extreme limitations, this device was not widely deployed and was still considered a [[prototype]] in [[2379]]. ({{Film|10}})
+
+=== Public ===
+[[File:Public transporter.jpg|thumb|A public transporter in use]]
+''[[Public transporter]]s were standalone transporter stations available for use by the civilian population of [[Starbase]] [[Yorktown]]. These automated units featured a selection of pre-programmed destination coordinates available to each user, allowing access to many public locations throughout the starbase.'' ({{Film|13}})
+
+By [[2399]], [[Starfleet Headquarters]] had public transporters in a gatelike configuration, which visitors could use to be directly beamed to the premises. ({{PIC|Maps and Legends}})
+
+=== Micro-transporters {{anchor|Micro-transporter 001}} ===
+By [[2375]], the Federation had developed a micro-transporter &ndash; essentially a scaled-down version of a regular transporter &ndash; which was capable of transporting small amounts of material within an almost-imperceptible span of time. When attached to a [[TR-116 rifle]], it could be used to transport the bullet to anywhere within the transporter's range, where it would continue at its original velocity until striking a target. ({{DS9|Field of Fire}})
+
+=== Non-"beam" transporters ===
+[[File:Spatial trajector.jpg|thumb|The [[spatial trajector]], an example of a non-beam transporter]]
+Certain [[species]] experimented with transporters that differed in technology and theory than those used by most species encountered by the Federation.
+
+The [[Sikarian]]s were known to use a [[folded-space transporter]], relying on dimensional shifting rather than matter-to-energy conversion. Similarly, the [[Iconian]]s perfected their own form of transport, known as [[Iconian gateway|gateways]], which were capable of near-instantaneous transport over vast distances. ({{VOY|Prime Factors}}; {{TNG|Contagion}})
+{{Clear}}
+
+=== Other transporter technologies ===
+[[File:Gary Seven emerging from fog.jpg|thumb|Gary Seven emerges from the transporter chamber's fog]]
+[[File:Transporter chamber hidden.jpg|thumb|Gary Seven's office, with the transport chamber hidden in the background]]
+[[Gary Seven]] possessed an advanced form of transportation technology that he used to transport around the [[planet]] [[Earth]] and back to his home planet more than a thousand light years from Earth. When in operation, the chamber produced a cloud of a blue fog-like substance that enveloped the chamber. The chamber was controlled by the [[Beta 5 computer]] and was the first known transporter to be in use on Earth, especially given the time period of [[1968]].
+
+The transporter beam could be intercepted by another transporter unit. This occurred when Gary Seven was in transit to Earth and his beam was accidentally intercepted by the {{USS|Enterprise|NCC-1701}} commanded by [[James T. Kirk]]. This would seem to dictate that both transporter technologies work on similar principles. Seven's device appeared to be more powerful than that of the ''Enterprise'', for it was able to re-direct the transporter beam of the ''Enterprise'' back to it, and instead of Gary Seven re-materializing in the transporter room of the ''Enterprise'', he re-materialized in his own device.
+
+When not in use, the chamber door, which resembled that of a safe when it was closed, was hidden behind a shelf holding [[Martini]] glasses. The shelf and the brown wood finish surrounding it split down the middle and slid into the adjacent walls, allowing the chamber door to open. This action was achieved by moving the right pen on Gary Seven's desk downward. ({{TOS|Assignment: Earth}})
+
+{{Bginfo|This device was not identified on-screen. According to the final draft of the script, it was stated that "''[i]t is obvious this "wall vault" camouflages what is actually some highly advanced type of "Transporter."''"}}
+
+[[File:Aldean transport device.jpg|thumb|An Aldean transport device]]
+The [[Aldean]]s wore a small device attached to the arm that they used to control their transporter through contact with the [[Custodian]]. ({{TNG|When The Bough Breaks}})
+{{Bginfo|This device was described in the episode's script as an "arm device" or "arm band".}}
+{{Clear}}
+
+==== See also ====
+* [[Folded-space transporter]]
+* [[Lateral vector transporter]]
+* [[Matter-energy scrambler]]
+* [[Molecular transporter]]
+* [[Multidimensional transporter device]]
+* [[Sub-quantum teleportation]]
+* [[Temporal transporter]]
+* [[Translocator]]
+
+== Limitations ==
+=== Accidents ===
+{{see-list|Transporter accident}}
+
+=== Time ===
+{{see-list|Transporter suspension}}
+
+=== Shields ===
+In general, transporters could not be used while the [[deflector shield]] of a ship was active, or a deflector shield was in place over the destination. However, it was possible to take advantage of [[EM]] "windows" that were created by the normal rotation of shield frequencies. During these periods, a hole opened, through which a transporter beam could pass. To use this window, timing needed to be absolute and usually required substantial computer assistance. This technique was theorized and first practiced in [[2367]], by {{USS|Enterprise|NCC-1701-D|-D}} [[transporter chief]] [[Miles O'Brien]]. He happened to know the shields of the {{USS|Phoenix}} well, including the timing. ({{TNG|The Wounded}})
+
+[[Magnetic]] shields could also be used to prevent beaming. [[Rura Penthe]] was protected by such a shield to prevent prisoners from escaping. ({{Film|6}})
+
+There was a type of shielding that allowed transport, although it had the limitation of not allowing phasers to be fired through it. ({{TOS|A Taste of Armageddon}})
+
+The limitation of transporters versus shields was not universal, however. The [[Aldean]]s were able to pass through their own shielding using transporters, though the shielding was impenetrable to other forms of technology and weapons. Similarly, both the [[Borg]] and [[Dominion]] used transporter technology that was able to penetrate standard [[Federation]] shielding. Some adaptations, including rotating shield frequencies, could inhibit this ability but not eliminate it altogether. ({{TNG|Q Who}}; {{DS9|The Jem'Hadar}}) [[Voth]] were able to beam entire starships into a single [[Voth city ship]], despite its shield being raised and running at full capacity. ({{VOY|Distant Origin}})
+
+{{Bginfo|In the final draft script of {{ENT|Detained}}, {{EnterpriseNX}} lost a transporter lock on [[Captain]] [[Jonathan Archer]] and [[Ensign]] [[Travis Mayweather]] when an energy grid around [[Detention Complex 26]], where those two [[officer]]s were, was activated. This doesn't happen in the episode itself, though.}}
+
+=== Warp speed ===
+Using transporters when a ship was at warp speed was very dangerous because [[warp field]]s created severe spatial distortions. ({{TNG|The Schizoid Man}}) Therefore, transport at warp generally violated safety regulations. However, at-warp transport was attempted a handful of times, by making a few adjustments. These attempts were usually made under high-stakes combat conditions. ({{TNG|The Best of Both Worlds|The Emissary}})
+
+* If both ships maintained exact velocity (that is, the warp field on both vessels must have the same integral value/factor), transport at warp speed was possible. Failure to maintain the same velocities would result in severe loss of the [[annular confinement beam]] (ACB) and pattern integrity.
+* If the ship was traveling at warp speed and the object to be beamed was stationary, transport was possible by synchronizing the ACB with the [[warp core]] frequency. This would cause difficulties in obtaining a good pattern lock. The [[Maquis]] were known to have used this method. ({{VOY|Maneuvers}})
+* Sometime before [[2387]], [[Montgomery Scott]] discovered the necessary formulas enabling [[transwarp beaming]]. These were passed on to his {{NIR|Montgomery Scott|alternate reality counterpart}}, but using these to beam onto the {{USS|Enterprise|NCC-1701 alternate reality}} caused him to become stuck in a water pipe leading to a [[turbine]]. ({{Film|11}})
+
+[[Near-warp transport|"Near-warp" transport]] was also possible, but required extensive adjustments to the transport procedure. It involved the transporting ship energizing its transporters at the same time as it dropped out of warp for just long enough for the matter stream to be transmitted. The ship would then immediately jump back into warp.
+
+Persons who experienced this form of transport subsequently remarked that there had been a brief sensation of being merged with an inanimate object, before the transporter beam reassembled them.
+
+Near-warp transport has also been referred to as "touch-and-go downwarping". ({{TNG|The Schizoid Man}})
+
+=== Faster-than-warp speeds {{anchor|Warp 001}} ===
+In [[2374]], ''Voyager'' personnel successfully used {{Class|Intrepid}} transporters to beam stranded crew members from the {{USS|Dauntless|NX-01-A}} while both ships were traveling within a [[quantum slipstream drive|quantum slipstream]]. ''Voyager'' accelerated on a pursuit course during the transport, bypassing the velocity limitations imposed by warp field dynamics. ({{VOY|Hope and Fear}})
+
+{{Bginfo|Based on ''Voyager''{{'}}s launch date, presumably an unmodified Mark VII transporter was used for transport at quantum slipstream velocities.}}
+
+=== Radiation and substances ===
+Some forms of radiation and substances, usually minerals such as [[kelbonite]], prevented transporters from working. In most instances, the interference was caused by scattering of the annular confinement beam, or sensor interference preventing a transporter lock. Interference could be natural or artificial and usually occurred during surface-to-starship transport but might also occur between vessels. Examples of other radiation and substance limitations were:
+* [[Magnesite]]
+* [[Thoron radiation]]
+* [[Dampening field]]
+* [[Ionic interference]] (see also [[Ion storm]])
+* [[Hyperonic radiation]]
+* [[Electromagnetic storm]]
+* [[Trinimbic interference]]
+
+{{Bginfo|In the script for {{DS9|Emissary}}, Sisko suggested to [[Miles O'Brien]] that he himself and his son, [[Jake Sisko|Jake]], could have beamed aboard [[space station]] [[Deep Space 9]], if they'd known that operating the station's [[airlock]]s was meanwhile problematic. According to O'Brien, though, use of the facility's transporter systems "wouldn't have been possible" due to "stray [[nucleon]]ic emissions" that the station's crew needed to track down before they could "safely reinstate transporter operations." ''{{st-minutiae|/resources/scripts/402.txt}}}}
+
+=== Devices ===
+Over the centuries, numerous devices have been designed to overcome some limitations of transporters, while others were used to intentionally interfere with the operation of transporters.
+
+[[File:Transporter crystal.jpg|thumb|A transporter tag given to [[Kira Nerys]]]]
+In the 23rd century, [[relay buoy]]s were used in the attempt to enhance long-distance transport. By the 24th century, usage of [[pattern enhancer]]s was common aboard most Starfleet vessels, most often deployed to a planet's surface during emergency situations where transport was critical.
+
+Devices that were specifically designed to block transporter signals or to interfere with them were usually deployed under hostile conditions, thus making use of a transporter impossible or very dangerous and hampering maneuverability of personnel or material. Some of these devices were:
+* [[Transporter scrambler]]
+* [[Transport inhibitor]]
+* [[Remat detonator]]
+* [[Scattering field]]
+
+In [[2375]], [[Vedek]] [[Fala]] gave a small crystal to [[Colonel]] [[Kira Nerys]], as a gift. The device, of unknown origin and design, was actually a [[homing transponder|transporter tag]], which instantly transported her to [[Empok Nor]], several light years distant. ({{DS9|Covenant}})
+
+Also, in [[2293]], [[Spock]] used a [[viridium patch]] to locate and lock on to Captain [[James T. Kirk|Kirk]] and Dr. [[Leonard McCoy|McCoy]] on [[Rura Penthe]]. While not a transporter device, it was used to locate the subject with the transporter. ({{Film|6}})
+
+=== Transporting the injured ===
+Although someone with minor injuries could be transported, this was not possible when the injuries were extensive. When the [[brain stem]] was damaged and autonomic functions were failing, transport was only possible if a volunteer controlled the person's autonomic functions. This was done by placing a [[neural pad]] at the base of the [[skull]] of both individuals and then connecting both people via a [[medical tricorder]]. This way, autonomic functions could be stabilized for a short period of time, making transport possible. ({{TNG|Transfigurations}})
+
+In [[2372]], [[Odo]] began to experience the effects of an unknown affliction that he had acquired from his fellow [[Changeling]]s, which caused the destabilization of his [[molecular structure]]. When it was proposed that he be ferried aboard the {{USS|Defiant|2370}} to the [[Founders' new homeworld]], the crew had to wait for Odo to carry himself aboard the ship. When it was questioned why he couldn't go through the transporter, [[Doctor]] [[Julian Bashir]] explained that "''his molecular structure is scrambled enough as it is,''" adding, "''[t]he last thing he needs is a trip through a [[transporter buffer]].''" ({{DS9|Broken Link}})
+
+== Special operations ==
+=== Automatic return ===
+As of [[2269]], transporters could be set to automatically beam back an individual after a prearranged amount of [[time]]. In [[2269]], [[James T. Kirk]] asked [[Montgomery Scott]] to set automatic return for ten [[minute]]s. ({{TAS|The Terratin Incident}})
+
+=== Disabling active weapons ===
+By the 24th century, the transporter had the capability to disable any active weapon during transport. This could be accomplished by removing the discharged energy from the transporter signal, or by "deactivating" the weapon itself. The transporter system included weapons deactivation subroutines to control the process. ({{TNG|The Most Toys|The Hunted|Rascals}})
+
+The transporter was also capable of removing weapons entirely during transport, a setting referred to by Starfleet as "Transport Protocol Five". When the ''Defiant'' beamed aboard survivors from a damaged [[Jem'Hadar]] ship, the transporter was programmed to remove the crew's disruptors and other weapons. ({{DS9|To the Death}})
+
+=== Falsifying disintegration by a phaser ===
+Although transports usually took several seconds to complete, it was possible to transport an individual to safety a split-second before they were to be struck by a phaser beam, making it appear as though they had been disintegrated. By [[2373]], [[Section 31]] had access to such technology and used it to fake the death of operative [[Luther Sloan]] in front of the [[Romulan]] [[Continuing Committee]]. Since [[William Ross]] later told [[Julian Bashir]] that [[Tal Shiar]] chief [[Koval]] had fired a [[phaser]] at Sloan, rather than a [[disruptor|disruptor pistol]], it is likely the weapon had been specially modified and was integral to creating the illusion. ({{DS9|Inter Arma Enim Silent Leges}})
+
+=== Connecting two transporters ===
+Two transporters could be bridged together by means of a [[system interlock]] to facilitate direct transport between them. Federation vessels could activate other Federation vessels' transporters remotely by means of this. This meant that two transporters could be connected to each other to allow beaming in situations where it would otherwise not be possible due to [[Ion storm|ionic]] or some other type of interference. ({{TNG|Symbiosis|Realm Of Fear}})
+
+First, a remote link to the other transporter had to be established, then the system interlock needed to be engaged and the pattern buffers of both transporters were synchronized. When the phase transition coils were in stand-by mode, energizing could commence.
+
+A side-effect of using this form of transport to beam through ionic interference was that the person who was beamed might feel a slight tingling, due to static. ({{TNG|Realm Of Fear}})
+
+=== Intraship beaming {{anchor|Intraship 001}} ===
+In the mid-[[2260s]], beaming from a transporter pad to a location within the same vessel was a very risky proposition. The limitations of the technology at that time made it highly probable that any error would result in the subject rematerializing within a bulkhead, deck, or other structure. As such, the procedure had rarely been attempted. ({{TOS|Day of the Dove}}) The first occurrence of this procedure was used without incident, a century earlier. ({{ENT|Chosen Realm}})
+
+{{Bginfo|The reasoning for the difficulties in intraship beaming was not stated. A technology capable of transporting a subject over thousands of kilometers without error ''should'' be able to do so over a few dozen meters easily, though one could speculate that the emitters are focused away from the ship, as shown in the technical manuals.|From the writing standpoint of the episode itself, though, if such capability ''did'' exist, then it would have been an easy matter to free the trapped crewmen in the lower decks.}}
+
+In [[2364]], [[Commander]] [[William T. Riker]] and [[Lieutenant]] [[Tasha Yar]] used intraship beaming during a rescue. When cargo instead of passengers was beamed aboard, Riker ordered Yar to beam the cargo to the hold. ({{TNG|Symbiosis}})
+
+Intraship transport was apparently both safe and commonplace by the 2360s, as, beyond the aforesaid example, the technique was used a number of times aboard the {{USS|Enterprise|NCC-1701-D|-D}}:
+* Captain [[Jean-Luc Picard]] and First Officer Riker both beamed from a transporter room directly onto the [[bridge]]. ({{TNG|11001001}})
+* When several [[Bringloidi]] were beamed aboard, carrying assorted farm animals, Picard ordered them beamed into Cargo Hold 7. ({{TNG|Up The Long Ladder}})
+* While escaping a mind-controlled crew, [[Wesley Crusher]] engaged a program that beamed him from Deck 36 to Transporter Room 3. ({{TNG|The Game}})
+* [[Ambassador]] [[Ves Alkar]]'s assistant, [[Liva]], was beamed away from her [[quarters]] on command from Captain Picard to prevent her being used by Alkar. ({{TNG|Man Of The People}})
+* When rogue [[Ferengi]] briefly took over the ''Enterprise'', a plan was devised to capture them by beaming them one-by-one onto a [[transporter pad]] secured by a [[force field]]. ({{TNG|Rascals}})
+* Picard, Riker, and several others transported from a shuttle in its [[shuttlebay|bay]] directly to the [[observation lounge]]. ({{TNG|Gambit, Part II}})
+
+{{Bginfo|In the first draft script of {{DS9|Emissary}}, [[Benjamin Sisko]] desperately suggested using intraship beaming to rescue the body of his deceased wife [[Jennifer Sisko]] from wreckage aboard the {{USS|Saratoga|NCC-31911}} during the [[Battle of Wolf 359]]. He was told by his [[Saratoga 31911 tactical officer 001|Bolian security officer]], however, that none of the ''Saratoga''{{'}}s transporters were functional. This discussion was excluded from the revised final draft of the episode's script. ''{{st-minutiae|/resources/scripts/402.txt}}}}
+
+=== "Site-to-site" transport ===
+[[File:Site to site transport.jpg|thumb|Beaming directly to [[sickbay]]]]
+{{see-list|Site-to-site transport}}
+The earliest known example of site-to-site transport carried out by Federation personnel occurred in [[1986]], though the transporter was on board [[HMS Bounty|a vessel]] that had traveled back in time from [[2286]]. The craft which possessed site-to-site capabilities was Klingon in origin but had been stolen by the crew of the late starship ''Enterprise''. ({{Film|4}})
+
+By at least [[2268]], limitations in pattern buffer and targeting scanner technology had been sufficiently overcome that it was now possible to transport from one location directly to another without the need to re-materialize the subject in between. ({{TOS|A Piece of the Action}}) In the 24th century, this operation was enabled and controlled by the [[site-to-site transport interlock]]s. ({{TNG|Brothers}})
+
+[[File:Klingon Site to site Transport.jpg|thumb|A [[Klingon]] transporter performs a site-to-site transport]]
+Transporter systems had to be manually configured to prepare for site-to-site transport. This included resetting the [[pattern buffer control]]s and checking the targeting scanners. ({{VOY|Twisted}})
+
+Site-to-site transport held the matter stream in the pattern buffer while the ACB was re-targeted. Afterward, the matter stream was redirected to the new location and normal re-materialization was carried out.
+
+Using this technique, any computer terminal with access to the main transporter sub-systems, or any applicable subroutine, could be used to control transporter operations, including bridge terminals. This technique could only be utilized when sufficient energy was available to the transporters; all normal transporter limitations would still apply. ({{Film|10}})
+
+This procedure was particularly useful in emergency medical situations where time was of the essence. Subjects could be beamed directly to [[sickbay]], where treatment could be carried out quickly. ({{TNG|Tapestry}}; {{Film|8}})
+
+In [[2368]], [[Ensign]] Wesley Crusher used this method in an attempt to outrun those (especially Riker and Worf) whose minds had been taken over by a [[Ktarian game]]. ({{TNG|The Game}})
+
+[[Seven of Nine]] once initiated a site-to-site transport into Chakotay's quarters. Instead of the door chimes sound, the comm tone is heard (not the boatswain whistle.) She thinks it would be inappropriate to be seen carrying flowers to the first officer's quarters. ({{VOY|Endgame}})
+
+=== Transporter trace {{anchor|Trace 001}} ===
+By the [[23rd century]], it was common practice to store a "transporter trace" (a stored copy of a subject's molecular pattern as scanned during a normal transporter cycle). While it was usually kept for security purposes, in extreme situations, the transporter could be modified to use an older trace pattern in place of the latest scan for the purpose of re-configuring the matter stream during molecular conversion, effectively replacing a subject with a younger version of itself during matter re-construction. The first known use of this technique was in [[2270]], when it was used to restore the crew of the {{USS|Enterprise|NCC-1701}}, whose aging had been reversed to their adult versions. ({{TAS|The Counter-Clock Incident}}) Another notable use of a transporter trace was in [[2364]], to restore [[Captain]] [[Jean-Luc Picard]] after an unsuccessful attempt by an alien energy being to merge with him. ({{TNG|Lonely Among Us}})
+
+The transporter trace itself was regularly stored for the duration of the person's tour of duty; when that person was reassigned, his or her trace was deleted. ({{TNG|Unnatural Selection}})
+
+When necessary, a person's [[DNA]] could be used to create a transporter trace. This technique was utilized by [[Chief]] [[Miles O'Brien]] and [[Lieutenant]] [[Geordi La Forge]] during a mission to the [[Darwin Genetic Research Station]] in [[2365]].
+
+Transporter traces were also used as a medical tool, to help in spotting anomalies at the molecular level. When comparing the transporter ID traces of [[Deanna Troi]], [[Data]] and [[Miles O'Brien]] before and after they were taken over by [[Ux-Mal]] criminals, [[Doctor]] [[Beverly Crusher]] was able to detect that their [[nervous system]]s were generating high levels of [[synaptic]] and [[anionic energy]]. ({{TNG|Power Play}}) Another example of such an application was in [[2373]], when [[The Doctor]] used [[Harry Kim]]'s transporter trace records to determine when he had been infected with [[Taresian]] DNA. ({{VOY|Favorite Son}})
+
+=== Deflecting the transporter beam ===
+A [[matter stream|transporter beam]] could be deflected to different coordinates by a [[tractor beam]], so that the objects being transported would rematerialize at a point other than the intended target coordinates. Such action could only be detected by examining the [[transporter log]]. An unusual amount of [[antigraviton]] particles would be present in the [[emitter coil]], as those particles do not occur naturally but are used by tractor beams. Locating the coordinates at which rematerialization took place was not possible; however, it was possible to calculate the point of origin of the tractor beam itself. ({{TNG|Attached}})
+
+=== Single-person transport ===
+A transporter could be programmed to only allow one particular person to be transported to and from the [[transporter pad]]. Thus programmed, no other persons could use the transporter. If the use of the transporter was further prohibited, by use of an unknown access code, using the transporter was almost impossible.
+
+The only way to circumvent this lock-out was to use the transporter trace from the person who re-programmed the transporter and to input this into the transporter while it was in its testing mode. When in testing mode, a transporter would accept simulated inputs. When the main [[computer]] could not be used, several [[tricorder]]s could be networked together to control the transporter. To circumvent the lock-out, access codes from a few [[bridge officer]]s were necessary to force it in a recall loop. Consequently, anyone and everyone who transported would be seen by the transporter as the person who had re-programmed it in the first place. ({{TNG|Brothers}})
+
+=== Faking a transporter accident ===
+A transporter accident could be faked in such a way that a [[transporter chief]] would think a person died during transport. For example, this could be done by adjusting the carrier wave of a second transporter to the carrier wave of the first. The person would then beam off the first transporter while the second transporter beamed in a small amount of genetically identical material.
+
+Only a doctor could determine if this material was really the person in question. The transporter trace could be used to compare the logged DNA pattern "trace" to the "dead" person. Single-bit errors might be detected, if the "dead" material was [[replicator|replicated]].
+
+Only transporters that operated on the same [[subspace]] frequency as the spoofed transporter can be used for this type of ruse. For example, some [[Romulan]] transporters were capable of this.
+
+Another indicator of such a ruse would be a temporary increase of the [[matter]] to [[energy]] ratio, while transport was in progress. However, this increase could fall within the nominal operational parameters of the transporter in question. Investigation of the transporter logs would be necessary to find evidence of a second transporter signal. ({{TNG|Data's Day}})
+
+=== Emergency mass beaming ===
+Some transporters could transport large numbers of people, and either rematerialize them simultaneously or in groups. However, this was not often done, due to safety reasons. In [[2268]], the crew of the {{USS|Enterprise|NCC-1701}} used their transporters in this manner to capture members of the crew of a Klingon ship. In [[2377]], the USS ''Voyager'' transported over two hundred Klingons off a battle cruiser by expanding the transporter's buffer capacity. In [[2380]], [[Ensign]] [[Sam Rutherford]] used a single transporter room on the {{USS|Cerritos}}, reconfigured with experimental settings, to simultaneously beam the entire crew of the {{USS|Rubidoux}} on board. The transportees were left with undesirable cosmetic side effects, but which were temporary, and they were otherwise perfectly fine. ({{TOS|Day of the Dove}}; {{VOY|Prophecy}}; {{LD|Much Ado About Boimler}})
+
+=== Narrow confinement beam ===
+Setting a transporter's [[annular confinement beam]] to a narrow width would sometimes allow it to penetrate some types of shielding or other interference. One noteworthy application of this was to penetrate [[Borg]] shields, a procedure developed by [[scientist]]s [[Magnus Hansen|Magnus]] and [[Erin Hansen]]. ({{VOY|Dark Frontier}})
+
+=== Skeletal lock {{anchor|Skeletal lock 001}} ===
+USS ''Voyager'' [[Chief Engineer]] [[B'Elanna Torres]] invented an emergency measure of locking a transporter beam onto minerals in the target's skeletal system, in order to allow transport when bio-signs could not be detected from transporting origins. This allowed personnel to be transported back to the ship, even if regular means of transporter lock failed. She came up with it after a conventional signal lock failed, during an emergency beam-out from a [[Borg cube]] in [[2373]]. ({{VOY|Scorpion}})
+
+=== Offensive use ===
+In [[2373]], [[Nyrian]]s used a long-range transporter to take control of the USS ''Voyager'' by beaming aboard the ship one person at a time, replacing a member of the crew in the process. Initially feigning ignorance and confusion, the Nyrians did not raise suspicion until they had already outnumbered the ''Voyager'' crew. By then, however, it was too late; the Nyrians commandeered ''Voyager'' and incarcerated the crew inside a simulated Earth-like environment aboard a massive [[prison ship]]. It was later revealed that this was an often-used Nyrian strategy, as it was far less costly than engaging in open hostilities. ({{VOY|Displaced}})
+
+In [[2374]], [[pirate]]s used transporters to steal the USS ''Voyager''{{'}}s main computer and other critical equipment, rendering the ship's weapons, navigation and propulsion inoperable. This led [[Tom Paris]] to remark, "''I feel like we've just been mugged.''" ({{VOY|Concerning Flight}})
+
+The [[Vulcan]] [[Chu'lak]] modified a [[projectile weapon]] by adding a micro-transporter, allowing him to fire bullets through walls into other rooms. ({{DS9|Field of Fire}})
+
+{{Bginfo|In the final draft script of {{ENT|Detained}}, [[Commander]] [[Charles Tucker III|Tucker]] hatched a plan to beam [[concussive charge]]s into [[guard]] towers at [[Detention Complex 26]]. In the final version of the episode, though, he opts for an entirely different attack strategy.}}
+
+=== Medical transports ===
+{{see-list|Fetal transport}}
+
+{{Bginfo|According to the [[DVD]] [[audio commentary]] for the film {{Film|11}}, in early drafts of that movie, the transporter would have played a role in the birth of {{NIR|James T. Kirk}}, though it also would have created another loss &ndash; in an emergency, it was possible to beam a child out of a womb, but, being an "inexact science," this came at the cost of the mother's life. While [[J.J. Abrams]] thought it was a "really cool" idea that the technology could be used in this way, the plan was dropped because the production staff didn't want to introduce the transporter so early in the film, and felt that the end of such a traumatic opening scene needed the "victory" of {{NIR|Winona Kirk}}'s survival.}}
+
+=== Rematerialization without clothes ===
+[[File:Deanna and Lwaxana beamed from their dresses.jpg|thumb|Beamed from their dresses]]
+During [[Chakotay]]'s Starfleet career, he was involved in a transporter malfunction. His uniform ended up in a [[pattern buffer]]; he materialized wearing only his [[combadge]]. ({{VOY|In the Flesh}})
+
+Removal of clothing using a transporter can also be done deliberately, as a group of [[Ferengi]] did to [[Deanna Troi|Deanna]] and [[Lwaxana Troi]] in [[2366]]. ({{TNG|Ménage à Troi}})
+{{Clear}}
+
+=== Other operations ===
+* [[Transporter Code 14]]
+* [[Near-warp transport]]
+
+== Appendices ==
+=== Background information ===
+==== Origins ====
+The transporter was developed by the production staff of the [[Star Trek: The Original Series|original series]] as a solution of how to get crewmen off a planet quickly. The only alternative was to either land a massive ship each week, or regularly use shuttles for landings, both of which would have wreaked havoc on the production budget. ({{ste|3|519}}) Although both of these were proposed in the initial draft of the series outline ''[[Star Trek is...]]'' (with regular shuttlecraft landings and rare descents of the ship), a revision of the same document (as reprinted in ''[[The Making of Star Trek]]'', pp.&nbsp;22&ndash;30) contained one of the first examples wherein the concept of the transporter was outlined. ({{EL|http://leethomson.myzen.co.uk/Star_Trek/1_Original_Series/Star_Trek_Pitch.pdf}}; ''The Making of Star Trek'', p.&nbsp;26) The description posited a not-yet-named "energy-matter scrambler which can 'materialize' [landing parties] onto the planet's surface." The outline went on to say, "''This requires maximum beam power and is a tremendous drain on the cruiser's power supply. It can be done only across relatively short line-of-sight distances. Materials and supplies can also be moved in this same manner, but require a less critical power expenditure.''" (''[[The Making of Star Trek]]'', p.&nbsp;26)
+
+[[Gene Roddenberry]] considered the invention of the transporter to be highly fortunate and "''one of many instances where a compromise forced us into creative thought and actually improved on what we planned to do.''" He further explained, "''If someone had said, 'We will give you the budget to land the ship,' our stories would have started slow, much too slow [....] Conceiving the transporter device [...] allowed us to be well into the story by script page two.''" (''[[The Making of Star Trek]]'', pp.&nbsp;43&ndash;44)
+
+The script of {{E|The Cage}}, the first ''Star Trek'' pilot episode, referred to the transporter as consisting of a device that dominated the transporter room and "could be an artist's nightmare-conception of a futuristic x-ray machine," as well as a "glassed-in transporter chamber" that the device hovered over.
+
+The depiction of the transporter in {{TOS|The Man Trap}} was instrumental to that installment becoming the first to ever be broadcast. Though "The Man Trap" writer [[George Clayton Johnson]] was unaware of this at the time, [[Herb Solow]] informed him, years afterwards, of the transporter's importance in convincing the executives at [[NBC]] to air "The Man Trap" first. Johnson relayed, "''He told me, 'By going with yours, we were able to open the series with the crew getting aboard the transporter device and beaming down to the planet. By letting the audience watch the transporter in action, and letting them see the crew materialize and dematerialize, we were saved from having to try to explain it.{{'}}''" (''George Clayton Johnson &ndash; Fictioneer'', "''Star Trek''")
+
+In an early written version of {{TOS|What Are Little Girls Made Of?}}, the transporter was described as an "energy matter scrambler" (matching how it had been characterized in the aforementioned revised draft of ''Star Trek is...''). In a series of research notes (dated {{D|11|May|1966}}), however, [[Kellam de Forest]] pointed out, "''{{'}}Scramble' implies that objects are mixed in an unorganized fashion. The transporter converts the matter of the body into energy.''" As a result, de Forest suggested instead referring to the transporter as an "energy matter converter."
+
+[[Arthur Singer]], the story editor for the [[TOS Season 3|third season]] of TOS, had some uncertainty about the function of the transporter, which he expressed around three months after [[D.C. Fontana]] left the series as story editor. Regarding how Singer voiced his confusion about the device, Fontana recalled, "''[He] wandered onto the set and asked our set decorator, 'By the way, what does that transporter thing do again?{{'}}''"
+
+The series writers' guide (third revision, dated {{D|17|April|1967}}) stated about the transporter, "''Its range is limited to about 16,000 miles.''" {{EL|http://leethomson.myzen.co.uk/Star_Trek/1_Original_Series/Star_Trek_TOS_Writer%27s_Guide.pdf}}
+
+The writers/directors guide for ''[[Star Trek: Phase II]]'' contained the exact same statement. (''[[Star Trek Phase II: The Lost Series]]'', p.&nbsp;96) For that series, a "transporter station" was to have been incorporated into the ''Enterprise'' bridge, complete with a working transporter. (''[[Star Trek Phase II: The Lost Series]]'', p.&nbsp;20) This was to have served as an equipment transporter, for beaming such things as small tools to the bridge. ([[text commentary]], ''[[Star Trek II: The Wrath of Khan (The Director's Edition)]]'' [[DVD]]) On {{D|13|October|1977}}, Gene Roddenberry posited that transporters of ''Phase II'' would be able to beam through the ''Enterprise''{{'}}s force field when it was fully raised, by opening a section of the force field in order to make it weak or moderate. (''[[Star Trek Phase II: The Lost Series]]'', p.&nbsp;50) However, the writers/directors guide for the series clarified that the ''Enterprise''{{'}}s transporter could not be operated while the ship's deflector screen was in operation. (''[[Star Trek Phase II: The Lost Series]]'', p.&nbsp;97)
+
+Gene Roddenberry briefly considered &ndash; early one day, while {{S|TNG}} was in preproduction &ndash; vastly increasing the power of the transporter in ''The Next Generation'' to such an extent that no main starship was to have been featured in that series. This unusual suggestion was scrapped by the end of lunch on that particular day.(''[[Star Trek: The Next Generation - The Continuing Mission]]'' 1st ed., p.&nbsp;14) [[David Gerrold]] argued against it, pointing out that the ''Enterprise'' was necessary for ''Star Trek'' to be successful because the ship was "the star of the show." Added Gerrold, "''He says, 'Okay. Just throwing that out.{{'}}''" (''[[Stardate Revisited: The Origin of Star Trek - The Next Generation]], Part 1: Inception'', [[TNG Season 1 Blu-ray]] special features) Also during the development of TNG, some consideration was given to the possibility of featuring a transporter on the {{Class|Galaxy}} bridge, though this idea was soon dropped in favor of turbolifts. (''{{Dis|Starlog|magazine}}'' issue #125, p.&nbsp;46) Since David Gerrold had listed (in his book ''[[The World of Star Trek]]''{{page cite}}) transporter malfunctions as being a too-overused plot device in the original series, Roddenberry intended to correct this in TNG. (''[[Star Trek - Where No One Has Gone Before]]'' paperback ed., p.&nbsp;110)
+
+[[File:DS9 transporter concept sketch.jpg|thumb|The concept sketch of DS9's transporter by Ricardo Delgado]]
+The transporter and the term "beam" were so relatively easy to account for that they were among multiple reasons for [[Rick Berman]] and [[Michael Piller]] deciding that a new science fiction series they were asked to create, which ultimately became {{S|DS9}}, would be in the ''Star Trek'' mold, rather than a brand-new show. Since the design parameters of the series were very well defined, putting a Starfleet-usable transporter aboard space station Deep Space 9 turned out to be "not difficult at all," in Production Designer [[Herman Zimmerman]]'s words. The transporter in the station's Operations Center was designed by [[Ricardo F. Delgado]] and illustrated in a concept sketch by him. ({{STDS9|3|6}}) The creators of the then-new show opted to rely on the fact that transporters had already been established earlier in the ''Star Trek'' franchise. "''We won't reinvent the transporter &ndash; everyone knows how the transporter works, we don't have to explain that any more,''" stated Zimmerman. (''[[Trek: Deepspace Nine]]'', p. 52)
+
+The concept of a long-range transporter was again briefly considered, upon initial development of TNG's final episode, {{E|All Good Things...}}. The scene in which it was to be used was soon [[deleted scene|omitted]], though. ({{tngc|3|301}})
+
+A transporter was originally not budgeted for inclusion aboard the {{Class|Defiant}}, which was introduced at the start of [[DS9 Season 3|DS9's third season]]. At one stage, however, Herman Zimmerman expected that, as stories and budgets warranted it, transporter facilities would later be added to the ''Defiant''-class. (''[[Cinefantastique]]'', Vol. 27, No. 4/5, p.&nbsp;97) A transporter for that class was indeed created, designed by [[Jim Martin]]. (''[[The Art of Star Trek]]'', p.&nbsp;112) It debuted in season three's {{E|Past Tense, Part I}}.
+
+While {{S|ENT}} was in development, Executive Producer [[Brannon Braga]] initially wanted there to be no transporter on {{NX|01}}, though this idea was disputed by executives at [[Paramount Pictures|Paramount]]. "''[He] thought transporter technology is in the future,''" explained [[André Bormanis]], regarding Braga's viewpoint. "''Well [...] this became a point of contention with, you know, the powers that be. The compromise we reached was that, okay, it's got a transporter, but it's experimental technology, and they don't really want to use it unless they absolutely have to. And we thought, in the 22nd century, it ought to be more challenging, or better yet, let's not introduce it in the [[ENT Season 1|first season]]. Maybe the [[ENT Season 2|second season]], they'll upgrade the ship.''" ("To Boldly Go: Launching ''Enterprise'', Part I: Countdown", [[ENT Season 1 Blu-ray]] special features)
+
+An even earlier transporter had to be depicted in the film {{Film|13}}, for the 22nd century vessel USS ''Franklin''. [[Doug Jung]], who co-wrote the movie, once commented, "''Back then, they didn't actually have Human transporters, you couldn't beam a Human up. So we had to put a line in where {{NIR|Montgomery Scott|Scotty}} says, 'I made these recalibrations.{{'}}''" {{trekcore|s=blog|2016/08/we-talk-to-star-trek-beyond-co-writer-doug-jung-about-kralls-soldiers-deep-trek-connections-and-his-acting-debut/}}
+
+==== Sets and props ====
+The "psychedelic" back wall of the TOS transporter was actually made from reflective, translucent plastic known to musicians as "Drum Wrap" since it's commonly used to adorn the outer cylinders of drum sets. The same plastic later went on to be incorporated into [[intercom]]s regularly featured on {{S|ENT}}. ({{E|Stigma}} [[text commentary]], [[ENT Season 2 DVD]])
+
+The TOS transporter had a "built-in top and bottom lighting setup for the beaming up/down effects," stated [[Robert H. Justman]]. ({{STTM|1|17|13}}) The transporter pads from TOS were simple {{W|Fresnel lens}}es. [[John Dwyer]], a set decorator who worked on both TOS and TNG, explained, "''In the original series, the lights in the platform under the round rings were curved lenses, polished in such a way as to make the light really bright, like you have in lighthouses; but they also use them in the bigger stage lights, and that's what these were.''" ({{STTM|2|12|25}}) (See this {{EL|http://startrekhistory.com/DS8.html|Flash recreation}} from a scene deleted from {{E|Mudd's Women}} for an indication of the luminosity of a 10,000 watt Fresnel lens.) These components were the only part of the transporter set that remained when the set was redesigned for {{Film|1}}. ([[audio commentary]], [[Star Trek: The Motion Picture (Blu-ray)|''Star Trek: The Motion Picture'' (Blu-ray)]]) ''The Next Generation'' also used the lenses as the units in the ceiling directly over the pads. (''[[The Art of Star Trek]]'', p.&nbsp;78) Dwyer recounted, "''[Production Designer] [[Herman Zimmerman|Herman [Zimmerman]]] said, 'Hey, that's a good idea; let's just keep it!' So we did.''" ({{STTM|2|12|25}}) The same components were additionally included in the transporter of the {{USS|Voyager}} in {{S|VOY}}. (''[[The Art of Star Trek]]'', p.&nbsp;78) Michael Okuda remembered, "''One day during, I think, ''Voyager'', I happened to be working in the catwalks above the set and I was looking at those lenses. Five of them looked yellowed and chipped, so I believe that they were from the original series. One of them looked a lot newer.''" (audio commentary, ''Star Trek: The Motion Picture'' ([[Blu-ray Disc|Blu-ray]]))
+
+The equipment transporter proposed for the ''Enterprise'' bridge of ''Star Trek: Phase II'' was actually built. One remnant of its construction, a square arrangement of four green lights, was incorporated into the ''Enterprise'' bridge of {{Film|2}}. The [[Regula I]] transporter in that film involved spotlights reflecting off a {{W|disco ball|glitter ball}} behind the set, a simple way of achieving the effect of energy patterns on the transporter chamber's back wall. (text commentary, ''Star Trek II: The Wrath of Khan (The Director's Edition)'' DVD)
+
+The faint pattern on the insides of the TNG transporter took its inspiration from a sweater owned by Herman Zimmerman, who created the pattern while prepping TNG. Interested in doing something different from the psychedelic moire patterns of the original series' transporter but not having liked any of the patterns that he or his staff devised for potential use, a frustrated Zimmerman finally took off his sweater and declared, "''Here, this is what we'll use!''" The pattern was thereafter incorporated into the design of the ''Enterprise''-D's transporter, which was reused as the ''Enterprise''-A's transporter in {{Film|5}} and {{Film|6}}. ([[text commentary]], [[Star Trek VI: The Undiscovered Country (Special Edition)|''Star Trek VI: The Undiscovered Country'' (Special Edition)]] [[DVD]])
+
+For {{Film|7}}, the transporter of the ''Enterprise''-D was given a new interior lighting scheme that included the addition of amber gels behind some of the upper transporter lenses from TOS. (''[[The Art of Star Trek]]'', p.&nbsp;278) Because the original panels from the TNG transporter's back wall had somehow been damaged during preproduction on the film, they were replaced by new but virtually identical panels. ([[text commentary]], {{DVD|Star Trek Generations|Special Edition|(Special Edition)}} [[DVD]])
+
+At least one of the floor panels from the ''Enterprise''-D transporter was reused as a serving tray in [[Quark's Bar, Grill, Gaming House and Holosuite Arcade]] in {{S|DS9}}. (''Secrets of Quark's Bar'', [[DS9 Season 1]] special features)
+
+[[File:Transporter set for Voyager.jpg|thumb|The ''Intrepid''-class transporter set being created for {{S|VOY}}]]
+According to {{STC}}, the {{Class|Intrepid}} transporter incorporated "vertical edge-lit [[Plexiglass|Plexiglas]] and spiky sonic foam lining the walls." ({{STC|111|52}}) According to [[Harry Kim|Kim]] actor [[Garrett Wang]], the ''Intrepid''-class transporter ceiling used on the set of ''Star Trek: Voyager'' was the original ceiling used on ''Star Trek: The Motion Picture''. (''[[E! Inside Star Trek: Voyager]]'', at 21 minutes)
+
+The floor and ceiling of the transporter aboard the NX-class ''Enterprise'' were inspired by the fresnel lenses of TOS. ({{E|Broken Bow}} [[text commentary]], [[ENT Season 1 DVD]]) Similarly, the sides of the ENT transporter were deliberately evocative of the walls of the TOS ''Enterprise'' transporter. (''{{Dis|Broken Bow|novel}}'', paperback ed., p.&nbsp;268)
+
+==== Special effects ====
+{{see-list|Matter-energy conversion#Background information|| Transporter sound and visual effects}}
+
+==== Legacy ====
+The transporter is the only technology which is commonly used in ''[[Star Trek]]'' productions but which [[André Bormanis]], at least as of {{Y|1996}}, deemed as "a real stretch" of the imagination. "''The Heisenberg uncertainty principle makes it impossible to know the exact location and energy of any particular subatomic particle. Therefore, were you to disassemble a person as the transporter does, it may well be impossible to put them back together again,''" he explained. "''We have reason to believe that this is because of some very basic physical facts about the universe and there's no way to get around that.''" (''[[Captains' Logs Supplemental - The Unauthorized Guide to the New Trek Voyages]]'', p.&nbsp;76)
+
+Although the catch phrase "{{wt|Beam me up, Scotty}}" has worked its way into [[Star Trek parodies and pop culture references|pop culture]], the exact phrase itself was never uttered in {{S|TOS}}. ({{ste|3|39}}) The closest usage to the phrase came in {{Film|4}}, when Kirk requests, "''Scotty, beam me up.''" Similarly, in {{E|This Side of Paradise}}, Kirk states, "''Beam me up, Mr. Spock.''" Only two other instances have used unqualified references to the phrase "''Beam me up''" &ndash; {{E|The Squire of Gothos}} and {{E|Time's Arrow}}.
+
+According to [[Michael DeMeritt]], the performers who portrayed persons who were beamed up were frequently thrilled to do so. He stated, "''This is every actor's dream, whoever gets on ''Star Trek''. 'Please, beam me up.{{'}}''" ({{ENT|North Star}} [[audio commentary]], [[ENT Season 3 DVD]]) Veteran ''Star Trek'' actor [[Vaughn Armstrong]] cited the transporter as his "favorite piece of ''Trek'' tech" and said, "''I can't think of anything better.''" Similarly, when [[Pat Tallman]] was asked what her favorite technology from the franchise was, she included in her answer the rhetorical question, "''Who doesn't wish for the transporter?''" ({{STM|90|31 & 32}})
+
+Initially familiarizing themselves with the workings of the transporter presented a challenge for some of DS9's principal cast members. As a result, one of several questions O'Brien actor [[Colm Meaney]] was asked by his fellow DS9 performers, he having had more ''Star Trek'' experience than them by having played O'Brien as a [[TNG recurring characters|recurring character in TNG]], was "''How does the beam down work?''" ({{STDS9|1|23}})
+
+On one specific early occasion, Jake Sisko actor [[Cirroc Lofton]] enjoyed familiarizing himself with not only the transporter but also the sets of TNG and DS9. "''No one was there. So, I started fiddling around with things and beaming myself up,''" he reminisced. ({{STDS9|5|49}})
+
+[[Brannon Braga]] believed that using a transporter in {{ENT|Vanishing Point}} to explain a hallucination was "a great twist." However, some fans deemed it "a cop-out," in Braga's words. ({{STC|145|26}})
+
+In ''[[Star Trek Adventure]]'', where volunteers were picked from the audience, there was an optical illusion using lens distortion to simulate the transporter, which was then further edited to video for purchase after the show.
+
+=== Apocrypha ===
+In the novel ''[[A Choice of Futures]]'', by [[2162]] it was revealed that frequent use of the transporter caused single bit errors within living beings. While infrequent use was safe, frequent use could cause damage to living beings. Both Admiral Archer and Captain Reed were affected - Archer was unable to continue serving on the front lines because of neurological damage, and Reed's transporter injuries rendered him unable to have children. Because of these errors Starfleet stopped using transporters for regular transportation of living beings, limiting its use with individuals to emergency situations.
+
+In ''[[The Worlds of the Federation]]'' (p.&nbsp;16), the first transporting of a Human is said to have taken place in the transporter room of the USS ''Moscow''.
+
+A partial explanation for the difference between transporters between ''Star Trek'' and ''Star Trek: The Next Generation'' is provided in the [[Pocket TNG]] {{novel}} ''[[Dark Mirror]]'', where the ''Enterprise''-D encounters a [[mirror universe]] where the Terran Empire continues into the 24th century; when discussing the original crossover, Chief [[Miles O'Brien]] notes that transporters in Kirk's era were essentially more powerful, but a lot less sophisticated, with people lacking knowledge of how some spatial anomalies would affect the system even if its sheer power tended to compensate for those shortcomings.
+
+In the novel adaptation of "{{Dis|Broken Bow|novel}}", it is said that, before the verb of "beam" had been accepted for describing the process of transporting, Starfleet had considered the words "scramble", "heat," "disassemble," and "spear," although "beam" had been considered the least frightening term.
+
+In the short story "Our Million-Year Mission" from the anthology book ''[[Strange New Worlds VI]]'', the transporter had been replaced by a more advanced system known as the blinkporter that was capable of instantaneously transporting a person to any temporal or spatial destination by the year 1,012,260.
+
+An additional piece of transporter technology was developed in the {{NIR}}. Known as the "{{MB|engineering transport tool}}", or ETT, it consisted of a rifle that could tag objects or individuals and transport them short distances. In the {{Y|2013}} {{video game}} ''{{Dis|Star Trek|video game}}'', {{NIR|James T. Kirk}} and {{NIR|Spock}} use this tool to bypass areas of the Frontier starbase that have been damaged by the [[Gorn]]'s attack.
+
+<gallery>
+File:Ett.png|Tagging Spock with the ETT
+File:Ett2.png|Rematerializing Spock on the other side of a blocked door
+</gallery>
+
+=== External links ===
+* {{Mbeta}}
+* {{Wikipedia|Transporter (Star Trek)}}
+* {{StarTrek.com|bl=1|startrek/view/features/specials/article/6379.html|Notable Transporter Mishaps|external}}
+[[Category:Transporter technology| Transporter]]
+[[Category:Alternate reality]]
+
+[[ca:Transportador]]
+[[cs:Transportér]]
+[[de:Transporter]]
+[[es:Transportador]]
+[[fr:Téléporteur]]
+[[it:Teletrasporto]]
+[[ja:転送装置]]
+[[nl:Transporter]]
+[[pl:Transporter]]
+[[pt:Transportador]]
+[[ru:Транспортер]]

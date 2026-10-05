@@ -105,6 +105,17 @@ undisturbed, a script run on a post-holder honoured and the member returned to d
 identical across save and reload, 25 bytes of save per crew member against a budget of 256.
 Evidence: `docs/evidence/g3-reactive-crew-measured.md`; reproduce with `scripts/g3-measure.sh`.
 
+The bar it was measured against, from the charter: 5-10 NPCs, one deck, no new animations, reused barks,
+posts and acknowledgement, with the measurable criteria (post coverage over a sampled run, bounded time to
+post, zero navigation failures, save/load restores posts and schedules, an explicit per-NPC save-size
+budget, no ICARUS script regressions).
+
+**Foundation added 2026-10-05:** the ship is a **state model**, not the maps -- see `docs/ship-model.md`.
+Its first artifact (the ship blob, the crew record, the system table, the clock, and the per-deck
+load/unload adapter) lands inside G3, because G3's crew records must be written into that shape from the
+first line of code rather than retrofitted. Crossing decks therefore becomes a field on a crew record, and
+Borg assimilation becomes a state transition on one. G3's own bar is unchanged.
+
 What is left is the owner's:
 
 - **Does the deck feel inhabited?** `scripts/run-scenario.sh`, in a logged-in session.

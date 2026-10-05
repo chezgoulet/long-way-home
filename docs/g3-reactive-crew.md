@@ -70,6 +70,44 @@ which is efficient, and means G2's acceptance walk doubles as the reconnaissance
 campaign maps carry far more of everything (forge3 has 641 waypoints and 109 NPCs), so nothing here is
 limited by the data; it is limited only by what a first milestone should attempt.
 
+## 3b. What the spaces actually support (measured, 2026-10-05)
+
+§3 ranked decks by navigation furniture. That was the wrong measure, and taking it further shows why: a
+post needs something to *be at*, and the deck's own interactive objects say what a space is really for.
+Counted from the map sources, with "standable" meaning navigation furniture 24-64 units from a model --
+arm's length to a few paces, not merely the same room:
+
+| space | named work objects | stations with standing room (tight) | models at standing distance | crew placed |
+|---|---|---|---|---|
+| `deck04` | 23 | **2** | 30 | 18 |
+| `deck02` | 12 | 5 | **47** | 16 |
+| `deck08` | 13 | 6 | 22 | 14 |
+| `voy7` | 14 | 5 | 19 | 42 |
+| `scav4` | 29 | **14** | 39 | 40 |
+| `scav5` | 26 | 13 | 30 | 36 |
+| `forge4` | 35 | **22** | 30 | 86 |
+
+And the objects' own names are the finding:
+
+- **`deck04` is an entertainment deck.** Its named objects are `beam1`-`beam8`, `bigshow3`, `fosbox`,
+  `box1go` -- shooting-range and holodeck props. Its two "stations" are door switches. Eighteen crew are
+  placed there as *visitors*.
+- **`deck02` is furnished for people, not consoles**: `sm_chair` x17, plus `pitcher`, `burner`,
+  `g_coffee`, `g_fruitbowl`, `shelves`, `cut_table`. A mess hall or crew lounge.
+- **Voyager's decks generally have no interactive stations at all.** The consoles a crew member would
+  work at are un-named models, or are driven by `target_scriptrunner` rather than by an interactive.
+- **The places with real machinery are the away missions**: `scav4`'s `com1a`-`com16a` (computer
+  consoles) and `forge4`'s `1st_el_con_off` / `2nd_el_con_on` (equipment controls).
+
+**Consequence.** G3's hardest requirement is §7c item 7: looking natural while idle. A mess hall is the
+one kind of space where standing around is *in character*, because the room itself explains people
+sitting, talking and eating. A bridge would demand console interactions and animation this milestone
+does not have; an away mission has the machinery but is not the ship, and its NPC population is largely
+hostile. Recommendation therefore changes to **`deck02`**, with `scav4` as the space to use later if
+console work turns out to be the point.
+
+Decision 1 of §7b is reopened on this evidence and awaits the owner's revised choice.
+
 ## 4. Design
 
 A **direction layer above the existing behaviour states**, not a replacement for them:
@@ -138,6 +176,40 @@ Read from `src/game/`, so the design above rests on named mechanisms rather than
 - **The reaction layer G3 must not fight is a known file**: `NPC_reactions.cpp`, alongside
   `NPC_behavior`, `NPC_goal`, `NPC_move`, `NPC_senses`, `NPC_sounds`, `NPC_formation`, `NPC_spawn`.
 
+## 4b. Deck-to-deck movement: scope, and the cheap version
+
+Raised by the owner, and the instinct is right: people moving between decks is a large part of what makes
+a ship feel alive. It is nonetheless G4, and the reason is mechanical rather than budgetary.
+
+**Each deck is a separate map, so crossing between them is a level change.** `target_level_change` is the
+retail mechanism for it, and a level change tears the game module down and re-initialises it -- our own
+logs show the sequence on every map load (`SP_SpawnServer` -> `SP_LoadGame` -> `ge->Init`, with the
+entity string and ICARUS state rebuilt from scratch). Crew are server entities, so **nothing about them
+survives the boundary in memory**.
+
+Moving a crew member between decks therefore requires:
+
+- a **persistent identity** for each crew member, written into the save and re-applied at spawn on the
+  far side, so the same person comes back rather than a fresh copy;
+- **spawn suppression**: the far deck's own NPC entity must be skipped when that person is recorded
+  elsewhere, or the deck gains a duplicate;
+- a **transit record** -- who is in transit, to where, arriving when -- and a rule for what happens if
+  the player changes decks mid-transit.
+
+That is a persistence contract spanning maps. G3 only has to satisfy one *within* a single map, and the
+save-size measurement exists precisely because this is where the cost lands: five crew first, then thirty.
+
+It also multiplies the space problem rather than relieving it. §3b found that most decks have almost
+nothing to stand at, so sending crew between decks distributes them into emptier rooms before they hold a
+post in a full one.
+
+**The cheap version that buys the feeling now.** Within one deck, crew can come and go *through the lift*:
+walk to a lift or door, leave, and reappear from it later on a rotation. No persistence, no level change --
+and `BS_REMOVE` ("waits for the player to leave PVS then removes itself") already provides the removal
+half, with `NPC_spawn` handling the arrival. That reads as a working ship, with people arriving and
+leaving, without paying for cross-map identity. Recommended as an optional G3 add-on; genuine transit
+stays in G4.
+
 ## 5. Acceptance — measurable, and how each is measured
 
 The charter's bar, with the measurement named for each:
@@ -190,6 +262,71 @@ All six steps are done; they are kept as the record of the order the work took.
 5. **Persistence**: save/load per-NPC state, with the budget asserted.
 6. **Measurement harness**: the acceptance table above, automated where it can be, so the milestone is
    reported as numbers rather than impressions.
+
+## 7a. Open decisions (owner's, pending)
+
+Five, and only the first blocks implementation. Recommendations are mine and are reversible.
+
+1. **Which deck.** Recommendation: **`deck04`** -- densest navigation of any deck, eight crew already
+   placed, nineteen interactive objects to hold posts at. `deck05` is the alternate if the goal
+   entities prove too coarse in practice.
+2. **Crew count for the first pass.** Recommendation: **five, not ten.** The save path is twenty
+   years old, and the per-NPC cost should be measured at five before anything is designed for thirty.
+3. **Anchored posts in scope?** Whether a post may forbid its holder from leaving (bridge, security),
+   answering with a refusal bark instead of following the player. Recommendation: **in** -- it is a
+   data flag, and it is the difference between a staffed deck and a room of people who all abandon
+   their stations when addressed.
+4. **Who authors the posts.** Recommendation: **generated as a small data table** for G3; the
+   alternative is hand-marking in an editor, which pulls in the editor question. That question belongs
+   to Track B, not to this milestone.
+5. **The reject condition for the subjective item.** Decide in advance what would make the deck read
+   as mannequins rather than as inhabited, so the judgement is not made after the fact.
+   Recommendation: **if it reads as furniture, G3 fails and is fixed before G4 starts.**
+
+One boundary that is not a fork: G3 passing on one deck unlocks G4's *specification*, not its
+implementation. The mechanism should hold in a second space before it is generalised. That is the
+wedge principle, and skipping it is the most likely way for this program to become expensive.
+
+## 7b. Decisions locked (2026-10-05)
+
+All five accepted as recommended: **deck04**; **five crew** for the first pass; **anchored posts in
+scope**; posts **generated as data** rather than hand-marked; and the rejection criterion below. These
+are binding for G3, and are not revisited mid-implementation.
+
+## 7c. The rejection criterion, decomposed
+
+The owner's criterion, verbatim: **"unrealistic and unnatural actions for the characters in their
+environment."** That is the bar the whole milestone serves. It is a judgement rather than a number, so
+it is decomposed here into the impressions that produce it -- and note what it is a bar *about*: fit to
+the environment, not intelligence. Nobody will be disappointed that a crew member is not clever. They
+will be disappointed the moment one stands in a wall.
+
+In rough order of how fast a player notices:
+
+1. **Position.** Standing inside furniture or geometry, in a doorway, or on top of another crew member.
+2. **Facing.** Facing a blank wall, or not facing the thing they are ostensibly standing at.
+3. **Spacing.** Posts clustered so crew overlap -- or spaced so evenly the deck reads as a chessboard.
+4. **Attention.** Answering someone they cannot see, or through a wall; ignoring someone standing
+   directly in front of them.
+5. **Motion.** Routes a person would not take, walking through objects, stopping mid-stride, snapping
+   turns.
+6. **Sameness.** Everyone reacting on the same beat, with the same animation, at the same pacing. This is
+   the clearest single tell that a deck is machine-driven.
+7. **Idleness.** Perfect rigidity at a post. A person shifts weight, glances, adjusts. Absolute stillness
+   is more unnatural than motion, not less.
+
+What follows is binding on how the code is written, rather than being polished in afterwards:
+
+- **Posts are placed clear of geometry and spaced to the room**, and the post set is reviewed as a *set*,
+  not one post at a time.
+- **Facing is derived from the object the post belongs to** -- a console, a station, a doorway -- never
+  from an arbitrary angle.
+- **Attention is gated by the NPC's existing perception** (sight, earshot, line of sight), so that "they
+  noticed me" is always truthful about what the NPC could actually perceive.
+- **Movement uses the deck's own navigation**, so routes follow the space instead of cutting through it.
+- **Idle variation is a requirement, not decoration.** No two crew members share a cycle.
+- The machine checks in §5 are necessary and not sufficient. This list is what decides, and it is judged
+  by the owner, by eye, on the deck.
 
 ## 7. Risks, with probabilities
 

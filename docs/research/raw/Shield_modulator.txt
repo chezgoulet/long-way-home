@@ -1,0 +1,9 @@
+'''Shield modulators''' were technological components of a [[starship]]'s defensive systems, responsible for maintaining and adjusting [[shield harmonic]]s.
+
+In [[2368]], [[Lieutenant Commander]]s [[Data]] and [[Geordi La Forge|La Forge]] adjusted the {{USS|Enterprise|NCC-1701-D|-D}}'s shield modulators in order to allow the ship to push through the [[gravitational wavefront]]s of a [[black cluster]], as part of their investigation into the destruction of the {{SS|Vico}}. ({{TNG|Hero Worship}})
+
+In [[2371]], [[Chief]] [[Miles O'Brien]] utilized the shield modulator of the {{USS|Defiant|2370}} to adjust the ship's shield harmonics to make it appear as a [[Kobheerian freighter]] to long-range sensors during a covert mission to [[Cardassia]] to rescue [[Major]] [[Kira Nerys|Kira]]. ({{DS9|Second Skin}})
+
+In [[2375]], the [[Borg]] locked onto the shield modulators of the ''{{dis|Delta Flyer|2375}}'', which was being used by the crew of the {{USS|Voyager}} in an attempt to rescue [[Seven of Nine]] from the Borg [[Unicomplex]]. This allowed the Borg to adapt mere moments after [[Lieutenant]] [[Tom Paris|Paris]], piloting the ''Flyer'', remodulated the frequencies of the [[multi-adaptive shielding]] he was using in an effort to stay invisible to the Borg [[sensor]]s. ({{VOY|Dark Frontier}})
+
+[[Category:Shield technology]]

@@ -1,0 +1,9 @@
+'''Tactical sensors''' were [[sensor]]s associated with a [[starship]]'s weapons systems.
+
+In [[2151]], [[Hoshi Sato]] discovered tactical sensors aboard the {{IKS|Somraw}}. ({{ENT|Sleeping Dogs}})
+
+In [[2367]], [[Worf]] reported that the {{USS|Enterprise|NCC-1701-D|-D}}'s tactical sensor readings were indeterminate as to the cause of the ship being pulled through [[space]], although all on-board sensors were operating properly. ({{TNG|The Loss}})
+
+''In an [[alternate timeline|alternate]] [[2378]], [[Tuvok]] said that the {{USS|Voyager}}’s tactical sensors were not functioning at the time of a [[Krenim]] attack [[2374|four years before]], denying [[Kes]] information she needed about the [[temporal variance]] of a specific [[chroniton torpedo]] that had contaminated the ship.'' ({{VOY|Before and After}})
+[[Category:Sensor technology]]
+[[de:Taktischer Sensor]]

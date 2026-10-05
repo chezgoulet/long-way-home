@@ -1,0 +1,71 @@
+{{multiple}}
+A '''beam setting''' was the amount of discharge given-off by a [[directed energy weapon]], such as [[phase-pistol]]s, [[plasma rifle]]s, [[phaser]]s, or [[disruptor]]s. It was similar in concept to the [[variable yield]] capability used on [[torpedo]]es. 
+
+When [[Spock]], [[Data]], and [[Jean-Luc Picard]] outmaneuvered [[Sela]] in her office, Spock held a captured [[Romulan disruptor rifle|Romulan disruptor]] to her and warned her "''I'm afraid I don't know too much about Romulan disruptor settings,''" forcing her to surrender. ({{TNG|Unification II}})
+
+== Stun setting {{anchor|Stun}}==
+[[File:Picard Q phaser.jpg|thumb|[[Captain]] [[Jean-Luc Picard]] shows [[Q]] a [[type 1 phaser]] set to stun]]
+{{aquote|Keep your phasers on stun. And stay calm. I don't want anyone getting nervous and shooting one of us by mistake.|[[Michael Eddington]]|2371|The Adversary}}
+
+The '''stun setting''' was non-lethal, low yield beam setting; powerful enough to cause disorientation, unconsciousness, and minor [[skin]] [[burn]]s to a [[humanoid]] [[lifeform]]. ({{TOS|The Man Trap}}; {{TNG|Samaritan Snare}}; {{VOY|Distant Origin}}) While relatively benign to a humanoid, some stun settings could cause smoke, sparks, electromagnetic discharge, or any combination of the above to be emitted from walls and other solid surfaces and objects the beam struck. ({{ENT|Damage}}; {{TNG|First Contact}})
+
+[[Romulan]] disruptors had no stun setting, and nor did at least some [[22nd century]] [[Andorian]] weapons. ({{PIC|The End is the Beginning}}; {{ENT|Cease Fire|}})
+
+There were many resilient [[species]] against which the stun setting had little or no effect, including [[Augment]]s, ({{film|12}}) the [[Xindi-Reptilian]]s, ({{ENT|Carpenter Street}}) and [[Human]]s infected by a [[parasitic being]]. ({{TNG|Conspiracy}}) [[Angosian]]s who had undergone conditioning to fight in the [[Tarsian War]] were also largely unaffected by the stun setting. ({{TNG|The Hunted}}) To some more vulnerable species, even the stun setting was potentially [[death|lethal]], for example the [[Trill symbiont]]s. ({{DS9|Invasive Procedures}}) When used at close range, a [[phaser]] set on stun was capable of inducing sufficient trauma to kill a Human, if fired at a vital organ such as the [[brain]]. ({{film|6}})
+
+[[Phase-pistol]]s in use by [[Starfleet]] in the [[2150s]] featured stun as one of two settings, the other being [[kill setting|kill]]. ({{ENT|Broken Bow|Terra Nova}}) Their stun setting could also be used to ignite [[fire]]s. ({{ENT|Desert Crossing|}}) Later Starfleet phasers in the [[23rd century|23rd]] and [[24th century|24th centuries]] had several different levels of stun setting. [[Starfleet regulations]] stated that phasers were to be locked at the level one stun setting. ({{TNG|Aquiel}})
+
+A phaser set to stun could render a Human female unconscious in 0.9 [[second]]s, something that was of no use to [[Miles O'Brien]] when a [[Pah-wraith]] possessed [[Keiko O'Brien|his wife]], as it was still more than enough time for the Pah-wraith to kill her. ({{DS9|The Assignment}})
+
+{{bginfo|In an ultimately omitted scene extension from the script of {{TOS|Court Martial}}, [[Spock]] gave Captain [[James T. Kirk|Kirk]] a phaser just before Kirk left the [[bridge]] of the {{USS|Enterprise|NCC-1701}} in order to search the ship for [[Benjamin Finney]], who Spock speculated might already be armed. Though Kirk checked the phaser and started to make an adjustment on it, Spock notified him the weapon was already on the stun setting, for which Kirk was thankful.}}
+
+===Levels of stun===
+* The first stun setting was called the "low stun setting", ({{TNG|Force of Nature}}) "setting number one" and the "base cycle". ({{TOS|The Enemy Within}}) A hit from this most minimal setting only left the target dazed, unable to stand and think straight for a short time. ({{TOS|The Man Trap}}, {{film|8}}) Two phasers set on setting one, fired simultaneously, could break large objects into pieces, such as the [[urn]]s of [[Planet Two|the second planet]] of the [[Taurean system]]. ({{TAS|The Lorelei Signal}}) In the [[2290s]], a phaser fired on stun did not set off internal alarms on Starfleet [[starship]]s. ({{film|6}})
+
+[[File:Pakleds stun La Forge.jpg|thumb|[[Pakled]]s stun [[Geordi La Forge]] with a Starfleet phaser]]
+* A higher stun setting caused a brief moment of unconsciousness to most humanoids. Although mostly harmless when used at this setting, multiple phaser stuns like this could culminate in serious injury to the [[central nervous system]], and, after multiple hits, death. ({{TNG|Samaritan Snare}})
+
+* The highest stun setting had several names. It was referred to as "maximum stun", ({{TNG|The Hunted|Reunion|Legacy}}) "full stun", ({{TAS|The Eye of the Beholder}}) "heavy stun", ({{TOS|The Omega Glory|The Savage Curtain}}; {{TNG|Genesis}}) "heavy stun force", ({{TOS|Tomorrow is Yesterday}}) and "strong stun position". ({{TOS|A Piece of the Action}}) The highest stun setting was strong enough to immobilize a [[Soong-type android]]. ({{TNG|A Matter Of Time}}) The slightly higher setting 3.1 was also enough to cause a [[Changeling]] to experience similar discomfort as the minimal setting caused to Humans. Setting 3.4 or 3.5 was high enough to effectively stun and force a Changeling to revert back into its gelatinous state. ({{DS9|Homefront}})
+
+{{bginfo|According to the ''[[Star Trek: The Next Generation Technical Manual]]'' (pp. 135 & 136), the first three settings on Starfleet phasers were the light, medium and heavy stun. According to the ''Manual'', setting 1 was designed to only cause disorientation, setting 2 unconsciousness for fifteen minutes and setting 3 unconsciousness for an hour.}}
+
+===Modifications===
+In a similar way as the kill setting could be used to quickly kill a room full of people when set on a wide beam setting ({{VOY|Worst Case Scenario}}), a wide-field stun setting could be used to stun large groups with a single shot. ({{TOS|The Return of the Archons}}; {{TNG|Power Play}})
+
+Along with hand weapons, shipboard [[phaser bank]]s could be modified to deliver a potent stunning beam to incapacitate large crowds on the surface of a [[planet]], when fired from [[orbit]]. ({{TOS|A Piece of the Action}})
+
+== Kill setting {{anchor|Kill}}==
+[[File:Mordanite soldier 3.jpg|thumb|[[Mordanite]] [[Mordanite soldiers 001|soldier]] firing a phaser set to kill]]
+The '''kill setting''' was a yield setting that was intended to cause [[death]] to a [[humanoid]] [[lifeform]]. ({{ENT|Broken Bow|Cease Fire|Carpenter Street}}; {{DS9|Second Skin}}) 
+
+On a [[type 2 phaser]] used by the [[Starfleet]] in the [[23rd century]], "one-quarter" and "[[force 3]]" were other terms for the kill setting. In the [[24th century]], the setting was known as "level 10". ({{TOS|The Man Trap|Operation -- Annihilate!}}; {{TNG|Aquiel}})
+
+===Yield===
+On phase-pistols used by Starfleet personnel in the mid-[[22nd century]], the kill setting was the normal maximum setting, and was rated at a yield of five [[megajoule]]s. ({{ENT|Broken Bow|Regeneration}})
+
+[[Cardassian phase-disruptor rifle]]s were also similarly designed with only two settings and the maximum yield of 4.7 [[megajoule]]s. ({{DS9|Return to Grace}})
+
+The impact of a phaser or a disruptor blast set to kill left behind an electrostatic charge. ({{DS9|Second Skin}}) A phaser set to kill also left behind a distinct phaser [[burn]] on clothing. In [[2370]], [[Jason Vigo]] suggested to [[Bok]] that he could create such a phaser burn on his shirt and send it to [[Captain]] [[Jean-Luc Picard]], to try to convince him that Bok had killed him. ({{TNG|Bloodlines}})
+
+=== Applications ===
+[[File:Andorian commando at P'Jem.jpg|thumb|Andorian rifles were set to kill by default and had no stun setting]]
+[[Andorian rifle]]s used by the [[Andorian Imperial Guard]] in the mid-22nd century were set to kill by default; they had no [[stun setting]]. ({{ENT|Cease Fire}})
+
+When a phase-pistol set to kill only grazed a target, it was possible to survive from the hit. ({{ENT|United}})
+
+In [[2267]], the kill setting was found to be non-lethal to the [[flying parasite]]s that [[invade]]d [[Deneva]]. Because each parasite was part of a huge organism, and drew strength from that organism, it could resist extended exposure to a hand phaser set to kill. Parasites exposed for five to ten [[second]]s reacted as if mildly stunned; they fell from the surface to which they were attached, and did not react to external stimuli for about a [[minute]]. ({{TOS|Operation -- Annihilate!}})
+
+The kill setting on hand phasers used by the [[Mordanite]]s in [[2364]] had a distinct sound from the stun setting. ({{TNG|Too Short A Season}})
+
+To a [[Human]] infected by a [[parasitic being]]s, the kill setting only caused unconsciousness, due to the high levels of [[adrenaline]] stimulated by the parasite. However, extended exposure to a body part such as the head of a humanoid would still cause it to explosively [[vaporize]]. Two phasers set to kill could also vaporize smaller lifeforms such as the neural parasite mother creature with extended exposure. ({{TNG|Conspiracy}})
+
+In [[2366]], [[Commander]] [[William T. Riker]] of the {{USS|Enterprise|NCC-1701-D|-D}} was forced to use his phaser to disintegrate the [[Acamarian]] servant girl [[Yuta]] to prevent her from killing the [[Lornak]] tribe leader [[Chorgan]]. Stun and kill settings only caused her to recoil in pain due to her genetic enhancements. ({{TNG|The Vengeance Factor}})
+
+==See also==
+* [[Neural truncheon]]
+* [[Stun baton]]
+* [[Stun grenade]]
+* [[Stunstick]]
+
+[[Category:Measurements]]
+[[Category:Directed energy weapons]]

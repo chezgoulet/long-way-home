@@ -1,0 +1,30 @@
+{{multiple}}
+The '''structural integrity field''' (acronymed '''SIF''') was a [[technology]] developed by [[spaceflight|spacefaring]] [[species]] to supplement the natural [[structural integrity]] of the material their [[starship]] [[hull]]s or other constructions were composed of. [[Engineer]]s used a structural integrity [[force field]] to supplement the supports and [[bulkhead]]s that gave a piece of architecture its shape. This technology was made necessary by the fantastic stresses and probability of a [[hull breach]] presented by [[warp field]]s and [[spatial phenomenon|spatial phenomena]] present in the [[Milky Way Galaxy|galaxy]].
+
+The field strength was usually measured in percentages. A structural integrity reading of 100% meant that the field was accepting a maximum load of the stresses presented to the structure, and that all physical architecture was {{dis|safe|concept}} from that stress. As the percentage approached zero, this meant that more and more of the stress of [[weapon]]s, [[gravity]], and other phenomena was being experienced by the hull itself rather than the force field. As the hull became damaged or breached, the SIF became less effective as the hull it was designed to hold together started to disintegrate.
+
+In [[2366]], [[Lieutenant Commander]] [[Geordi La Forge]] reconfigured [[structural integrity power]] to feed the inner [[deflector grid]] by taking some {{dis|power|physics}} from the structural integrity field, despite this reroute compromising operational safety limits. ({{TNG|Tin Man}})
+
+When the {{USS|Enterprise|NCC-1701-D|-D}} was trying to break free from the influence of the [[two-dimensional being]]s, the structural integrity field stress was exceeding 82 million [[kilodyne]]s and the attempt had to be aborted. ({{TNG|The Loss}})
+
+The aft structural integrity field of the [[Kobliad transport]] ''[[Reyab]]'' failed in [[2369]]. [[Major]] [[Kira Nerys]] was able to get it back online temporarily. ({{DS9|The Passenger}})
+
+After the {{USS|Defiant|2370}} was disabled by two [[Jem'Hadar attack ship]]s in [[2372]], [[Worf]] ordered {{dis|Stevens|Crewman}} to recalibrate the SIF to minimize the strain caused by a [[torpedo]] embedded in the hull fired from the [[Dominion]] ships. ({{DS9|Starship Down}})
+
+Later that year, the SIF of [[Deep Space 9]]'s [[Docking pylon|Upper Pylon Three]] failed and tore open some of the [[bulkhead]]s. Several people used the opportunity to steal equipment from the exposed [[cargo bay]]s. ({{DS9|Looking for par'Mach in All the Wrong Places}})
+
+In order to stop the USS ''Defiant'' from being torn to pieces by exceeding warp nine in [[2374]], [[Chief]] [[Miles O'Brien]] took power from the [[phaser reserve]]s to strengthen the starship's structural integrity field. ({{DS9|The Sound of Her Voice}})
+
+''In [[Year of Hell#Second iteration|an]] [[Alternate timeline|alternate]] [[2374]], the {{USS|Voyager}} was forced to engage [[warp drive]] while the structural integrity field was still down, in order to escape the [[Krenim weapon ship]]. As a result, many of the outer hull plates were torn from the ship.'' ({{VOY|Year of Hell}})
+
+The [[warp coil]]s of an {{Class|Intrepid}} [[starship]] would rupture within a short time if the structural integrity field around them collapsed. ({{VOY|One}})
+
+In [[2375]], [[Captain]] [[Kathryn Janeway]] ordered that power to the structural integrity field of ''Voyager'' be increased after it became clear that the vessel was trapped in a [[subspace layer]] and that the problem could not be resolved quickly. ({{VOY|Bride of Chaotica!}})
+
+When the [[Varro generational ship]] broke apart due to [[silicon-based parasite]]s in [[2375]], ''Voyager'' extended its structural integrity field around the ship to buy enough time for the [[Varro]] to evacuate the affected areas. ({{VOY|The Disease}})
+{{pna-incomplete}}
+
+[[cs:Pole strukturální integrity]]
+[[ja:構造維持フィールド]]
+[[Category:Shield technology]]
+[[Category:Energy fields]]

@@ -1,0 +1,128 @@
+{{multiple}}
+[[File:Constitution II class navigational deflector.jpg|thumb|The navigational deflector of a ''Constitution II''-class starship]]
+[[File:Galaxy class navigational deflector.jpg|thumb|The navigational deflector of a ''Galaxy''-class starship]]
+[[File:Sovereign class deflector dish.jpg|thumb|The navigational deflector on a ''Sovereign''-class starship]]
+[[File:USS Enterprise (alternate reality), deflector dish at warp.jpg|thumb|The navigational deflector of the alternate reality USS ''Enterprise'' open at warp]]
+{{aquote|What about the deflector? I mean, isn't that its whole job, to deflect?|[[Carol Freeman]]|2381|First First Contact}}
+The '''navigational deflector''', also known just as the '''deflector''', the '''deflector array''', the '''deflector dish''', the '''main deflector''', the '''nav deflector''', the '''parabolic dish''', the '''main sensor''', was a component of many [[starship]]s that was used to deflect space debris, [[asteroid]]s, microscopic [[particle]]s, and other objects that might have collided with the ship. At [[warp speed]], the deflector was virtually indispensable for most starships as even the most minute particle could cause serious damage to a ship when it was traveling at superluminal velocities. ({{VOY|Alliances|Collective}})
+
+== Technical data ==
+The deflector commonly took the form of a dish-shaped [[force beam generator]] containing heavy-duty [[subspace]] accelerators at the extreme forward end of the vessel's [[secondary hull]]. It performed its primary function by emitting low-power [[deflector shield]]s to deflect microscopic particles and higher-powered deflector beams and/or [[tractor beam]]s to deflect larger objects. ({{film|8}}; {{VOY|Alliances|Shattered}})
+
+On the {{Class|Constitution}} starships, the navigational deflector was a combined system with the ships' main [[duotronic]] [[sensor]]s. ({{TNG|Datalore}} ''[[:File:Constitution class schematics profile.jpg|computer screen]]''; {{DS9|Trials and Tribble-ations}} ''[[:File:Duotronic sensor array.jpg|computer screen]]'')
+
+{{bginfo|According to ''[[Star Trek: The Next Generation Technical Manual]]'' (p. 87), the long-range [[sensor array]] was a key element of the navigational deflector system as it was used to detect and track objects in the ship's flight path. The deflector beams caused a great deal of [[subspace distortion]], so the [[sensor array]]s were placed in a circular fashion around the deflector beam emitter array.}}
+
+A deflector's energy could be extended outward to protect other ships. In [[2266]], the {{USS|Enterprise|NCC-1701}} extended its deflector shield around {{Harry Mudd}}'s stolen [[Class J starship]], ''[[Stella]]'', to temporarily protect it from [[asteroid]]s while its crew were [[transporter|transported]] to safety. ({{TOS|Mudd's Women}}) The 24th century Federation starship navigational deflectors could easily deflect [[laser]] fire. ({{TNG|The Outrageous Okona}})
+
+Ordinarily, [[Federation]] starships were equipped with a single external deflector dish. In the [[2250s]] these devices were sometimes known as the ships' meteorite beam. ({{TOS|The Cage}}) In the late [[24th century]], some starships were known to have more than one deflector. One example of this was the {{Class|Intrepid}}, which had its main deflector located between the extreme forwards of Decks 10 through 13, while the secondary deflector was located on the extreme forward of Deck 6. ({{VOY|Caretaker}})
+
+The deflector of the {{USS|Enterprise|NCC-1701-E|-E}} was charged with [[antiproton]]s while the Borg were modifying it. This proved to be a potential hazard as [[particle weapon]]s fire hitting the deflector could destroy much of the ship. ({{film|8}})
+
+In [[2384]], the location of the front deflector on the {{USS|Dauntless|NCC-80816}} was labeled on the master situation display. Located on Deck A, this deflector was concealed within the hull. ({{PRO|Mindwalk}})
+
+{{bginfo|A clear view of the MSD was provided by Dominique Rossier of Wardenlight Studio. [https://www.artstation.com/artwork/xY8J1R]}}
+
+Later that year, the deflector's location on the {{USS|Voyager|NCC-74656-A|-A}} was labeled in the ship's [[master systems display]]. ({{PRO|Into the Breach, Part I}})
+
+{{bginfo|A clear view of the MSD was provided by Dominique Rossier of Wardenlight Studio. [https://www.artstation.com/artwork/w0LdQV]}}
+
+=== Components of the system ===
+* [[Booster modulator]]
+* [[Collimator]]
+* [[Deflector field]]
+* [[Emitter array]]
+* [[Force beam generator]]
+* [[Induction stabilizer]]
+* [[Maglock]]
+
+== Other uses ==
+Due to its ability to project a wide variety of energies and particles, the navigational deflector was an extremely versatile piece of equipment. Many starship crews made one-time modifications to the dish to solve several problems they were facing.
+
+=== USS ''Cerritos'' (NCC-75567) ===
+* [[Ensign]] [[Beckett Mariner]] used [[radiation]] from the main deflector in combination with [[parizene gas]] to reverse the partial transformation of the {{USS|Cerritos}} by [[terraforming emulsion]] in [[2380]]. ({{LD|Moist Vessel}})
+
+=== ''Cochrane'' (NCC-74656/04) ===
+[[File:Cochrane firing polaron pulse.jpg|thumb|Firing a polaron pulse]]
+* In [[2374]], the [[Class 2 shuttle]] ''{{dis|Cochrane|2372}}'' fired a [[polaron pulse]] from its main deflector in an attempt to shore up the [[confinement field]] for the [[quantum singularity]] of the [[Hirogen relay station|relay station]] that temporarily connected {{USS|Voyager}} to the [[Alpha Quadrant]]. After firing the pulse, the variance in the containment field had been stabilized at 0.29, which was believed to prevent further degradation of the communications signal ''Voyager'' was receiving from [[Starfleet]]. ({{VOY|Hunters}})
+{{clear}}
+
+=== USS ''Defiant'' (NX-74205) ===
+[[File:Focal array.jpg|thumb|The ''Defiant''{{'}}s deflectors focal array is utilized to generate a subspace tensor matrix]]
+* Navigational deflectors could also be used to emit [[graviton pulse]]s. ({{DS9|Once More Unto the Breach}})
+* In early-2372, the {{USS|Defiant|2370}}'s deflector was used to shunt an excess amount of warp energy from the ship's [[warp core]] that threatened to destroy the ship in a [[warp core breach]]. ({{DS9|The Visitor}})
+* During 2372, the deflector of the ''Defiant'' was modified in just ten minutes to perform as a single-shot phaser emitter when the ship was under attack from a [[Jem'Hadar fighter]] in the atmosphere of a [[Class J gas giant]]. Only one shot could be fired with this makeshift [[phaser emitter]] as it overloaded with the first shot. ({{DS9|Starship Down}})
+* During the same year, the [[focal array]] of the ''Defiant''{{'}}s navigational deflector was used to generate a [[subspace tensor matrix]] in the attempt to create a stable [[artificial wormhole]]. ({{DS9|Rejoined}})
+* In [[2374]], the ''Defiant'' used its deflector to fool the numerous externally powered [[Cardassian orbital weapon platform]]s defending one of the planets in the [[Chin'toka system]] into destroying their own remote power source by projecting a false Federation warp signature onto the power station. ({{DS9|Tears of the Prophets}})
+
+=== ''Enterprise'' (NX-01) ===
+[[File:Enterprise destroys Sphere 41.jpg|thumb|A deflector pulse]]
+* In [[2154]], the navigational deflector of {{EnterpriseNX}} was used to generate a [[deflector pulse]] which destroyed [[Sphere 41]], thus disrupting the entire network of spheres in the [[Delphic Expanse]]. Modifications had to be made, however, to prevent the pulse from rupturing [[EPS conduit]]s throughout the ship. ({{ENT|Countdown|Zero Hour}})
+
+Later that year, ''Enterprise''{{'}}s deflector was modified to emit a [[positron]] burst, which disabled [[Harrad-Sar's barge]] when it passed through the [[grappler|grappling line]] of his ship. ({{ENT|Bound}})
+
+=== USS ''Enterprise'' (NCC-1701) ===
+[[File:USS Enterprise fires deflector beam.jpg|thumb|A deflector beam]]
+* The {{USS|Enterprise|NCC-1701}} used a [[deflector beam]] to attempt to shift a large [[asteroid]] off course when it threatened the [[planet]] [[Amerind]] in [[2268]]. The attempt failed and caused damage to the ship's power. ({{TOS|The Paradise Syndrome}})
+
+{{bginfo|[[Stephen E. Whitfield]] and [[Gene Roddenberry]]'s ''[[The Making of Star Trek]]'' (p. 191) stated of the vessel's prominent dish: "''The starship's main sensor-deflector (a parabolic sensor and asteroid-deflector) is located at the front end of the secondary hull.''" In accordance with this, [[Franz Joseph]]'s ''[[Star Trek Blueprints]]'' labeled it as the "''main sensor and navigational deflector,''" although Joseph's ''[[Star Fleet Technical Manual]]'' omitted the latter and referred to it only as the "main sensor." Some [[Matt Jefferies]] concept sketches of the ship had earlier included a dome-shaped nosecone "sensor" in place of, or perhaps covering, the dish. (''[[Star Trek: The Original Series Sketchbook|Star Trek Sketchbook: The Original Series]]'', p. 68; ''[[The Art of Star Trek]]'', p. 9)}}
+
+=== USS ''Enterprise'' (NCC-1701-B) ===
+[[File:USS Enterprise-B fires resonance burst.jpg|thumb|A resonance burst]]
+* In [[2293]], [[Captain]]s [[Montgomery Scott]] and [[James T. Kirk]] modified the deflector of the {{USS|Enterprise|NCC-1701-B|-B}} to produce a [[resonance burst]] in order to simulate an [[antimatter]] explosion when the ship became caught in the [[Nexus|Nexus energy ribbon]]. ({{film|7}})
+{{clear}}
+
+=== USS ''Enterprise'' (NCC-1701-D) ===
+[[File:USS Enterprise-D navigational deflector.jpg|thumb|The USS ''Enterprise''-D fires its deflector dish as a weapon]]
+* The crew of the {{USS|Enterprise|NCC-1701-D|-D}} used the deflector to channel an extremely large amount of energy at a controlled rate &ndash; both as a weapon against a [[Borg cube]] in [[2366]] and as an energy source hoping to escape a [[Tyken's Rift]] in [[2367]]. ({{TNG|The Best of Both Worlds|The Best of Both Worlds, Part II|Night Terrors}}) Although the energy beam had a greater power output than the ship's complement of weapons, using the deflector for this purpose was extremely impractical and only ever used on two occasions for three reasons:
+** Channeling such a large amount of energy through the deflector made substantial drains on the ship's power systems, notably from the [[warp engine]]s. This also meant that the beam could only be fired if the ship was traveling at sublight velocities.
+** The deflector dish would burn out following the energy beam discharge, requiring extensive repairs, possibly replacement of the deflector altogether.
+** The high levels of [[radiation]] produced by the energy beam require the evacuation of the entire forward half of the [[secondary hull]] and the lower three decks of the [[saucer section]] of a {{Class|Galaxy}} starship.
+* Also in 2367, the ''Enterprise''-D's deflector was modified to amplify and reflect the subspace frequencies produced by a [[cosmic string]] fragment to change the trajectory of a group of [[two-dimensional being]]s that threatened to destroy the ship. ({{TNG|The Loss}})
+[[File:Deflector dish firing 2368.jpg|thumb|The deflector dish fires five beams of light]]
+* In [[2368]], the deflector dish was modified to send five beams of light for exactly 8.3 seconds into the clouded [[atmosphere]] of [[Penthara IV]], together with a modified [[phaser]] blast. This ionized dust particles in the planet's [[atmosphere]], which were converted into high-energy [[plasma]]. This plasma was then absorbed by the deflector shields of the ''Enterprise''-D and redirected into space. Warp power had to be rerouted to the deflector dish to create enough energy for the massive undertaking. ({{TNG|A Matter Of Time}})
+* Also in 2368, photon torpedoes partially destroyed an asteroid but was unable to destroy the asteroid's core that was that was in danger of colliding with Tessen III, near Starbase 117. A subsequent attempt to use a tractor beam wasn't able to lock on to the asteroid due to magnetic field interference emanating from the asteroid's remaining core materials. Eventually, Picard ordered a particle beam from the deflector dish be used to cause a "disruptive nuclear effect" within the core that caused it to be destroyed. ({{TNG|Cost Of Living}})
+* ''In three different [[alternate timeline]]s, the deflector was modified to emit an [[inverse tachyon pulse]] to scan beyond the [[subspace barrier]], this being done to ascertain the workings of an [[anti-time eruption]]. The convergence of the three tachyon pulse at the same point in space in multiple timeframes caused a paradox which created the eruption in the first instance.'' ({{TNG|All Good Things...}})
+
+=== USS ''Enterprise'' (NCC-1701-E) ===
+[[File:Sovereign class deflector dish, damaged.jpg|thumb|The deflector on the USS ''Enterprise''-E after being damaged by the Borg]]
+* A group of [[Borg]] attempted to modify the deflector of the {{USS|Enterprise|NCC-1701-E|-E}} to perform as an [[interplexing beacon]] so as to contact the [[Borg Collective|Collective]] of the [[21st century]]. The crew of the ''Enterprise'' prevented the attempt by detaching and destroying the deflector. The movement controller unit of the ''Enterprise''-E deflector was labeled "AE-35". ({{film|8}})
+{{bginfo|"AE-35" is a reference to {{wt|2001: A Space Odyssey}}, in which the AE-35 unit controls the communication dish's orientation for the ''Discovery''.|According to illustrator [[John Eaves]] in a production featurette entitled "The Deflector Dish" included on the second disc of the Special Collector's Edition DVD of ''[[Star Trek: First Contact]]'', the original intention was for Picard to manually reconfigure one of the ship's external weapon emplacements to eliminate the Borg beacon, but [[Michael Okuda]] advised against this tactic, contending that there would be "''too much volatile equipment and materials in that area; it would destroy the ship.''" Okuda's concern was reflected in subsequent rewrites by having the characters take the alternate approach of detaching the dish, citing the danger.|Nevertheless, it remains unspecified in the final film as to whether the dish being "charged with antiprotons" was a normal operating condition or a result of the Borg's modifications. In {{e|Threshold}}, [[B'Elanna Torres]] said the only component of the {{USS|Voyager}} which generated antiprotons was its warp core, and yet such particles (presumably so generated) could also be emitted from the ship, per {{e|The Q and the Grey}}. While not specified in that episode, the navigational deflector's [[particle emitter]] would seem an appropriate means of accomplishing this.}}
+{{bginfo|As evidenced by a call sheet from ''Star Trek: First Contact'', live-action footage of the deflector array was filmed on [[Paramount Stage 15]].|In "The Deflector Dish" featurette, production designer [[Herman Zimmerman]] confirmed this location, and elaborated on the set's construction: "''We took the biggest stage on the lot, Stage Fifteen, and it was just barely big enough... I actually made the deflector dish about seven eighths actual size. I don't think the audience was cheated from what the size should have been, but that was a difficult thing to proportion... that whole set was made of plastic with lights inside it, and had to do a lot of different things, including separate... about twenty feet of the actual rise was done physically with the Borg actors on it, and the piece actually leaving the base that it's mounted to, and going up toward the stars.''" |Producer and writer [[Rick Berman]] further recalled: "''I remember at first, we were pretty disappointed that we couldn't build the deflector array as big as we wanted to. There were restrictions on the size and the height that we could get up to... we were bummed out a little bit, because it wasn't as big as we wanted it to be.''"}}
+
+=== USS ''Odyssey'' (NCC-71832) ===
+[[File:USS Odyssey critically damaged.jpg|thumb|The ''Odyssey''{{'}}s deflector destroyed]]
+* A [[suicide run]] on the navigational deflector of the {{USS|Odyssey}} in [[2370]] caused a chain reaction resulting in the ship's destruction. ({{DS9|The Jem'Hadar}})
+{{clear}}
+
+=== USS ''Voyager'' (NCC-74656) ===
+[[File:USS Voyager emitting graviton beam.jpg|thumb|The USS ''Voyager'' emits a resonant graviton beam]]
+[[File:USS Voyager firing deflector beam.jpg|thumb|USS ''Voyager'' generating a [[deflector beam]]]]
+[[File:USS Voyager emits an anti-tachyon pulse.jpg|thumb|''Voyager'' emits an [[anti-tachyon pulse]] to seal a [[temporal rift]]]]
+* In [[2371]], the crew of the {{USS|Voyager}} modified the ship's main deflector to emit a [[dampening field]] and [[warp particle]]s diverted from the [[warp nacelle|nacelles]], along with a [[dekyon]] beam. The navigational array was also part of an analysis for possible issues in regards to being stuck in a [[type-4 quantum singularity]]. ({{VOY|Parallax}})
+* During the same year, the deflector was used to emit an [[inverted magnetic pulse]] to drive off a swarm of [[space-dwelling lifeform]]s. ({{VOY|Elogium}})
+* In [[2372]], the [[transporter]] signal was boosted on board ''Voyager'' by re-routing the transporters directly through the deflector. ({{VOY|Non Sequitur}})
+* During the same year, ''Voyager''{{'}}s deflector was used to fire dozens of [[radion beam]]s to conceal a transporter signal into one of the beams. ({{VOY|Resistance}})
+* In [[2374]], the ship's main deflector was modified by [[Seven of Nine]] to generate resonant [[graviton beam]]s to open a [[quantum singularity]] into [[fluidic space]]. ({{VOY|Scorpion, Part II}})
+* ''During the same year in [[Year of Hell#Second iteration|an]] [[alternate timeline]], a heavily damaged ''Voyager'' lost the capabilities of its navigational deflector array along with many other systems during the [[Year of Hell]]. Encountering a moving [[micrometeoroid]] field, they were unprotected without their deflector and the ship began suffering even more damage. [[Captain]] [[Kathryn Janeway|Janeway]] restored the navigational [[deflector field]], although she was [[burn]]ed due to a massive [[fire]] in [[Deflector Control]]. This timeline was negated when the [[Krenim weapon ship]] was deleted from history.'' ({{VOY|Year of Hell, Part II}})
+* In [[2375]], [[Chakotay]] was able to induce a paralateral [[rentrillic trajectory]] for the ship as a way out of [[chaotic space]] by routing ''Voyager''{{'}}s [[sensor array]] through the ship's deflector dish, thereby increasing the deflector's amplitude. ({{VOY|The Fight}})
+* Before her time on ''Voyager'', [[B'Elanna Torres]] used a deflector array combined with a [[holoemitter]] to project a starship into space. ({{VOY|Prototype}})
+* The Borg "children" used a tractor beam in an attempt to steal ''Voyager''{{'}}s main deflector, to use it as an [[interplexing beacon]] for contacting the Borg. ({{VOY|Collective}})
+* Chakotay used the deflector as a "[[lightning rod]]" to stop ''Voyager'' from being fractured into different time periods by a [[temporal anomaly]]. The strike burned out the deflector dish, though Chakotay said doing so was "better than the alternative." ({{VOY|Shattered}})
+* In [[2378]], ''Voyager'' used an [[anti-tachyon pulse]] to seal a [[temporal rift]], which had been generated by Janeway's counterpart from an alternate [[2404]]. ({{VOY|Endgame}})
+
+== Appendices ==
+=== Background information ===
+The conceptual origins of the navigational deflector, in common with those of several other key ''[[Star Trek]]'' devices including [[shields]], [[phaser]]s, and [[tractor beam]]s, can be traced to notes compiled by [[Gene Roddenberry]] through "''discussion with various scientists''" while writing the [[The Cage (episode)|first pilot]] in 1964, and subsequently circulated among production staff, as reproduced in Roddenberry and [[Stephen E. Whitfield]]'s ''[[The Making of Star Trek]]'' (p. 86): "''Some kind of 'meteoroid shield' or 'meteoroid force field deflector' will be necessary in true spaceships. If not a force field, it may be a magnetic field which deflects cosmic dust or small meteoroids via an opposite charge. Or it might consist of a probing Laser beam which deflects and/or destroys dust and small particles from the path of the ship.''"
+
+By the time of its third revision in April 1967, the ''Writers/Directors' Guide'' for {{s|TOS}} (p. 21) specified under the general heading of "DEFLECTORS" that, in addition to its deflector screen, "''the ship also has 'navigational deflector beams' which, guided by 'navigational scanners', sweep out far ahead of the vessel's path through space, deflecting from the ship's course meteoroids, asteroids, or space debris and other objects which would cause damage should the vessel strike them at this enormous speed. These are all fully automated, operated by the vessel's computers.''"
+
+In an internal production document they entitled the ''[[Star Trek: Voyager Technical Manual|Star Trek: Voyager Technical Guide Version 1.0]]'' (p. 22), [[Rick Sternbach]] and [[Michael Okuda]] emphasized that the vessel's "DEFENSIVE SHIELDS" were "''distinctly different from the NAVIGATIONAL DEFLECTOR.''"
+
+=== External link ===
+* {{mbeta}}
+
+[[de:Deflektorschild]]
+[[ja:ナビゲーション・ディフレクター]]
+[[nl:Deflector]]
+[[Category:Spacecraft components]]

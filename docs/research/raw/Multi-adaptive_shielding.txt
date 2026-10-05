@@ -1,0 +1,15 @@
+'''Multi-adaptive shielding''' was a [[deflector shield]] [[stealth]] [[technology]] developed by [[Erin Hansen|Erin]] and [[Magnus Hansen]] in [[2347]], for use in keeping their vessel, the {{USS|Raven}}, virtually invisible to [[Borg]] [[sensor]]s during their field study of the [[Borg Collective|Collective]].
+
+After tracking a [[Borg cube]] at close range for nearly three years, the Hansens encountered a [[subspace particle storm]] which caused their shielding to go offline for 13.2 seconds, during which time the Borg were able to detect them. Considering the ''Raven'' a threat, they pursued the ship and ultimately [[assimilation|assimilate]]d the Hansens.
+
+In [[2375]], the crew of the {{USS|Voyager}} incorporated multi-adaptive shielding into the systems of the ''{{dis|Delta Flyer|2375}}'', to facilitate a rescue mission for the Hansens' daughter, now known as [[Seven of Nine]], who was being held captive by the [[Borg Queen]] in the [[Unicomplex]]. Although the shielding was initially successful in concealing the ''Flyer''{{'}}s presence, the Queen, who was able to use the Collective's knowledge of the technology due to the assimilation of the Hansens' research, was able to adapt and penetrate the shielding. [[Tom Paris]], piloting the ''Flyer'', managed to remodulate the shields to avoid further detection, prompting the Queen to lay down a blind firing pattern. The Borg were eventually able to lock on to the ''Flyer''{{'}}s [[shield modulator]]s, continually adapting to the changing modulations. Boarding the Unicomplex, [[Captain]] [[Kathryn Janeway|Janeway]] managed to rescue Seven and escape on board the ''Flyer''. ({{VOY|Dark Frontier}})
+
+==See also==
+* [[Cloaking device]]
+* [[Masking circuitry]]
+* [[Refractive shielding]]
+
+[[Category:Shield technology]]
+
+[[de:Multiadaptiver Schild]]
+[[fr:Bouclier multi-adaptatif]]

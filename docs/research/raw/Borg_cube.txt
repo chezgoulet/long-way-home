@@ -1,0 +1,223 @@
+{{Sidebar starship class
+|name=        	Borg cube
+|image=         Borg cube, 2384.jpg
+|caption=       A Borg cube in 2384
+|affiliation = [[Borg Collective]]
+|length     = &asymp;3,037 [[meter]]s
+|beam       = &asymp;3,037 [[meter]]s
+|height     = &asymp;3,037 [[meter]]s
+|active=	[[24th century]]	
+|Volume=	28 [[cubic kilometer]]s
+|crew=		Up to &asymp;130,000	
+|speed=		[[Transwarp]] capable	
+|armament=	Beam and projectile weapons<br>[[Cutting beam]]s<br>[[Magnetometric guided charge]]s<br>[[Borg missile|Missile]]s<br>[[Tractor beam]]s
+|defenses=	[[Subspace field]]<br>[[Electromagnetic field]]<br>[[Regeneration]]<br>[[Force field]]s<br>Adaptive shielding
+|image2=       	Borg Cube 2401.jpg
+|caption2=       
+}}
+
+{{aquote|At twenty-two hundred hours and twelve minutes, a [[distress signal]] was received at [[Starbase 157]]. The [[USS Lalo|''Lalo'']] reported contact with an alien vessel described as "[[cube]]-shaped". The distress signal ended abruptly. She has not been heard from since.|[[Vice Admiral]] [[J.P. Hanson]]|2366|The Best of Both Worlds}}
+
+The '''Borg cube''' was a type of [[starship]] used by the [[Borg Collective]] in the [[24th century]]. Along with the [[Borg sphere]], cubes were among the primary types of vessel for its [[fleet]]. ({{TNG|Q Who|The Best of Both Worlds}}; {{film|8}})
+
+Described as mighty and omnipotent, Borg cubes were considered one of the most destructive weapons ever known. ({{PIC|Maps and Legends}})
+
+== Design and history ==
+[[File:Hansens find Borg cube.jpg|thumb]]
+[[Borg]] cubes have been in existence prior to [[2347]]/[[2348]], where a cube was first observed by Federation scientists [[Magnus Hansen|Magnus]] and [[Erin Hansen]], and their [[daughter]], [[Annika Hansen|Annika]] aboard the {{USS|Raven}} on stardate 32623.5. ({{VOY|Dark Frontier}}) Seventeen years later, the {{USS|Enterprise|NCC-1701-D|-D}} came into contact with a single cube in [[System J-25]] in [[2365]], marking the first official [[United Federation of Planets|Federation]] contact with the [[Borg]] and a Borg cube. ({{TNG|Q Who}}) 
+[[file:Borg cube interior, remastered.jpg|thumb|left|Borg cube interior]]
+Cubes were described as massive in size, measuring over three [[kilometer]]s along an edge and possessing an internal {{dis|volume|physics}} of 28 [[cubic kilometer]]s, and was constructed of [[tritanium]], an alloy known for its extreme hardness. Its exterior design consisted of perpendicular and diagonal grids, struts, and weaponry, allowing a characteristic yellow-green light to emanate from within. ({{VOY|Dark Frontier|Endgame}}) Cubes were highly decentralized in structure with no specific [[bridge]], living [[quarters]] or [[engineering]] sections. All vital systems were spread throughout the ship, which, along with the presence of a regenerative hull, made it highly resistant to damage and system failures. In [[2366]], [[Commander]] [[Elizabeth Shelby]] estimated that a cube could remain functional even if 78% of it was rendered inoperable due to the decentralized and redundant nature of its key systems. ({{TNG|Q Who|The Best of Both Worlds}}) The internal [[pressure]] aboard a Borg cube was two [[kilopascal]]s above what would be normal on a [[Federation]] [[starship]]. The [[humidity]] was on average 92%, and the temperature was at 39.1[[Celsius|&deg;C]]. ({{film|8}}) The [[atmosphere]] contained traces of [[tetryon]] particles. ({{VOY|Infinite Regress}}) They were typically manned by "thousands of drones," and could vary in complement anywhere from 5,000 to 64,000 to 129,000 drones. ({{VOY|Dark Frontier}})
+[[File:Borg armada, 2373.jpg|thumb|Fifteen cubes bear down on ''Voyager'']]
+Millions of cubes were estimated to exist in Borg [[space]] in the [[Delta Quadrant]], with fifteen being the largest single grouping of cubes directly observed by [[Starfleet]], by the crew of the {{USS|Voyager}} in late [[2373]], with many more observed close to the Collective's [[Unicomplex]]. ({{VOY|Scorpion|Dragon's Teeth|Dark Frontier|Unimatrix Zero|Unimatrix Zero, Part II}}) During the [[Borg-Species 8472 War]], hundreds of cubes were damaged or destroyed as a result of the conflict, and following the fall of the Collective in [[2378]], many more cubes were left stranded and dormant throughout the galaxy. Despite these losses, a few were still known to be active through the [[2380s]]. ({{PIC|The Last Generation}}, {{PRO|Let Sleeping Borg Lie}}, {{LD|Twovix|wej Duj}})
+
+Every Starfleet encounter with a single cube resulted in heavy casualties. At the [[Battle of Wolf 359]] in [[2367]], an armada of forty [[Starfleet]] ships were assembled to stop a cube; thirty-nine of those ships were lost in a matter of minutes. Dozens more were destroyed stopping another cube in the [[Battle of Sector 001|incursion]] of [[2373]]. ({{TNG|The Drumhead}}; {{film|8}}) Normally, a single Borg cube was capable of assimilating all elements of civilization from an entire [[planet]]. ({{TNG|The Best of Both Worlds, Part II}}; {{VOY|Unity|Dark Frontier|Child's Play}})
+
+== Technical data ==
+
+===Interior components===
+Borg cubes are known to include many different components in order for it to function within the Collective.
+
+==== Vinculum ==== 
+Each cube in the Collective contains a [[Vinculum]], a processing device at the heart of every Borg vessel which interconnected the minds of all the drones, purging individual thoughts and disseminating information relevant to the Collective. The vinculum was equipped with many safeguards to prevent its deactivation and was capable of adapting to attack. ({{VOY|Infinite Regress}})
+
+==== Central plexus ==== 
+The [[Central plexus]] was a device present on all [[Borg starships|Borg vessels]] that linked it to every other [[Borg]] ship. This is a highly guarded area on Borg vessels, and were protected with [[Multi-regenerative security field|multi-regenerative security grid]]s. ({{VOY|Unimatrix Zero|Unimatrix Zero, Part II}})
+
+==== Central power matrix ====
+The [[Central power matrix]] was a critical power component on Borg vessels. ({{VOY|Prey}})
+
+==== Distribution nodes ====
+A [[distribution node]] was a device that controlled the distribution of data to various areas of the [[starship|ship]]. A power distribution node, colored green, controlled the distribution of [[energy]], and resembled a small [[pyramid]] in shape. A variation of this device called a power waveguide conduit was of similar design, but appeared red in color. ({{TNG|The Best of Both Worlds}})
+
+==== Assimilation chambers ====
+Borg cubes contained numerous [[assimilation chamber]]s, where the [[assimilation]] of an individual or group of individuals into the [[Borg Collective]] was performed. ({{VOY|Dark Frontier}})
+
+==== Maturation chambers ====
+A cube contained numerous [[maturation chamber]]s, a device used by the [[Borg Collective]] to accelerate the development of adolescent [[humanoid]]s until they were ready to service the [[Borg Collective|Collective]] as [[Borg drone|drones]]. ({{TNG|Q Who}}; {{VOY|Collective}}; {{VOY|Unimatrix Zero}})
+
+==== Queencell ====
+The [[queencell]] was a chamber present on Borg cubes, where the Queen was able to control the cube or the drones in the Collective. It contained a [[spatial trajector]] for escape or quick movement throughout the Collective. The Queencell could be hidden behind moving [[bulkhead]]s. ({{PIC|The Impossible Box|Broken Pieces}})
+
+==== Hangar bays ====
+Each cube contained numerous hangar bays, where smaller vessels would be towed into for assimilation. ({{VOY|Collective}})
+
+=== Propulsion systems ===
+[[File:Borg conduit drive.jpg|thumb|Depiction of cube entering a transwarp conduit]]
+Borg cubes were capable of both [[warp]] and [[transwarp]] velocities, thanks partly to the Borg Collective's [[Borg transwarp network|network]] of [[transwarp corridor]]s and [[transwarp hub|hubs]]. When a Borg cube enters a [[transwarp conduit]], it projects a [[structural integrity field]] ahead of itself to compensate for the extreme [[gravimetric shear]]. ({{VOY|Inside Man}}) To compensate for the extreme temporal stress while traveling through these corridors, and remain in temporal sync, a [[chroniton]] field was also projected through specially designed conduits. ({{VOY|Shattered}}) Borg cubes did not present with the twin warp nacelle configuration utilized by nearly all warp-capable species, and the technology by which a Borg cube achieves warp speed is unknown. A Borg cube's maximum warp factor appeared to be greater than that of a ''Galaxy''-class starship, as the ''Enterprise''-D, during its first encounter with a Borg cube, was not able to maintain its distance from one such vessel when it attempted to flee. ({{TNG|Q Who}})
+
+=== Tactical systems and combat performance ===
+Though Borg cubes possess a multitude of energy weapon emitters and projectile launchers, initial scans of a Borg cube performed by the ''Enterprise''-D were unable to identify any weapons systems of any design known to the Federation. ({{TNG|Q Who}}) 
+
+The primary tactic employed by Borg cubes when engaging another vessel was to seize it with a [[tractor beam]] that would also drain its [[shields]]. Once locked on, the tractor beam of a cube could drain the shields of a {{class|Galaxy}} starship within seconds and hold it immobile against the full force of its [[warp drive]]. ({{TNG|Q Who}}) Once the target ship was defenseless, the cube could perform any action ranging from destruction to assimilation. ({{TNG|The Best of Both Worlds}}; {{DS9|Emissary}}) The Borg could also use the tractor beam to destroy unshielded enemy vessels without the use of any additional weaponry. ({{Film|8}}) The standard deflector shields of Starfleet vessels could resist the tractor beam if the crew of the ship in question cycled the shields through different energy frequencies, but only for a short time. ({{TNG|The Best of Both Worlds}})
+
+Following the failure of enemy shields, the cube could engage a high-energy [[laser]] [[cutting beam]] to slice sections of the ship for assimilation. ({{TNG|Q Who}})
+
+<gallery>
+File:Borg cube, sending out tractor and cutting beam.jpg|Borg cube sending out a tractor and cutting beam
+File:USS Enterprise-D assaulted by a Borg cube.jpg|USS ''Enterprise'', victimized by Borg tractor and cutting beam
+File:Borg cutting beam.jpg|Borg cube cutting into the ''Enterprise'''s hull
+File:Borg cubes fail to destroy USS Voyager.jpg|Another type of Borg beam weapon fired at USS ''Voyager''
+</gallery>
+
+If assimilation was unwarranted, the cutting beam could also be used as a weapon to destroy resisting vessels. During the [[Battle of Wolf 359]], the {{Class|Excelsior}} {{USS|Melbourne}} and the {{Class|Miranda}} {{USS|Saratoga|NCC-31911}} were annihilated by cutting beams. The cutting beam could either slice into a ship with pinpoint precision, or it could be used to disintegrate large portions of an enemy vessel. Additionally, it could be fired with the tractor beam as a single attack, with the cutting beam manifesting inside the area of effect of the tractor beam. As demonstrated on the USS ''Melbourne'' at Wolf 359, combining the weapons in this fashion could destroy even a shielded enemy vessel within seconds. ({{DS9|Emissary}})
+
+{| style="float:right;"
+|<gallery>
+File:Borg cube firing shield neutralizer.jpg|Borg cube firing a missile
+File:Borg Shield neutralizer.jpg|Effects of the missile
+</gallery>
+|}
+Another tactic that could be used to disable enemy ships was to fire a type of [[Borg missile|missile]] weapon, the primary function of which appeared to be to drain a target's shields. These missiles appeared to be reserved for situations in which using the tractor beam was not feasible, such as an enemy vessel being out of range. Three such missiles were capable of disabling a {{Class|Galaxy}} class vessel's shields. A hit from the weapon at an unshielded target could disable its [[warp drive]] without otherwise damaging it. ({{TNG|Q Who}})
+
+The cubes could also use [[dispersal field]]s to disrupt the sensor and transporter function of enemy vessels. ({{VOY|Collective}}) The Borg were capable of transporting through the active shields of both ''Galaxy'' and ''Intrepid''-class starships. ({{TNG|Q Who}}; {{VOY|Scorpion}})
+
+In addition, a Borg cube's weaponry also included other destructive beam and projectile weapons. During the 2366-2367 incursion, a cube obliterated three ships of the [[Mars Defense Perimeter]] with projectiles. ({{TNG|The Best of Both Worlds, Part II}}) Similar projectiles were used to destroy a {{Class|Steamrunner}} and a {{Class|Saber}} starship during the [[Battle of Sector 001]]. ({{Film|8}}) The concentrated fire of three beam weapons was able to reduce {{USS|Voyager}}'s [[ablative generator]]-deployed [[armor]] [[hull]] integrity, a highly advanced future Starfleet defense technology, to 40%. ({{VOY|Endgame}})
+
+Borg cubes did not appear to utilize traditional energy shields. Instead, they seemed to employ a subspace electromagnetic field that could be altered to adapt to enemy weaponry. This made destroying Borg vessels exceedingly difficult, as most weapons employed against them tended to either not work at all, or to become completely useless after a few shots. ({{TNG|Q Who}}) This problem could be overcome to a degree by varying the frequency and modulation of the energy of the weapons in question, but even this tended to fail after a short time. ({{TNG|The Best of Both Worlds}})
+
+Borg could also adapt to explosives, such as photon torpedoes, with ease. The Borg could similarly adapt their weapons to the technology of their opponent's defenses. During their second encounter with a Borg cube, the crew of the ''Enterprise''-D was able to prevent a Borg tractor beam from locking onto them by rapidly modulating the energy frequency of their shields. However, less than half a minute later, the Borg adapted the energy of the tractor beam to compensate for the rapidly shifting energy of the shields, and all further attempts to use this tactic failed within seconds. ({{TNG|The Best of Both Worlds}})
+
+Starfleet's two engagements with Borg cubes were extremely costly. In the first case, at the [[Battle of Wolf 359]], the Borg had assimilated Jean-Luc Picard mere hours before and had gained access to his vast knowledge of Starfleet tactics and operations. As such, the battle saw 39 out of 40 ships destroyed with virtually negligible damage to a Borg vessel. The Borg vessel then continued nearly unimpeded to Earth and was stopped only by the ingenuity of the ''Enterprise''-D's crew. ({{TNG|The Best of Both Worlds, Part II}})
+
+However, [[Battle of Sector 001|a similar engagement]] several years later saw a similarly large Federation fleet perform considerably better against another Borg cube. Though it suffered heavy casualties, the fleet managed to inflict heavy damage to the cube's outer hull and cause the vessel's power grid to begin fluctuating. The vessel was eventually destroyed primarily due the intervention of Captain Picard, whose residual telepathic link to the Collective furbished him with knowledge of a (presumably) battle-induced weak spot on the Borg vessel, which was subsequently targeted by the entire fleet. ({{film|8}})
+
+Due to the adaptive qualities of the Borg electromagnetic field, the only quasi-reliable way of destroying a Borg cube was to use a weapon so powerful that just one or two shots would destroy it. Such weapons included the modified deflector weapon of a ''Galaxy''-class starship, transphasic torpedoes, and the energy beam weapons of [[Species 8472]]. ({{VOY|Endgame}}) However even weapons such as these could be adapted to. Another tactic that appeared to have at least some measure of success in combatting the Borg was to utilize unfamiliar evasive maneuvering sequences in order to keep the Borg tractor beams in particular from draining a ship's shields. ({{TNG|The Best of Both Worlds, Part II}}; {{film|8}})
+
+==== Support vehicles ====
+[[File:Borg Sphere emerges.jpg|thumb|Borg Sphere emerges from a cube]]
+Ships up to the size of a Borg sphere were able to be docked inside a Borg cube for assimilation, supplies or escape purposes. 
+
+At least one Borg cube, and possibly others of its class, contained a [[Borg sphere]]. The only known recorded purpose of a sphere disengaged from a Borg cube was for escape. The sphere was the only documented support vehicle a Borg cube possessed. ({{film|8}})
+
+=== Maintenance and repair ===
+[[File:nanites regenerating cube.jpg|thumb|Drones repair damage to a Borg cube]]
+The drones on board a Borg ship, through means not fully understood by the Federation, could essentially will it to repair itself. During the ''Enterprise''-D's first encounter with a Borg cube, it inflicted damage to approximately 20% of the Borg vessel, only for the ship to repair virtually all of that damage within 20 minutes. This process could occur even while the ship was at warp speed or while it was engaged in combat. ({{TNG|Q Who}}) In [[2399]], the cube known as the {{dis|Artifact|Borg cube}} used small, automated robots to repair its hull and internal systems upon activation by [[Fenris Rangers|Fenris Ranger]] [[Seven of Nine]]. ({{PIC|Broken Pieces}})
+
+==Known vessels==
+;Designated 
+{|class="grey sortable" style="width:100%" cellspacing="2" cellpadding="2" align="center"
+|- class="infoboxheader"
+! Name !! Registry !! Notes !! Status !! Date
+|-
+|  [[Cube 461]] || - || || Active || 2377
+|-
+| [[Cube 630]] || - || || Destroyed || 2377
+|-
+| [[Cube 1184]] || - || || Active || 2377
+|-
+| [[Cube 90182]] || - ||  || Active || 2381
+|-
+| [[Cube 858779]] || - || || Active || 2381
+|}
+
+;Designated by Borg drone or queen
+{|class="grey sortable" style="width:100%" cellspacing="2" cellpadding="2" align="center"
+|- class="infoboxheader"
+! Name !! Registry !! Notes !! Status !! Date
+|-
+|  [[Borg Queen's cube]] || - || Unique, larger variant || Destroyed || 2401
+|-
+| [[Locutus' cube]] || - || || Destroyed || 2367
+|-
+| [[First's cube]] || - || || Disabled || 2376
+|-
+| [[Seven of Nine's cube]] || - || || Destroyed || 2374
+|-
+| [[Artifact (Borg cube)|The Artifact]] || - || || Crashed || 2399
+|}
+
+;Undesignated
+*[[Borg cubes 000|Unnamed Borg cubes]]
+
+== Appendices ==
+=== Appearances ===
+<div class="appear">
+* {{TNG}}
+** {{e|Q Who}}
+** {{e|The Best of Both Worlds}}
+** {{e|The Best of Both Worlds, Part II}}
+* {{film|8}}
+* {{DS9|Emissary}}
+* {{VOY}}
+** {{e|Unity}}
+** {{e|Scorpion}}
+** {{e|Scorpion, Part II}}
+** {{e|Prey}}
+** {{e|Hope and Fear}}
+** {{e|Drone}} (on [[astrometrics]] screen)
+** {{e|Dark Frontier}}
+** {{e|The Voyager Conspiracy}} (on astrometrics screen)
+** {{e|Collective}}
+** {{e|Child's Play}} (on astrometrics screen)
+** {{e|Unimatrix Zero}}
+** {{e|Unimatrix Zero, Part II}}
+** {{e|Inside Man}} (on astrometrics screen)
+** {{e|Q2}}
+** {{e|Endgame}}
+* {{PIC}}
+** {{e|Remembrance}}
+** {{e|Maps and Legends}}
+** {{e|The End is the Beginning}}
+** {{e|Absolute Candor}}
+** {{e|The Impossible Box}}
+** {{e|Nepenthe}}
+** {{e|Broken Pieces}}
+** {{e|Et in Arcadia Ego, Part 1}}
+** {{e|Et in Arcadia Ego, Part 2}}
+** {{e|Võx}}
+** {{e|The Last Generation}}
+* {{LD}} 
+**[[Star Trek: Lower Decks opening title sequences|Opening credits]]
+**{{e|I, Excretus}} (holographic recreation)
+**{{e|wej Duj}}
+* {{PRO|Let Sleeping Borg Lie}}
+</div>
+
+=== Background information ===
+[[Ronald D. Moore]] suggested that the vulnerable spots on the Borg cube in {{film|8}} were [[waste extraction]]. {{AOLchat|Ronald D. Moore|ron109|1998}}
+
+Although no Borg cubes appear in {{ENT|Regeneration}}, the cube design of Borg vessel was referred to in the final draft script of that episode, which commented that a corridor aboard the [[transport]] ''[[Arctic One]]'' was to be "almost indistinguishable from one on a Borg cube."
+
+=== Studio models ===
+:''See: [[Borg cube model]]''
+
+=== Apocrypha ===
+Borg cubes make appearances in the ''[[Star Trek: Armada]]'' and ''[[Star Trek: Armada II]]'' games. In the second game, a "fusion cube" and "tactical fusion cube" are seen, and used by those playing as the Borg. The first consists of eight regular cubes connected to each other and is the size of a planetoid, such as [[Pluto]]. The second is composed of eight tactical cubes connected to each other and is the size of a planet, such as [[Mars]]. Both are designated battleships and hold the assimilator beam device and three "captured" special weapons taken from an enemy race.
+
+In ''[[Star Trek: Starfleet Command III]]'', Borg cubes are the Borg's battleship-type vessel and the most powerful playable Borg ship.
+
+=== External link ===
+* {{mbeta|Borg cube}}
+
+[[Category:Borg starship classes|Cube]]
+
+[[de:Borg-Kubus]]
+[[es:Cubo Borg]]
+[[fr:Cube borg]]
+[[it:Cubo Borg]]
+[[ja:ボーグ・キューブ]]
+[[nl:Borg kubus]]
+[[pl:Sześcian Borg]]
+[[pt:Cubo Borg]]
+[[ru:Куб Борга]]
+[[sv:Borgstridskub]]
