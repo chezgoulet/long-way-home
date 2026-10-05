@@ -11,7 +11,7 @@ S3 (the one-map ship) and S4-S5 have slices that run in the engine with check sc
 **rules in the ship core with unit tests, reachable only from the console** — nothing of them is
 embodied, drawn or enforced in the game. The honest shape of what remains is therefore the same for
 each: take the core's state and make it visible and operable (bodies, consoles, assets), in the
-order the hand-off's per-gate notes give. The core (`module/ship/ship_core.*`, ~1,300 lines, 24
+order the hand-off's per-gate notes give. The core (`module/ship/ship_core.*`, ~1,100 lines, 24
 tests) is the part to trust; read `tests/ship/test_ship_core.cpp` to see what it guarantees.
 
 ## The standing instruction
