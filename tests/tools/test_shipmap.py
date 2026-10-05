@@ -113,6 +113,13 @@ class Stitch(unittest.TestCase):
         self.assertEqual(triggers, ["d01_door1", "d04_door1"])
         self.assertEqual(sorted(k["team"] for k, _ in ents if "team" in k), ["d01_shared", "d04_shared"])
 
+    def test_names_the_maps_only_refer_to_are_not_renamed(self):
+        """Both decks target "munro", and neither defines it: it is the player, made by the game."""
+        extra = ent(classname="target_relay", target="munro")
+        _, ents, report, _ = self.run_stitch({1: deck(extra), 2: deck(extra)})
+        self.assertNotIn("munro", report["renamed"])
+        self.assertEqual({k["target"] for k, _ in ents if k["classname"] == "target_relay"}, {"munro"})
+
     def test_one_player_start(self):
         _, ents, _, _ = self.run_stitch({1: deck(), 2: deck(), 5: deck()})
         classes = [k["classname"] for k, _ in ents]

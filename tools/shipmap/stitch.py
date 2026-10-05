@@ -12,9 +12,9 @@ own map at the same place; this puts each at its own height and merges them:
     textures, which are aligned in world space, land where they were
   * `func_group` is dissolved into the world (it is an editor grouping, not an entity)
   * `func_static` and `func_wall` that nothing can address (no targetname) become world geometry
-  * names that occur on more than one deck are prefixed with their deck (d04_door1), in every key
-    that carries a name, so one deck's button cannot open another deck's door. Names used on one
-    deck only are left alone, so the scripts that mention them still find them
+  * names that entities on more than one deck define are prefixed with their deck (d04_door1), in
+    every key that carries a name, so one deck's button cannot open another deck's door. Names
+    defined on one deck only, and names the maps only refer to (the player's), are left alone
   * one player start is kept (the first deck's); the others become named arrival points
 
 The report says what was done and what is left: brush models by class against the engine's limit,
@@ -37,6 +37,10 @@ PATCH_ROW = re.compile(r"\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\
 KV = re.compile(r'^"([^"]*)"\s+"([^"]*)"$')
 
 # Keys whose value is the name of another entity (or this one).
+# Keys that give an entity its own name. A name is only renamed if entities on more than one deck
+# *define* it; a name that maps merely refer to (the player's "munro", say) belongs to something the
+# maps do not create, and must be left alone.
+DEFINING_KEYS = ("targetname", "NPC_targetname", "npc_targetname", "script_targetname", "team")
 NAME_KEYS = ("targetname", "target", "target2", "target3", "target4", "killtarget", "paintarget", "opentarget",
              "closetarget", "NPC_targetname", "npc_targetname", "NPC_target", "npc_target", "script_targetname",
              "team", "ownername", "cameraGroup", "enemy", "goaltarget", "falsetarget")
@@ -144,7 +148,7 @@ def stitch(deck_files, pitch):
     seen = collections.defaultdict(set)
     for n, ents in decks.items():
         for keys, _ in ents:
-            for k in NAME_KEYS:
+            for k in DEFINING_KEYS:
                 if keys.get(k):
                     seen[keys[k].lower()].add(n)
     shared = {name for name, where in seen.items() if len(where) > 1}

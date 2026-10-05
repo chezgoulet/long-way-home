@@ -229,3 +229,19 @@ whole ship every frame.
 Remaining for S3, unchanged: a visibility pass with deck boundaries sealed; lighting; turbolifts
 that travel instead of changing level; the 268 renamed names checked against the scripts; triggers
 as boxes; the five missing decks; and someone walking it.
+
+## The renamed names, checked against the scripts (2026-10-06)
+
+The stitcher first renamed any name that more than one deck *mentions*. That swept up names the
+maps only refer to and never create — the player's among them — and would have cut every such
+reference loose. It now renames only names that entities on more than one deck **define**: 261.
+
+Scanned against the 1,938 compiled scripts in the installation: **46 of those 261 are mentioned by
+the decks' own scripts or the common ones** — `alarm`, `klaxon`, `security1`–`9`, `rand_nav1`–`6`,
+the Hazard Team's lockers, a few dozen editor-numbered targets. A deck's script that says `alarm`
+means *its* deck's alarm, which is now `d04_alarm`.
+
+That cannot be fixed in the map. The remedy is in the game: when a script owned by an entity on
+deck N looks a name up, try the deck-scoped name first. Every entity already carries its deck
+(`lwh_deck`), so the information is there; the lookup sites in the script interface are the work.
+Not started.
