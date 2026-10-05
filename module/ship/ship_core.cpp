@@ -500,6 +500,15 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	return true;
 }
 
+std::vector<int> CrewOnDeck(const Ship &s, int deck)
+{
+	std::vector<int> out;
+	for (size_t i = 0; i < s.crew.size(); ++i)
+		if (s.crew[i].deck == deck && s.crew[i].status != CREW_DEAD && s.crew[i].status != CREW_ASSIMILATED)
+			out.push_back(static_cast<int>(i));
+	return out;
+}
+
 // ---- report -----------------------------------------------------------------------------------
 
 std::string Describe(const Ship &s)

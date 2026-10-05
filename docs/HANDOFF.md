@@ -63,7 +63,8 @@ measurement is running — bash reads scripts incrementally and the module is lo
 | S2 | built and verified headless; the owner has not operated the console. Open by command only (`ship console`), keyboard only, flat colour. |
 | S3 | **in progress — see below** |
 | S4 | **first slice done** (`scripts/s4-check.sh`): stations in the core; one screen serves Engineering, Tactical, Ops, Conn (and Sickbay); the retail panel commands `ui_engineeringstatus`/`ui_tactical`/`ui_ops`/`ui_navigation` open them when `g_ship 1`. Remaining: each station's real controls (needs core state: targets, course, transporter, medical), live status drawn on panels in the world (engine work), the other retail panels, mouse, artwork. See `docs/evidence/s4-station-consoles.md`. |
-| S5–S10 | not started |
+| S5 | **groundwork only**: `ship::CrewOnDeck()` (tested) says who the ship has on a deck at this moment, and `ship crew <deck>` prints them in game. Nothing is embodied from it yet — plan below. |
+| S6–S10 | not started |
 
 ## S3 in detail (the active work)
 
@@ -114,6 +115,25 @@ Next steps for S3, in dependency order:
 Known risks in S3: all ten decks' scripts now run at once in one level, which they were never
 written for; the worst-case game frame was 26 ms before rendering; crew cannot open doors (found in
 G3) and will need to for S5.
+
+## S5, when S3/S4 allow: how the pieces already fit
+
+The crew direction layer (G3) embodies a *declared* roster and walks it to posts; the ship core
+(S1) knows where each of the 141 is supposed to be. S5 joins them:
+
+1. In `g_crew.cpp`, when `g_ship` is on and the map is the merged ship, replace the `.crew` file's
+   roster with `ship::CrewOnDeck(*Ship_Get(), playersDeck)`: spawn those not yet embodied (their
+   `type` is already a retail NPC type), remove those who have left the deck (the bstate
+   `BS_REMOVE` waits until the player cannot see them).
+2. A crew member's post is their system's station (`ship::Spec(post).deck/station`); stations need
+   positions on the merged map — a table from station name to a waypoint, authored per deck.
+   Off-duty crew go to the mess hall, the holodeck, their quarters: more positions.
+3. Watch change is then just the roster query changing; the layer already handles arrival,
+   holding, yielding to scripts, and save/load.
+4. **Doors**: crew cannot open them (found in G3). Before S5 can pass, either doors open for crew
+   (look at how `func_door` decides who may trigger it) or routes must avoid them.
+5. Measure as G3 was measured (`tools/crewgen/g3report.py` is reusable): station coverage across a
+   watch change, at 20-30 embodied.
 
 ## Things the owner should be told (already said, repeat if asked)
 

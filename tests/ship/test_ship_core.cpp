@@ -390,6 +390,36 @@ static void TestStations()
 	CHECK(std::string(StationName(STN_TACTICAL)) == "TACTICAL");
 }
 
+static void TestCrewOnDeck()
+{
+	g_test = "who is on a deck";
+	Ship s = NewShip();
+	s.crew[30].status = CREW_DEAD;
+	Tick(s, 1.0f);
+	int total = 0;
+	for (int d = 1; d <= DECKS; ++d) {
+		for (int i : CrewOnDeck(s, d)) {
+			CHECK(s.crew[i].deck == d);
+			++total;
+		}
+	}
+	CHECK(total == COMPLEMENT - 1);          // everyone alive is on exactly one deck
+	CHECK(CrewOnDeck(s, 0).empty());         // the dead are on none
+	CHECK(CrewOnDeck(s, 99).empty());
+	// 0800: alpha at stations. The captain is on the bridge and the chief engineer in Engineering.
+	bool janeway = false, torres = false;
+	for (int i : CrewOnDeck(s, 1)) if (s.crew[i].name == "Kathryn Janeway") janeway = true;
+	for (int i : CrewOnDeck(s, 11)) if (s.crew[i].name == "B'Elanna Torres") torres = true;
+	CHECK(janeway && torres);
+	// 1600: alpha comes off watch and goes to eat. The mess hall fills; the bridge keeps a watch.
+	Tick(s, Hours(s, 8.0f));
+	CHECK(CrewOnDeck(s, 2).size() >= 50);
+	CHECK(!CrewOnDeck(s, 1).empty());
+	janeway = false;
+	for (int i : CrewOnDeck(s, 2)) if (s.crew[i].name == "Kathryn Janeway") janeway = true;
+	CHECK(janeway);
+}
+
 static int PrintDay()
 {
 	Ship s = NewShip();
@@ -426,6 +456,7 @@ int main(int argc, char **argv)
 	TestDeterminismAndStepSize();
 	TestSave();
 	TestStations();
+	TestCrewOnDeck();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

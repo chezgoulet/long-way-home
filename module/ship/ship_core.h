@@ -183,6 +183,10 @@ std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.
 bool Unpack(const uint8_t *data, size_t len, Ship &s);
 
+// Who is on a deck right now: indices into Ship::crew, in roster order. This is what decides which
+// crew are embodied where the player is (S5); the dead and the assimilated are on no deck.
+std::vector<int> CrewOnDeck(const Ship &s, int deck);
+
 // A one-screen status report, for the console command and for tests' failure messages.
 std::string Describe(const Ship &s);
 

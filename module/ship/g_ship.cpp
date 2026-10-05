@@ -389,6 +389,16 @@ void Svcmd_Ship_f( void )
 	const int sys = FindSystem( a );
 
 	if ( !Q_stricmp( cmd, "status" ) ) { PrintStatus(); return; }
+	if ( !Q_stricmp( cmd, "crew" ) )
+	{//who the ship says is on a deck now -- the people S5 will embody there
+		static const char *const DOING[] = { "on duty", "at a meal", "at recreation", "personal time", "asleep" };
+		const int deck = atoi( a );
+		const std::vector<int> aboard = ship::CrewOnDeck( vessel, deck );
+		gi.Printf( "SHIP: deck %d: %d crew\n", deck, static_cast<int>( aboard.size() ) );
+		for ( int i : aboard )
+			gi.Printf( "SHIP:   %-18s %-10s %s\n", vessel.crew[i].name.c_str(), vessel.crew[i].type.c_str(), DOING[vessel.crew[i].activity] );
+		return;
+	}
 	if ( !Q_stricmp( cmd, "console" ) ) { gi.SendConsoleCommand( "ui_lwh_engineering\n" ); return; }
 	if ( !Q_stricmp( cmd, "alert" ) )
 	{
@@ -405,7 +415,7 @@ void Svcmd_Ship_f( void )
 		ship::SetSourceOnline( vessel, static_cast<ship::SourceId>( FindSource( a ) ), !Q_stricmp( b, "on" ) );
 	else
 	{
-		gi.Printf( "usage: ship status | alert green|yellow|red | on|off <system> | priority <system> <n>\n" );
+		gi.Printf( "usage: ship status | crew <deck> | console | alert green|yellow|red | on|off <system> | priority <system> <n>\n" );
 		gi.Printf( "       ship damage|repair <system> <0..1> | breach <deck> <0..1> | source core|impulse|auxiliary|batteries on|off\n" );
 		return;
 	}
