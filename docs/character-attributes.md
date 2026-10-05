@@ -73,6 +73,75 @@ traits, conditions and drives are enough, and an attribute layer on top is how a
 multiplies the authoring surface and adds nothing the conditions layer does not already do. If endurance is
 needed, it is a *trait* plus a fatigue curve, not a stat.
 
+## Species: capabilities, needs and susceptibilities -- never bonuses
+
+The obvious move is a species modifier table: Vulcans +strength, Betazoids +empathy, Klingons +toughness. **Do not
+do that.** It is the point at which the game stops being Star Trek and becomes an MMO, and it contradicts the
+thing the setting actually believes: individuals vary far more than species do, and diversity is the point
+rather than a stat block.
+
+Species does three real things, and all three are *situations* rather than numbers:
+
+1. **Capability** -- something a person *can do* that another cannot. No percentage attached.
+2. **Need** -- a difference in what they *require*: a diet, a cycle, a charge, a lifetime.
+3. **Susceptibility** -- what can go wrong for them specifically, including things that cannot go wrong for
+   anyone else.
+
+### What that looks like for the species we can actually field
+
+- **Vulcan** (Tuvok, Vorik). Capability: touch-telepathy, the nerve pinch, strength and endurance above the human
+  norm. *Need*: meditation in place of sleep, which is a different shape of rest for the watch bill rather than
+  a bonus to it. Susceptibility: pon farr, Bendii syndrome, and copper-based blood, which is a sickbay problem
+  with a supply implication. Cost: emotions are managed rather than absent, and managing them takes practice.
+- **Betazoid** (Jurot). Capability: empathy -- reads feeling, not thought. **The cost is the same faculty**: it
+  cannot be switched off, so others' pain arrives uninvited, which is a debuff as often as a buff.
+- **Klingon** (crew, and Jurot's circle). Capability: redundant physiology, so injuries that would kill a human
+  are survivable. Culture -- honour, ritual -- is **learned, not biological**, and individuals vary: Torres
+  rejects Klingon tradition entirely, and that is the point.
+- **Ocampa** (Kes). Capability: limited telepathy and a botanical gift. Need: a lifespan measured in single-digit
+  years. That is not a modifier, it is a *tragedy with a clock*, and it is the best attrition hook available.
+- **Talaxian** (Neelix). Canon gives thin biology; his value is temperament, cooking and scrounging -- traits and
+  skills, not species. **Marked as ours.**
+- **Bolian** (Chell). Canon gives us a distinct biology and little else. Ours to fill, and honest about it.
+- **Borg-recovered** (Seven, and anyone taken and reclaimed). Capability: strength, resistance, regeneration in
+  place of sleep. Need: the alcove cycle. Susceptibility: the Collective, and the crew's suspicion, which is
+  social and every bit as mechanical.
+- **Hologram** (the Doctor). No fatigue, hunger or injury at all -- and a different failure set: emitter charge,
+  program integrity, and an authority that is situational by definition.
+- **Human**. No special capability. Which is the moment to avoid the trap of treating humans as the baseline
+  other species deviate from: better to give humans *adaptability* as a trait and read everyone else as
+  equally normal.
+
+### The two rules
+
+- **Every species capability carries a cost.** Vulcan strength comes with meditation and managed emotion; Betazoid
+  empathy cannot be shut off; Borg strength comes with an alcove and a reputation; Ocampan gifts come with a
+  lifespan. Nothing is an upgrade, so nothing is a choice anyone makes for power -- which is also why a crew of
+  mixed species is interesting rather than optimal.
+- **Biology is not culture.** What a species *can* do is biology. What a species is *expected* to do is culture,
+  it is learned, and characters may reject it. Keeping those apart is what stops the design turning sentient
+  beings into stereotypes with mechanics.
+
+### Why species belongs in the data, not the code
+
+A species record is static content: capabilities, needs, susceptibilities, and the conditions it is prone to.
+The simulation then reads species the same way it reads anything else -- as a source of **conditions** -- which
+means a species difference shows up as *a mark on a person* ("hypoxia-resistant", "meditation cycle due",
+"cannot be treated with the standard agent") rather than as a hidden multiplier. Heterogeneous biology then
+becomes what it is in canon: a logistics problem for the galley, the sickbay and the watch bill, and a story
+generator -- a treatment that works for a human and not for a Bolian, a telepath who hears what nobody said, a
+decompression that one person walks away from.
+
+## Acceptance
+
+- No species carries a percentage bonus, and no proposal for one should survive review.
+- Capabilities, needs and susceptibilities live in species data, produce conditions, and every condition names its
+  source and its clearing rule.
+- The galley, the sickbay and the watch bill all read species and adapt -- heterogeneity is a logistics cost, not
+  a stat.
+- Culture is modelled separately from biology, and a character may reject their species' expectations.
+- And the human check: no species reads as "the good one".
+
 ## The special cases the record must handle
 
 - **The Doctor** is a hologram: no fatigue, no hunger, no injuries -- and a different failure set entirely.
