@@ -15,6 +15,8 @@ own map at the same place; this puts each at its own height and merges them:
   * names that entities on more than one deck define are prefixed with their deck (d04_door1), in
     every key that carries a name, so one deck's button cannot open another deck's door. Names
     defined on one deck only, and names the maps only refer to (the player's), are left alone
+  * a trigger made of one axis-aligned box brush becomes an origin with mins and maxs -- a trigger
+    needs a volume, not geometry -- and stops costing a brush model (needs patches/0011 in the game)
   * one player start is kept (the first deck's); every deck gets a named arrival point (d04_arrival)
   * a `target_level_change` to another deck of the ship becomes a `target_teleporter` to that deck's
     arrival point: the turbolift now travels within the map. Level changes to anywhere else (the
@@ -69,6 +71,8 @@ class Brush:
     def __init__(self):
         self.lines = []
         self.zmin, self.zmax = 1e9, -1e9
+        self.lo, self.hi = [1e9] * 3, [-1e9] * 3
+        self.faces, self.axial = 0, True
         self.is_patch = False
 
     substituted = 0
@@ -92,9 +96,22 @@ class Brush:
             found = PATCH_ROW.finditer(line) if line.startswith("( (") else ()
         else:
             found = POINT.finditer(line) if line.startswith("(") else ()
+        pts = []
         for m in found:
-            z = float(m.group(3))
+            p = (float(m.group(1)), float(m.group(2)), float(m.group(3)))
+            pts.append(p)
+            for i in range(3):
+                self.lo[i], self.hi[i] = min(self.lo[i], p[i]), max(self.hi[i], p[i])
+            z = p[2]
             self.zmin, self.zmax = min(self.zmin, z), max(self.zmax, z)
+        if not self.is_patch and len(pts) >= 3:
+            self.faces += 1
+            # an axis-aligned face has all three of its points on one coordinate plane
+            if not any(pts[0][i] == pts[1][i] == pts[2][i] for i in range(3)):
+                self.axial = False
+
+    def is_box(self):
+        return not self.is_patch and self.faces == 6 and self.axial
 
     def moved(self, dz):
         if not dz:
@@ -179,9 +196,9 @@ def stitch(deck_files, pitch):
 
     first = min(decks)
     world_keys = collections.OrderedDict(decks[first][0][0])
-    world, out = [], []
+    world, out, late = [], [], []
     report = {"decks": {}, "pitch": pitch, "renamed": sorted(shared), "models": collections.Counter(),
-              "dropped_stray_brushes": 0, "folded": collections.Counter(), "turbolift_links": 0,
+              "dropped_stray_brushes": 0, "folded": collections.Counter(), "turbolift_links": 0, "triggers_boxed": 0,
               "level_changes_left": []}
 
     for n, ents in decks.items():
@@ -231,6 +248,18 @@ def stitch(deck_files, pitch):
                 else:
                     report["level_changes_left"].append(keys.get("mapname", "?"))
             keys["lwh_deck"] = str(n)
+            if cls.startswith("trigger_") and len(keep) == 1 and keep[0].is_box() and "origin" not in keys:
+                # A trigger needs a volume, not geometry: a single box brush becomes an origin with
+                # mins and maxs, and the map is one brush model lighter (the game takes either form).
+                b = keep[0]
+                centre = [(b.lo[i] + b.hi[i]) / 2 for i in range(3)]
+                half = [(b.hi[i] - b.lo[i]) / 2 for i in range(3)]
+                keys["origin"] = "%s %s %s" % (fmt(centre[0]), fmt(centre[1]), fmt(centre[2] + dz))
+                keys["mins"] = "%s %s %s" % tuple(fmt(-h) for h in half)
+                keys["maxs"] = "%s %s %s" % tuple(fmt(h) for h in half)
+                report["triggers_boxed"] += 1
+                late.append((keys, []))   # not compiled: see write()
+                continue
             if keep:
                 report["models"][cls] += 1
             out.append((keys, [b.moved(dz) for b in keep]))
@@ -238,7 +267,7 @@ def stitch(deck_files, pitch):
 
     report["textures_substituted"] = Brush.substituted
     report["world_brushes"] = len(world)
-    report["entities"] = len(out) + 1
+    report["entities"] = len(out) + 1 + len(late)
     report["brush_models"] = sum(report["models"].values())
     report["model_limit"] = MODEL_LIMIT
     report["models"] = dict(report["models"].most_common())
@@ -248,7 +277,17 @@ def stitch(deck_files, pitch):
     # No two decks may share space.
     spans = sorted((v["z"][0], v["z"][1], n) for n, v in report["decks"].items() if v["z"])
     report["overlaps"] = [[a[2], b[2]] for a, b in zip(spans, spans[1:]) if b[0] < a[1]]
+    report["late"] = late
     return world_keys, world, out, report
+
+
+def write_late(path, late):
+    """Entities kept out of the compile (box triggers: a compiler flood-fills from every entity with
+    an origin, and a trigger volume's centre is often inside a wall). tools/shipmap/inject.py adds
+    them to the compiled map."""
+    with open(path, "w", encoding="latin-1") as f:
+        for keys, _ in late:
+            f.write("{\n" + "".join('"%s" "%s"\n' % kv for kv in keys.items()) + "}\n")
 
 
 def write(path, world_keys, world, ents):
@@ -288,6 +327,8 @@ def main(argv=None):
         return 2
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     write(a.out, world_keys, world, ents)
+    late = report.pop("late")
+    write_late(os.path.splitext(a.out)[0] + ".ents", late)
     if a.report:
         with open(a.report, "w") as f:
             json.dump(report, f, indent=1)
@@ -296,6 +337,7 @@ def main(argv=None):
     print(f"  world brushes {report['world_brushes']}, entities {report['entities']}, "
           f"stray brushes dropped {report['dropped_stray_brushes']}, folded into the world {report['folded']}")
     print(f"  brush models {report['brush_models']} (engine limit {MODEL_LIMIT}): {report['models']}")
+    print(f"  triggers turned from brush models into boxes: {report['triggers_boxed']}")
     print(f"  names renamed because more than one deck uses them: {len(report['renamed'])}")
     print(f"  surfaces given a substitute for a texture the shipped game lacks: {report['textures_substituted']}")
     print(f"  turbolift links between decks: {report['turbolift_links']}; level changes left as they were "

@@ -8,6 +8,8 @@
 # --out       where the .pk3 goes (default: build/home/baseEF, where the engine finds it)
 # --q3map2    the compiler (default: on PATH, else the copy scripts/fetch-map-tools.sh fetched)
 # --light     also run the visibility and lighting passes (slower; a test room does not need them)
+# --entities FILE
+#             entities to add to the compiled map without compiling them (tools/shipmap/inject.py)
 # --allow-missing-shaders
 #             report shaders that did not resolve and carry on. For published sources, which name a
 #             few textures the shipped game no longer has; never for a map of our own.
@@ -25,7 +27,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC=""; NAME=""; OUT="$ROOT/build/home/baseEF"; Q3MAP2=""; LIGHT=0; ALLOW_MISSING=0
+SRC=""; NAME=""; OUT="$ROOT/build/home/baseEF"; Q3MAP2=""; LIGHT=0; ALLOW_MISSING=0; EXTRA_ENTS=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --name)   NAME="$2"; shift 2 ;;
@@ -33,6 +35,7 @@ while [ $# -gt 0 ]; do
     --q3map2) Q3MAP2="$2"; shift 2 ;;
     --light)  LIGHT=1; shift ;;
     --allow-missing-shaders) ALLOW_MISSING=1; shift ;;
+    --entities) EXTRA_ENTS="$2"; shift 2 ;;
     -*)       echo "unknown argument: $1" >&2; exit 2 ;;
     *)        SRC="$1"; shift ;;
   esac
@@ -80,6 +83,9 @@ if grep -q "Couldn't find image for shader" "$LOG"; then
 fi
 [ -f "$WORK/maps/$NAME.bsp" ] || { echo "q3map2 exited 0 but wrote no BSP" >&2; tail -20 "$LOG" >&2; exit 1; }
 python3 "$ROOT/tools/mapgen/check-bsp.py" "$WORK/maps/$NAME.bsp"
+if [ -n "$EXTRA_ENTS" ]; then
+  python3 "$ROOT/tools/shipmap/inject.py" "$WORK/maps/$NAME.bsp" "$EXTRA_ENTS"
+fi
 
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"   # absolute: the archive is written from inside the work directory

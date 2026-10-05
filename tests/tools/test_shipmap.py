@@ -63,14 +63,20 @@ class Stitch(unittest.TestCase):
             world_keys, world, ents, report = stitch.stitch(files, pitch)
             out = os.path.join(tmp, "ship.map")
             stitch.write(out, world_keys, world, ents)
-            return world, ents, report, stitch.parse(out)
+            # box triggers travel beside the map, not in it; the tests see them all together
+            late = report.pop("late")
+            stitch.write_late(os.path.join(tmp, "ship.ents"), late)
+            with open(os.path.join(tmp, "ship.ents")) as f:
+                self.assertEqual(f.read().count('"classname"'), len(late))
+            self.compiled_entities = len(ents) + 1
+            return world, ents + late, report, stitch.parse(out)
 
     def test_decks_are_placed_at_their_own_heights(self):
         world, ents, report, _ = self.run_stitch({1: deck(), 3: deck()})
         self.assertEqual(report["decks"][1]["z"], [-4096, -3900])
         self.assertEqual(report["decks"][3]["z"], [-4096 - 2 * 2048, -3900 - 2 * 2048])
         self.assertEqual(report["overlaps"], [])
-        origins = [k["origin"] for k, _ in ents if "origin" in k]
+        origins = [k["origin"] for k, _ in ents if "origin" in k and not k["classname"].startswith("trigger_")]
         # deck 1: the arrival point and the player start, in the same place; deck 3: its arrival point
         self.assertEqual(origins, ["100 100 -3976", "100 100 -3976", "100 100 %d" % (-3976 - 4096)])
 
@@ -98,7 +104,7 @@ class Stitch(unittest.TestCase):
         classes = [k["classname"] for k, _ in ents]
         self.assertNotIn("func_group", classes)
         self.assertEqual(classes.count("func_static"), 1)  # the named one can be addressed: it stays
-        self.assertEqual(report["models"], {"func_static": 1, "func_door": 1, "trigger_multiple": 1})
+        self.assertEqual(report["models"], {"func_static": 1, "func_door": 1})  # the trigger became a box
 
     def test_only_names_shared_between_decks_are_renamed(self):
         d1 = deck(ent(classname="target_relay", targetname="only_here", target="door1"))
@@ -147,7 +153,8 @@ class Stitch(unittest.TestCase):
     def test_every_entity_knows_its_deck_and_the_output_parses(self):
         _, ents, report, reparsed = self.run_stitch({1: deck(), 9: deck()})
         self.assertEqual({k["lwh_deck"] for k, _ in ents}, {"1", "9"})
-        self.assertEqual(len(reparsed), report["entities"])
+        self.assertEqual(len(reparsed), self.compiled_entities)
+        self.assertEqual(report["entities"], self.compiled_entities + report["triggers_boxed"])
         self.assertEqual(reparsed[0][0]["classname"], "worldspawn")
         self.assertEqual(sum(len(b) for _, b in reparsed), report["world_brushes"] + report["brush_models"])
 
@@ -162,6 +169,23 @@ class Stitch(unittest.TestCase):
         self.assertIn("t/wall", text)
         self.assertEqual(report["textures_substituted"], 6 + 1)
 
+    def test_box_triggers_become_boxes_and_other_triggers_stay_models(self):
+        wedge = box(-4000, -3900).replace("( 0 0 -4000 ) ( 0 64 -4000 ) ( 64 64 -4000 )", "( 0 0 -4000 ) ( 0 64 -3990 ) ( 64 64 -3990 )")
+        extra = (ent(wedge, classname="trigger_once", target="door1")
+                 + ent(box(-4000, -3900) + box(-3900, -3800), classname="trigger_multiple", target="door1"))
+        _, ents, report, _ = self.run_stitch({2: deck(extra)})
+        triggers = [(k, b) for k, b in ents if k["classname"].startswith("trigger_")]
+        boxed = [k for k, b in triggers if not b]
+        self.assertEqual(len(boxed), 1)
+        self.assertEqual(report["triggers_boxed"], 1)
+        # the box 0..64 x 0..64 x -4000..-3900, one deck down
+        self.assertEqual(boxed[0]["origin"], "32 32 %d" % (-3950 - 2048))
+        self.assertEqual((boxed[0]["mins"], boxed[0]["maxs"]), ("-32 -32 -50", "32 32 50"))
+        # a sloped brush and a two-brush trigger are not boxes: they keep their geometry
+        self.assertEqual(sorted(len(b) for k, b in triggers if b), [1, 2])
+        self.assertEqual(report["models"].get("trigger_once"), 1)
+        self.assertEqual(report["models"].get("trigger_multiple"), 1)
+
     def test_overlap_and_bad_pitch_are_reported(self):
         tall = ent(box(-4096, -1500) + box(-8, 8), classname="worldspawn")
         _, _, report, _ = self.run_stitch({1: tall, 2: tall}, pitch=2048)
@@ -174,6 +198,38 @@ class Stitch(unittest.TestCase):
             self.run_stitch({1: ent(classname="info_null")})
         with self.assertRaises(ValueError):
             self.run_stitch({1: '{\n"classname" "worldspawn"\n'})
+
+
+class Inject(unittest.TestCase):
+    def test_entities_are_appended_and_nothing_else_moves(self):
+        import struct
+        sys.path.insert(0, os.path.join(ROOT, "tools", "shipmap"))
+        import inject
+        ents = b'{\n"classname" "worldspawn"\n}\n\0'
+        payload = b"GEOMETRY-BYTES!!"
+        header = b"IBSP" + struct.pack("<i", 46) + struct.pack("<ii", 8 + 17 * 8, len(ents)) \
+            + struct.pack("<ii", 8 + 17 * 8 + len(ents), len(payload)) + b"\0" * (15 * 8)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "m.bsp")
+            with open(path, "wb") as f:
+                f.write(header + ents + payload)
+            n = inject.inject(path, '{\n"classname" "trigger_once"\n"origin" "1 2 3"\n}\n')
+            self.assertEqual(n, 1)
+            with open(path, "rb") as f:
+                data = f.read()
+            ofs, length = struct.unpack_from("<ii", data, 8)
+            text = data[ofs:ofs + length]
+            self.assertTrue(text.endswith(b"\0") and text.count(b'"classname"') == 2)
+            self.assertIn(b'"worldspawn"', text)
+            pofs, plen = struct.unpack_from("<ii", data, 16)
+            self.assertEqual(data[pofs:pofs + plen], payload)  # the other lumps are where they were
+            self.assertEqual(inject.inject(path, "  \n"), 0)   # nothing to add: file untouched
+            with open(path, "rb") as f:
+                self.assertEqual(f.read(), data)
+            with open(path, "wb") as f:
+                f.write(b"RBSP" + data[4:])
+            with self.assertRaises(ValueError):
+                inject.inject(path, "{}")
 
 
 if __name__ == "__main__":

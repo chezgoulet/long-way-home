@@ -16,7 +16,7 @@ round is done and its answers are in `docs/ship-programme.md`. **Do not re-ask t
 
 - Branch **`feature/g3-reactive-crew`**, branched from `testing`. **All work is local commits;
   nothing has been pushed and no PR is open.** Pushing needs the owner's go-ahead.
-- The upstream checkout is `../upstream` (pinned commit, with `patches/0001`–`0010` applied as
+- The upstream checkout is `../upstream` (pinned commit, with `patches/0001`–`0011` applied as
   uncommitted changes — that is how `scripts/bootstrap-upstream.sh` leaves it). The engine build is
   `build-engine/` (plain `make -j12` there rebuilds it); the game modules build in
   `../upstream/efgame/build-linux`.
@@ -91,8 +91,9 @@ Next steps for S3, in dependency order:
    (`g_shipTest 4` with `g_shipTestPos <targetname>` uses that entity). Still to do here: drive the
    real turbolift *menu* (`ui_turbolift.cpp`) on the merged ship, and restore whatever each level
    change's original `target` fired.
-4. Triggers as boxes (501 brush models that need only a volume) — a module change with one attach
-   point; then the stitcher emits `mins`/`maxs` instead of brushes.
+4. (done 2026-10-06, one check owed) Triggers as boxes: `patches/0011` + the stitcher + `inject.py`;
+   brush models 900 -> 406. **Owed: prove a boxed trigger fires** — e.g. a harness step that
+   teleports the player into a known boxed `trigger_multiple` and watches its target get used.
 5. The five decks with no source (6, 7, 12, 13, 14): generated; everything about them is invention
    and goes in `docs/lore-ledger.md`.
 6. (mostly done 2026-10-06) Missing textures: four are substituted by the stitcher's `SUBSTITUTE`

@@ -39,7 +39,7 @@ maintenance, and to keep our own delta thin enough to rebase onto it whenever th
 rule, 2026-10-04: *"I'd rather be in the best position to inherit community work than increase our support
 of more stuff."*
 
-Current delta from the pinned upstream: **52 files, +332/−132 lines, in ten patches by concern.**
+Current delta from the pinned upstream: **53 files, +338/−133 lines, in eleven patches by concern.**
 
 | patch | concern | why it is separate |
 |---|---|---|
@@ -53,6 +53,7 @@ Current delta from the pinned upstream: **52 files, +332/−132 lines, in ten pa
 | `0008` | entities to 4,096, and the bridge tables the earlier raise left at 1,024 | a limits policy like `0004`, plus a fix for what `0004` missed |
 | `0009` | brush-model tables: their own limit, and the bounds check the released source lacks | the missing check is an upstream-relevant defect; the sizes are ours |
 | `0010` | SP: snapshots choose what is visible and near | an engine capability: without it a map larger than one snapshot shows only its first thousand entities |
+| `0011` | triggers may be boxes | a small capability in the released game source: a trigger with `mins`/`maxs` needs no brush model |
 
 Rules that keep this shape:
 

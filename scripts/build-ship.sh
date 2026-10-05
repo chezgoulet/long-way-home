@@ -28,5 +28,6 @@ mkdir -p "$ROOT/build/ship" "$OUT"
 python3 "$ROOT/tools/shipmap/stitch.py" --decks "$DECKS" --out "$ROOT/build/ship/voyager.map" \
   --report "$ROOT/build/ship/stitch-report.json"
 # Visibility and lighting take about three minutes for the whole ship; --fast skips them.
-"$ROOT/scripts/build-map.sh" "$ROOT/build/ship/voyager.map" --name voyager --out "$OUT" --allow-missing-shaders "${PASSES[@]}"
+"$ROOT/scripts/build-map.sh" "$ROOT/build/ship/voyager.map" --name voyager --out "$OUT" --allow-missing-shaders \
+  --entities "$ROOT/build/ship/voyager.ents" "${PASSES[@]}"
 echo "load it with:  +set g_shipDeckPitch 3072 +map voyager   (the pitch tells scripts which deck they are on)"

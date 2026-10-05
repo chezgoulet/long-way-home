@@ -286,3 +286,18 @@ No level load, no loading screen: the ship is one place. What this is not yet: t
 Textures: of the seven the compiler could not find, two are shaders that merely lack an editor
 image, four now get the nearest-named retail texture from the stitcher (66 surfaces — a guess by
 name, to be checked by eye), and one, `common/light_floor`, has no stand-in yet.
+
+## Triggers as boxes: 900 brush models become 406 (2026-10-06)
+
+`patches/0011` lets a trigger be an origin with `mins`/`maxs` instead of a brush model, and the
+stitcher writes every trigger that is a single axis-aligned box that way: **494 of the 501**. The
+ship's brush models fall from 900 to 406 — doors 192, usables 134, panels 42, and a few dozen
+others — and all 2,804 entities still spawn and link.
+
+A box trigger cannot go through the compiler: it flood-fills from every entity with an origin, and
+a trigger volume's centre is often inside a wall, which it reports as a leak and then writes no
+visibility data. So the stitcher writes them beside the map (`voyager.ents`) and
+`tools/shipmap/inject.py` appends them to the compiled map's entity list.
+
+Not verified: that a boxed trigger *fires* when walked into. The game's touch test takes any
+entity's bounds, so it should; nobody has walked into one yet.
