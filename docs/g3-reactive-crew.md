@@ -176,7 +176,48 @@ One boundary that is not a fork: G3 passing on one deck unlocks G4's *specificat
 implementation. The mechanism should hold in a second space before it is generalised. That is the
 wedge principle, and skipping it is the most likely way for this program to become expensive.
 
+## 7b. Decisions locked (2026-10-05)
 
+All five accepted as recommended: **deck04**; **five crew** for the first pass; **anchored posts in
+scope**; posts **generated as data** rather than hand-marked; and the rejection criterion below. These
+are binding for G3, and are not revisited mid-implementation.
+
+## 7c. The rejection criterion, decomposed
+
+The owner's criterion, verbatim: **"unrealistic and unnatural actions for the characters in their
+environment."** That is the bar the whole milestone serves. It is a judgement rather than a number, so
+it is decomposed here into the impressions that produce it -- and note what it is a bar *about*: fit to
+the environment, not intelligence. Nobody will be disappointed that a crew member is not clever. They
+will be disappointed the moment one stands in a wall.
+
+In rough order of how fast a player notices:
+
+1. **Position.** Standing inside furniture or geometry, in a doorway, or on top of another crew member.
+2. **Facing.** Facing a blank wall, or not facing the thing they are ostensibly standing at.
+3. **Spacing.** Posts clustered so crew overlap -- or spaced so evenly the deck reads as a chessboard.
+4. **Attention.** Answering someone they cannot see, or through a wall; ignoring someone standing
+   directly in front of them.
+5. **Motion.** Routes a person would not take, walking through objects, stopping mid-stride, snapping
+   turns.
+6. **Sameness.** Everyone reacting on the same beat, with the same animation, at the same pacing. This is
+   the clearest single tell that a deck is machine-driven.
+7. **Idleness.** Perfect rigidity at a post. A person shifts weight, glances, adjusts. Absolute stillness
+   is more unnatural than motion, not less.
+
+What follows is binding on how the code is written, rather than being polished in afterwards:
+
+- **Posts are placed clear of geometry and spaced to the room**, and the post set is reviewed as a *set*,
+  not one post at a time.
+- **Facing is derived from the object the post belongs to** -- a console, a station, a doorway -- never
+  from an arbitrary angle.
+- **Attention is gated by the NPC's existing perception** (sight, earshot, line of sight), so that "they
+  noticed me" is always truthful about what the NPC could actually perceive.
+- **Movement uses the deck's own navigation**, so routes follow the space instead of cutting through it.
+- **Idle variation is a requirement, not decoration.** No two crew members share a cycle.
+- The machine checks in §5 are necessary and not sufficient. This list is what decides, and it is judged
+  by the owner, by eye, on the deck.
+
+## 7. Risks, with probabilities
 
 Each with the mitigation that makes it testable rather than merely worrying.
 
