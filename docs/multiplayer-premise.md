@@ -48,15 +48,14 @@ Kazon took the array, which is why nobody came back for them. All of that is can
 command crew. Canon's senior staff survived; multiplayer's does not. That is a deliberate branch, not a
 retelling.
 
-## The fork this creates, and the recommendation
+## Decision: multiplayer is its own branch (2026-10-05, owner)
 
-If the command crew dies in multiplayer, do single player and multiplayer share a timeline?
+Confirmed. The Caretaker events cost the command crew **in multiplayer's telling**, and multiplayer is its own
+branch of the story. Single player keeps canon's cast, and the retail campaign stays untouched canon.
 
-- **Recommended: multiplayer is its own branch.** The Caretaker events cost the command crew *in this telling*.
-  Single player keeps canon's cast intact and the player serves under a captain; multiplayer starts with the
-  chair empty and the players decide who sits in it. The retail campaign (mode 1) stays untouched canon.
-- The alternative -- one shared timeline where the cast exists as NPCs and players fill junior posts -- is
-  coherent, but it puts a canon captain over human players and gives away the best thing this premise buys.
+Multiplayer therefore starts with the chair empty and the players deciding who sits in it, while single player
+starts with a captain and a chain of command -- and, per `docs/start-states.md`, may optionally start with any
+number of those command posts already vacant, if that is the game the player wants to play.
 
 ## What it implies mechanically
 
