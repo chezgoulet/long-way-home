@@ -6,10 +6,23 @@ makes a space something we can generate and compile rather than only hand-draw -
 new location can be produced, built and validated without a GUI in the loop.
 
   mapgen.py --out room.map [--width 512] [--depth 768] [--height 192] [--navgrid 128]
-            [--texture textures/foo/bar] [--name testroom]
+            [--texture dir/name] [--name testroom]
 
 Emitted: six structural brushes forming a shell, a couple of lights, a player start, and a grid
 of `waypoint` entities -- the navigation furniture the engine bakes maps/<map>.nav from.
+
+Two conventions that fail LOUDLY IN THE GAME AND SILENTLY IN THE TOOLCHAIN, so they are worth
+stating before anyone regenerates a map with this script:
+
+  1. Brush face texture names are relative to the `textures/` root. `engineering/enggrey`, not
+     `textures/engineering/enggrey`; the compiler prepends the prefix, so the doubled path
+     resolves to nothing and every face is dropped.
+  2. q3map2 must be given a `-fs_basepath` whose child directory is spelled exactly `baseEF`.
+     The game's install directory spells it `BaseEF`, and on a case-sensitive filesystem that
+     never matches, so no asset resolves -- again with a zero exit code.
+
+Either mistake yields a BSP with empty lumps. Verify structure, not the exit code:
+tools/mapgen/check-bsp.py.
 """
 
 import argparse
@@ -29,6 +42,12 @@ def brush(bounds, texture):
     ]
     out = ["{"]
     for a, b, c in planes:
+        # WINDING MATTERS. The three points must be ordered so the computed normal points INTO
+        # the brush from that face. Ordered the other way the brush is inside-out, and q3map2
+        # discards it WITHOUT a warning, still exits 0, and emits a BSP whose brush, shader and
+        # surface lumps are all empty -- which the engine later rejects as "Map with no shaders".
+        # Raven's own shipped maps order them this way; match them, don't re-derive.
+        a, b, c = a, c, b
         out.append("( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s 0 0 0 1 1"
                    % (a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], texture))
     out.append("}")
@@ -51,7 +70,15 @@ def main():
     ap.add_argument("--depth", type=int, default=768)
     ap.add_argument("--height", type=int, default=192)
     ap.add_argument("--navgrid", type=int, default=128)
-    ap.add_argument("--texture", default="common/caulk")
+    # Brush face names are written RELATIVE to the textures/ root: Raven's own maps say
+    # `engineering/enggrey`, and the compiler prepends `textures/`. Passing the full path here
+    # produces `textures/textures/...`, which silently resolves to nothing -- every face is
+    # dropped, the compiler still exits 0, and the engine then rejects the BSP with
+    # "Map with no shaders". Hence: no prefix.
+    ap.add_argument("--texture", default="8472/wallconduit1",
+                    help="wall material, relative to textures/ and present in the game's paks")
+    ap.add_argument("--floor-texture", dest="floor_texture", default="8472/wallconduit2",
+                    help="floor and ceiling material, relative to textures/")
     a = ap.parse_args()
 
     W_, D_, H_, T = a.width, a.depth, a.height, 16
@@ -61,8 +88,11 @@ def main():
     # brace ("Line N is incomplete"), which is the first thing to check when a generated map
     # refuses to compile.
     ws = ["{", '"classname" "worldspawn"', '"message" "%s"' % a.name]
-    ws.append(brush(((0, 0, -T), (W_, D_, 0)), a.texture))               # floor
-    ws.append(brush(((0, 0, H_), (W_, D_, H_ + T)), a.texture))          # ceiling
+    F = a.floor_texture
+    # Distinct materials for floor and ceiling: a test space built entirely from one texture makes
+    # it needlessly hard to tell whether you are standing in it or looking through it.
+    ws.append(brush(((0, 0, -T), (W_, D_, 0)), F))                       # floor
+    ws.append(brush(((0, 0, H_), (W_, D_, H_ + T)), F))                  # ceiling
     ws.append(brush(((0, 0, 0), (T, D_, H_)), a.texture))                # west
     ws.append(brush(((W_ - T, 0, 0), (W_, D_, H_)), a.texture))          # east
     ws.append(brush(((0, 0, 0), (W_, T, H_)), a.texture))                # south
