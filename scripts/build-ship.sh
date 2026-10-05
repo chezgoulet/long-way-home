@@ -25,7 +25,10 @@ DECKS="$ROOT/build/gdk/maps/eliteforce_virtualvoyager_maps"
 [ -d "$DECKS" ] || { echo "no deck sources at $DECKS -- run scripts/fetch-gdk.sh" >&2; exit 1; }
 mkdir -p "$ROOT/build/ship" "$OUT"
 
-python3 "$ROOT/tools/shipmap/stitch.py" --decks "$DECKS" --out "$ROOT/build/ship/voyager.map" \
+# The five decks nobody ever published get a generated placeholder each (tools/shipmap/gendeck.py).
+python3 "$ROOT/tools/shipmap/gendeck.py" --deck 6 --deck 7 --deck 12 --deck 13 --deck 14 --out "$ROOT/build/ship/generated"
+
+python3 "$ROOT/tools/shipmap/stitch.py" --decks "$DECKS" --decks "$ROOT/build/ship/generated" --out "$ROOT/build/ship/voyager.map" \
   --report "$ROOT/build/ship/stitch-report.json"
 # Visibility and lighting take about three minutes for the whole ship; --fast skips them.
 "$ROOT/scripts/build-map.sh" "$ROOT/build/ship/voyager.map" --name voyager --out "$OUT" --allow-missing-shaders \

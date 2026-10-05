@@ -198,7 +198,7 @@ def stitch(deck_files, pitch):
     world_keys = collections.OrderedDict(decks[first][0][0])
     world, out, late = [], [], []
     report = {"decks": {}, "pitch": pitch, "renamed": sorted(shared), "models": collections.Counter(),
-              "dropped_stray_brushes": 0, "folded": collections.Counter(), "turbolift_links": 0, "triggers_boxed": 0,
+              "dropped_stray_brushes": 0, "folded": collections.Counter(), "turbolift_links": 0, "turbolift_links_added": 0, "triggers_boxed": 0,
               "level_changes_left": []}
 
     for n, ents in decks.items():
@@ -265,6 +265,22 @@ def stitch(deck_files, pitch):
             out.append((keys, [b.moved(dz) for b in keep]))
         report["decks"][n] = {"entities": len(ents), "z": [min(zs), max(zs)] if zs else None}
 
+    # The turbolift reaches every deck from every deck. The published decks link only to each other
+    # (their menu lists ten); wherever a link is missing, one is added under the name the others use.
+    names = {k.get("targetname", "").lower() for k, _ in out}
+    arrival_at = {k["lwh_deck"]: k.get("origin", "0 0 0") for k, _ in out if k.get("targetname", "").endswith("_arrival")}
+    for n in decks:
+        for m in decks:
+            name = "d%02d_tour_turbo_%02d" % (n, m)
+            if m == n or name in names:
+                continue
+            # It needs a place inside the ship: an entity with no origin sits at the map's origin, out
+            # in the void, and the compiler calls that a leak and writes no visibility data.
+            out.append((collections.OrderedDict([("classname", "target_teleporter"), ("targetname", name),
+                                                 ("target", "d%02d_arrival" % m), ("origin", arrival_at.get(str(n), "0 0 0")),
+                                                 ("lwh_deck", str(n))]), []))
+            report["turbolift_links_added"] += 1
+
     report["textures_substituted"] = Brush.substituted
     report["world_brushes"] = len(world)
     report["entities"] = len(out) + 1 + len(late)
@@ -306,19 +322,21 @@ def write(path, world_keys, world, ents):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--decks", required=True, help="directory holding deckNN.map sources")
+    ap.add_argument("--decks", required=True, action="append",
+                    help="directory holding deckNN.map sources; may be given more than once (a later one wins)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--pitch", type=int, default=3072, help="vertical distance between decks (multiple of 1024)")
     ap.add_argument("--report")
     a = ap.parse_args(argv)
 
     files = {}
-    for path in glob.glob(os.path.join(a.decks, "**", "deck*.map"), recursive=True):
-        m = re.search(r"deck(\d+)\.map$", os.path.basename(path), re.I)
-        if m:
-            files[int(m.group(1))] = path
+    for directory in a.decks:
+        for path in sorted(glob.glob(os.path.join(directory, "**", "deck*.map"), recursive=True)):
+            m = re.search(r"deck(\d+)\.map$", os.path.basename(path), re.I)
+            if m:
+                files[int(m.group(1))] = path
     if not files:
-        print(f"no deckNN.map under {a.decks}", file=sys.stderr)
+        print(f"no deckNN.map under {', '.join(a.decks)}", file=sys.stderr)
         return 2
     try:
         world_keys, world, ents, report = stitch(files, a.pitch)
@@ -340,7 +358,7 @@ def main(argv=None):
     print(f"  triggers turned from brush models into boxes: {report['triggers_boxed']}")
     print(f"  names renamed because more than one deck uses them: {len(report['renamed'])}")
     print(f"  surfaces given a substitute for a texture the shipped game lacks: {report['textures_substituted']}")
-    print(f"  turbolift links between decks: {report['turbolift_links']}; level changes left as they were "
+    print(f"  turbolift links between decks: {report['turbolift_links']} rewritten, {report['turbolift_links_added']} added; level changes left as they were "
           f"(not decks of this ship): {len(report['level_changes_left'])}")
     for n, v in sorted(report["decks"].items()):
         print(f"  deck {n:2}: z {v['z'][0]:.0f} .. {v['z'][1]:.0f}")

@@ -76,7 +76,7 @@ class Stitch(unittest.TestCase):
         self.assertEqual(report["decks"][1]["z"], [-4096, -3900])
         self.assertEqual(report["decks"][3]["z"], [-4096 - 2 * 2048, -3900 - 2 * 2048])
         self.assertEqual(report["overlaps"], [])
-        origins = [k["origin"] for k, _ in ents if "origin" in k and not k["classname"].startswith("trigger_")]
+        origins = [k["origin"] for k, _ in ents if "origin" in k and k["classname"] in ("info_player_start", "info_notnull")]
         # deck 1: the arrival point and the player start, in the same place; deck 3: its arrival point
         self.assertEqual(origins, ["100 100 -3976", "100 100 -3976", "100 100 %d" % (-3976 - 4096)])
 
@@ -149,6 +149,25 @@ class Stitch(unittest.TestCase):
         self.assertEqual(by_name["d01_gotobrig"]["mapname"], "_brig")
         self.assertEqual(report["turbolift_links"], 2)
         self.assertEqual(report["level_changes_left"], ["_brig", "tour/deck07"])
+        # deck 3's source had no link to deck 1: the missing direction is added under the same
+        # naming, so every deck reaches every deck
+        back = by_name["d03_tour_turbo_01"]
+        self.assertEqual((back["classname"], back["target"]), ("target_teleporter", "d01_arrival"))
+        self.assertEqual(back["origin"], by_name["d03_arrival"]["origin"])  # inside the ship, not at the map's origin
+        self.assertEqual(report["turbolift_links_added"], 1)
+
+    def test_generated_deck_stitches_like_a_published_one(self):
+        sys.path.insert(0, os.path.join(ROOT, "tools", "shipmap"))
+        import gendeck
+        world, ents, report, _ = self.run_stitch({1: deck(), 6: gendeck.deck_map(6)}, pitch=3072)
+        self.assertEqual(report["overlaps"], [])
+        self.assertEqual(report["decks"][6]["z"], [-4016 - 5 * 3072, -3792 - 5 * 3072])
+        by_name = {k.get("targetname"): k for k, _ in ents}
+        self.assertEqual(by_name["d06_arrival"]["classname"], "info_notnull")
+        self.assertEqual(by_name["d01_tour_turbo_06"]["target"], "d06_arrival")
+        self.assertEqual(by_name["d06_tour_turbo_01"]["target"], "d01_arrival")
+        waypoints = [k for k, _ in ents if k["classname"] == "waypoint" and k["lwh_deck"] == "6"]
+        self.assertGreater(len(waypoints), 50, "a deck that can hold crew has somewhere for them to walk")
 
     def test_every_entity_knows_its_deck_and_the_output_parses(self):
         _, ents, report, reparsed = self.run_stitch({1: deck(), 9: deck()})

@@ -93,13 +93,18 @@ Next steps for S3, in dependency order:
    change's original `target` fired.
 4. (done 2026-10-06) Triggers as boxes: `patches/0011` + the stitcher + `inject.py`; brush models
    900 -> 406; a boxed trigger proven to fire (`g_shipTest 4` with `g_shipTestWatch "x y z"`).
-5. The five decks with no source (6, 7, 12, 13, 14): generated; everything about them is invention
-   and goes in `docs/lore-ledger.md`.
+5. (done 2026-10-06, as placeholders) Decks 6, 7, 12, 13, 14: `tools/shipmap/gendeck.py` makes a
+   sealed lit hall with waypoints for each; the stitcher links every deck to every other (129
+   links added). Real interiors for these decks are future authoring, not S3.
 6. (mostly done 2026-10-06) Missing textures: four are substituted by the stitcher's `SUBSTITUTE`
    table (66 surfaces) — chosen by name, not by eye, so look at them in the ship. Two of the seven
    (`common/glassportal`, `sickbay/lights`) are defined as shaders and only lack an editor image,
    which is harmless. `common/light_floor` has no obvious stand-in and is still missing.
-7. Someone walks it. S3's exit criterion is every deck reachable on foot.
+7. Someone walks it. S3's exit criterion is every deck reachable on foot. **This is the main thing
+   left in S3** and needs either the owner in a session or a harness that walks: e.g. for each
+   deck, ride the link, then check the baked navigation connects the arrival point to that deck's
+   waypoints. Also still open: drive the real turbolift menu; investigate why `num_entities` at
+   init differed between two loads of the same map (3,323 vs 2,543); frame time for fifteen decks.
 
 Known risks in S3: all ten decks' scripts now run at once in one level, which they were never
 written for; the worst-case game frame was 26 ms before rendering; crew cannot open doors (found in

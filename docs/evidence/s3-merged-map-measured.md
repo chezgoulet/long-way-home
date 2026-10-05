@@ -310,3 +310,33 @@ SHIP: trigger 1921 (trigger_multiple, box) with the player inside it: FIRED, wai
 
 The bounds are the authored brush's, to the unit. One trigger of 494; the mechanism is the same
 for all of them.
+
+## Fifteen decks (2026-10-06)
+
+`tools/shipmap/gendeck.py` writes a placeholder for each deck that was never published — 6, 7, 12,
+13, 14 — in the published decks' own convention, and the stitcher takes them like any other: a
+sealed, lit hall 1,536 by 1,024 units with a waypoint grid and an arrival point. They are floors to
+build on, not reconstructions; their size, shape and assigned purpose are invented and are in the
+lore ledger as such.
+
+The stitcher also completes the turbolift: wherever a deck has no link to another, one is added
+under the naming the published links use. 90 rewritten, 129 added — every deck reaches every deck.
+
+```
+15 decks -> build/ship/voyager.map
+  world brushes 32375, entities 4638, brush models 405, triggers boxed 494
+  turbolift links between decks: 90 rewritten, 129 added
+```
+
+Compiled with visibility and lighting, loaded, and ridden from deck 1 by firing the links:
+
+| used | player ends at | which is |
+|---|---|---|
+| `d01_tour_turbo_06` | (-4512 -3584 -19335) | generated deck 6's arrival point |
+| `d01_tour_turbo_13` | (-4512 -3584 -40839) | generated deck 13's; the screenshot shows the lit hall |
+
+A leak found on the way: a link added with no origin sits at the map's origin, out in the void, and
+the compiler then writes no visibility data. Added links are placed at their deck's arrival point.
+
+Unexplained and worth a look: the entity count printed at the end of game init differed between
+two loads of the same map (3,323 and 2,543).
