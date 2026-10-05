@@ -152,7 +152,31 @@ judged by measurements, and the qualitative judgement — does the deck feel inh
 6. **Measurement harness**: the acceptance table above, automated where it can be, so the milestone is
    reported as numbers rather than impressions.
 
-## 7. Risks, with probabilities
+## 7a. Open decisions (owner's, pending)
+
+Five, and only the first blocks implementation. Recommendations are mine and are reversible.
+
+1. **Which deck.** Recommendation: **`deck04`** -- densest navigation of any deck, eight crew already
+   placed, nineteen interactive objects to hold posts at. `deck05` is the alternate if the goal
+   entities prove too coarse in practice.
+2. **Crew count for the first pass.** Recommendation: **five, not ten.** The save path is twenty
+   years old, and the per-NPC cost should be measured at five before anything is designed for thirty.
+3. **Anchored posts in scope?** Whether a post may forbid its holder from leaving (bridge, security),
+   answering with a refusal bark instead of following the player. Recommendation: **in** -- it is a
+   data flag, and it is the difference between a staffed deck and a room of people who all abandon
+   their stations when addressed.
+4. **Who authors the posts.** Recommendation: **generated as a small data table** for G3; the
+   alternative is hand-marking in an editor, which pulls in the editor question. That question belongs
+   to Track B, not to this milestone.
+5. **The reject condition for the subjective item.** Decide in advance what would make the deck read
+   as mannequins rather than as inhabited, so the judgement is not made after the fact.
+   Recommendation: **if it reads as furniture, G3 fails and is fixed before G4 starts.**
+
+One boundary that is not a fork: G3 passing on one deck unlocks G4's *specification*, not its
+implementation. The mechanism should hold in a second space before it is generalised. That is the
+wedge principle, and skipping it is the most likely way for this program to become expensive.
+
+
 
 Each with the mitigation that makes it testable rather than merely worrying.
 
