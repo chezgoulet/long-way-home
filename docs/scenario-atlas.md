@@ -129,6 +129,44 @@ In addition to the contract above: **the positions it can be experienced from**,
 information they receive, the authority they hold, the people they are responsible for, and the decision
 they own. Author the event once; author the positions as data.
 
+## What each faction can threaten
+
+The owner's conclusion: with no new species assets we still have plenty to work with. The reason that
+is true is not the *number* of factions -- it is that **each one writes a different part of the model**,
+so the kinds of trouble differ and not merely the strength of the enemy. Enemies are drawn from
+`docs/research/game-alien-roster.md`.
+
+- **The Borg** want the ship and the crew. They write `controller`, crew records and `compromise`, and
+  they are **the only faction that can take the ship outright**. Their scenarios are boarding, dwell
+  thresholds, reclamation work and the assimilation window.
+- **Species 8472** want nothing -- they are pure lethality, with no capture and no compromise. Canon puts
+  them beyond most of what the crew has, which makes their scenarios about *not fighting*: sealing,
+  escaping, and deciding what a fight is worth. Their real function is to make the weapons unattractive.
+- **The Hirogen** want the hunt, not the ship. They touch crew records as *individuals* and deliberately
+  leave systems working, so the engineering problem becomes a distraction from the danger. A Hirogen
+  scenario needs no damage model at all -- which makes it cheap and terrifying.
+- **The Scavengers** want parts. They write `compromise` and the stores, and they *remove capability*
+  without taking ground: a door, a system, plating, stores, gone -- sometimes noticed only later. That is
+  a scenario shape nothing else in the roster produces.
+- **The Reavers** are the same appetite at scale -- 173 placements, the heaviest enemy presence after the
+  Borg. Raiding, abducting, wrecking.
+- **The Harvesters and the machine family** want access and throughput. They take junctions and corridors,
+  deny movement, and make a compartment serve their own function. The counter-play is about *routes* --
+  turbolifts, Jefferies tubes, which way round -- rather than territory.
+- **The Malon** want somewhere to put the waste. That gives a scenario where the threat is a *substance*:
+  contamination spreading deck by deck, containment, and a long cleanup in the job queue. Delightfully
+  mundane, and canon.
+- **The Klingons** come through the holodeck, which makes them the *warmth* faction: a programme, a
+  pastime, a training run -- and, on a broken ship with damaged safety systems, a genuinely dangerous one.
+- **The three unattributed factions** (`imperial`, `stasis`, `avatar` in the game's own files) are not a
+  gap. They are **unknown species**, which is what the Delta Quadrant runs on: the crew do not know what
+  they are dealing with and neither does the player. Their scenario shape is investigation -- a first
+  contact that can go either way.
+
+The practical consequence: a Borg incursion, a Hirogen hunt, a Malon contamination and a Scavenger raid
+are four *different games* built on one model, with one asset set and no new art. That is the variety
+budget, and it is already paid for.
+
 ## A first slate
 
 Nine, ordered by how soon they can be built against the systems that already exist. Each names its canon
