@@ -1,0 +1,31 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 6/7] single player: let console commands reach the game module
+
+Cmd_ExecuteString offers a command to the game module only while com_sv_running is set. The
+single-player bridge hosts the module without a running server, so the flag is never set there and
+the module's own commands (nav, npc, runscript, ICARUS, ...) cannot be reached from the console,
+a config or the UI -- only `use`, which the bridge registers by hand. SV_GameCommand already
+forwards to the SP module when asked; this asks it whenever the SP game is active.
+
+Independent of Long Way Home: it restores the released game's developer commands in this port.
+---
+diff --git a/EFAndroid-SP/app/jni/efcode/qcommon/cmd.c b/EFAndroid-SP/app/jni/efcode/qcommon/cmd.c
+--- a/EFAndroid-SP/app/jni/efcode/qcommon/cmd.c
++++ b/EFAndroid-SP/app/jni/efcode/qcommon/cmd.c
+@@ -800,8 +800,14 @@
+ 	}
+ 
+ 	// check server game commands
+-	if ( com_sv_running && com_sv_running->integer && SV_GameCommand() ) {
+-		return;
++	// The single-player bridge hosts the game module without a running server, so com_sv_running is
++	// never set there and the module's own console commands (nav, npc, runscript, ...) were unreachable.
++	// SV_GameCommand already knows how to hand a command to the SP module; let it be asked.
++	{
++		extern int SP_IsActive( void );
++		if ( ( ( com_sv_running && com_sv_running->integer ) || SP_IsActive() ) && SV_GameCommand() ) {
++			return;
++		}
+ 	}
+ 
+ 	// check ui commands

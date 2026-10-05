@@ -1,0 +1,31 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 7/7] single player: menus that do not pause the game
+
+The SP bridge freezes the simulation whenever a menu or the console is up. A ship's console is
+operated while the ship carries on around the operator, so a menu may now declare itself live by
+setting ui_liveMenu while it is open; the simulation then keeps running behind it. The flag is
+cleared by the engine as soon as no menu is open, so it cannot leak to the next menu (ESC,
+save/load), which pause exactly as before. The console always pauses.
+
+A live menu must also not be "fullscreen" in the UI's sense: a fullscreen menu stops the game
+being drawn, and in this bridge the game's frame is driven from its draw.
+---
+diff --git a/EFAndroid-SP/app/jni/sp/sp_integration.c b/EFAndroid-SP/app/jni/sp/sp_integration.c
+--- a/EFAndroid-SP/app/jni/sp/sp_integration.c
++++ b/EFAndroid-SP/app/jni/sp/sp_integration.c
+@@ -430,7 +430,14 @@
+ // mission. Mirroring retail SV_Frame (which skips the sim while sv_paused/cl_paused) keeps the world
+ // frozen behind the FMV; the cgame still re-draws that frozen frame so the overlay sits on top.
+ int SP_MenuPaused(void){
+-    if ( Key_GetCatcher() & ( KEYCATCH_UI | KEYCATCH_CONSOLE ) ) return 1;
++    // Long Way Home: a "live" screen -- a ship console the player operates while the ship carries on
++    // around them -- sets ui_liveMenu while it is up, and the simulation is not paused for it. The
++    // flag is cleared here as soon as no menu is open, so it can never leak to the next menu (ESC,
++    // save/load), which pause as they always have. The console always pauses.
++    if ( Key_GetCatcher() & KEYCATCH_CONSOLE ) return 1;
++    if ( !( Key_GetCatcher() & KEYCATCH_UI ) ) {
++        if ( Cvar_VariableIntegerValue( "ui_liveMenu" ) ) Cvar_Set( "ui_liveMenu", "0" );
++    } else if ( !Cvar_VariableIntegerValue( "ui_liveMenu" ) ) return 1;
+     if ( Cvar_VariableIntegerValue( "cl_paused" ) ) return 1;
+     return 0;
+ }

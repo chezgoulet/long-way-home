@@ -9,6 +9,9 @@
 #include "ship_core.h"
 #include "g_ship.h"
 
+#include <algorithm>
+#include <cstdarg>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -82,10 +85,82 @@ void WriteReport( const char *name )
 	gi.Printf( "SHIP: wrote %s\n", name );
 }
 
+std::string Fmt( const char *fmt, ... ) __attribute__(( format( printf, 1, 2 ) ));
+std::string Fmt( const char *fmt, ... )
+{
+	char buf[256];
+	va_list ap;
+	va_start( ap, fmt );
+	vsnprintf( buf, sizeof( buf ), fmt, ap );
+	va_end( ap );
+	return buf;
+}
+
+// The UI is a separate module and cannot see the ship, so the ship's state is published as cvars
+// for its screens to read (module/ui). Systems go out in the order power is given to them.
+void Publish( void )
+{
+	static const char *const ALERTS[] = { "GREEN", "YELLOW", "RED" };
+	static const char *const WATCH[] = { "ALPHA", "BETA", "GAMMA" };
+	static const char *const SOURCES[ship::SRC_COUNT] = { "WARP CORE", "IMPULSE REACTORS", "AUXILIARY FUSION", "BATTERIES" };
+	static const int CAPACITY[ship::SRC_COUNT] = { 1000, 300, 120, 80 };
+	const int sod = vessel.SecondOfDay();
+
+	gi.cvar_set( "lwh_ship_alert", Fmt( "%d", vessel.alert ).c_str() );
+	gi.cvar_set( "lwh_ship_header", Fmt( "DAY %d  %02d:%02d  %s WATCH   CONDITION %s   POWER %d SUPPLIED  %d ALLOCATED", vessel.Day(),
+		sod / 3600, sod % 3600 / 60, WATCH[vessel.Watch()], ALERTS[vessel.alert], vessel.PowerAvailable(), vessel.PowerAllocated() ).c_str() );
+	gi.cvar_set( "lwh_ship_stores", Fmt( "DEUTERIUM %.1f%%   ANTIMATTER %.1f%%   BATTERIES %.0f%%   TORPEDOES %d   CREW FIT %d OF %d",
+		vessel.stores.deuterium * 100, vessel.stores.antimatter * 100, vessel.stores.batteries * 100, vessel.stores.torpedoes,
+		vessel.CrewFit(), static_cast<int>( vessel.crew.size() ) ).c_str() );
+	for ( int i = 0; i < ship::SRC_COUNT; ++i )
+	{
+		const ship::Source &src = vessel.sources[i];
+		gi.cvar_set( Fmt( "lwh_ship_src%d", i ).c_str(), Fmt( "%s|%d %d %d %d", SOURCES[i], src.output, CAPACITY[i],
+			static_cast<int>( src.health * 100 + 0.5f ), src.online ? 1 : 0 ).c_str() );
+	}
+	int order[ship::SYS_COUNT];
+	for ( int i = 0; i < ship::SYS_COUNT; ++i ) order[i] = i;
+	std::stable_sort( order, order + ship::SYS_COUNT, []( int a, int b ) { return vessel.systems[a].priority < vessel.systems[b].priority; } );
+	for ( int k = 0; k < ship::SYS_COUNT; ++k )
+	{
+		const ship::System &sys = vessel.systems[order[k]];
+		const ship::SystemSpec &spec = ship::Spec( static_cast<ship::SystemId>( order[k] ) );
+		gi.cvar_set( Fmt( "lwh_ship_sys%d", k ).c_str(), Fmt( "%s|%d %d %d %d %d %d %d %d", spec.name, sys.allocated, spec.demand,
+			static_cast<int>( sys.health * 100 + 0.5f ), static_cast<int>( sys.output * 100 + 0.5f ), sys.manned, spec.crewNeeded,
+			sys.enabled ? 1 : 0, sys.priority ).c_str() );
+	}
+}
+
 // The harness (scripts/s2-check.sh): do to the ship what a console would, then prove the result
 // is what the save holds.
 void RunTest( void )
 {
+	if ( g_shipTest->integer == 3 )
+	{//operate the Engineering console the way a hand would, a step at a time, then photograph it
+		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 3000, "ui_lwh_engineering\n" },
+			{ 3500, "lwh_eng_key 3\n" },                                        // condition red
+			{ 4000, "lwh_eng_key down\n" }, { 4200, "lwh_eng_key down\n" },     // to the third system
+			{ 4400, "lwh_eng_key enter\n" },                                    // switch it off
+			{ 5000, "lwh_eng_key up\n" }, { 5200, "lwh_eng_key up\n" },         // back to the first
+			{ 5400, "lwh_eng_key right\n" },                                    // and demote it one place
+			{ 6500, "screenshot lwh_engineering\n" },
+		};
+		static size_t step = 0;
+		if ( level.time < 1000 ) step = 0;
+		while ( step < sizeof( STEPS ) / sizeof( STEPS[0] ) && level.time >= STEPS[step].ms )
+		{
+			gi.Printf( "SHIP: console test t=%d: %s", level.time, STEPS[step].command );
+			gi.SendConsoleCommand( STEPS[step++].command );
+		}
+		if ( tested || level.time < 8000 ) return;
+		tested = true;
+		gi.Printf( "SHIP: life support priority %d, structural integrity priority %d\n",
+			vessel.systems[ship::SYS_LIFE_SUPPORT].priority, vessel.systems[ship::SYS_STRUCTURAL_INTEGRITY].priority );
+		WriteReport( "ship/operated.txt" );
+		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )
@@ -160,6 +235,7 @@ void Ship_Frame( void )
 	}
 	const int ms = level.time - level.previousTime;
 	if ( ms > 0 && ms < 1000 ) ship::Tick( vessel, ms / 1000.0f );
+	if ( level.time / 250 != level.previousTime / 250 ) Publish();
 	if ( g_shipTest->integer ) RunTest();
 }
 
@@ -203,6 +279,7 @@ void Svcmd_Ship_f( void )
 	const int sys = FindSystem( a );
 
 	if ( !Q_stricmp( cmd, "status" ) ) { PrintStatus(); return; }
+	if ( !Q_stricmp( cmd, "console" ) ) { gi.SendConsoleCommand( "ui_lwh_engineering\n" ); return; }
 	if ( !Q_stricmp( cmd, "alert" ) )
 	{
 		const ship::Alert al = !Q_stricmp( a, "red" ) ? ship::ALERT_RED : !Q_stricmp( a, "yellow" ) ? ship::ALERT_YELLOW : ship::ALERT_GREEN;
@@ -223,5 +300,6 @@ void Svcmd_Ship_f( void )
 		return;
 	}
 	ship::Tick( vessel, 0.0f );
-	PrintStatus();
+	Publish();
+	if ( !g_shipTest->integer ) PrintStatus();
 }

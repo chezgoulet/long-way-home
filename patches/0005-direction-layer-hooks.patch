@@ -1,23 +1,26 @@
 From: Long Way Home <noreply@long-way-home.invalid>
-Subject: [PATCH 5/5] attach points for Long Way Home's own game logic
+Subject: [PATCH 5/7] attach points for Long Way Home's own game logic
 
-Seventeen one-line calls and a build option. The logic itself is not in this tree: it is compiled
-in from LWH_MODULE_DIR (the long-way-home repository's module/), and game/lwh_hooks.h turns every
-call into an empty inline when that is unset, so this patch alone changes no behaviour.
+Eighteen one-line calls and a build option. The logic itself is not in this tree: it is compiled
+in from LWH_MODULE_DIR (the long-way-home repository's module/), and game/lwh_hooks.h and
+ui/lwh_ui_hooks.h turn every call into an empty inline when that is unset, so this patch alone
+changes no behaviour.
 
-Two systems attach here, the crew direction layer (Crew_*) and the ship simulation (Ship_*):
+Three things attach here: the crew direction layer (Crew_*), the ship simulation (Ship_*), and our
+screens in the UI module (LWH_UI_ConsoleCommand; sources under LWH_MODULE_DIR/ui go to the UI
+library, everything else to the game library):
   G_InitCvars / InitGame       register cvars; start once the map's entities exist
   G_RunFrame (first, last)     the frame clock, then each system's turn after every entity has thought
   ShutdownGame                 the ship's state is carried through a level change
   NPC_Use / NPC_Respond        time the player's address against the acknowledgement
   NPC_Touch                    being walked into
   G_LoadSave_*MiscData         one optional save chunk each, written only while the system is on
-  ConsoleCommand               the "crew" and "ship" server commands
+  ConsoleCommand (game, ui)    the "crew" and "ship" commands; our screens' commands
 ---
 diff --git a/efgame/CMakeLists.txt b/efgame/CMakeLists.txt
 --- a/efgame/CMakeLists.txt
 +++ b/efgame/CMakeLists.txt
-@@ -82,8 +82,21 @@
+@@ -82,8 +82,25 @@
  list(REMOVE_ITEM EFGAME_SRC
    ${SRC}/icarus/Interface.cpp ${SRC}/icarus/Interpreter.cpp ${SRC}/icarus/Tokenizer.cpp)
  
@@ -27,6 +30,10 @@ diff --git a/efgame/CMakeLists.txt b/efgame/CMakeLists.txt
 +set(LWH_MODULE_DIR "" CACHE PATH "Directory of additional game-module sources")
 +if(LWH_MODULE_DIR)
 +  file(GLOB_RECURSE LWH_MODULE_SRC ${LWH_MODULE_DIR}/*.cpp)
++  file(GLOB LWH_UI_SRC ${LWH_MODULE_DIR}/ui/*.cpp)   # screens: these belong to the UI module
++  if(LWH_UI_SRC)
++    list(REMOVE_ITEM LWH_MODULE_SRC ${LWH_UI_SRC})
++  endif()
 +  list(APPEND EFGAME_SRC ${LWH_MODULE_SRC})
 +endif()
 +
@@ -39,6 +46,20 @@ diff --git a/efgame/CMakeLists.txt b/efgame/CMakeLists.txt
  target_compile_options(efgame PRIVATE ${EF_COPTS})
  target_compile_definitions(efgame PRIVATE NDEBUG)
  target_link_options(efgame PRIVATE
+@@ -103,8 +120,12 @@
+ # Under _USRDLL the FX_*Think func-table (the #else / #ifndef _USRDLL branch) is excluded ->
+ # zero cgame deps; the only symbol it then needs is gameinfo's `gi` (see gameinfo.cpp guard).
+ list(APPEND EFUI_SRC ${SRC}/game/g_weaponLoad.cpp)
+-add_library(efui SHARED ${EFUI_SRC} ${EF_SHARED_SRC} ${EFUI_EXTRA_SRC})
++add_library(efui SHARED ${EFUI_SRC} ${EF_SHARED_SRC} ${EFUI_EXTRA_SRC} ${LWH_UI_SRC})
+ target_include_directories(efui PRIVATE ${EF_INCLUDES})
++if(LWH_UI_SRC)
++  target_include_directories(efui PRIVATE ${LWH_MODULE_DIR}/ui)
++  target_compile_definitions(efui PRIVATE LWH_UI)
++endif()
+ target_compile_options(efui PRIVATE ${EF_COPTS})
+ # _USRDLL must be target-wide (not per-file) so the globbed gameinfo.cpp also takes the UI branch.
+ # Do NOT add _USRDLL to the efgame target (the game build keeps g_weaponLoad's cgame funcs[] table).
 diff --git a/efgame/src/game/NPC_reactions.cpp b/efgame/src/game/NPC_reactions.cpp
 --- a/efgame/src/game/NPC_reactions.cpp
 +++ b/efgame/src/game/NPC_reactions.cpp
@@ -175,6 +196,28 @@ diff --git a/efgame/src/game/g_svcmds.cpp b/efgame/src/game/g_svcmds.cpp
  	if (Q_stricmp (cmd, "Command") == 0) {
  		Svcmd_Comm_f ();
  		return qtrue;
+diff --git a/efgame/src/ui/ui_atoms.cpp b/efgame/src/ui/ui_atoms.cpp
+--- a/efgame/src/ui/ui_atoms.cpp
++++ b/efgame/src/ui/ui_atoms.cpp
+@@ -4,6 +4,7 @@
+ 	User interface building blocks and support functions.
+ **********************************************************************/
+ #include "ui_local.h"
++#include "lwh_ui_hooks.h"
+ #include "gameinfo.h"
+ #include "../qcommon/stv_version.h"
+ 
+@@ -1222,6 +1223,10 @@
+ 	// ensure minimum menu data is available
+ 	Menu_Cache();
+ 
++	if ( LWH_UI_ConsoleCommand( cmd ) ) {
++		return qtrue;
++	}
++
+ 	if ( Q_stricmp (cmd, "ui_cache") == 0 ) {
+ 		UI_Cache_f();
+ 		return qtrue;
 diff --git a/efgame/src/game/lwh_hooks.h b/efgame/src/game/lwh_hooks.h
 new file mode 100644
 --- /dev/null
@@ -211,6 +254,26 @@ new file mode 100644
 +inline void Ship_WriteSave( void ) {}
 +inline void Ship_ReadSave( void ) {}
 +inline void Svcmd_Ship_f( void ) {}
++#endif
++
++#endif
+diff --git a/efgame/src/ui/lwh_ui_hooks.h b/efgame/src/ui/lwh_ui_hooks.h
+new file mode 100644
+--- /dev/null
++++ b/efgame/src/ui/lwh_ui_hooks.h
+@@ -0,0 +1,15 @@
++// lwh_ui_hooks.h -- where Long Way Home's own screens attach to the UI module.
++//
++// Like game/lwh_hooks.h: the screens are compiled in from LWH_MODULE_DIR/ui when the build sets
++// it (which defines LWH_UI). Without it this is an empty inline and the UI is upstream's.
++
++#ifndef LWH_UI_HOOKS_H
++#define LWH_UI_HOOKS_H
++
++#ifdef LWH_UI
++#include "lwh_ui.h"
++#else
++inline qboolean LWH_UI_ConsoleCommand( const char * ) { return qfalse; }
 +#endif
 +
 +#endif

@@ -57,12 +57,9 @@ Order is by dependency. S3 and S4 may overlap once S2 has fixed how a console ta
 ## What exists
 
 - **S1 — done.** `module/ship/ship_core.*`, `tests/ship`. See `docs/evidence/s1-ship-core.md`.
-- **S2 — half done.** The core is hosted in the game module (`module/ship/g_ship.*`): it ticks with
-  the game clock, is one optional chunk in the save, is carried through a level change, and is
-  driven from the console (`ship status`, `ship alert red`, `ship priority warp -1`, ...).
-  `scripts/s2-check.sh` proves in the real engine that actions take effect and that the reloaded
-  ship is the saved one. **Not done:** the Main Engineering LCARS screen — the console command is
-  the stand-in — and the level-change carry, which is written but has not been exercised by a run.
+- **S2 — built, verified headless, awaiting the owner.** The core is hosted in the game module
+  (`module/ship/g_ship.*`) and Main Engineering's console is a screen in the UI module
+  (`module/ui/ui_lwh_engineering.cpp`). See `docs/evidence/s2-engineering-console.md`.
 - **G3's direction layer** is the embodiment mechanism S5 builds on: posts, arbitration against
   scripts, the save chunk, the measurement harness.
 - **Track B's pipeline** — map generation, headless compile, the validator, the scenario manifest —
