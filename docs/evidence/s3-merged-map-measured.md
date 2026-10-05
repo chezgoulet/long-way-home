@@ -206,3 +206,26 @@ map has no visibility data and no lighting. The turbolifts still try to change l
 renamed names have not been checked against the scripts — and all ten decks' scripts now run at
 once in one level, which they were never written to do. Five decks are missing. Those are S3's
 remaining exit criteria, in that order of dependency.
+
+## The lower decks are drawn (2026-10-06)
+
+`patches/0010`: the bridge's snapshot now drops what the player's position cannot see and, when
+more remains than fits, keeps the nearest instead of the lowest-numbered. A harness mode
+(`g_shipTest 4`) places the player at a position and takes a screenshot:
+
+| stood at | result |
+|---|---|
+| deck 4's arrival point, 9,000 units below deck 1 | the turbolift's interior and its door — a brush model, so an entity from far down the number order — are drawn |
+| deck 11's arrival point, 30,700 units below | the turbolift's walls and panels are drawn |
+
+So one map now holds the ship and the engine shows whichever part of it the player is in. The
+pictures are flat-lit: the map has no lighting pass yet. The screenshots are left in
+`build/g3-home/baseEF/screenshots/` and not committed.
+
+Until the map has visibility data, "cannot see" never excludes anything and the nearest-first rule
+does all the work. That is correct but costs more than it should: the renderer still considers the
+whole ship every frame.
+
+Remaining for S3, unchanged: a visibility pass with deck boundaries sealed; lighting; turbolifts
+that travel instead of changing level; the 268 renamed names checked against the scripts; triggers
+as boxes; the five missing decks; and someone walking it.

@@ -25,7 +25,9 @@ const char *const CARRY_FILE = "ship/carry.ship";
 
 cvar_t *g_ship;         // 1 = the ship simulation runs
 cvar_t *g_shipDayScale; // ship seconds per game second (60 = a day in 24 minutes; 1 = real time)
-cvar_t *g_shipTest;     // harness: 1 = act, report, save, quit; 2 = report what a load restored, quit
+cvar_t *g_shipTest;     // harness: 1 = act, report, save, quit; 2 = report what a load restored, quit;
+                        //          3 = operate the Engineering console; 4 = go to g_shipTestPos and photograph
+cvar_t *g_shipTestPos;
 
 bool active = false;
 bool tested = false;
@@ -161,6 +163,27 @@ void RunTest( void )
 		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}
+	if ( g_shipTest->integer == 4 )
+	{//stand somewhere else in the ship (g_shipTestPos "x y z") and photograph what is there
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			vec3_t to = { 0, 0, 0 }, angles = { 0, 0, 0 };
+			sscanf( g_shipTestPos->string, "%f %f %f", &to[0], &to[1], &to[2] );
+			TeleportPlayer( &g_entities[0], to, angles, 0 );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 7000 ) { gi.SendConsoleCommand( "screenshot lwh_ship\n" ); step = 2; }
+		if ( step == 2 && level.time >= 8000 )
+		{
+			gentity_t *player = &g_entities[0];
+			gi.Printf( "SHIP: standing at %s\n", vtos( player->currentOrigin ) );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 3;
+		}
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )
@@ -191,6 +214,7 @@ void Ship_RegisterCvars( void )
 	g_ship = gi.cvar( "g_ship", "0", 0 );
 	g_shipDayScale = gi.cvar( "g_shipDayScale", "60", 0 );
 	g_shipTest = gi.cvar( "g_shipTest", "0", 0 );
+	g_shipTestPos = gi.cvar( "g_shipTestPos", "0 0 0", 0 );
 }
 
 void Ship_Init( void )

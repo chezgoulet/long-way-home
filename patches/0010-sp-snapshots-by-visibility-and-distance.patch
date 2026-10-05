@@ -1,0 +1,71 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 10/10] single player: snapshots choose what is visible and near
+
+The SP bridge filled each snapshot with the first MAX_ENTITIES_IN_SNAPSHOT in-use entities in
+number order, wherever they were. That is everything on a retail level and the top deck and a half
+of a whole ship. Entities are now dropped when the player's position cannot see theirs (using the
+map's visibility data when it has any), and when more remain than fit, the nearest are kept. The
+result is still in ascending entity order, and the local player is always included.
+
+On a map that fits the snapshot nothing changes except the order of evaluation.
+---
+diff --git a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+--- a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
++++ b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+@@ -11,6 +11,7 @@
+ #include "tr_types.h"             // glconfig_t, refEntity_t, refdef_t
+ #include "../cgame/cg_public.h"   // cgameImport_t (CG_*), snapshot_t
+ #include "../client/vmachine.h"   // cgameExport_t (CG_INIT, CG_DRAW_ACTIVE_FRAME)
++#include <algorithm>
+ #include <dlfcn.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -706,16 +707,40 @@
+     gentity_t* p0 = SP_GEntity(0);
+     if(p0->client) g_snap.ps = *(playerState_t*)p0->client;
+     int n=0;
+-    // Start at 0 to INCLUDE the local player's own entity (entity 0). Q3 ships the client's own entity in
+-    // the snapshot so the cgame can draw the player BODY in mirrors/portals/3rd-person (CG_Player skips it
+-    // in first-person via clientNum==ps.clientNum). Skipping it (old i=1) meant no Munro reflection at all.
+-    for(int i=0; i<ge->num_entities && n<MAX_ENTITIES_IN_SNAPSHOT; i++){
++    // The snapshot holds MAX_ENTITIES_IN_SNAPSHOT entities. A level used to fit, so the first that
++    // many in number order were sent, wherever they were. A whole ship does not fit: entities are now
++    // dropped if the player's position cannot see theirs (the map's visibility data, when it has any),
++    // and if too many remain the nearest are kept -- so what is left out is what is furthest away, not
++    // whatever happened to be numbered last.
++    // Entity 0, the local player, always goes first: Q3 ships the client's own entity so the cgame
++    // can draw the player BODY in mirrors/portals/3rd-person (CG_Player skips it in first-person).
++    static int   s_cand[MAX_GENTITIES];
++    static float s_dist[MAX_GENTITIES];
++    int nc = 0;
++    const float *eye = p0->currentOrigin;
++    for(int i=0; i<ge->num_entities; i++){
+         gentity_t* e = SP_GEntity(i);
+         if(!e->inuse) continue;
+-        if(e->svFlags & SVF_NOCLIENT) continue;   // mirror SV_BuildClientSnapshot: don't ship server-only
+-                                                  // entities; frees slots in the 256 cap so visible movers
+-                                                  // on dense maps (e.g. borg1 ~561 ents) aren't dropped.
+-        g_snap.entities[n++] = e->s;
++        if(e->svFlags & SVF_NOCLIENT) continue;   // mirror SV_BuildClientSnapshot: don't ship server-only entities
++        float d = 0.0f;
++        if(i != 0){
++            vec3_t c;
++            if(e->linked){ for(int k=0;k<3;k++) c[k] = 0.5f*(e->absmin[k]+e->absmax[k]); }
++            else         { for(int k=0;k<3;k++) c[k] = e->currentOrigin[k]; }
++            if(e->linked && !W_InPVSIgnorePortals(eye, c)) continue;
++            for(int k=0;k<3;k++){ const float t = c[k]-eye[k]; d += t*t; }
++        }
++        s_cand[nc] = i; s_dist[nc] = d; nc++;
++    }
++    if(nc > MAX_ENTITIES_IN_SNAPSHOT){
++        // keep the nearest, then put them back in number order, as snapshots have always been
++        static int order[MAX_GENTITIES];
++        for(int k=0;k<nc;k++) order[k]=k;
++        std::nth_element(order, order+MAX_ENTITIES_IN_SNAPSHOT, order+nc, [](int a, int b){ return s_dist[a] < s_dist[b]; });
++        std::sort(order, order+MAX_ENTITIES_IN_SNAPSHOT, [](int a, int b){ return s_cand[a] < s_cand[b]; });
++        for(int k=0;k<MAX_ENTITIES_IN_SNAPSHOT;k++) g_snap.entities[n++] = SP_GEntity(s_cand[order[k]])->s;
++    } else {
++        for(int k=0;k<nc;k++) g_snap.entities[n++] = SP_GEntity(s_cand[k])->s;
+     }
+     g_snap.numEntities = n;
+     // Publish this snapshot under its number into the ring (retail CL_ParseSnapshot:
