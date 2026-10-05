@@ -141,7 +141,7 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 |---|---|---|
 | **S1** ship core | ✅ done 2026-10-05 | `docs/evidence/s1-ship-core.md` |
 | **S2** Engineering console in game | 🔶 built and verified headless; awaiting the owner at the console | `docs/evidence/s2-engineering-console.md` |
-| **S3** whole-ship map | 🔶 one map, fifteen decks (five generated placeholders), toured by turbolift 15 of 15, game frame 2.3 ms; awaiting a person walking it | `docs/evidence/s3-merged-map-measured.md`, `scripts/s3-check.sh` |
+| **S3** whole-ship map | 🔶 one map, fifteen decks (five generated placeholders), toured by turbolift 15 of 15, the retail menu reading the ship's fifteen-deck list and opening; game frame 2.3 ms; awaiting a person walking it | `docs/evidence/s3-merged-map-measured.md`, `scripts/s3-check.sh` |
 | **S4** every station's console | 🔶 first slice: stations in the core; Engineering, Tactical, Ops and Conn consoles open from the ship's own panels and operate within their authority | `docs/evidence/s4-station-consoles.md`, `scripts/s4-check.sh` |
 | **S5** crew daily lives | 🔶 first slice: the crew embodied on the player's deck are whoever the ship's routine has there, arriving and leaving with it and walking to a place; checked on one deck; not on the merged ship, places not yet real stations | `scripts/s5-check.sh`, plan in `docs/HANDOFF.md` |
 | **S6** damage, repair, resources | 🔶 first slice, in the core: crewed repair that costs parts, casualties from airless decks, sickbay recovery; not yet visible in the game | `docs/evidence/s6-damage-and-casualties.md` |
@@ -166,6 +166,66 @@ Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere con
 ## G5 — capstone scenario ⏳ pending
 
 ---
+
+## Gaps approved 2026-10-05 — the next work, in order
+
+The owner reviewed `docs/gap-analysis.md` and agreed with the whole of it. This section is the order, so the
+work is inherited rather than rediscovered. Each of the first five carries its contract and its acceptance
+check, per the five-part contract in `docs/ship-systems.md`.
+
+### First five -- close these before the rest
+
+**1. Morale and fatigue.** *State:* per crew record, morale and fatigue with their drivers -- sleep, food,
+losses, hopelessness, warmth. *Control:* the watch roster, the galley, the holodeck, time off, and what the
+crew are told. *Visible:* performance at post (acknowledgement latency, error rate) and the crew's manner.
+*Failure:* a crew member who stops caring, or one who breaks. *Location:* everywhere, because it is a property
+of people. *Acceptance:* a bad month measurably degrades posts, a good one measurably restores them, and the
+log can say why.
+
+**2. Triage and the sickbay queue.** *State:* casualties with severity, beds (three standard, one surgical),
+the surgical bay's force field, medical supplies. *Control:* who is treated first, who waits, what is
+replicated. *Visible:* who is on a bed, who is on the floor, who is dead. *Failure:* a casualty deteriorating
+because no bed freed up. *Location:* sickbay, deck 5. *Acceptance:* casualties exceeding beds produce a
+decision rather than a queue that resolves itself.
+
+**3. Air and endurance clocks.** *State:* atmosphere per compartment, plus battery and auxiliary endurance for
+the ship. *Control:* sealing, force fields, rerouting, power allocation. *Visible:* a countdown wherever the
+problem is. *Failure:* a compartment that runs out, a ship that goes dark. *Location:* environmental control
+(deck 12), the EPS grid, every sealed compartment. *Acceptance:* a breach produces a number, and the number
+moves when the crew act.
+
+**4. The log as a browsable artifact.** *State:* log entries with time, author, subject and fact. *Control:*
+each post reads its own scope, command sees all, the player can search. *Visible:* the log itself -- and it
+retires the standing assumption in nearly every other document that something "was recorded". *Location:*
+any console, the ready room, the captain's log. *Acceptance:* after a run, a player can reconstruct what
+happened and when from the log alone.
+
+**5. Tricorders and away-team kit.** *State:* kit as stores entries (tricorders, phasers, EV suits, medical
+kit) with charge and condition. *Control:* loadout at the transporter room or shuttlebay, scanning in the
+field. *Visible:* scan results at human scale -- the same writes to the chart, over a smaller radius.
+*Failure:* a dead charge, lost kit, or a scan that reads wrong on a low battery. *Location:* transporter
+rooms, shuttlebay, every away site. *Acceptance:* an away mission can be solved by scanning rather than by
+shooting.
+
+### Then, in rough order
+
+- the **tractor beam**, and salvage as the door to the materials economy
+- **structural integrity** as a gate on warp speed and hull loss
+- the **navigational deflector** as a maintained system, and travel that is unsafe without it
+- **inertial dampers**, **nacelle pylons**, and the **EMH's confinement** with the mobile emitter as an artifact
+- **airponics and the galley**: food as a system, a job site, and a morale engine
+- **living conditions and bunking**; **relationships** between crew as a small data structure
+- **grief**: funerals, casualty notifications, sealed quarters
+- **discipline and justice**: the brig with a hearing, and Prime Directive consequences
+- the **Maquis split**: factions, resentment, integration as an arc
+- **training and qualification** as the source of credentials
+- the **holodeck's uses**: training, recreation, forensic reconstruction, therapy, and the programme that will
+  not end
+- **resource acquisition**: mining, salvage, EVA, siphoning
+- **trade**, and **population pressure** -- refugees and survivors spending stores, quarters and air
+- the **player's own body**: wounds, incapacitation, assimilation, death
+- the **player's career**: qualification, trust, promotion, access
+- **Borg strategic awareness**; a **persistent pursuer**; and **time travel explicitly refused**
 
 ## Residuals (named, queued, not forgotten)
 
