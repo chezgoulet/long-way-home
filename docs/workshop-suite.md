@@ -76,6 +76,60 @@ Which means the four schemas share one **containment and attachment graph**, and
 the product. It is what lets a generated freighter arrive at a generated settlement carrying generated cargo,
 with a generated crew who have somewhere to be.
 
+## One repository, or four? -- decision and reasoning
+
+The question: should all of this scope fold into pixel-life, or become separate tools?
+
+**Answer: fold it into one repository, as a workspace of crates with one app shell and per-domain grammars --
+and do it after the creature workshop's flagship release, not before.**
+
+### Why folding wins
+
+1. **The core is shared by construction.** Every domain is the same six things -- seed and determinism, schema,
+   generator under constraints, validator, exporter, gate. Four repositories would mean either four copies of
+   that core or a published cross-repo dependency, and cross-repo version contracts are precisely the
+   coordination that agents handle badly and humans find tedious. Git submodules are a known foot-gun; a
+   workspace is not.
+2. **The domains reference each other constantly.** Life inhabits Places; Stuff is installed in Ships; Ships are
+   Places; Events reference all four. The containment graph is cheap in one process and genuinely awkward across
+   repositories, where every reference becomes a serialisation contract with a version number.
+3. **The verification discipline is the same, and it is the reason this works at all.** One `self_test.sh`, one
+   probe pattern, one gate, one release pipeline, one place where "done" is defined. Four repositories would
+   mean four gates to keep honest, and the honest gate is the thing that makes agent-built code trustworthy.
+4. **The UI scaffold is the same.** Overview grid, studio, test area, export panel. A domain picker gives four
+   tools for roughly one UI cost.
+5. **It inherits M0-M14.** Eighty-seven commits of proven infrastructure -- Rust core, GDExtension, Godot app,
+   seed determinism, probes, golden tests, Flatpak -- rather than re-deriving them three more times.
+
+### The form that answers the objection
+
+The real objection to folding is the monolith: one build touching everything, and a creature-tool fix forcing a
+re-release of the ship generator. **A Cargo workspace answers it**: one repository, one `gen-core` crate
+(seeds, schemas, validation, export, gates), and *a crate per domain* -- `creatures`, `people`, `machines`,
+`hulls`, `places`, `planets`, `props`, `marks`. Compilation stays modular, domains evolve independently, and the
+shared core is a path dependency rather than a published package.
+
+**Audio is the exception that proves the rule**: a DSP crate shares nothing with rasterisation except the seed
+and the gate. It belongs in the same repository as its own crate and probably its own app target, and it should
+be deferred until the visual domains are real.
+
+### Two things to decide deliberately
+
+- **The name.** `pixel-life` stretches to creatures, people and robots; it does not cover ships, places or
+  props. Either the repository keeps that name while the product is renamed to something domain-neutral, or the
+  suite becomes `pixel-workshop` with domains under it. Cheap now, expensive later -- and the same lesson the
+  Long Way Home naming exercise taught: choose it once, record why, and do not reopen it.
+- **Whether the creature tool stays a standalone product.** It is a general-purpose tool for Godot developers,
+  usable well beyond ReachLock. Folding ships into it must not blur that identity or block its release
+  cadence -- one workspace can still produce two app targets with their own names and versions.
+
+### The sequencing guard
+
+**Do not fold-and-expand before the flagship.** The creature workshop is three milestones from M17, and the
+temptation to start a ship generator now is exactly how a finished tool becomes an unfinished suite. Land the
+flagship, *then* add the first new crate, and let the workspace prove itself on a second domain before the
+third, fourth and fifth arrive.
+
 ## The architecture: one core, many grammars
 
 Every row above decomposes into the same six things:
