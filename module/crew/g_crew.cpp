@@ -13,8 +13,12 @@
 #include "Q3_Interface.h"
 #include "sequencer.h"
 
+#include "g_navigator.h"
+
 #include "crew_core.h"
 #include "g_crew.h"
+#include "g_ship.h"
+#include "ship_core.h"
 
 #include <algorithm>
 #include <chrono>
@@ -28,6 +32,7 @@ extern void NPC_Respond( gentity_t *self, int userNum );
 extern void NPC_SetLookTarget( gentity_t *self, int entNum, int clearTime );
 extern void SP_NPC_starfleet( gentity_t *self );
 extern SavedGameJustLoaded_e g_eSavedGameJustLoaded;
+extern CNavigator navigator;
 
 namespace {
 
@@ -53,6 +58,8 @@ cvar_t *g_crew;         // 1 = the layer runs on this map
 cvar_t *g_crewRun;      // seconds of sampled run, then report (0 = no automatic report)
 cvar_t *g_crewQuit;     // 1 = save and quit when the run completes (the measurement harness)
 cvar_t *g_crewDebug;    // 1 = print every decision change
+cvar_t *g_crewFromShip; // 1 = the crew on this deck are whoever the ship simulation says is on it (S5)
+cvar_t *g_crewDeck;     // which deck this map is, for a map of one deck; 0 = work it out from g_shipDeckPitch
 
 struct CrewState {
 	bool active = false;
@@ -422,6 +429,148 @@ void ScanRoster( void )
 		if ( m.level == crew::LEVEL_IDLE && m.firstArrivalMs < 0 && g_crewDebug->integer )
 			gi.Printf( "CREW: %s (ent %d) -> %s\n", NameOf( e ), m.ent,
 				m.dutyPost == crew::NO_POST ? "(spare)" : cs.posts[m.dutyPost].name.c_str() );
+	}
+}
+
+// ---- the ship's roster (S5) -------------------------------------------------------------------
+//
+// With g_crewFromShip the crew on the player's deck are not declared by a scenario: they are
+// whoever the ship simulation has on that deck right now. People arrive when their routine brings
+// them here and leave when it takes them away, so a watch change is visible as people changing.
+// Each stands at a place taken from the deck's own navigation, the same place every time they are
+// here. (Real stations and quarters replace these places when the decks are furnished.)
+
+const float DECK_BASE = 1636.0f;    // as in ship/g_scope.cpp: maps a height on the merged ship to a deck
+const float SPAWN_CLEAR = 256.0f;   // nobody appears this close to the player
+
+std::vector<int> shipEmbodied;      // roster indices currently embodied, parallel to nothing: looked up by name
+
+std::string RosterName( int rosterIndex ) { return Fmt( "lwh_crew_%03d", rosterIndex ); }
+
+int PlayersDeck( void )
+{
+	if ( g_crewDeck->integer > 0 ) return g_crewDeck->integer;
+	const float pitch = gi.cvar( "g_shipDeckPitch", "0", 0 )->value;
+	if ( pitch <= 0.0f ) return 0;
+	return static_cast<int>( std::floor( ( -g_entities[0].currentOrigin[2] - DECK_BASE ) / pitch ) ) + 1;
+}
+
+// The navigation nodes of one deck. On a map of one deck that is all of them.
+std::vector<int> DeckNodes( int deck )
+{
+	std::vector<int> nodes;
+	const float pitch = gi.cvar( "g_shipDeckPitch", "0", 0 )->value;
+	for ( int i = 0; i < navigator.GetNumNodes(); ++i )
+	{
+		vec3_t at;
+		navigator.GetNodePosition( i, at );
+		if ( g_crewDeck->integer > 0 || pitch <= 0.0f
+			|| static_cast<int>( std::floor( ( -at[2] - DECK_BASE ) / pitch ) ) + 1 == deck )
+		{
+			nodes.push_back( i );
+		}
+	}
+	return nodes;
+}
+
+gentity_t *FindByName( const std::string &name )
+{
+	for ( int n = 1; n < globals.num_entities; ++n )
+	{
+		gentity_t *e = &g_entities[n];
+		if ( e->inuse && e->client && e->script_targetname && !Q_stricmp( e->script_targetname, name.c_str() ) ) return e;
+	}
+	return NULL;
+}
+
+void SyncShipRoster( void )
+{
+	ship::Ship *vessel = Ship_Get();
+	if ( !vessel ) return;
+	const int deck = PlayersDeck();
+	if ( deck < 1 ) return;
+	const std::vector<int> nodes = DeckNodes( deck );
+	if ( nodes.empty() ) return;
+
+	std::vector<int> wanted = ship::CrewOnDeck( *vessel, deck );
+	if ( static_cast<int>( wanted.size() ) > cs.cfg.maxCrew ) wanted.resize( cs.cfg.maxCrew );
+	const gentity_t *player = &g_entities[0];
+
+	// Those whose routine has taken them off this deck leave -- once the player is not looking.
+	for ( size_t k = 0; k < shipEmbodied.size(); )
+	{
+		const int idx = shipEmbodied[k];
+		if ( std::find( wanted.begin(), wanted.end(), idx ) != wanted.end() ) { ++k; continue; }
+		gentity_t *e = FindByName( RosterName( idx ) );
+		if ( e && gi.inPVS( player->currentOrigin, e->currentOrigin )
+			&& Distance( player->currentOrigin, e->currentOrigin ) < 1024.0f ) { ++k; continue; }
+		if ( e ) G_FreeEntity( e );
+		shipEmbodied.erase( shipEmbodied.begin() + k );
+	}
+
+	// Those whose routine has brought them here arrive, somewhere the player is not standing.
+	for ( int idx : wanted )
+	{
+		if ( std::find( shipEmbodied.begin(), shipEmbodied.end(), idx ) != shipEmbodied.end() ) continue;
+		const std::string name = RosterName( idx );
+		vec3_t at;
+		bool placed = false;
+		for ( size_t tries = 0; tries < nodes.size() && !placed; ++tries )
+		{
+			navigator.GetNodePosition( nodes[( idx * 7919u + tries * 31u ) % nodes.size()], at );
+			placed = Distance( at, player->currentOrigin ) >= SPAWN_CLEAR;
+		}
+		if ( !placed ) continue;
+
+		// their place on this deck: the same node whenever they are here
+		crew::Post p;
+		p.name = "place_" + name;
+		p.holder = name;
+		p.hasOrigin = true;
+		navigator.GetNodePosition( nodes[( idx * 104729u + 13u ) % nodes.size()], p.origin );
+		bool known = false;
+		for ( const crew::Post &q : cs.posts ) known = known || q.name == p.name;
+		if ( !known && static_cast<int>( cs.posts.size() ) < crew::MAX_POSTS )
+		{
+			cs.posts.push_back( p );
+			cs.postHash = crew::PostTableHash( cs.posts );
+		}
+		bool listed = false;
+		for ( const crew::Roster &r : cs.cfg.roster ) listed = listed || r.name == name;
+		if ( !listed ) { crew::Roster r; r.name = name; cs.cfg.roster.push_back( r ); }
+
+		gentity_t *sp = G_Spawn();
+		if ( !sp ) return;
+		vec3_t angles = { 0, 0, 0 };
+		G_SetOrigin( sp, at );
+		VectorCopy( at, sp->s.origin );
+		G_SetAngles( sp, angles );
+		sp->NPC_type = G_NewString( vessel->crew[idx].type.c_str() );
+		sp->NPC_targetname = G_NewString( name.c_str() );
+		sp->fullName = G_NewString( vessel->crew[idx].name.c_str() );
+		sp->spawnflags = SFB_SILENTSPAWN;
+		SP_NPC_starfleet( sp );
+		shipEmbodied.push_back( idx );
+	}
+
+	// Members whose bodies are gone are dropped, so the table does not fill with the departed.
+	for ( size_t i = 0; i < cs.members.size(); )
+	{
+		if ( cs.members[i].flags & crew::MF_UNAVAILABLE )
+		{
+			cs.members.erase( cs.members.begin() + i );
+			cs.lostToWorld.erase( cs.lostToWorld.begin() + i );
+		}
+		else ++i;
+	}
+
+	static int lastWanted = -1, lastEmbodied = -1, lastDeck = -1;
+	if ( static_cast<int>( wanted.size() ) != lastWanted || static_cast<int>( shipEmbodied.size() ) != lastEmbodied || deck != lastDeck )
+	{
+		lastWanted = static_cast<int>( wanted.size() ); lastEmbodied = static_cast<int>( shipEmbodied.size() ); lastDeck = deck;
+		const int sod = vessel->SecondOfDay();
+		gi.Printf( "CREW: ship time %02d:%02d, deck %d: the ship has %d here (showing up to %d), %d embodied\n", sod / 3600, sod % 3600 / 60,
+			deck, static_cast<int>( ship::CrewOnDeck( *vessel, deck ).size() ), cs.cfg.maxCrew, lastEmbodied );
 	}
 }
 
@@ -840,18 +989,23 @@ void Crew_RegisterCvars( void )
 	g_crewRun = gi.cvar( "g_crewRun", "0", 0 );
 	g_crewQuit = gi.cvar( "g_crewQuit", "0", 0 );
 	g_crewDebug = gi.cvar( "g_crewDebug", "0", 0 );
+	g_crewFromShip = gi.cvar( "g_crewFromShip", "0", 0 );
+	g_crewDeck = gi.cvar( "g_crewDeck", "0", 0 );
 }
 
 void Crew_Init( void )
 {
 	cs = CrewState();
+	shipEmbodied.clear();
 	if ( !g_crew || !g_crew->integer )
 	{
 		cs.baseline = g_crewRun && g_crewRun->integer > 0;
 		return;
 	}
 
-	LoadConfig();
+	// A scenario's crew file declares its own people; the ship's roster replaces it entirely.
+	if ( g_crewFromShip->integer ) cs.cfg = crew::Config();
+	else LoadConfig();
 	cs.active = true;
 	gi.Printf( "CREW: direction layer active on %s\n", level.mapname );
 	//a full load restores every entity from the save, declared crew included; anything else
@@ -899,6 +1053,7 @@ void Crew_Frame( void )
 	if ( level.time >= cs.nextScanMs )
 	{
 		cs.nextScanMs = level.time + ROSTER_SCAN_MS;
+		if ( g_crewFromShip->integer ) SyncShipRoster();
 		ScanRoster();
 	}
 	//Decisions are taken every frame, after every entity has thought. A script that takes an NPC

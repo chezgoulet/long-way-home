@@ -63,7 +63,7 @@ measurement is running — bash reads scripts incrementally and the module is lo
 | S2 | built and verified headless; the owner has not operated the console. Open by command only (`ship console`), keyboard only, flat colour. |
 | S3 | **in progress — see below** |
 | S4 | **first slice done** (`scripts/s4-check.sh`): stations in the core; one screen serves Engineering, Tactical, Ops, Conn (and Sickbay); the retail panel commands `ui_engineeringstatus`/`ui_tactical`/`ui_ops`/`ui_navigation` open them when `g_ship 1`. Remaining: each station's real controls (needs core state: targets, course, transporter, medical), live status drawn on panels in the world (engine work), the other retail panels, mouse, artwork. See `docs/evidence/s4-station-consoles.md`. |
-| S5 | **groundwork only**: `ship::CrewOnDeck()` (tested) says who the ship has on a deck at this moment, and `ship crew <deck>` prints them in game. Nothing is embodied from it yet — plan below. |
+| S5 | **first slice** (2026-10-06): with `g_crew 1 g_ship 1 g_crewFromShip 1` the crew on the player's deck are whoever the ship has there (`SyncShipRoster` in `g_crew.cpp`): they arrive and leave with their routine, each is given a place from the deck's navigation, and they walk to it. Seen on `tour/deck04` standing in for deck 2 (`+set g_crewDeck 2`): 41 aboard at breakfast, none an hour later, back at each meal; 7 of 10 embodied reached their places within 35 s, one failed. **No check script yet, not run on the merged ship, places are arbitrary nodes rather than stations, cap is 10.** Plan below. |
 | S6–S10 | not started |
 
 ## S3 in detail (the active work)
@@ -121,10 +121,11 @@ G3) and will need to for S5.
 The crew direction layer (G3) embodies a *declared* roster and walks it to posts; the ship core
 (S1) knows where each of the 141 is supposed to be. S5 joins them:
 
-1. In `g_crew.cpp`, when `g_ship` is on and the map is the merged ship, replace the `.crew` file's
-   roster with `ship::CrewOnDeck(*Ship_Get(), playersDeck)`: spawn those not yet embodied (their
-   `type` is already a retail NPC type), remove those who have left the deck (the bstate
-   `BS_REMOVE` waits until the player cannot see them).
+1. (done as a first slice — `SyncShipRoster`) The roster on the player's deck comes from
+   `ship::CrewOnDeck`. Next for this step: a `scripts/s5-check.sh` (fast clock via
+   `g_shipDayScale`, assert the embodied count follows the ship's across a watch change and that
+   most reach their places); run it on the merged ship with `g_shipDeckPitch`; raise the cap toward
+   20-30 and measure frame time.
 2. A crew member's post is their system's station (`ship::Spec(post).deck/station`); stations need
    positions on the merged map — a table from station name to a waypoint, authored per deck.
    Off-duty crew go to the mess hall, the holodeck, their quarters: more positions.
@@ -138,7 +139,8 @@ The crew direction layer (G3) embodies a *declared* roster and walks it to posts
    named** — opened only by a script or trigger, which is how the turbolift doors work. The two
    places crew were blocked in G3 were beside the turbolift and at a dead end, i.e. probably named
    or security doors. So the likely truth is "crew cannot pass doors that are meant to be shut".
-   First S5 task: confirm in the engine by walking a crew member through an ordinary door, then
+   Supporting this: in the S5 slice, roster crew spawned across deck04 walked 20-35 s to places
+   elsewhere on the deck, which they could not have done without passing doors. Still to do: then
    decide what clearance means for security doors (that is S10's rank model arriving early).
 5. Measure as G3 was measured (`tools/crewgen/g3report.py` is reusable): station coverage across a
    watch change, at 20-30 embodied.
