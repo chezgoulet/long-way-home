@@ -21,7 +21,7 @@ static const SystemSpec SPECS[SYS_COUNT] = {
 	{"life support",             12, "Environmental Control", DEPT_ENGINEERING,   60,   0,  1},
 	{"structural integrity",     11, "Main Engineering",      DEPT_ENGINEERING,   80,   1,  1},
 	{"inertial dampers",         11, "Main Engineering",      DEPT_ENGINEERING,   40,   2,  1},
-	{"computer core",             7, "Computer Core",         DEPT_SCIENCES,      60,   3,  1},
+	{"computer core",             9, "Computer Core",         DEPT_SCIENCES,      60,   3,  1},
 	{"shields",                   1, "Bridge, Tactical",      DEPT_SECURITY,     200,   4,  1},
 	{"sensors",                   8, "Astrometrics",          DEPT_SCIENCES,      60,   5,  2},
 	{"warp drive",               11, "Main Engineering",      DEPT_ENGINEERING,  400,   9,  3},

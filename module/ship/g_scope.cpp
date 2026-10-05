@@ -45,12 +45,25 @@ void LWH_ScopeEnd( void )
 }
 
 // If an entity carries this name scoped to the running script's deck, that is the one meant.
+// With no script running, the name is being looked up for the player -- the turbolift's menu says
+// "use tour_turbo_04", as it did when each deck was a level -- so it is the player's deck that counts.
+static int PlayersDeck( void )
+{
+	if ( !g_shipDeckPitch ) g_shipDeckPitch = gi.cvar( "g_shipDeckPitch", "0", 0 );
+	const float pitch = g_shipDeckPitch->value;
+	if ( pitch <= 0.0f || !g_entities[0].inuse ) return 0;
+	const int deck = static_cast<int>( std::floor( ( -g_entities[0].currentOrigin[2] - DECK_BASE ) / pitch ) ) + 1;
+	return deck >= 1 && deck <= 99 ? deck : 0;
+}
+
 const char *LWH_ScopedName( const char *name )
 {
-	if ( !scopeDeck || !name || !name[0] ) return name;
+	if ( !name || !name[0] ) return name;
+	const int deck = scopeDeck ? scopeDeck : PlayersDeck();
+	if ( !deck ) return name;
 	++lookups;
 	char *candidate = scoped[which ^= 1];
-	snprintf( candidate, sizeof( scoped[0] ), "d%02d_%s", scopeDeck, name );
+	snprintf( candidate, sizeof( scoped[0] ), "d%02d_%s", deck, name );
 	for ( int i = 0; i < globals.num_entities; ++i )
 	{
 		const gentity_t *e = &g_entities[i];

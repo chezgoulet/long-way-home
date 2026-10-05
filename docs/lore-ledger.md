@@ -26,7 +26,9 @@ chosen for play.
 | Astrometrics | deck 8 | on screen | recalled |
 | Shuttlebay | deck 10 | on screen | recalled |
 | Main Engineering | deck 11 | on screen | recalled |
-| Computer core | deck 7 | the core spans several decks; a single deck is a simplification | invented placement |
+| Computer core | deck 9 | the game's own turbolift menu (`sp_turbolift.dat`: "DECK9 Computer Core") | game |
+| Hazard Ops | deck 4 | the same file | game |
+| Astrometrics and the cargo bay | deck 8 | the same file | game |
 | Environmental control, torpedo bay, impulse engineering, deflector control | decks 12, 9, 10, 11 | — | invented placement |
 | Decks present as maps | 1, 2, 3, 4, 5, 8, 9, 10, 11, 15 | the expansion pack's `maps/tour/` | game |
 
@@ -35,7 +37,7 @@ chosen for play.
 | deck | taken to hold | source | confidence |
 |---|---|---|---|
 | 6 | Holodecks | on screen | recalled |
-| 7 | Computer Core | the core spans several decks | invented placement |
+| 7 | Crew Quarters | — | invented |
 | 12 | Environmental Control | — | invented |
 | 13 | Cargo and Stores | — | invented |
 | 14 | Engineering Support | — | invented |

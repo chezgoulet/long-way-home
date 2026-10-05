@@ -127,6 +127,14 @@ class Stitch(unittest.TestCase):
         self.assertNotIn("munro", report["renamed"])
         self.assertEqual({k["target"] for k, _ in ents if k["classname"] == "target_relay"}, {"munro"})
 
+    def test_a_panels_interface_name_is_not_an_entity_name(self):
+        panel = ent(classname="target_interface", targetname="turbomenu", script_targetname="turbolift")
+        _, ents, report, _ = self.run_stitch({1: deck(panel), 2: deck(panel)})
+        panels = [k for k, _ in ents if k["classname"] == "target_interface"]
+        self.assertEqual({k["script_targetname"] for k in panels}, {"turbolift"})          # the screen it opens
+        self.assertEqual(sorted(k["targetname"] for k in panels), ["d01_turbomenu", "d02_turbomenu"])  # its own name
+        self.assertNotIn("turbolift", report["renamed"])
+
     def test_one_player_start(self):
         _, ents, _, _ = self.run_stitch({1: deck(), 2: deck(), 5: deck()})
         classes = [k["classname"] for k, _ in ents]

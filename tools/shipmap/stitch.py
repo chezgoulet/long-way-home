@@ -170,6 +170,13 @@ def parse(path):
     return ents
 
 
+def is_interface_name(keys, key):
+    """A target_interface's script_targetname is not the name of an entity: it is the name of the
+    screen the panel opens ("turbolift", "transporter", "log7"). Renaming it leaves a panel that
+    opens nothing."""
+    return key == "script_targetname" and keys.get("classname") == "target_interface"
+
+
 def shift_origin(value, dz):
     try:
         x, y, z = (float(v) for v in value.split())
@@ -190,7 +197,7 @@ def stitch(deck_files, pitch):
     for n, ents in decks.items():
         for keys, _ in ents:
             for k in DEFINING_KEYS:
-                if keys.get(k):
+                if keys.get(k) and not is_interface_name(keys, k):
                     seen[keys[k].lower()].add(n)
     shared = {name for name, where in seen.items() if len(where) > 1}
 
@@ -222,7 +229,7 @@ def stitch(deck_files, pitch):
 
             keys = collections.OrderedDict(keys)
             for k in NAME_KEYS:
-                if keys.get(k) and keys[k].lower() in shared:
+                if keys.get(k) and keys[k].lower() in shared and not is_interface_name(keys, k):
                     keys[k] = tag + keys[k]
             if "origin" in keys:
                 keys["origin"] = shift_origin(keys["origin"], dz)

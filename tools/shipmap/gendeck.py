@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from mapgen import brush, entity  # noqa: E402
 
 # What each missing deck is taken to hold. Invented placements unless the ledger says otherwise.
-PURPOSE = {6: "Holodecks", 7: "Computer Core", 12: "Environmental Control", 13: "Cargo and Stores", 14: "Engineering Support"}
+PURPOSE = {6: "Holodecks", 7: "Crew Quarters", 12: "Environmental Control", 13: "Cargo and Stores", 14: "Engineering Support"}
 X0, Y0, FLOOR = -4608, -4096, -4000   # inside the footprint the published decks share
 W, D, H, T = 1536, 1024, 192, 16
 WALL, FLOOR_TEX = "hall/hallcomp2", "hall/hallfloor1"

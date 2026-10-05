@@ -442,7 +442,9 @@ void RunTest( void )
 			gi.SendConsoleCommand( "quit\n" );
 			return;
 		}
-		if ( deck != from ) gi.SendConsoleCommand( Fmt( "use d%02d_tour_turbo_%02d\n", from, deck ).c_str() );
+		// asked for exactly as the retail turbolift menu asks (sp_turbolift.dat: "use tour_turbo_04"):
+		// the ship resolves the name on the deck the player is standing on
+		if ( deck != from ) gi.SendConsoleCommand( Fmt( "use tour_turbo_%02d\n", deck ).c_str() );
 		nextMs = level.time + 1500;
 		return;
 	}

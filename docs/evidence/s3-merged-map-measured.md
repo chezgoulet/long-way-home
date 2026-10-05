@@ -363,3 +363,26 @@ on those decks differs from run to run.
 
 What S3 still lacks is what the check's own header says it does not do: a person walking each deck
 after arriving, and the turbolift's real menu being driven rather than its links fired by name.
+
+## The turbolift, asked the way the game asks (2026-10-07)
+
+Two faults found by looking at what the ship's panels actually carry.
+
+**The stitcher had renamed the panels' screens.** A `target_interface` keeps the name of the screen
+it opens in `script_targetname` — `turbolift`, `transporter`, `log7`. Ten decks each have a
+`turbolift` panel, so the stitcher took it for a name defined on several decks and made it
+`d01_turbolift`, which is no screen at all. Every turbolift panel on the merged ship opened
+nothing. Interface names are now left alone, pinned by a test.
+
+**The retail turbolift menu asks for `tour_turbo_04`**, as it did when each deck was a level
+(`sp_turbolift.dat`), and the merged ship has only `d01_tour_turbo_04`, `d02_tour_turbo_04`, ...
+Deck-scoped lookup applied only while a script was running. A name looked up with no script
+running is now resolved on the deck the player is standing on.
+
+`scripts/s3-check.sh` now rides the whole ship by issuing exactly the menu's commands
+(`use tour_turbo_NN`): 15 of 15, game frame 2.0 ms average and 4.5 ms worst.
+
+Still not done: the retail menu lists ten decks, so the five generated ones can be reached by
+command but not chosen from it; and the menu itself has not been opened and clicked.
+
+The same file settles a point of lore the ledger had guessed: the computer core is on deck 9.

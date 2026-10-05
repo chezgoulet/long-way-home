@@ -111,9 +111,11 @@ Next steps for S3, in dependency order:
 2. (done) `patches/0005` regenerated with the scope hooks.
 3. (done 2026-10-06) Turbolift links: the stitcher rewrites deck-to-deck `target_level_change`
    into `target_teleporter` -> `dNN_arrival`; verified in the engine by firing deck 1's links
-   (`g_shipTest 4` with `g_shipTestPos <targetname>` uses that entity). Still to do here: drive the
-   real turbolift *menu* (`ui_turbolift.cpp`) on the merged ship, and restore whatever each level
-   change's original `target` fired.
+   (`g_shipTest 4` with `g_shipTestPos <targetname>` uses that entity). The retail menu's own commands (`use tour_turbo_NN`,
+   unprefixed) now work: an unscripted lookup resolves on the player's deck (`g_scope.cpp`), and
+   panels keep their interface names. Still to do here: the menu lists only the ten retail decks
+   (`ext_data/sp_turbolift.dat` — ship an overriding copy listing fifteen), open and click the menu
+   itself, and restore whatever each level change's original `target` fired.
 4. (done 2026-10-06) Triggers as boxes: `patches/0011` + the stitcher + `inject.py`; brush models
    900 -> 406; a boxed trigger proven to fire (`g_shipTest 4` with `g_shipTestWatch "x y z"`).
 5. (done 2026-10-06, as placeholders) Decks 6, 7, 12, 13, 14: `tools/shipmap/gendeck.py` makes a
