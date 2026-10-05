@@ -91,7 +91,34 @@ navigator + anims + say  -- existing steering, animation, dialogue
   external daemon, state stored where it is owned. See `docs/prior-art-rpg-x.md`. G3 keeps its per-NPC
   state in the SP module's own save path for the same reason.
 - **Persistence is bounded from the start.** Per NPC: post id, current goal, and the schedule cursor
-  (unused in G3, present for G4). An explicit per-NPC byte budget is set at implementation and tested.
+  (unused in G3, present for G4). G3's target is **256 bytes per NPC** -- a number to fail against
+  rather than a hope, and it is measured at five crew before anything is designed for thirty.
+
+## 4a. The substrate, named from the shipped source
+
+Read from `src/game/`, so the design above rests on named mechanisms rather than on expected ones:
+
+- **The state machine is large enough to express a life.** `bstate.h` declares 46 states. `BS_IDLE`,
+  `BS_WALK`, `BS_RUN`, `BS_WAIT`, `BS_LOOK`, `BS_AIM`, `BS_FACE`, `BS_STAND_GUARD`, `BS_PATROL`,
+  `BS_DEFEND`, `BS_FACE_LEADER` and `BS_SAY` cover everything G3 asks for, and `BS_REMOVE` is worth
+  noting for later crowding work.
+- **The arbitration rule we specified is the shipped design, not a layer we impose.** The enum's own
+  header comment says: *"These take over only if script allows them to be autonomous."* The precedence
+  in §2 formalises what the engine already intends.
+- **There is an override slot, and the corollaries are its documented behaviour.** The NPC struct
+  carries `behaviorState` ("determines what actions he should be doing") beside `tempBehavior`
+  ("while valid, overrides other behavior"). `BS_SAY` already demonstrates the full cycle -- turn to
+  the target, play the bark, **revert when the sound finishes** -- which is exactly "an interruption
+  is a pause, not a reassignment". G3 does not need a new arbitration system; it needs to use this one.
+- **Goals are already navigator-driven**: `goalEntity`, `captureGoal`, plus leadership fields
+  (`lastLeaderPoint`, `leaderTeleportSpot`). Travel to a post is an existing capability.
+- **Speech has both ends**: `sayString` and `sayTarg` on the NPC, and the bark vocabulary in `say.h` --
+  `SAY_ACKCOMM1-4` (acknowledge), `SAY_REFCOMM1-4`, `SAY_BADCOMM1-4`, `SAY_BADHAIL1-4`. Sixteen lines
+  across four classes. `ACKCOMM` is the acknowledgement the bar asks for; `REFCOMM`/`BADCOMM` are the
+  refusal vocabulary, which is what a post that cannot leave (security, bridge) should use instead of
+  walking off.
+- **The reaction layer G3 must not fight is a known file**: `NPC_reactions.cpp`, alongside
+  `NPC_behavior`, `NPC_goal`, `NPC_move`, `NPC_senses`, `NPC_sounds`, `NPC_formation`, `NPC_spawn`.
 
 ## 5. Acceptance — measurable, and how each is measured
 
@@ -125,13 +152,28 @@ judged by measurements, and the qualitative judgement — does the deck feel inh
 6. **Measurement harness**: the acceptance table above, automated where it can be, so the milestone is
    reported as numbers rather than impressions.
 
-## 7. Risks
+## 7. Risks, with probabilities
 
-- **Waypoint density is not navigability.** 194 waypoints sounds like plenty; whether they are
-  mutually reachable from the posts chosen is a different question, and the first implementation step
-  answers it by trying. If the deck's graph is too coarse, `deck05`'s 26 navgoals may be the better
-  choice despite fewer waypoints.
-- **Barks are shared.** Reusing existing lines means several NPCs may say the same thing; acceptable
-  at G3 and addressed by voice work later, not by this milestone.
-- **The frame-time criterion is the one most likely to bite**, because the direction layer runs on top
-  of an interpreter-based VM. It is measured explicitly rather than assumed.
+Each with the mitigation that makes it testable rather than merely worrying.
+
+- **Waypoint density is not navigability** (~30%). 194 waypoints sounds like plenty; whether they are
+  mutually reachable from the chosen posts is a different question. First implementation step answers
+  it by trying; if the deck's graph is too coarse, `deck05`'s 26 navgoals are the fallback.
+- **The direction layer races the existing reaction layer** (~35%). `NPC_reactions.cpp` already
+  responds to sight and sound; a layer that also sets state can fight it for control. Mitigation: the
+  driver asserts only when no hostile is in the NPC's perception, and never overrides a state it did
+  not itself set. Both are one predicate each, and both are logged so a violation is countable.
+- **Save size grows faster than budgeted** (~40%). Entity, NPC-info and script state are all
+  serialised per NPC, and this engine's save path is twenty years old. Mitigation: measure at five
+  crew before designing for thirty; if the growth is bad, store posts as a small table indexed by NPC
+  slot rather than as per-entity fields.
+- **Crew stand at their posts looking wrong** (~50% on first run). Facing, idle animation and
+  furniture collision read badly before they read well. Mitigation: the criterion is at-post within
+  1 unit, which is machine-checkable; appearance is the single subjective item and is judged last.
+- **Barks are shared** (certain, ~4 acknowledgement lines). Several NPCs will say the same thing.
+  Acceptable at G3, and addressed by voice work later rather than by this milestone.
+- **Script precedence is subtler than one predicate** (~30%). Sequences can suspend and resume, so the
+  driver may re-issue a post mid-sequence. Mitigation: log every driver assertion and count violations
+  during the G3 run instead of trusting inspection -- criterion 3 of §5 is that count.
+- **The frame-time criterion is the one most likely to bite** (~15%), because the direction layer runs
+  on top of an interpreter-based VM. It is measured explicitly rather than assumed.
