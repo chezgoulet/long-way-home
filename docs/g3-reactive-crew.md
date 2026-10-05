@@ -60,6 +60,44 @@ which is efficient, and means G2's acceptance walk doubles as the reconnaissance
 campaign maps carry far more of everything (forge3 has 641 waypoints and 109 NPCs), so nothing here is
 limited by the data; it is limited only by what a first milestone should attempt.
 
+## 3b. What the spaces actually support (measured, 2026-10-05)
+
+§3 ranked decks by navigation furniture. That was the wrong measure, and taking it further shows why: a
+post needs something to *be at*, and the deck's own interactive objects say what a space is really for.
+Counted from the map sources, with "standable" meaning navigation furniture 24-64 units from a model --
+arm's length to a few paces, not merely the same room:
+
+| space | named work objects | stations with standing room (tight) | models at standing distance | crew placed |
+|---|---|---|---|---|
+| `deck04` | 23 | **2** | 30 | 18 |
+| `deck02` | 12 | 5 | **47** | 16 |
+| `deck08` | 13 | 6 | 22 | 14 |
+| `voy7` | 14 | 5 | 19 | 42 |
+| `scav4` | 29 | **14** | 39 | 40 |
+| `scav5` | 26 | 13 | 30 | 36 |
+| `forge4` | 35 | **22** | 30 | 86 |
+
+And the objects' own names are the finding:
+
+- **`deck04` is an entertainment deck.** Its named objects are `beam1`-`beam8`, `bigshow3`, `fosbox`,
+  `box1go` -- shooting-range and holodeck props. Its two "stations" are door switches. Eighteen crew are
+  placed there as *visitors*.
+- **`deck02` is furnished for people, not consoles**: `sm_chair` x17, plus `pitcher`, `burner`,
+  `g_coffee`, `g_fruitbowl`, `shelves`, `cut_table`. A mess hall or crew lounge.
+- **Voyager's decks generally have no interactive stations at all.** The consoles a crew member would
+  work at are un-named models, or are driven by `target_scriptrunner` rather than by an interactive.
+- **The places with real machinery are the away missions**: `scav4`'s `com1a`-`com16a` (computer
+  consoles) and `forge4`'s `1st_el_con_off` / `2nd_el_con_on` (equipment controls).
+
+**Consequence.** G3's hardest requirement is §7c item 7: looking natural while idle. A mess hall is the
+one kind of space where standing around is *in character*, because the room itself explains people
+sitting, talking and eating. A bridge would demand console interactions and animation this milestone
+does not have; an away mission has the machinery but is not the ship, and its NPC population is largely
+hostile. Recommendation therefore changes to **`deck02`**, with `scav4` as the space to use later if
+console work turns out to be the point.
+
+Decision 1 of §7b is reopened on this evidence and awaits the owner's revised choice.
+
 ## 4. Design
 
 A **direction layer above the existing behaviour states**, not a replacement for them:
