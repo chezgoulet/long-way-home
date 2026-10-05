@@ -135,7 +135,8 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 | **S5** crew daily lives | 🔶 first slice: the crew embodied on the player's deck are whoever the ship's routine has there, arriving and leaving with it and walking to a place; checked on one deck; not on the merged ship, places not yet real stations | `scripts/s5-check.sh`, plan in `docs/HANDOFF.md` |
 | **S6** damage, repair, resources | 🔶 first slice, in the core: crewed repair that costs parts, casualties from airless decks, sickbay recovery; not yet visible in the game | `docs/evidence/s6-damage-and-casualties.md` |
 | **S7** intruders and hacking | 🔶 first slice, the rules in the core: boarders, contested control, hijacking, security response, the breach puzzle; no bodies and no puzzle screen yet | `docs/evidence/s7-intruders-and-control.md` |
-| **S8–S10** | ⏳ pending | |
+| **S8** the Borg | 🔶 first slice, the rules in the core: drones convert decks and take crew, assimilated systems are lost outright, stripping costs hours and parts; nothing visible yet | `docs/evidence/s8-the-borg.md` |
+| **S9–S10** | ⏳ pending | |
 
 ## Adopted from RPG-X prior art (2026-10-04)
 

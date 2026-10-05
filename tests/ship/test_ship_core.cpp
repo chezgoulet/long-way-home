@@ -615,6 +615,79 @@ static void TestBreachPuzzle()
 	CHECK(partial >= 0.0f && partial <= 1.0f);
 }
 
+// S8. The Borg do not leave things as they found them.
+static void TestBorg()
+{
+	g_test = "the Borg";
+	Ship s = NewShip();
+	for (CrewMember &c : s.crew)
+		if (c.dept == DEPT_SECURITY) c.status = CREW_DEAD; // nobody to stop them
+	Tick(s, 1.0f);
+	const int crewOnEight = static_cast<int>(CrewOnDeck(s, 8).size());
+	CHECK(crewOnEight >= 3);
+	BoardBorg(s, 8, 2);
+	Tick(s, Hours(s, 0.25f));
+	CHECK(s.decks[7].assimilated > 0.3f && s.decks[7].assimilated < 1.0f); // under way; faster than two drones alone, as their number grows
+	int taken = 0;
+	for (const CrewMember &c : s.crew)
+		if (c.status == CREW_ASSIMILATED) ++taken;
+	CHECK(taken >= 1);                         // they take the crew they find
+	CHECK(Intruders(s) >= 2 + taken);          // and each one taken is another drone
+	CHECK(s.CrewFit() < COMPLEMENT - 25);
+
+	Tick(s, Hours(s, 0.5f));
+	CHECK(DeckAssimilated(s, 8));
+	CHECK(s.systems[SYS_SENSORS].control == 0.0f && Hijacked(s, SYS_SENSORS));
+	CounterHack(s, SYS_SENSORS, 1.0f);         // no console left to hack from
+	CHECK(s.systems[SYS_SENSORS].control == 0.0f);
+
+	// Drive them off (vent the deck): the drones die, and the deck is still Borg.
+	BreachDeck(s, 8, 1.0f);
+	Tick(s, Hours(s, 1.0f));
+	CHECK(s.decks[7].intruders == 0.0f && !s.decks[7].borg);
+	CHECK(DeckAssimilated(s, 8) && Hijacked(s, SYS_SENSORS));
+
+	// Seal it, and the engineers strip it: hours and parts. Only then do its systems answer.
+	RepairDeck(s, 8, 1.0f);
+	for (int d = 0; d < DECKS; ++d) { s.decks[d].intruders = 0.0f; s.decks[d].borg = false; } // (any that had moved on)
+	const float parts = s.stores.spareParts;
+	const float before = s.decks[7].assimilated;
+	Tick(s, Hours(s, 1.0f));
+	CHECK(s.decks[7].stripping > 0 && s.decks[7].stripping <= STRIP_TEAM_MAX);
+	CHECK(s.decks[7].assimilated < before && s.stores.spareParts < parts);
+	Tick(s, Hours(s, 24.0f));
+	CHECK(s.decks[7].assimilated == 0.0f);
+	CHECK(s.systems[SYS_SENSORS].control == 1.0f && s.systems[SYS_SENSORS].output > 0.0f);
+	CHECK(std::fabs((parts - s.stores.spareParts) - before * PARTS_PER_DECK) < 1.0f); // what it cost
+	for (const CrewMember &c : s.crew)
+		if (c.status == CREW_ASSIMILATED) CHECK(c.deck == 0); // those taken do not come back
+
+	// Without parts a deck stays as the Borg left it.
+	Ship poor = NewShip();
+	poor.decks[5].assimilated = 0.8f;
+	poor.stores.spareParts = 0.0f;
+	Tick(poor, Hours(poor, 24.0f));
+	CHECK(poor.decks[5].assimilated == 0.8f);
+
+	// Security holds them: pinned drones convert nothing.
+	Ship held = NewShip();
+	BoardBorg(held, 8, 2);
+	Tick(held, Hours(held, 0.2f));
+	CHECK(held.decks[7].assimilated < 0.02f && Intruders(held) == 0);
+
+	// And it is in the save.
+	Ship w = NewShip();
+	for (CrewMember &c : w.crew)
+		if (c.dept == DEPT_SECURITY) c.status = CREW_DEAD;
+	BoardBorg(w, 8, 3);
+	Tick(w, Hours(w, 0.3f));
+	const std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.decks[7].borg && std::fabs(back.decks[7].assimilated - w.decks[7].assimilated) < 1e-6f);
+	CHECK(Describe(back) == Describe(w));
+}
+
 static void TestStations()
 {
 	g_test = "stations";
@@ -708,6 +781,7 @@ int main(int argc, char **argv)
 	TestCasualties();
 	TestBoarding();
 	TestBreachPuzzle();
+	TestBorg();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

@@ -97,6 +97,9 @@ struct Deck {
 	float atmosphere = 1.0f; // 0 vacuum .. 1 breathable
 	float hull = 1.0f;       // 0 open to space .. 1 intact
 	float intruders = 0.0f;  // hostile boarders on this deck (fractional while a fight wears them down)
+	bool borg = false;       // the boarders here are Borg: they assimilate what they hold
+	float assimilated = 0.0f; // 0 ours .. 1 wholly Borg; at ASSIMILATED the deck's systems are theirs outright
+	int stripping = 0;       // engineers cutting Borg technology out of this deck this tick
 	int defenders = 0;       // security crew fighting here this tick
 };
 
@@ -225,6 +228,24 @@ void CounterHack(Ship &s, SystemId id, float strength);
 bool Hijacked(const Ship &s, SystemId id);
 int Intruders(const Ship &s);            // aboard, all decks, rounded up
 
+// ---- the Borg (S8) ------------------------------------------------------------------------------
+//
+// Drones are boarders who do not leave things as they found them. Left on a deck, they convert it:
+// `assimilated` rises, and past ASSIMILATED the deck's systems are theirs outright -- no console and
+// no counter-hack reaches them. They take the crew they find there, and each one taken is another
+// drone. Driving them off does not undo it: the deck stays Borg until engineers strip it, which
+// takes hours and spare parts, and only then do its systems answer again.
+
+const float ASSIMILATED = 0.5f;
+const float ASSIMILATE_DECK_HOURS = 1.0f;    // one unopposed drone converts a whole deck in this [inv]
+const float ASSIMILATE_CREW_MINUTES = 10.0f; // one unopposed drone takes one crew member in this [inv]
+const float STRIP_HOURS_PER_DECK = 8.0f;     // one engineer strips a wholly assimilated deck in this [inv]
+const float PARTS_PER_DECK = 20.0f;          // spare parts to rebuild a wholly assimilated deck [inv]
+const int STRIP_TEAM_MAX = 4;
+
+void BoardBorg(Ship &s, int deck, int drones);
+bool DeckAssimilated(const Ship &s, int deck);
+
 // The breach puzzle. A square grid of two-character codes and a set of target sequences. The
 // operator picks cells alternately along a row and then a column, starting in the top row, without
 // reusing a cell, up to `buffer` picks; every target sequence that appears in the picks, in order
@@ -243,7 +264,7 @@ float BreachScore(const Breach &b, const std::vector<int> &picks);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 3;   // 2: spare parts, exposure, recovery; 3: system control, intruders
+const uint16_t SAVE_VERSION = 4;   // 2: spare parts, exposure, recovery; 3: system control, intruders; 4: the Borg
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

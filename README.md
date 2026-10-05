@@ -32,7 +32,8 @@ The gate ledger, `docs/gates.md`, is the authority; this is its summary.
 | S5 | crew daily lives | first slice: the crew on your deck are the ones the ship's routine has there |
 | S6 | damage, repair and casualties | first slice in the ship core: crewed repair that costs parts, airless decks that injure and kill, sickbay recovery |
 | S7 | intruders and hacking | first slice in the ship core: boarders, contested control of systems, security response, the breach puzzle's rules |
-| S8–S10 | the Borg, the outside, play modes | not started; see `docs/ship-programme.md` |
+| S8 | the Borg | first slice in the ship core: assimilation of decks and crew, and stripping it back |
+| S9–S10 | the outside, play modes | not started; see `docs/ship-programme.md` |
 
 ## Building and checking
 

@@ -226,7 +226,7 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		if (s.systems[id].health < 1.0f) wantRepair[nWant++] = id;
 	std::stable_sort(wantRepair, wantRepair + nWant, [&](int a, int b) { return s.systems[a].priority < s.systems[b].priority; });
 	int treated = 0;
-	for (Deck &d : s.decks) d.defenders = 0;
+	for (Deck &d : s.decks) d.defenders = d.stripping = 0;
 	// Where security is needed: the deck with the most boarders first.
 	int hot[DECKS], nHot = 0;
 	for (int d = 0; d < DECKS; ++d)
@@ -301,12 +301,21 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 
 		// An engineer on duty with no station of their own joins the damage-control party.
 		if (a == ACT_ON_DUTY && c.post == SYS_COUNT && c.dept == DEPT_ENGINEERING) {
-			for (int k = 0; k < nWant; ++k) {
+			bool busy = false;
+			for (int k = 0; k < nWant && !busy; ++k) {
 				System &sys = s.systems[wantRepair[k]];
 				if (sys.repairing >= REPAIR_TEAM_MAX) continue;
 				++sys.repairing;
 				c.deck = static_cast<uint8_t>(SPECS[wantRepair[k]].deck); // they go to the work
-				break;
+				busy = true;
+			}
+			// With nothing broken to mend, they cut Borg technology out of any deck the drones have left.
+			for (int d = 0; d < DECKS && !busy; ++d) {
+				Deck &deck = s.decks[d];
+				if (deck.assimilated <= 0.0f || deck.intruders > 0.0f || deck.stripping >= STRIP_TEAM_MAX) continue;
+				++deck.stripping;
+				c.deck = static_cast<uint8_t>(d + 1);
+				busy = true;
 			}
 		}
 	}
@@ -438,12 +447,49 @@ static void UpdateIntruders(Ship &s, float shipSeconds)
 	}
 	for (int d = 0; d < DECKS; ++d) s.decks[d].intruders += arriving[d];
 
+	// The Borg: convert the deck, take the crew on it, and hold its systems outright.
+	for (int d = 0; d < DECKS; ++d) {
+		Deck &deck = s.decks[d];
+		if (deck.intruders <= 0.0f) deck.borg = false;
+		const float drones = deck.borg ? std::max(0.0f, deck.intruders - deck.defenders) : 0.0f;
+		if (drones > 0.0f) {
+			deck.assimilated = std::min(1.0f, deck.assimilated + drones * minutes / (ASSIMILATE_DECK_HOURS * 60.0f));
+			float taking = drones * minutes / ASSIMILATE_CREW_MINUTES;
+			for (CrewMember &c : s.crew) {
+				if (taking <= 0.0f) break;
+				if (c.status != CREW_FIT && c.status != CREW_INJURED) continue;
+				if (c.deck != d + 1) continue;
+				const float taken = std::min(taking, 1.0f - c.wounds);
+				c.wounds += taken;
+				taking -= taken;
+				if (c.wounds >= 1.0f) {
+					c.status = CREW_ASSIMILATED; // one of ours is now one of theirs
+					c.deck = 0;
+					deck.intruders += 1.0f;
+				}
+			}
+		}
+		// Stripping it back: hours and parts, once the drones are gone.
+		if (deck.stripping > 0 && deck.assimilated > 0.0f && s.stores.spareParts > 0.0f) {
+			float gain = deck.stripping * minutes / (STRIP_HOURS_PER_DECK * 60.0f);
+			gain = std::min(gain, deck.assimilated);
+			gain = std::min(gain, s.stores.spareParts / PARTS_PER_DECK);
+			deck.assimilated -= gain;
+			s.stores.spareParts = std::max(0.0f, s.stores.spareParts - gain * PARTS_PER_DECK);
+			if (deck.assimilated < 1e-4f) deck.assimilated = 0.0f;
+		}
+		if (deck.assimilated >= ASSIMILATED)
+			for (int i = 0; i < SYS_COUNT; ++i)
+				if (SPECS[i].deck == d + 1) s.systems[i].control = 0.0f;
+	}
+
 	// The crew at a station win it back when nobody is contesting it; a powered-down system is frozen.
 	for (int i = 0; i < SYS_COUNT; ++i) {
 		System &sys = s.systems[i];
 		if (sys.control >= 1.0f || !sys.enabled) continue;
 		const Deck &deck = s.decks[SPECS[i].deck - 1];
 		if (deck.intruders - deck.defenders > 0.0f) continue;
+		if (deck.assimilated >= ASSIMILATED) continue; // not until the deck is stripped
 		const int need = SPECS[i].crewNeeded > 0 ? SPECS[i].crewNeeded : 1;
 		const float crewShare = std::min(1.0f, static_cast<float>(sys.manned) / need);
 		sys.control = std::min(1.0f, sys.control + crewShare * minutes / RETAKE_MINUTES);
@@ -540,9 +586,22 @@ void Board(Ship &s, int deck, int boarders)
 	if (deck >= 1 && deck <= DECKS && boarders > 0) s.decks[deck - 1].intruders += boarders;
 }
 
+void BoardBorg(Ship &s, int deck, int drones)
+{
+	if (deck < 1 || deck > DECKS || drones <= 0) return;
+	s.decks[deck - 1].intruders += drones;
+	s.decks[deck - 1].borg = true;
+}
+
+bool DeckAssimilated(const Ship &s, int deck)
+{
+	return deck >= 1 && deck <= DECKS && s.decks[deck - 1].assimilated >= ASSIMILATED;
+}
+
 void CounterHack(Ship &s, SystemId id, float strength)
 {
 	if (id >= SYS_COUNT || !(strength > 0.0f)) return;
+	if (DeckAssimilated(s, SPECS[id].deck)) return; // there is no console left to hack from
 	System &sys = s.systems[id];
 	sys.control = std::min(1.0f, sys.control + std::min(1.0f, strength) * 0.5f); // a perfect run is worth half the system
 }
@@ -683,7 +742,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(s.alert);
 	for (const System &sys : s.systems) { w.F(sys.health); w.U8(sys.enabled); w.U16(static_cast<uint16_t>(sys.priority)); w.F(sys.control); }
 	for (const Source &src : s.sources) { w.F(src.health); w.U8(src.online); }
-	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); w.F(d.intruders); }
+	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); }
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
 	w.F(s.stores.spareParts);
@@ -714,7 +773,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	s.alert = static_cast<Alert>(alert);
 	for (System &sys : s.systems) { sys.health = r.Unit(); sys.enabled = r.U8() != 0; sys.priority = static_cast<int16_t>(r.U16()); sys.control = r.Unit(); }
 	for (Source &src : s.sources) { src.health = r.Unit(); src.online = r.U8() != 0; }
-	for (Deck &d : s.decks) { d.atmosphere = r.Unit(); d.hull = r.Unit(); d.intruders = r.F(); if (!(d.intruders >= 0.0f && d.intruders <= 10000.0f)) return false; }
+	for (Deck &d : s.decks) { d.atmosphere = r.Unit(); d.hull = r.Unit(); d.intruders = r.F(); if (!(d.intruders >= 0.0f && d.intruders <= 10000.0f)) return false; d.borg = r.U8() != 0; d.assimilated = r.Unit(); }
 	s.stores.deuterium = r.Unit(); s.stores.antimatter = r.Unit(); s.stores.batteries = r.Unit();
 	s.stores.torpedoes = r.U16();
 	s.stores.spareParts = r.F();
@@ -765,7 +824,14 @@ std::string Describe(const Ship &s)
 	out += line;
 	for (int d = 0; d < DECKS; ++d) {
 		if (s.decks[d].intruders <= 0.0f) continue;
-		std::snprintf(line, sizeof(line), "  INTRUDERS deck %d: %.0f, opposed by %d\n", d + 1, std::ceil(s.decks[d].intruders), s.decks[d].defenders);
+		std::snprintf(line, sizeof(line), "  %s deck %d: %.0f, opposed by %d\n", s.decks[d].borg ? "BORG" : "INTRUDERS", d + 1,
+			std::ceil(s.decks[d].intruders), s.decks[d].defenders);
+		out += line;
+	}
+	for (int d = 0; d < DECKS; ++d) {
+		if (s.decks[d].assimilated <= 0.0f) continue;
+		std::snprintf(line, sizeof(line), "  deck %d is %.0f%% assimilated%s\n", d + 1, s.decks[d].assimilated * 100,
+			s.decks[d].stripping ? ", being stripped" : "");
 		out += line;
 	}
 	for (int i = 0; i < SRC_COUNT; ++i) {

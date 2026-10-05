@@ -100,6 +100,17 @@ All invented.
 | Boarders with nothing to take move a deck in | 15 minutes |
 | Breach puzzle | 5x5 grid, 6 codes, buffer 7, targets of 2/3/4 worth 1/2/3 |
 
+## The Borg
+
+That drones assimilate technology and people is on screen. Every rate is invented.
+
+| fact | value |
+|---|---|
+| One unopposed drone converts a deck in | 1 hour |
+| A deck's systems are lost outright above | 50% assimilated |
+| One unopposed drone takes one crew member in | 10 minutes |
+| Stripping a wholly assimilated deck | 8 engineer-hours, 20 spare parts, at most 4 engineers |
+
 ## Stations
 
 | fact | value | confidence |
