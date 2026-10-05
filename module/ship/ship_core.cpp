@@ -1,0 +1,506 @@
+// ship_core.cpp -- see ship_core.h. No game headers in this file.
+//
+// Figures marked [lore] are sourced in docs/lore-ledger.md; figures marked [inv] are invented for
+// play and listed there as such.
+
+#include "ship_core.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+
+namespace ship {
+
+// ---- the tables -------------------------------------------------------------------------------
+
+// Demand is in EPS units [inv]. Deck and station are [lore] where the ledger says so. Priority is
+// the order power is shed in: life before structure before everything else.
+static const SystemSpec SPECS[SYS_COUNT] = {
+	// name                     deck station                 department        demand prio crew
+	{"life support",             12, "Environmental Control", DEPT_ENGINEERING,   60,   0,  1},
+	{"structural integrity",     11, "Main Engineering",      DEPT_ENGINEERING,   80,   1,  1},
+	{"inertial dampers",         11, "Main Engineering",      DEPT_ENGINEERING,   40,   2,  1},
+	{"computer core",             7, "Computer Core",         DEPT_SCIENCES,      60,   3,  1},
+	{"shields",                   1, "Bridge, Tactical",      DEPT_SECURITY,     200,   4,  1},
+	{"sensors",                   8, "Astrometrics",          DEPT_SCIENCES,      60,   5,  2},
+	{"warp drive",               11, "Main Engineering",      DEPT_ENGINEERING,  400,   9,  3},
+	{"impulse drive",            10, "Impulse Engineering",   DEPT_ENGINEERING,  100,   6,  2},
+	{"phasers",                   1, "Bridge, Tactical",      DEPT_SECURITY,     150,   7,  2},
+	{"torpedo launchers",         9, "Torpedo Bay",           DEPT_SECURITY,      30,   8,  2},
+	{"navigational deflector",   11, "Deflector Control",     DEPT_ENGINEERING,   50,  10,  1},
+	{"communications",            1, "Bridge, Operations",    DEPT_COMMAND,       20,  11,  1},
+	{"transporters",              4, "Transporter Room 1",    DEPT_ENGINEERING,   60,  12,  1},
+	{"sickbay",                   5, "Sickbay",               DEPT_MEDICAL,       30,  13,  2},
+	{"turbolifts",                1, "Bridge, Operations",    DEPT_ENGINEERING,   20,  14,  0},
+	{"tractor beam",             10, "Shuttlebay Control",    DEPT_ENGINEERING,   60,  15,  1},
+	{"replicators",               2, "Mess Hall",             DEPT_ENGINEERING,   60,  16,  0},
+	{"holodecks",                 6, "Holodeck 1",            DEPT_ENGINEERING,   60,  17,  0},
+};
+
+const SystemSpec &Spec(SystemId id) { return SPECS[id < SYS_COUNT ? id : 0]; }
+
+struct SourceSpec {
+	const char *name;
+	int capacity;          // EPS units at full health [inv]
+	float deuteriumPerDay; // fraction of tankage burned per ship-day at full output [inv]
+	float antimatterPerDay;
+};
+
+static const SourceSpec SOURCES[SRC_COUNT] = {
+	{"warp core", 1000, 0.004f, 0.003f},
+	{"impulse reactors", 300, 0.003f, 0.0f},
+	{"auxiliary fusion", 120, 0.001f, 0.0f},
+	{"emergency batteries", 80, 0.0f, 0.0f},
+};
+
+const float BATTERY_HOURS = 3.0f;          // full cells at full draw [inv]
+const float ATMOSPHERE_REGEN_HOURS = 1.0f; // life support at full output refills a deck in this [inv]
+const float ATMOSPHERE_STALE_HOURS = 12.0f; // with no life support a sealed deck lasts this [inv]
+const float VENT_MINUTES = 5.0f;           // a deck fully open to space empties in this [inv]
+
+static const int DEPT_SIZE[DEPT_COUNT] = {20, 50, 25, 30, 16}; // sums to COMPLEMENT [inv split]
+static const int DEPT_DECK[DEPT_COUNT] = {1, 11, 4, 8, 5};     // where department duties are done
+const int MESS_DECK = 2;
+const int HOLODECK_DECK = 6;
+
+static bool Critical(SystemId id) { return SPECS[id].priority <= SPECS[SYS_COMPUTER_CORE].priority; }
+
+// What the alert condition switches off, whatever its console says. Green: weapons and shields
+// stand down. Red: comforts go dark.
+static bool SuppressedByAlert(Alert a, SystemId id)
+{
+	if (a == ALERT_GREEN) return id == SYS_SHIELDS || id == SYS_PHASERS || id == SYS_TORPEDO_LAUNCHERS;
+	if (a == ALERT_RED) return id == SYS_HOLODECKS || id == SYS_REPLICATORS;
+	return false;
+}
+
+// ---- crew -------------------------------------------------------------------------------------
+
+Activity ScheduledActivity(int watch, int secondOfDay)
+{
+	const int start = ((8 + 8 * watch) % 24) * 3600;
+	const int t = ((secondOfDay - start) % SECONDS_PER_DAY + SECONDS_PER_DAY) % SECONDS_PER_DAY;
+	const int h = t / 3600;
+	if (h < 8) return ACT_ON_DUTY;
+	if (h < 9) return ACT_MEAL;
+	if (h < 12) return ACT_RECREATION;
+	if (h < 15) return ACT_PERSONAL;
+	if (h < 23) return ACT_SLEEP;
+	return ACT_MEAL; // breakfast, the hour before the watch
+}
+
+struct Named {
+	const char *name, *type;
+	uint8_t rank;
+	Department dept;
+	uint8_t post;
+};
+
+// Senior staff and the Hazard Team, as the game names and models them [lore]. All stand alpha watch.
+static const Named NAMED[] = {
+	{"Kathryn Janeway", "janeway", 6, DEPT_COMMAND, SYS_COUNT},
+	{"Chakotay", "chakotay", 5, DEPT_COMMAND, SYS_COUNT},
+	{"Tuvok", "tuvok", 4, DEPT_SECURITY, SYS_SHIELDS},
+	{"Tom Paris", "paris", 3, DEPT_COMMAND, SYS_COUNT},
+	{"Harry Kim", "kim", 1, DEPT_COMMAND, SYS_COMMUNICATIONS},
+	{"B'Elanna Torres", "torres", 3, DEPT_ENGINEERING, SYS_WARP_DRIVE},
+	{"The Doctor", "doctor", 3, DEPT_MEDICAL, SYS_SICKBAY},
+	{"Seven of Nine", "seven", 0, DEPT_SCIENCES, SYS_SENSORS},
+	{"Neelix", "neelix", 0, DEPT_COMMAND, SYS_COUNT},
+	{"Vorik", "vorik", 1, DEPT_ENGINEERING, SYS_WARP_DRIVE},
+	{"Les Foster", "Foster", 3, DEPT_SECURITY, SYS_COUNT},
+	{"Alexander Munro", "munro", 1, DEPT_SECURITY, SYS_COUNT},
+	{"Rick Biessman", "Biessman", 0, DEPT_SECURITY, SYS_COUNT},
+	{"Austin Chang", "Chang", 0, DEPT_SECURITY, SYS_COUNT},
+	{"Telsia Murphy", "Telsia", 0, DEPT_SECURITY, SYS_COUNT},
+	{"Chell", "Chell", 0, DEPT_ENGINEERING, SYS_COUNT},
+	{"Juliet Jurot", "Jurot", 0, DEPT_MEDICAL, SYS_COUNT},
+	{"Kenn", "Kenn", 0, DEPT_SECURITY, SYS_COUNT},
+	{"Odell", "Odell", 0, DEPT_SECURITY, SYS_COUNT},
+};
+
+// The uniform a generated crew member wears follows their department, as the game's types do.
+static const char *GenericType(Department d, int n)
+{
+	static char buf[16];
+	const char *colour = d == DEPT_COMMAND ? "Red" : (d == DEPT_SCIENCES || d == DEPT_MEDICAL) ? "blue" : "Gold";
+	const bool female = n % 11 < 3; // the game ships 8 male and 3 female faces per colour
+	std::snprintf(buf, sizeof(buf), "%s%c%d", colour, female ? 'F' : 'M', female ? n % 3 + 1 : n % 8 + 1);
+	return buf;
+}
+
+static void BuildRoster(Ship &s)
+{
+	s.crew.clear();
+	int have[DEPT_COUNT] = {0, 0, 0, 0, 0};
+	for (const Named &n : NAMED) {
+		CrewMember c;
+		c.name = n.name;
+		c.type = n.type;
+		c.rank = n.rank;
+		c.dept = n.dept;
+		c.watch = 0;
+		c.post = n.post;
+		c.quartersDeck = 3; // senior officers' quarters [lore]
+		s.crew.push_back(c);
+		++have[n.dept];
+	}
+
+	// The rest are generated, the same crew for the same seed, and spread evenly over the watches.
+	uint32_t r = s.cfg.seed ? s.cfg.seed : 1;
+	auto next = [&r]() { r = r * 1664525u + 1013904223u; return r >> 8; };
+	for (int d = 0; d < DEPT_COUNT; ++d) {
+		for (int i = have[d]; i < DEPT_SIZE[d]; ++i) {
+			CrewMember c;
+			char name[32];
+			std::snprintf(name, sizeof(name), "Crewman %03d", static_cast<int>(s.crew.size()) + 1);
+			c.name = name;
+			c.dept = static_cast<Department>(d);
+			c.type = GenericType(c.dept, static_cast<int>(next() % 1000));
+			c.rank = next() % 5 == 0 ? 1 : 0;
+			c.watch = static_cast<uint8_t>(i % WATCHES);
+			c.quartersDeck = static_cast<uint8_t>(4 + next() % 6); // crew quarters, decks 4-9 [inv]
+			s.crew.push_back(c);
+		}
+	}
+
+	// Stations: every system that needs hands gets them on every watch, from its own department.
+	// Named crew keep the posts given above and count toward alpha watch's need.
+	for (int id = 0; id < SYS_COUNT; ++id) {
+		for (int w = 0; w < WATCHES; ++w) {
+			int need = SPECS[id].crewNeeded;
+			for (const CrewMember &c : s.crew)
+				if (c.post == id && c.watch == w) --need;
+			for (CrewMember &c : s.crew) {
+				if (need <= 0) break;
+				if (c.post != SYS_COUNT || c.watch != w || c.dept != SPECS[id].dept) continue;
+				if (c.rank >= 5) continue; // the captain and first officer command; they stand no station
+				c.post = static_cast<uint8_t>(id);
+				--need;
+			}
+		}
+	}
+}
+
+static int DutyDeck(const CrewMember &c)
+{
+	return c.post < SYS_COUNT ? SPECS[c.post].deck : DEPT_DECK[c.dept];
+}
+
+static void UpdateCrew(Ship &s, float shipSeconds)
+{
+	const int sod = s.SecondOfDay();
+	for (int id = 0; id < SYS_COUNT; ++id) s.systems[id].manned = 0;
+
+	for (CrewMember &c : s.crew) {
+		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) {
+			c.activity = ACT_SLEEP; // lost to the ship: nowhere aboard, doing nothing
+			c.deck = 0;
+			continue;
+		}
+		Activity a = ScheduledActivity(c.watch, sod);
+		// Red alert is all hands: anyone awake goes to their station.
+		if (s.alert == ALERT_RED && a != ACT_SLEEP) a = ACT_ON_DUTY;
+		if (c.status == CREW_INJURED) a = ACT_PERSONAL; // confined to quarters or sickbay; S6 refines this
+		c.activity = a;
+
+		switch (a) {
+		case ACT_ON_DUTY: c.deck = static_cast<uint8_t>(DutyDeck(c)); break;
+		case ACT_MEAL: c.deck = MESS_DECK; break;
+		case ACT_RECREATION: c.deck = s.systems[SYS_HOLODECKS].output > 0.0f ? HOLODECK_DECK : MESS_DECK; break;
+		default: c.deck = c.quartersDeck; break;
+		}
+
+		const float hours = shipSeconds / 3600.0f;
+		if (a == ACT_ON_DUTY) c.fatigue += hours / 20.0f;       // a double watch leaves you spent [inv]
+		else if (a == ACT_SLEEP) c.fatigue -= hours / 8.0f;     // a night's sleep clears it [inv]
+		else c.fatigue -= hours / 40.0f;
+		c.fatigue = std::min(1.0f, std::max(0.0f, c.fatigue));
+
+		if (a == ACT_ON_DUTY && c.post < SYS_COUNT) ++s.systems[c.post].manned;
+	}
+}
+
+// ---- power ------------------------------------------------------------------------------------
+
+static void UpdatePower(Ship &s, float shipSeconds)
+{
+	const float days = shipSeconds / SECONDS_PER_DAY;
+
+	// What is asked for, in shedding order.
+	int order[SYS_COUNT];
+	int demand[SYS_COUNT];
+	int wanted = 0, critical = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		order[i] = i;
+		const System &sys = s.systems[i];
+		const bool on = sys.enabled && sys.health > 0.0f && !SuppressedByAlert(s.alert, static_cast<SystemId>(i));
+		demand[i] = on ? SPECS[i].demand : 0;
+		wanted += demand[i];
+		if (Critical(static_cast<SystemId>(i))) critical += demand[i];
+	}
+	std::stable_sort(order, order + SYS_COUNT, [&](int a, int b) { return s.systems[a].priority < s.systems[b].priority; });
+
+	// What can be supplied. Reactors run only as hard as the load asks, in order, and only while
+	// they have fuel; the batteries discharge only to keep the critical systems alive.
+	int supply = 0;
+	for (int i = 0; i < SRC_COUNT; ++i) {
+		Source &src = s.sources[i];
+		src.output = 0;
+		if (!src.online || src.health <= 0.0f) continue;
+		const bool fuelled = i == SRC_BATTERIES ? s.stores.batteries > 0.0f
+			: s.stores.deuterium > 0.0f && (SOURCES[i].antimatterPerDay == 0.0f || s.stores.antimatter > 0.0f);
+		if (!fuelled) continue;
+		const int capacity = static_cast<int>(SOURCES[i].capacity * src.health);
+		const int need = i == SRC_BATTERIES ? critical - supply : wanted - supply;
+		src.output = std::max(0, std::min(capacity, need));
+		supply += src.output;
+
+		const float load = SOURCES[i].capacity ? static_cast<float>(src.output) / SOURCES[i].capacity : 0.0f;
+		s.stores.deuterium = std::max(0.0f, s.stores.deuterium - SOURCES[i].deuteriumPerDay * load * days);
+		s.stores.antimatter = std::max(0.0f, s.stores.antimatter - SOURCES[i].antimatterPerDay * load * days);
+		if (i == SRC_BATTERIES)
+			s.stores.batteries = std::max(0.0f, s.stores.batteries - load * shipSeconds / (BATTERY_HOURS * 3600.0f));
+	}
+
+	// Distribute. A system takes its whole demand or what is left; nothing is created or lost.
+	int left = supply;
+	for (int k = 0; k < SYS_COUNT; ++k) {
+		const int i = order[k];
+		System &sys = s.systems[i];
+		sys.allocated = std::min(demand[i], left);
+		left -= sys.allocated;
+		const float powered = demand[i] ? static_cast<float>(sys.allocated) / demand[i] : 0.0f;
+		const int need = SPECS[i].crewNeeded;
+		// An unattended station still runs, at half effect: automation, not expertise.
+		const float manning = need ? 0.5f + 0.5f * std::min(1.0f, static_cast<float>(sys.manned) / need) : 1.0f;
+		sys.output = sys.health * powered * manning;
+	}
+}
+
+static void UpdateDecks(Ship &s, float shipSeconds)
+{
+	const float support = s.systems[SYS_LIFE_SUPPORT].output;
+	const float hours = shipSeconds / 3600.0f;
+	for (Deck &d : s.decks) {
+		const float vent = (1.0f - d.hull) * shipSeconds / (VENT_MINUTES * 60.0f);
+		// Life support cannot hold an atmosphere in a compartment open to space.
+		const float regen = support * d.hull * hours / ATMOSPHERE_REGEN_HOURS;
+		const float stale = (1.0f - support) * hours / ATMOSPHERE_STALE_HOURS;
+		d.atmosphere = std::min(1.0f, std::max(0.0f, d.atmosphere + regen - stale - vent));
+	}
+}
+
+// ---- the ship ---------------------------------------------------------------------------------
+
+int Ship::Watch() const
+{
+	const int hour = SecondOfDay() / 3600;
+	return hour >= 8 && hour < 16 ? 0 : hour >= 16 ? 1 : 2;
+}
+
+int Ship::PowerAvailable() const
+{
+	int n = 0;
+	for (const Source &src : sources) n += src.output;
+	return n;
+}
+
+int Ship::PowerAllocated() const
+{
+	int n = 0;
+	for (const System &sys : systems) n += sys.allocated;
+	return n;
+}
+
+int Ship::CrewFit() const
+{
+	int n = 0;
+	for (const CrewMember &c : crew)
+		if (c.status == CREW_FIT) ++n;
+	return n;
+}
+
+Ship NewShip(const Config &cfg)
+{
+	Ship s;
+	s.cfg = cfg;
+	for (int i = 0; i < SYS_COUNT; ++i) s.systems[i].priority = SPECS[i].priority;
+	BuildRoster(s);
+	Tick(s, 0.0f); // so a new ship is already in a consistent state: powered, manned, located
+	return s;
+}
+
+void Tick(Ship &s, float seconds)
+{
+	if (!(seconds >= 0.0f)) return;
+	// Long steps are cut up, so a paused or fast-forwarded ship arrives where a played one would.
+	float shipSeconds = seconds * s.cfg.dayScale;
+	do {
+		const float step = std::min(shipSeconds, 60.0f);
+		s.clock += step;
+		UpdateCrew(s, step);
+		UpdatePower(s, step);
+		UpdateDecks(s, step);
+		shipSeconds -= step;
+	} while (shipSeconds > 0.0f);
+}
+
+void SetAlert(Ship &s, Alert a) { s.alert = a; }
+
+void SetEnabled(Ship &s, SystemId id, bool on)
+{
+	if (id < SYS_COUNT) s.systems[id].enabled = on;
+}
+
+void SetPriority(Ship &s, SystemId id, int priority)
+{
+	if (id < SYS_COUNT) s.systems[id].priority = priority;
+}
+
+void SetSourceOnline(Ship &s, SourceId id, bool on)
+{
+	if (id < SRC_COUNT) s.sources[id].online = on;
+}
+
+static float Clamp01(float v) { return std::min(1.0f, std::max(0.0f, v)); }
+
+void DamageSystem(Ship &s, SystemId id, float amount)
+{
+	if (id < SYS_COUNT && amount > 0.0f) s.systems[id].health = Clamp01(s.systems[id].health - amount);
+}
+
+void DamageSource(Ship &s, SourceId id, float amount)
+{
+	if (id < SRC_COUNT && amount > 0.0f) s.sources[id].health = Clamp01(s.sources[id].health - amount);
+}
+
+void BreachDeck(Ship &s, int deck, float amount)
+{
+	if (deck >= 1 && deck <= DECKS && amount > 0.0f) s.decks[deck - 1].hull = Clamp01(s.decks[deck - 1].hull - amount);
+}
+
+void Repair(Ship &s, SystemId id, float amount)
+{
+	if (id < SYS_COUNT && amount > 0.0f) s.systems[id].health = Clamp01(s.systems[id].health + amount);
+}
+
+// ---- persistence ------------------------------------------------------------------------------
+
+namespace {
+
+struct Writer {
+	std::vector<uint8_t> b;
+	void U8(uint8_t v) { b.push_back(v); }
+	void U16(uint16_t v) { U8(static_cast<uint8_t>(v)); U8(static_cast<uint8_t>(v >> 8)); }
+	void U32(uint32_t v) { U16(static_cast<uint16_t>(v)); U16(static_cast<uint16_t>(v >> 16)); }
+	void U64(uint64_t v) { U32(static_cast<uint32_t>(v)); U32(static_cast<uint32_t>(v >> 32)); }
+	void F(float v) { uint32_t u; std::memcpy(&u, &v, 4); U32(u); }
+};
+
+struct Reader {
+	const uint8_t *p;
+	size_t left;
+	bool ok = true;
+	uint8_t U8() { if (left < 1) { ok = false; return 0; } --left; return *p++; }
+	uint16_t U16() { const uint16_t lo = U8(); return static_cast<uint16_t>(lo | (U8() << 8)); }
+	uint32_t U32() { const uint32_t lo = U16(); return lo | (static_cast<uint32_t>(U16()) << 16); }
+	uint64_t U64() { const uint64_t lo = U32(); return lo | (static_cast<uint64_t>(U32()) << 32); }
+	float F() { const uint32_t u = U32(); float v; std::memcpy(&v, &u, 4); return v; }
+	float Unit() { const float v = F(); if (!(v >= 0.0f && v <= 1.0f)) ok = false; return v; }
+};
+
+} // namespace
+
+std::vector<uint8_t> Pack(const Ship &s)
+{
+	Writer w;
+	w.U32(SAVE_MAGIC);
+	w.U16(SAVE_VERSION);
+	w.U16(static_cast<uint16_t>(s.crew.size()));
+	w.U32(s.cfg.seed);
+	w.F(s.cfg.dayScale);
+	w.U64(static_cast<uint64_t>(std::llround(s.clock * 1000.0)));
+	w.U8(s.alert);
+	for (const System &sys : s.systems) { w.F(sys.health); w.U8(sys.enabled); w.U16(static_cast<uint16_t>(sys.priority)); }
+	for (const Source &src : s.sources) { w.F(src.health); w.U8(src.online); }
+	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); }
+	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
+	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
+	// Names, types, departments and stations come back from the seed; only what changes is stored.
+	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.U8(c.watch); w.U8(c.post); }
+	return w.b;
+}
+
+bool Unpack(const uint8_t *data, size_t len, Ship &out)
+{
+	if (!data) return false;
+	Reader r{data, len};
+	if (r.U32() != SAVE_MAGIC || r.U16() != SAVE_VERSION || !r.ok) return false;
+	const size_t count = r.U16();
+
+	Config cfg;
+	cfg.seed = r.U32();
+	cfg.dayScale = r.F();
+	if (!r.ok || !(cfg.dayScale > 0.0f && cfg.dayScale <= 86400.0f)) return false;
+	Ship s;
+	s.cfg = cfg;
+	BuildRoster(s);
+	if (count != s.crew.size()) return false;
+
+	s.clock = static_cast<double>(r.U64()) / 1000.0;
+	const uint8_t alert = r.U8();
+	if (alert > ALERT_RED) return false;
+	s.alert = static_cast<Alert>(alert);
+	for (System &sys : s.systems) { sys.health = r.Unit(); sys.enabled = r.U8() != 0; sys.priority = static_cast<int16_t>(r.U16()); }
+	for (Source &src : s.sources) { src.health = r.Unit(); src.online = r.U8() != 0; }
+	for (Deck &d : s.decks) { d.atmosphere = r.Unit(); d.hull = r.Unit(); }
+	s.stores.deuterium = r.Unit(); s.stores.antimatter = r.Unit(); s.stores.batteries = r.Unit();
+	s.stores.torpedoes = r.U16();
+	for (CrewMember &c : s.crew) {
+		c.status = r.U8();
+		c.fatigue = r.Unit();
+		c.watch = r.U8();
+		c.post = r.U8();
+		if (c.status > CREW_ASSIMILATED || c.watch >= WATCHES || c.post > SYS_COUNT) return false;
+	}
+	if (!r.ok || r.left != 0) return false;
+
+	Tick(s, 0.0f); // derive allocation, manning and locations from the restored state
+	s.clock = static_cast<double>(std::llround(s.clock * 1000.0)) / 1000.0;
+	out = s;
+	return true;
+}
+
+// ---- report -----------------------------------------------------------------------------------
+
+std::string Describe(const Ship &s)
+{
+	static const char *const ALERTS[] = {"green", "yellow", "red"};
+	static const char *const WATCH[] = {"alpha", "beta", "gamma"};
+	char line[160];
+	std::string out;
+	const int sod = s.SecondOfDay();
+	std::snprintf(line, sizeof(line), "day %d %02d:%02d  %s watch  condition %s  crew fit %d of %d\n", s.Day(), sod / 3600,
+		sod % 3600 / 60, WATCH[s.Watch()], ALERTS[s.alert], s.CrewFit(), static_cast<int>(s.crew.size()));
+	out += line;
+	std::snprintf(line, sizeof(line), "power %d supplied, %d allocated  deuterium %.1f%%  antimatter %.1f%%  batteries %.0f%%  torpedoes %d\n",
+		s.PowerAvailable(), s.PowerAllocated(), s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes);
+	out += line;
+	for (int i = 0; i < SRC_COUNT; ++i) {
+		std::snprintf(line, sizeof(line), "  source %-22s %4d of %4d  health %3.0f%%%s\n", SOURCES[i].name, s.sources[i].output,
+			SOURCES[i].capacity, s.sources[i].health * 100, s.sources[i].online ? "" : "  OFFLINE");
+		out += line;
+	}
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		const System &sys = s.systems[i];
+		std::snprintf(line, sizeof(line), "  %-24s deck %2d  power %3d/%3d  manned %d/%d  health %3.0f%%  output %3.0f%%%s\n", SPECS[i].name,
+			SPECS[i].deck, sys.allocated, SPECS[i].demand, sys.manned, SPECS[i].crewNeeded, sys.health * 100, sys.output * 100,
+			sys.enabled ? "" : "  OFF");
+		out += line;
+	}
+	return out;
+}
+
+} // namespace ship

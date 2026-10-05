@@ -1,0 +1,68 @@
+# Lore ledger
+
+Every figure in the ship simulation that claims to describe Voyager, with where it comes from. The
+rule (owner, 2026-10-05): **on-screen canon first, then the technical manuals, then invention — and
+invention is labelled.** Anything here can be overruled; the code cites this file, not the other way
+round.
+
+**Read the confidence column.** Sources marked *recalled* were written from memory, without the
+episode or manual open, and must be checked before they are relied on. *Game* means the retail game's
+own data, which is in hand. *Invented* means nothing canonical exists or was found, and the value was
+chosen for play.
+
+## The ship
+
+| fact | value | source | confidence |
+|---|---|---|---|
+| Decks | 15 | Intrepid class, stated on screen and in the writers' technical guide | recalled |
+| Complement | 141 | Crew figures on screen vary between roughly 140 and 153 across the series; the owner's design note uses ~141 after "Caretaker" | recalled; the owner's figure |
+| Photon torpedoes | 38, not replaceable | "The Cloud" | recalled |
+| Bridge | deck 1 | on screen | recalled |
+| Mess hall | deck 2 | on screen | recalled |
+| Senior officers' quarters | deck 3 | on screen | recalled |
+| Transporter room 1 | deck 4 | on screen; also the game's `tour/deck04` | game |
+| Sickbay | deck 5 | on screen | recalled |
+| Holodecks | deck 6 | on screen | recalled |
+| Astrometrics | deck 8 | on screen | recalled |
+| Shuttlebay | deck 10 | on screen | recalled |
+| Main Engineering | deck 11 | on screen | recalled |
+| Computer core | deck 7 | the core spans several decks; a single deck is a simplification | invented placement |
+| Environmental control, torpedo bay, impulse engineering, deflector control | decks 12, 9, 10, 11 | — | invented placement |
+| Decks present as maps | 1, 2, 3, 4, 5, 8, 9, 10, 11, 15 | the expansion pack's `maps/tour/` | game |
+
+## Crew
+
+| fact | value | source | confidence |
+|---|---|---|---|
+| Senior staff names, ranks, departments | Janeway, Chakotay, Tuvok, Paris, Kim, Torres, the Doctor, Seven, Neelix, Vorik | on screen; NPC types from the game | recalled / game |
+| Hazard Team | Foster, Munro, Biessman, Chang, Telsia, Chell, Jurot, Kenn, Odell | the retail game | game types; full names recalled |
+| Everyone else | "Crewman NNN", uniformed by department | — | invented, placeholder |
+| Department sizes | command 20, engineering/operations 50, security 25, sciences 30, medical 16 | — | invented |
+| Three watches of eight hours, alpha from 0800 | — | Starfleet three-shift rotation ("Chain of Command" has it changed to four) | recalled |
+| Daily routine | 8 h duty, 1 h meal, 3 h recreation, 3 h personal, 8 h sleep, 1 h meal | — | invented |
+| The Doctor counted in the complement | yes | he is a hologram, not a crew member in the count | simplification, to revisit |
+| Fatigue rates | exhausted after 20 h on duty; cleared by 8 h sleep | — | invented |
+
+## Systems and power
+
+Canon gives no usable power figures. **All power is in invented "EPS units"**, chosen so that the
+ship cannot run everything at once — the core tension of the design.
+
+| fact | value | confidence |
+|---|---|---|
+| Sources | warp core 1000, impulse fusion reactors 300, auxiliary fusion 120, emergency batteries 80 | invented |
+| System demands | life support 60, structural integrity 80, inertial dampers 40, computer 60, shields 200, sensors 60, warp drive 400, impulse 100, phasers 150, torpedo launchers 30, deflector 50, communications 20, transporters 60, sickbay 30, turbolifts 20, tractor beam 60, replicators 60, holodecks 60 (total 1540 against 1420 of reactor supply) | invented |
+| Shedding order | life support, structural integrity, dampers, computer first; comforts last | invented, from the obvious |
+| Condition green stands down shields and weapons; red shuts replicators and holodecks | — | consistent with on-screen practice; recalled |
+| Unattended station runs at half effect | — | invented |
+| Fuel | warp core burns deuterium and antimatter, fusion reactors deuterium only | technical manuals; recalled |
+| Burn rates | core 0.4% deuterium and 0.3% antimatter per day at full load | invented |
+| Batteries | three hours at full draw, critical systems only | invented |
+| Atmosphere | a deck open to space empties in 5 minutes; a sealed deck without life support lasts 12 hours; restored in 1 hour | invented |
+
+## Not yet modelled
+
+Bio-neural gel packs, the EMH's dependence on sickbay power and holo-emitters, dilithium, the
+variable-geometry nacelles, the aeroshuttle, shuttles, cargo bays, replicator rations as a resource,
+and holodeck power being incompatible with other systems (a point Voyager makes on screen, which
+would change the `holodecks` row above).

@@ -25,7 +25,8 @@ The gate ledger, `docs/gates.md`, is the authority; this is its summary.
 | G2 / G6 | Virtual Voyager and the retail game as a mode | reported working by the owner |
 | G7 | retail multiplayer over LAN or VPN (cMod, as shipped) | server half proven; needs two machines |
 | G3 | reactive crew: 5–10 NPCs holding posts on one deck | implemented and measured; awaiting the owner's judgement |
-| G4, G5 | living ship; capstone scenario | not started — G4 does not start until G3 passes |
+| S1 | ship core: power, systems, decks, clock, the 141-crew roster and watches | done |
+| S2–S10 | an operational Voyager — consoles, the whole-ship map, crew lives, damage, intruders, the Borg, the outside | S2 next; see `docs/ship-programme.md` |
 
 ## Building and checking
 
@@ -45,7 +46,7 @@ scripts/run-scenario.sh           # play a crewed deck
 |---|---|
 | `patches/` | our delta from the pinned upstream port: five patches, one concern each |
 | `engine/` | the native Linux build of the single-player engine (GPL-2.0) |
-| `module/` | our game logic, compiled into the game module (STEF licence) — the crew direction layer |
+| `module/` | our game logic, compiled into the game module (STEF licence) — the crew direction layer and the ship simulation |
 | `tools/` | script compiler, validator, entity dictionary, map generator, crew authoring |
 | `scenarios/` | scenarios as versioned artifacts, each with a `scenario.json` |
 | `tests/` | unit tests for the direction layer and the tools |
@@ -82,6 +83,8 @@ sponsored by any of them, and no official status is claimed.
   model, and the engine's measured limits. **Read this first.**
 - `docs/program-charter-v3.md` — the gated programme charter: gates, scope, arbitration rules,
   acceptance criteria.
+- `docs/ship-programme.md` — the operational-Voyager programme: the owner's decisions and gates S1–S10.
+- `docs/lore-ledger.md` — every figure in the ship simulation, with its source or marked invented.
 - `docs/gates.md` — the gate ledger: what has passed, on what evidence, and what is still open.
 - `docs/client-modes.md` — the client's three modes, and why retail multiplayer is cMod as shipped.
 - `docs/g3-reactive-crew.md` — the reactive-crew specification, and what building it found.

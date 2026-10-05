@@ -120,7 +120,17 @@ section. It is off by default (`g_crew 0`), and with it off the module behaves a
 before. Arbitration precedence — scripted sequence > direct combat/reaction > director override >
 duty/routine > idle/social — was written before the code, as required, and is unit-tested.
 
-## G4 — living ship ⏳ pending, does not start until G3 passes
+## G4 and G5 — replaced by the ship programme (2026-10-05)
+
+The owner redirected the programme: the ship must work as a system before a crew can be given lives
+aboard it. `docs/ship-programme.md` records the decisions and the gates S1–S10 that replace G4 and
+G5. G3 stays open and work proceeds regardless, by his decision.
+
+| gate | state | evidence |
+|---|---|---|
+| **S1** ship core | ✅ done 2026-10-05 | `docs/evidence/s1-ship-core.md` |
+| **S2** Engineering console in game | ⏳ next | |
+| **S3–S10** | ⏳ pending | |
 
 ## Adopted from RPG-X prior art (2026-10-04)
 

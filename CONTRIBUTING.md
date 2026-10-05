@@ -26,6 +26,13 @@ Nothing downstream starts before its gate passes.
 
 ## Holding our delta from upstream: inherit, do not own
 
+> **Revised 2026-10-05.** The ship programme (`docs/ship-programme.md`) needs engine capabilities no
+> upstream will carry: a whole-ship map, live in-world panels, runtime asset replacement. The owner's
+> decision: **we own the engine fork for modes 1 and 3, and keep it layered.** What follows still
+> governs *how* — one concern per patch, game logic in `module/` and never in the engine, the delta
+> re-measured as it grows — but a needed engine capability is no longer a reason to stop. Retail
+> multiplayer (mode 2) remains cMod with zero delta.
+
 The programme builds on stacks other people maintain — the pinned upstream port for the single-player
 engine, and the community's multiplayer client for retail multiplayer. **Our position is to consume their
 maintenance, and to keep our own delta thin enough to rebase onto it whenever they release.** The owner's

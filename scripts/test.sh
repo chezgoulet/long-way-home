@@ -3,7 +3,8 @@
 #
 #   scripts/test.sh
 #
-# Runs, in order: the crew direction layer's unit tests (compiled here), the Python tool tests,
+# Runs, in order: the crew direction layer's and the ship simulation's unit tests (compiled here),
+# the Python tool tests,
 # a syntax pass over every Python file, shellcheck over every script (when installed), and a
 # check that the patch series is well-formed. This is what CI runs. The checks that need real
 # content are separate: scripts/check.sh (G0, needs the GDK) and scripts/g3-measure.sh (G3,
@@ -22,6 +23,12 @@ cmake --build "$WORK/crew" -j"$(nproc)" >/dev/null
 "$WORK/crew/test_crew_core"
 
 echo
+echo "==> ship simulation: unit tests"
+cmake -S tests/ship -B "$WORK/ship" -DCMAKE_BUILD_TYPE=Debug >/dev/null
+cmake --build "$WORK/ship" -j"$(nproc)" >/dev/null
+"$WORK/ship/test_ship_core"
+
+cho
 echo "==> tools: unit tests"
 python3 -m unittest discover -s tests/tools -q
 
