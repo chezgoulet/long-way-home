@@ -49,6 +49,10 @@ enum SystemId : uint8_t {
 	SYS_COUNT
 };
 
+// The stations a system is operated from. Engineering distributes power to everything and so sees
+// everything; each other station sees and switches only its own systems.
+enum Station : uint8_t { STN_ENGINEERING = 0, STN_TACTICAL, STN_OPS, STN_CONN, STN_SICKBAY, STN_COUNT };
+
 enum Department : uint8_t { DEPT_COMMAND = 0, DEPT_ENGINEERING, DEPT_SECURITY, DEPT_SCIENCES, DEPT_MEDICAL, DEPT_COUNT };
 
 struct SystemSpec {
@@ -62,6 +66,9 @@ struct SystemSpec {
 };
 
 const SystemSpec &Spec(SystemId id);
+Station StationOf(SystemId id);        // the station that operates it (never STN_ENGINEERING: that one sees all)
+const char *StationName(Station s);
+bool OperatedFrom(SystemId id, Station s);   // may this station see and switch this system?
 
 struct System {
 	float health = 1.0f;    // 0 destroyed .. 1 intact; output can never exceed it

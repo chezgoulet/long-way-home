@@ -23,7 +23,7 @@ const int MAX_SOURCES = 8;
 
 struct SystemRow {
 	char name[32];
-	int allocated, demand, health, output, manned, need, enabled, priority;
+	int allocated, demand, health, output, manned, need, enabled, priority, station;
 };
 
 struct SourceRow {
@@ -34,6 +34,7 @@ struct SourceRow {
 struct Screen {
 	menuframework_s menu;
 	int cursor;
+	int station;        // which console this is: 0 Engineering (sees all), 1 Tactical, 2 Ops, 3 Conn, 4 Sickbay
 	int systems, sources;
 	SystemRow sys[MAX_SYSTEMS];
 	SourceRow src[MAX_SOURCES];
@@ -76,11 +77,12 @@ void Refresh( void )
 	for ( int i = 0; i < MAX_SYSTEMS; ++i )
 	{
 		SystemRow &r = screen.sys[screen.systems];
-		int v[8];
-		if ( !ReadRow( va( "lwh_ship_sys%d", i ), r.name, sizeof( r.name ), v, 8 ) ) break;
+		int v[9];
+		if ( !ReadRow( va( "lwh_ship_sys%d", i ), r.name, sizeof( r.name ), v, 9 ) ) break;
 		r.allocated = v[0]; r.demand = v[1]; r.health = v[2]; r.output = v[3];
-		r.manned = v[4]; r.need = v[5]; r.enabled = v[6]; r.priority = v[7];
-		++screen.systems;
+		r.manned = v[4]; r.need = v[5]; r.enabled = v[6]; r.priority = v[7]; r.station = v[8];
+		// a station shows the systems it operates; Engineering distributes power to all of them
+		if ( screen.station == 0 || r.station == screen.station ) ++screen.systems;
 	}
 	ui.Cvar_VariableStringBuffer( "lwh_ship_header", screen.header, sizeof( screen.header ) );
 	ui.Cvar_VariableStringBuffer( "lwh_ship_stores", screen.stores, sizeof( screen.stores ) );
@@ -118,7 +120,9 @@ void Draw( void )
 	UI_FillRect( 20, 16, 600, 22, colorTable[alertColour] );
 	UI_FillRect( 20, 42, 14, 396, colorTable[CT_DKPURPLE1] );
 	UI_FillRect( 20, 442, 600, 10, colorTable[CT_DKPURPLE1] );
-	UI_DrawProportionalString( 44, 19, "MAIN ENGINEERING  -  EPS POWER DISTRIBUTION", UI_SMALLFONT, colorTable[CT_BLACK] );
+	static const char *const TITLES[] = { "MAIN ENGINEERING  -  EPS POWER DISTRIBUTION", "TACTICAL  -  WEAPONS AND DEFENCE",
+		"OPERATIONS  -  SHIP'S SERVICES", "CONN  -  FLIGHT CONTROL", "SICKBAY  -  MEDICAL SYSTEMS" };
+	UI_DrawProportionalString( 44, 19, TITLES[screen.station], UI_SMALLFONT, colorTable[CT_BLACK] );
 	UI_DrawProportionalString( 44, 46, screen.header, UI_SMALLFONT, colorTable[CT_LTGOLD1] );
 	UI_DrawProportionalString( 44, 62, screen.stores, UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 
@@ -162,8 +166,10 @@ void Draw( void )
 			colorTable[r.manned >= r.need ? CT_LTBLUE1 : CT_RED] );
 	}
 
-	UI_DrawProportionalString( 44, 426, "UP/DOWN select   ENTER on/off   LEFT/RIGHT priority   1 2 3 condition green/yellow/red   ESC leave",
-		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+	UI_DrawProportionalString( 44, 426, screen.station == 0
+		? "UP/DOWN select   ENTER on/off   LEFT/RIGHT priority   1 2 3 condition green/yellow/red   ESC leave"
+		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   1 2 3 condition green/yellow/red   ESC leave"
+		: "UP/DOWN select   ENTER on/off   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
 // One operator action. Shared by the keyboard and by the `lwh_eng_key` command, so that what a
@@ -186,6 +192,7 @@ bool Act( int key )
 		Send( va( "ship %s \"%s\"", r.enabled ? "off" : "on", r.name ) );
 		return true;
 	case K_LEFTARROW: // earlier in the list: fed sooner. Just ahead of the system above it.
+		if ( screen.station != 0 ) return true; // the power order is Engineering's to set
 		if ( screen.cursor > 0 )
 		{
 			Send( va( "ship priority \"%s\" %d", r.name, screen.sys[screen.cursor - 1].priority - 1 ) );
@@ -193,15 +200,17 @@ bool Act( int key )
 		}
 		return true;
 	case K_RIGHTARROW:
+		if ( screen.station != 0 ) return true;
 		if ( screen.cursor + 1 < screen.systems )
 		{
 			Send( va( "ship priority \"%s\" %d", r.name, screen.sys[screen.cursor + 1].priority + 1 ) );
 			++screen.cursor;
 		}
 		return true;
-	case '1': Send( "ship alert green" ); return true;
-	case '2': Send( "ship alert yellow" ); return true;
-	case '3': Send( "ship alert red" ); return true;
+	// the alert condition is called from Engineering or Tactical, not from the transporter room
+	case '1': if ( screen.station <= 1 ) Send( "ship alert green" ); return true;
+	case '2': if ( screen.station <= 1 ) Send( "ship alert yellow" ); return true;
+	case '3': if ( screen.station <= 1 ) Send( "ship alert red" ); return true;
 	}
 	return false;
 }
@@ -212,8 +221,10 @@ sfxHandle_t Key( int key )
 	return Menu_DefaultKey( &screen.menu, key ); // ESC and the rest
 }
 
-void Open( void )
+void Open( int station )
 {
+	screen.station = station;
+	screen.cursor = 0;
 	memset( &screen.menu, 0, sizeof( screen.menu ) );
 	screen.menu.draw = Draw;
 	screen.menu.key = Key;
@@ -244,8 +255,33 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 {
 	if ( !Q_stricmp( cmd, "ui_lwh_engineering" ) )
 	{
-		Open();
+		Open( 0 );
 		return qtrue;
+	}
+	if ( !Q_stricmp( cmd, "ui_lwh_station" ) )
+	{
+		char arg[32];
+		ui.Argv( 1, arg, sizeof( arg ) );
+		const int n = atoi( arg );
+		Open( n >= 0 && n <= 4 ? n : 0 );
+		return qtrue;
+	}
+	// The panels already in the ship call the retail game's station screens by these commands. With
+	// the ship simulation running, each opens the working console for that station instead; without
+	// it, the retail screen opens as it always did.
+	if ( ui.Cvar_VariableValue( "g_ship" ) )
+	{
+		static const struct { const char *retail; int station; } PANELS[] = {
+			{ "ui_engineeringstatus", 0 }, { "ui_tactical", 1 }, { "ui_ops", 2 }, { "ui_navigation", 3 },
+		};
+		for ( size_t i = 0; i < sizeof( PANELS ) / sizeof( PANELS[0] ); ++i )
+		{
+			if ( !Q_stricmp( cmd, PANELS[i].retail ) )
+			{
+				Open( PANELS[i].station );
+				return qtrue;
+			}
+		}
 	}
 	if ( !Q_stricmp( cmd, "lwh_eng_key" ) )
 	{

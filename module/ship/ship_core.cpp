@@ -40,6 +40,33 @@ static const SystemSpec SPECS[SYS_COUNT] = {
 
 const SystemSpec &Spec(SystemId id) { return SPECS[id < SYS_COUNT ? id : 0]; }
 
+// Who operates what. [lore] in outline -- tactical has weapons and shields, the conn flies the
+// ship, ops runs her services -- and [inv] at the edges (see docs/lore-ledger.md).
+Station StationOf(SystemId id)
+{
+	switch (id) {
+	case SYS_SHIELDS: case SYS_PHASERS: case SYS_TORPEDO_LAUNCHERS: case SYS_TRACTOR_BEAM:
+		return STN_TACTICAL;
+	case SYS_WARP_DRIVE: case SYS_IMPULSE_DRIVE: case SYS_NAV_DEFLECTOR: case SYS_INERTIAL_DAMPERS:
+		return STN_CONN;
+	case SYS_SICKBAY:
+		return STN_SICKBAY;
+	default:
+		return STN_OPS; // sensors, communications, transporters, life support, the computer, comforts
+	}
+}
+
+const char *StationName(Station s)
+{
+	static const char *const NAMES[STN_COUNT] = {"MAIN ENGINEERING", "TACTICAL", "OPERATIONS", "CONN", "SICKBAY"};
+	return NAMES[s < STN_COUNT ? s : 0];
+}
+
+bool OperatedFrom(SystemId id, Station s)
+{
+	return s == STN_ENGINEERING || StationOf(id) == s;
+}
+
 struct SourceSpec {
 	const char *name;
 	int capacity;          // EPS units at full health [inv]

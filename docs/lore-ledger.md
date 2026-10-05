@@ -73,6 +73,17 @@ ship cannot run everything at once — the core tension of the design.
 | Batteries | three hours at full draw, critical systems only | invented |
 | Atmosphere | a deck open to space empties in 5 minutes; a sealed deck without life support lasts 12 hours; restored in 1 hour | invented |
 
+## Stations
+
+| fact | value | confidence |
+|---|---|---|
+| Tactical operates weapons and shields | on screen | recalled |
+| The conn flies the ship: warp, impulse | on screen | recalled |
+| Operations runs sensors, communications, transporters and ship's services | on screen | recalled |
+| Engineering allocates power to everything | on screen | recalled |
+| Tractor beam at Tactical; deflector and inertial dampers at the Conn; life support, structural integrity and the computer core under Operations | — | invented |
+| Only Engineering sets the power order; only Engineering and Tactical call the alert | — | invented (on screen the captain calls it; command authority is S10) |
+
 ## Not yet modelled
 
 Bio-neural gel packs, the EMH's dependence on sickbay power and holo-emitters, dilithium, the

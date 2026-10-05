@@ -39,14 +39,16 @@ round is done and its answers are in `docs/ship-programme.md`. **Do not re-ask t
 | `scripts/g3-measure.sh` (`--seconds 30` for a quick regression) | G3, eleven criteria | game data, built engine |
 | `scripts/s2-check.sh` | S2: ship in game, save/reload, console operated | same |
 | `scripts/build-ship.sh` | S3: stitches and compiles the whole ship (~3 min with vis+light) | `fetch-gdk.sh`, `fetch-map-tools.sh` |
+| `scripts/s4-check.sh` | S4 so far: Tactical opened by the retail panel command, operated, authority enforced | game data, built engine |
 | `scripts/s3-check.sh` | S3: one map, fifteen decks, each reached by turbolift, standing and clear; game frame time | the built ship (builds it if absent) |
 
 All engine runs are headless (`xvfb-run`, software Vulkan, `SDL_AUDIODRIVER=dummy`) and write under
 `build/g3-home`, never the owner's `build/home`. A stale `*.pid` file in the home's `baseEF` makes
 the engine wait at a dialog forever; the scripts delete it first.
 
-**Run the two regressions after any engine or module change**: `scripts/s2-check.sh` and
-`scripts/g3-measure.sh --seconds 30`. Do not edit `scripts/` or rebuild the module while a
+**Run the regressions after any engine or module change**: `scripts/s2-check.sh`,
+`scripts/s4-check.sh`, `scripts/g3-measure.sh --seconds 30`, and `scripts/s3-check.sh` if the ship,
+the stitcher or the engine limits were touched. Do not edit `scripts/` or rebuild the module while a
 measurement is running — bash reads scripts incrementally and the module is loaded per run.
 
 ## Gates
@@ -60,7 +62,8 @@ measurement is running — bash reads scripts incrementally and the module is lo
 | S1 | done — `module/ship/ship_core.*`, `tests/ship` |
 | S2 | built and verified headless; the owner has not operated the console. Open by command only (`ship console`), keyboard only, flat colour. |
 | S3 | **in progress — see below** |
-| S4–S10 | not started |
+| S4 | **first slice done** (`scripts/s4-check.sh`): stations in the core; one screen serves Engineering, Tactical, Ops, Conn (and Sickbay); the retail panel commands `ui_engineeringstatus`/`ui_tactical`/`ui_ops`/`ui_navigation` open them when `g_ship 1`. Remaining: each station's real controls (needs core state: targets, course, transporter, medical), live status drawn on panels in the world (engine work), the other retail panels, mouse, artwork. See `docs/evidence/s4-station-consoles.md`. |
+| S5–S10 | not started |
 
 ## S3 in detail (the active work)
 

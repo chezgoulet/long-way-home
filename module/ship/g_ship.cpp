@@ -131,9 +131,9 @@ void Publish( void )
 	{
 		const ship::System &sys = vessel.systems[order[k]];
 		const ship::SystemSpec &spec = ship::Spec( static_cast<ship::SystemId>( order[k] ) );
-		gi.cvar_set( Fmt( "lwh_ship_sys%d", k ).c_str(), Fmt( "%s|%d %d %d %d %d %d %d %d", spec.name, sys.allocated, spec.demand,
+		gi.cvar_set( Fmt( "lwh_ship_sys%d", k ).c_str(), Fmt( "%s|%d %d %d %d %d %d %d %d %d", spec.name, sys.allocated, spec.demand,
 			static_cast<int>( sys.health * 100 + 0.5f ), static_cast<int>( sys.output * 100 + 0.5f ), sys.manned, spec.crewNeeded,
-			sys.enabled ? 1 : 0, sys.priority ).c_str() );
+			sys.enabled ? 1 : 0, sys.priority, ship::StationOf( static_cast<ship::SystemId>( order[k] ) ) ).c_str() );
 	}
 }
 
@@ -182,6 +182,27 @@ void RunTest( void )
 		gi.Printf( "SHIP: life support priority %d, structural integrity priority %d\n",
 			vessel.systems[ship::SYS_LIFE_SUPPORT].priority, vessel.systems[ship::SYS_STRUCTURAL_INTEGRITY].priority );
 		WriteReport( "ship/operated.txt" );
+		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 6 )
+	{//walk up to the Tactical panel as the retail game would have it opened, and operate it
+		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 3000, "ui_tactical\n" },            // the retail panel's own command
+			{ 3500, "lwh_eng_key 3\n" },          // condition red
+			{ 4500, "lwh_eng_key down\n" },       // second of Tactical's systems
+			{ 4700, "lwh_eng_key enter\n" },      // switch it off
+			{ 5500, "lwh_eng_key right\n" },      // priority is Engineering's to set: must do nothing here
+			{ 6500, "screenshot lwh_tactical\n" },
+		};
+		static size_t step = 0;
+		if ( level.time < 1000 ) step = 0;
+		while ( step < sizeof( STEPS ) / sizeof( STEPS[0] ) && level.time >= STEPS[step].ms )
+			gi.SendConsoleCommand( STEPS[step++].command );
+		if ( tested || level.time < 8000 ) return;
+		tested = true;
+		gi.Printf( "SHIP: phasers priority %d\n", vessel.systems[ship::SYS_PHASERS].priority );
+		WriteReport( "ship/tactical.txt" );
 		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}

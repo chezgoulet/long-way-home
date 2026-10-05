@@ -131,7 +131,8 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 | **S1** ship core | ✅ done 2026-10-05 | `docs/evidence/s1-ship-core.md` |
 | **S2** Engineering console in game | 🔶 built and verified headless; awaiting the owner at the console | `docs/evidence/s2-engineering-console.md` |
 | **S3** whole-ship map | 🔶 one map, fifteen decks (five generated placeholders), toured by turbolift 15 of 15, game frame 2.3 ms; awaiting a person walking it | `docs/evidence/s3-merged-map-measured.md`, `scripts/s3-check.sh` |
-| **S4–S10** | ⏳ pending | |
+| **S4** every station's console | 🔶 first slice: stations in the core; Engineering, Tactical, Ops and Conn consoles open from the ship's own panels and operate within their authority | `docs/evidence/s4-station-consoles.md`, `scripts/s4-check.sh` |
+| **S5–S10** | ⏳ pending | |
 
 ## Adopted from RPG-X prior art (2026-10-04)
 

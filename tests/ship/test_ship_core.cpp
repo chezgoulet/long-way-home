@@ -368,6 +368,28 @@ static void TestSave()
 	CHECK(Describe(untouched) == before);
 }
 
+static void TestStations()
+{
+	g_test = "stations";
+	int owned[STN_COUNT] = {0, 0, 0, 0, 0};
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		const SystemId id = static_cast<SystemId>(i);
+		const Station st = StationOf(id);
+		CHECK(st != STN_ENGINEERING && st < STN_COUNT); // every system has one operating station
+		++owned[st];
+		CHECK(OperatedFrom(id, STN_ENGINEERING));        // engineering sees everything
+		int seenBy = 0;
+		for (int s = 1; s < STN_COUNT; ++s)
+			if (OperatedFrom(id, static_cast<Station>(s))) ++seenBy;
+		CHECK(seenBy == 1);                              // and exactly one other station does
+	}
+	for (int s = 1; s < STN_COUNT; ++s) CHECK(owned[s] > 0); // no station is a console with nothing on it
+	CHECK(StationOf(SYS_PHASERS) == STN_TACTICAL && StationOf(SYS_SHIELDS) == STN_TACTICAL);
+	CHECK(StationOf(SYS_WARP_DRIVE) == STN_CONN && StationOf(SYS_SICKBAY) == STN_SICKBAY);
+	CHECK(StationOf(SYS_TRANSPORTERS) == STN_OPS);
+	CHECK(std::string(StationName(STN_TACTICAL)) == "TACTICAL");
+}
+
 static int PrintDay()
 {
 	Ship s = NewShip();
@@ -403,6 +425,7 @@ int main(int argc, char **argv)
 	TestDamageAndRepair();
 	TestDeterminismAndStepSize();
 	TestSave();
+	TestStations();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

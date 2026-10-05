@@ -28,7 +28,8 @@ The gate ledger, `docs/gates.md`, is the authority; this is its summary.
 | S1 | ship core: power, systems, decks, clock, the 141-crew roster and watches | done |
 | S2 | the ship running in the game, and Main Engineering's console driving it | built and verified headless; yours to operate |
 | S3 | the whole ship as one map: fifteen decks, toured by turbolift | built and verified headless; not yet walked by a person |
-| S4–S10 | every station's console, crew lives, damage, intruders, the Borg, the outside | S4 next; see `docs/ship-programme.md` |
+| S4 | every station's console | first slice: four stations open from the ship's own panels; their deeper controls and in-world status are not built |
+| S5–S10 | crew lives, damage, intruders, the Borg, the outside | not started; see `docs/ship-programme.md` |
 
 ## Building and checking
 
@@ -40,6 +41,7 @@ scripts/check.sh ...              # G0's corpus checks; needs that content
 scripts/g3-measure.sh             # G3's measured run; needs your own copy of the game
 scripts/build-ship.sh             # S3: stitch the published decks into one map and compile it
 scripts/s3-check.sh               # S3: tour all fifteen decks of the one map by turbolift
+scripts/s4-check.sh               # S4: a station console opened by the ship's own panel command
 scripts/s2-check.sh               # S2: the ship in the game, saved, reloaded, and operated from its console
 scripts/run-engine.sh             # play (see docs/playtest.md)
 scripts/run-scenario.sh           # play a crewed deck
