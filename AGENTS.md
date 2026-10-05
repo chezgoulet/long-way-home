@@ -86,6 +86,8 @@ the binary, which silently boots the retail menu instead. Details:
 
 ## What to do next
 
-`docs/gates.md` is the authority. In short: the ship systems and consoles (S-gates), then the deck build
-order in `docs/ship-master-map.md` -- deck 12 environmental control and deck 13 life support first, because
-atmosphere and gravity are otherwise unlocated in the model.
+`docs/gates.md` is the authority, and it now carries the owner-approved order. In short: the ship systems and
+consoles (S-gates); then the five gaps the owner approved on 2026-10-05 -- **morale and fatigue, sickbay
+triage, air and endurance clocks, the log as a browsable artifact, and tricorders with away-team kit**; and
+then the deck build order in `docs/ship-master-map.md`, deck 12 environmental control and deck 13 life
+support first, because atmosphere and gravity are otherwise unlocated in the model.
