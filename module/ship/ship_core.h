@@ -629,6 +629,13 @@ struct Ship {
 	// housekeeping for the log's periodic "why the mood is what it is" line (not saved)
 	double lastMoodLog = 0.0;
 
+	// The player in the world (Stage B; not saved). The world reports where the player's body stands
+	// each frame, and the ship's own causes then reach the person there; and it records who has come
+	// for a downed player. Both are recomputed from the world, so a save is byte-identical to one made
+	// without this, and the extension needs no save-format change.
+	int playerDeck = 0;          // the deck the player's body is on (0 = unknown: use the roster routine)
+	int playerAttended = -1;     // the crew member who has come for a downed player, or -1
+
 	int Day() const { return static_cast<int>(clock / SECONDS_PER_DAY); }
 	int SecondOfDay() const { return static_cast<int>(clock) % SECONDS_PER_DAY; }
 	int Watch() const;           // the watch on duty now
@@ -653,6 +660,10 @@ float StressNow(const Ship &s);
 // go at the console, the sparking console of docs/failure-is-content.md. Returns the severity.
 // `who` signs the record; empty means the station's senior hand on duty.
 uint8_t UseSystem(Ship &s, SystemId id, float stress, const std::string &who);
+// The same use, but the operator is named by index -- the player at the console. At the severe end
+// the system lets go at *that* person, the one holding the controls (Stage B), rather than at the
+// station's own hand. A bad index falls back to UseSystem's behaviour.
+uint8_t UseSystemBy(Ship &s, SystemId id, float stress, int operatorCrew);
 
 // ---- what consoles and events do to it ------------------------------------------------------------
 
@@ -1047,6 +1058,25 @@ std::vector<SealedQuarter> SealedQuarters(const Ship &s);
 bool Promote(Ship &s, int crew);
 // The player's body: the state the player is in, as a crew record.
 bool PlayerIncapacitated(const Ship &s);
+bool PlayerDead(const Ship &s);
+// The heart of the player-in-the-world bridge. The world tells the model which deck the player's
+// body occupies (SetPlayerDeck), so a deck without air or a deck on fire reaches the person there;
+// and it reads the state back as the health the body should show (PlayerBodyHealth: whole while fit,
+// losing ground under an untreated injury, nothing when the record is closed). WoundPlayer is the
+// other direction -- a boarder, a weapon or a hazard hurt the body, and the injury is written into
+// the same record any other casualty carries.
+void SetPlayerDeck(Ship &s, int deck);
+int PlayerDeck(const Ship &s);
+int PlayerBodyHealth(const Ship &s, int bodyHealth);
+bool WoundPlayer(Ship &s, float amount, const std::string &cause);
+// The ship's response to a downed player: a medical hand is sent, and the log names who came. This is
+// the same shape as any other casualty -- they are carried and treated in the ward. Returns the crew
+// member who attends, or -1 if none can.
+int AttendIncapacitatedPlayer(Ship &s);
+// Command devolves from a player who is dead or assimilated to the senior fit officer. This is the
+// roster promoting to fill the gap, not a resurrection: the closed record is never restored. Returns
+// the new player index, or -1. (The succession the world acts on when death is reached.)
+int AssumeCommand(Ship &s);
 
 // Memory and consequence. A mark is written where it happens (Remember); command can tell the whole
 // crew a thing (Brief); a query asks whether a character holds an event and how they came to (Recall,

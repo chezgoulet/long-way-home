@@ -307,6 +307,16 @@ year: 0.9696 × 0.98 × 0.98 × 1,000 c = 931 c, and 71,240 / 931 = 76 years.
 | System failure states | nominal; degraded below two-thirds health; offline below a third or switched off; destroyed at zero | inv |
 | Refilling the coolant | 15 material, +0.5 coolant | inv |
 
+## The player in the world (`docs/path-to-playtest.md`, Stage B)
+
+| item | value | source |
+|---|---|---|
+| The player's body health | fit is whole; an untreated injury shows `100 × (1 − severity)`, at least 1 and never whole | inv |
+| The console lets go at the operator | an acute anomaly injures the player to severity 0.5, a catastrophic one to 0.8 (the same as the station's own hand) | inv |
+| The world's damage into the record | the body's lost health is written into the record's severity; a full body is no injury | inv |
+| Who commands when the player is lost | the senior fit officer, by rank, in roster order | design (roster promotes to fill the gap, `docs/failure-is-content.md`) |
+| Death is not a reload | the engine's respawn is refused while the extension is on and the record is closed | owner's rule, `docs/path-to-playtest.md` Stage B |
+
 ## Not yet modelled
 
 Bio-neural gel packs, the EMH's dependence on sickbay power and holo-emitters, the

@@ -13,6 +13,16 @@ void Crew_RegisterCvars(void);                                      // G_InitCva
 void Crew_Init(void);                                               // end of InitGame
 void Crew_FrameBegin(void);                                         // G_RunFrame, first thing
 void Crew_Frame(void);                                              // G_RunFrame, after every entity has thought
+void Crew_PlayerFrame(void);                                        // G_RunFrame: the player's body in the world (g_player)
+
+// The dead are not reloaded (Stage B): true to refuse a respawn. The engine's respawn hook calls
+// this; with the extension off it is false, and the retail behaviour stands.
+bool LWH_BlockRespawn(struct gentity_s *ent);
+
+// The player works a system at their console (Stage B): the odds are rolled with the player as the
+// operator, so a degraded system can let go at the person holding the controls. False when the
+// layer is off or no character is the player.
+bool Crew_PlayerUseSystem(int system);
 void Crew_OnUsed(struct gentity_s *self, struct gentity_s *user);   // NPC_Use
 void Crew_OnResponded(struct gentity_s *self);                      // NPC_Respond
 void Crew_OnTouched(struct gentity_s *self, struct gentity_s *other); // NPC_Touch

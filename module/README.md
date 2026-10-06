@@ -57,3 +57,17 @@ makes the authored `func_usable` brush solid and visible. The player's way back 
 the magnetic boots, `ship boots`. Off by default (`g_env 0`): with the cvar unset the module
 behaves, and saves, exactly as before. Evidence: `docs/evidence/environment-in-the-world.md`;
 checks: `scripts/gravity-check.sh` and `scripts/breach-check.sh`.
+
+## The player in the world (`g_player 1`)
+
+The player is a crew record (`Ship::player`), so the causes the model already tracks — an exploding
+console, fire, vacuum, a boarder, a weapon — can reach the person holding the controls. The world
+reports where the player stands (`SetPlayerDeck`), a degraded console lets go at the player who
+worked it (`UseSystemBy`, run from `Crew_PlayerFrame` via `ship operate`), and the world's damage is
+written into the same record any casualty carries (`WoundPlayer`). Incapacitation is a state the
+ship acts on: a medical hand is sent and named (`AttendIncapacitatedPlayer`), the player is carried
+and treated in the ward like anyone else, and a downed player operates nothing. Death closes the
+record and is not a reload (patch `0016` blocks the engine's respawn); command passes to the senior
+fit officer. Off by default (`g_player 0`): with the cvar unset the module behaves, and saves,
+exactly as before. Evidence: `docs/evidence/player-in-the-world.md`; check:
+`scripts/playerworld-check.sh`.

@@ -3763,6 +3763,102 @@ static int PrintNav()
 	return failures ? 1 : 0;
 }
 
+// The player in the world (Stage B): the model's causes reach the person holding the controls. The
+// player is a crew record, so being hurt, carried and treated is the same shape as any other casualty.
+static void TestPlayerInTheWorld()
+{
+	g_test = "the player in the world: a body the ship can reach";
+	Ship s = NewShip();
+	s.cfg.dayScale = 1.0f;
+	const int me = CreateCharacter(s, "Test Officer", DEPT_COMMAND, 2);
+	CHECK(me >= 0);
+	Tick(s, 1.0f);
+
+	// The world says which deck the player's body occupies; the tick uses it, not the schedule.
+	SetPlayerDeck(s, 12);
+	CHECK(PlayerDeck(s) == 12);
+
+	// A breached, airless compartment injures the person standing in it -- where they are, not where
+	// their watch would have put them.
+	s.decks[11].hull = 0.0f;
+	s.decks[11].atmosphere = 0.0f;
+	Tick(s, EXPOSURE_INJURES + 10.0f);
+	CHECK(s.crew[me].status == CREW_INJURED);
+	CHECK(PlayerIncapacitated(s));
+	CHECK(!PlayerDead(s));
+
+	// The ship acts on it: someone comes, and the log names them.
+	bool attended = false;
+	for (const LogEntry &e : s.log) if (e.what.find("attends") != std::string::npos) attended = true;
+	CHECK(attended);
+
+	// The body follows the record: an untreated injury is a body less than whole.
+	CHECK(PlayerBodyHealth(s, 100) < 100);
+	CHECK(PlayerBodyHealth(s, 100) >= 1);
+
+	// Treatment is the ordinary casualty path: the ward returns them to fit, and the body to whole.
+	s.decks[11].hull = 1.0f;
+	s.decks[11].atmosphere = 1.0f;
+	s.systems[SYS_SICKBAY].health = 1.0f;
+	s.systems[SYS_SICKBAY].output = 1.0f;
+	s.stores.medicalSupplies = 100.0f;
+	for (int i = 0; i < 60 && s.crew[me].status != CREW_FIT; ++i) Tick(s, 3600.0f);
+	CHECK(s.crew[me].status == CREW_FIT);
+	CHECK(PlayerBodyHealth(s, 100) == 100);
+
+	// The console lets go at the person holding the controls: a degraded system, used by the player,
+	// injures the player's own record.
+	Ship c = NewShip();
+	c.cfg.dayScale = 1.0f;
+	const int op = CreateCharacter(c, "Test Operator", DEPT_COMMAND, 2);
+	CHECK(op >= 0);
+	SetAlert(c, ALERT_RED);
+	Tick(c, 1.0f);
+	bool letGo = false;
+	for (int i = 0; i < 500 && !letGo; ++i) {
+		c.systems[SYS_LIFE_SUPPORT].health = 0.3f;
+		c.systems[SYS_LIFE_SUPPORT].output = 0.3f;
+		if (UseSystemBy(c, SYS_LIFE_SUPPORT, 1.0f, op) >= ANOMALY_ACUTE) letGo = true;
+		if (c.crew[op].status != CREW_FIT) letGo = true;
+	}
+	CHECK(letGo);
+	CHECK(c.crew[op].status == CREW_INJURED || c.crew[op].status == CREW_DEAD);
+	bool console = false;
+	for (const LogEntry &e : c.log) if (e.what.find("console let go") != std::string::npos) console = true;
+	CHECK(console);
+
+	// A boarder or a weapon hurts the body in the world: that damage is written into the record.
+	Ship w = NewShip();
+	w.cfg.dayScale = 1.0f;
+	const int hurt = CreateCharacter(w, "Test Hurt", DEPT_COMMAND, 2);
+	CHECK(hurt >= 0);
+	Tick(w, 1.0f);
+	CHECK(w.crew[hurt].status == CREW_FIT);
+	CHECK(WoundPlayer(w, 0.3f, "a weapon"));
+	CHECK(w.crew[hurt].status == CREW_INJURED);
+	CHECK(std::fabs(w.crew[hurt].severity - 0.3f) < 1e-4f);
+	CHECK(!PlayerMayCommand(w)); // a player who is down commands nothing
+
+	// Death is reachable and is not a reload: the record closes and is never restored; the roster
+	// promotes to fill the gap, and command passes on. Nothing about the lost person comes back.
+	Ship d = NewShip();
+	d.cfg.dayScale = 1.0f;
+	const int dead = CreateCharacter(d, "Test Fallen", DEPT_COMMAND, 2);
+	CHECK(dead >= 0);
+	Tick(d, 1.0f);
+	CHECK(KillCrew(d, dead, "wounds"));
+	CHECK(PlayerDead(d) && PlayerIncapacitated(d));
+	CHECK(!PlayerMayCommand(d));
+	const int next = AssumeCommand(d);
+	CHECK(next >= 0 && next != dead);
+	CHECK(d.player == next);
+	CHECK(d.crew[dead].status == CREW_DEAD); // the closed record stays closed
+	CHECK(!PlayerDead(d));
+	bool passed = false;
+	for (const LogEntry &e : d.log) if (e.what.find("command passes to") != std::string::npos) passed = true;
+	CHECK(passed);
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
@@ -3839,6 +3935,7 @@ int main(int argc, char **argv)
 	TestSleepAndExits();
 	TestRankAndRoles();
 	TestOrders();
+	TestPlayerInTheWorld();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

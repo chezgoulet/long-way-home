@@ -273,10 +273,13 @@ static const char *AuthorFor(const Ship &s, Department dept, const char *fallbac
 	return best ? best->name.c_str() : fallback;
 }
 
-// Whoever commands: the player's character if there is one, otherwise the captain or first officer.
+// Whoever commands: the player's character if there is one and is not lost, otherwise the captain or
+// first officer. A dead or assimilated player commands nothing -- command has passed on (Stage B).
 std::string CommandingOfficer(const Ship &s)
 {
-	if (s.player >= 0 && s.player < static_cast<int>(s.crew.size())) return s.crew[s.player].name;
+	if (s.player >= 0 && s.player < static_cast<int>(s.crew.size())
+		&& s.crew[s.player].status != CREW_DEAD && s.crew[s.player].status != CREW_ASSIMILATED)
+		return s.crew[s.player].name;
 	for (const CrewMember &c : s.crew)
 		if (c.status == CREW_FIT && c.rank >= 5) return c.name;
 	return "command";
@@ -430,6 +433,15 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 				a = ACT_PERSONAL;
 			}
 		}
+
+		// The player's body is where they are standing, not where their schedule says: the world
+		// reports it (SetPlayerDeck). Everything below reads c.deck, so the air, the fire and the
+		// hazards of the room they are actually in reach the person holding the controls. Once they
+		// are under care the ward has them, and that deck governs -- being carried is the same shape
+		// as any other casualty.
+		if (static_cast<int>(&c - s.crew.data()) == s.player && !c.underCare
+			&& s.playerDeck >= 1 && s.playerDeck <= DECKS)
+			c.deck = static_cast<uint8_t>(s.playerDeck);
 
 		// A deck without air.
 		if (c.deck >= 1 && c.deck <= DECKS && s.decks[c.deck - 1].atmosphere < AIRLESS) {
@@ -695,6 +707,10 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		if (worst >= 0 && worstTrauma >= 0.5f)
 			LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "crew", s.crew[worst].name + " is still carrying what happened");
 	}
+
+	// A downed player is a casualty the ship acts on, not a game over: someone comes for them, and
+	// the log names them. Before sickbay, so the log gives the deck they fell on, not the ward.
+	AttendIncapacitatedPlayer(s);
 
 	// Sickbay last, so it sees the injuries the fight and the air have just caused.
 	TreatCasualties(s, shipSeconds);
@@ -2068,14 +2084,23 @@ bool MayCallAlert(const CrewMember &who, Station st)
 
 bool MayCommand(const CrewMember &who) { return who.status == CREW_FIT && who.rank >= 5; }
 
+// A player who is down operates nothing and commands nothing, whatever their role: being hurt is a
+// state the ship acts on (Stage B). The check is on the record, so it holds across a save.
+static bool PlayerDown(const Ship &s)
+{
+	return s.player >= 0 && s.player < static_cast<int>(s.crew.size()) && s.crew[s.player].status != CREW_FIT;
+}
+
 bool PlayerMayOperate(const Ship &s, Station st)
 {
+	if (PlayerDown(s)) return false;
 	if (s.cfg.role == ROLE_IN_COMMAND) return true;
 	return s.player >= 0 && s.player < static_cast<int>(s.crew.size()) && MayOperate(s.crew[s.player], st);
 }
 
 bool PlayerMayCommand(const Ship &s)
 {
+	if (PlayerDown(s)) return false;
 	if (s.cfg.role == ROLE_IN_COMMAND) return true;
 	return s.player >= 0 && s.player < static_cast<int>(s.crew.size()) && MayCommand(s.crew[s.player]);
 }
@@ -2317,6 +2342,109 @@ bool PlayerIncapacitated(const Ship &s)
 	if (s.player < 0 || s.player >= static_cast<int>(s.crew.size())) return false;
 	const uint8_t st = s.crew[s.player].status;
 	return st == CREW_INJURED || st == CREW_DEAD || st == CREW_ASSIMILATED;
+}
+
+bool PlayerDead(const Ship &s)
+{
+	if (s.player < 0 || s.player >= static_cast<int>(s.crew.size())) return false;
+	return s.crew[s.player].status == CREW_DEAD;
+}
+
+// ---- the player in the world (Stage B) -----------------------------------------------------------
+
+void SetPlayerDeck(Ship &s, int deck)
+{
+	s.playerDeck = (deck >= 1 && deck <= DECKS) ? deck : 0;
+}
+
+int PlayerDeck(const Ship &s) { return s.playerDeck; }
+
+// The health the player's body shows for the record's state. Fit is whole; an untreated injury is a
+// body losing ground (severity 0.5 is the body at half); a closed record is no health at all. The
+// numbers are our call -- the mapping only has to be monotone, so the world and the record agree.
+int PlayerBodyHealth(const Ship &s, int bodyHealth)
+{
+	if (bodyHealth <= 0) return bodyHealth;
+	if (s.player < 0 || s.player >= static_cast<int>(s.crew.size())) return bodyHealth;
+	const CrewMember &c = s.crew[s.player];
+	if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) return 0;
+	if (c.status == CREW_FIT) return bodyHealth;
+	const int h = static_cast<int>(bodyHealth * (1.0f - Clamp01(c.severity)) + 0.5f);
+	return std::max(1, std::min(bodyHealth - 1, h));
+}
+
+// The world hurt the player's body. The damage is written into the same record any other casualty
+// carries, so the ward treats them, a bad enough wound closes the record, and being down is the same
+// state a crew member is in. `amount` is a fraction of the body (0..1).
+bool WoundPlayer(Ship &s, float amount, const std::string &cause)
+{
+	if (!(amount > 0.0f)) return false;
+	if (s.player < 0 || s.player >= static_cast<int>(s.crew.size())) return false;
+	CrewMember &c = s.crew[s.player];
+	if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) return false;
+	const bool wasFit = c.status == CREW_FIT;
+	// The world sends the incremental loss (the body has already lost it), so a fresh injury starts
+	// at the amount and a wound already being carried adds to itself.
+	c.wounds = Clamp01(c.wounds + amount);
+	c.severity = wasFit ? Clamp01(amount) : Clamp01(c.severity + amount);
+	c.status = CREW_INJURED;
+	if (c.severity >= 1.0f) {
+		KillCrew(s, s.player, cause.empty() ? std::string("wounds") : cause);
+		return true;
+	}
+	LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "sickbay",
+		c.name + " is hurt" + (cause.empty() ? std::string() : " (" + cause + ")"));
+	return true;
+}
+
+// Somebody comes when the player goes down. The senior medical hand who can walk is sent; the log
+// names them; the record is carried to the ward by the same treatment path as any other casualty.
+int AttendIncapacitatedPlayer(Ship &s)
+{
+	if (s.player < 0 || s.player >= static_cast<int>(s.crew.size())) return -1;
+	CrewMember &p = s.crew[s.player];
+	if (p.status == CREW_FIT || p.status == CREW_DEAD || p.status == CREW_ASSIMILATED) { s.playerAttended = -1; return -1; }
+	if (s.playerAttended >= 0 && s.playerAttended < static_cast<int>(s.crew.size())) return s.playerAttended; // already with them
+	int who = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (i == s.player || c.status != CREW_FIT || c.brigged || c.away) continue;
+		if (c.dept != DEPT_MEDICAL) continue;
+		if (who < 0 || c.rank > s.crew[who].rank) who = i;
+	}
+	if (who < 0) return -1; // no one to send: the injury still runs its course in the ward
+	s.playerAttended = who;
+	const int deck = p.deck;
+	LogEvent(s, s.crew[who].name, "sickbay",
+		s.crew[who].name + " attends " + p.name + (deck >= 1 && deck <= DECKS ? " on deck " + std::to_string(deck) : "")
+		+ "; they are carried to sickbay");
+	return who;
+}
+
+// The senior fit officer, in rank order: who takes the chair when the player is lost.
+static int SeniorFitOfficer(const Ship &s)
+{
+	int best = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT || c.brigged || c.away) continue;
+		if (best < 0 || c.rank > s.crew[best].rank) best = i;
+	}
+	return best;
+}
+
+int AssumeCommand(Ship &s)
+{
+	if (s.player < 0 || s.player >= static_cast<int>(s.crew.size())) return -1;
+	const CrewMember &p = s.crew[s.player];
+	if (p.status != CREW_DEAD && p.status != CREW_ASSIMILATED) return s.player; // still there: no devolution
+	const int next = SeniorFitOfficer(s);
+	if (next < 0 || next == s.player) return -1;
+	const std::string fallen = p.name;
+	s.player = next;
+	LogEvent(s, CommandingOfficer(s), "command",
+		"command passes to " + s.crew[next].name + ", relieving " + fallen);
+	return next;
 }
 
 // ---- memory and consequence -------------------------------------------------------------------
@@ -2910,7 +3038,7 @@ float StressNow(const Ship &s)
 // when the draw is bad, from the condition and the load. Every anomaly is written down with the
 // chain -- condition, load, what happened, who was at the console -- and at the severe end the
 // system lets go at the console the operator is holding (docs/failure-is-content.md).
-uint8_t UseSystem(Ship &s, SystemId id, float stress, const std::string &who)
+static uint8_t UseSystemAt(Ship &s, SystemId id, float stress, const std::string &who, int operatorCrew)
 {
 	if (id >= SYS_COUNT) return ANOMALY_NONE;
 	System &sys = s.systems[id];
@@ -2925,21 +3053,40 @@ uint8_t UseSystem(Ship &s, SystemId id, float stress, const std::string &who)
 		+ std::to_string(condPct) + "% condition under " + std::to_string(loadPct) + "% load");
 	// A scar at the least; a system that has just bitten is worse than it was.
 	sys.health = Clamp01(sys.health - (sev == ANOMALY_DEGRADED ? 0.05f : sev == ANOMALY_ACUTE ? 0.15f : 0.3f));
-	// The visible let-go: the console arcs at whoever is manning this system, the one place on the
+	// The visible let-go: the console arcs at whoever is holding the controls, the one place on the
 	// ship the operator is standing. This is canon's exploding console, and it is the mechanism, not
-	// a flourish.
+	// a flourish. When the use is named (the player at the panel) it lands on that person; otherwise
+	// it lands on the station's own hand.
 	if (sev >= ANOMALY_ACUTE) {
-		for (CrewMember &c : s.crew) {
-			if (c.status != CREW_FIT || c.brigged) continue;
-			if (c.post != id) continue;
+		int victim = -1;
+		if (operatorCrew >= 0 && operatorCrew < static_cast<int>(s.crew.size())) victim = operatorCrew;
+		else {
+			for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+				const CrewMember &c = s.crew[i];
+				if (c.status == CREW_FIT && !c.brigged && c.post == id) { victim = i; break; }
+			}
+		}
+		if (victim >= 0) {
+			CrewMember &c = s.crew[victim];
 			c.status = CREW_INJURED;
 			c.severity = std::max(c.severity, sev == ANOMALY_ACUTE ? 0.5f : 0.8f);
 			LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "sickbay",
 				c.name + " was hurt when the " + std::string(SPECS[id].name) + " console let go");
-			break;
 		}
 	}
 	return sev;
+}
+
+uint8_t UseSystem(Ship &s, SystemId id, float stress, const std::string &who)
+{
+	return UseSystemAt(s, id, stress, who, -1);
+}
+
+uint8_t UseSystemBy(Ship &s, SystemId id, float stress, int operatorCrew)
+{
+	const std::string who = (operatorCrew >= 0 && operatorCrew < static_cast<int>(s.crew.size()))
+		? s.crew[operatorCrew].name : std::string();
+	return UseSystemAt(s, id, stress, who, operatorCrew);
 }
 
 const char *SystemStateName(uint8_t state)
