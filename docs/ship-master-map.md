@@ -23,11 +23,16 @@ Diagram, regenerable from `tools/mastermap.py`: `voyager-master-map.png`.
 | 11 | Main engineering, airponics, deflector control | map ships | **warp core; EPS; power distribution** | -- |
 | 12 | Environmental control, navigational control B7, section 42 | **no map** | **LIFE SUPPORT (atmosphere, gravity)** | all of it; section 42 stays off-limits for a scenario |
 | 13 | Life support plant, ~10 m below engineering | **no map** | **life support machinery** | all of it |
-| 14 | Stasis chambers, a holodeck *(contested)* | **no map** | stasis; holodeck 1 | decide the contested placement once and record it |
+| 14 | Stasis chambers, a holodeck *(contested)* | **no map** | stasis; holodeck 1 | **decided:** Holodeck 1 is here, Holodeck 2 on deck 6 — see `docs/locations/deck14-stasis.brief.md` |
 | 15 | Plasma relay room 16, Jefferies tube G-33, landing gear | map ships | **plasma relays; landing systems** | antimatter loading port; forward tractor emitter (not deck 16 -- it does not exist) |
 
 **Ten of fifteen decks ship as maps** (01, 02, 03, 04, 05, 08, 09, 10, 11, 15). The five absent decks --
 06, 07, 12, 13, 14 -- are the build order's spine, and `tour/deck15` already exists, so do not build it.
+
+A **generated blockout now exists for each of the five** (`build/ship/generated/deck06|07|12|13|14.map`), reachable on the merged ship and carrying the
+system each hosts. The **game today** column above describes the retail game, which has no map for any
+of them. What remains for all five is the **re-dress** against a shipped interior: the brief for each is
+in `docs/locations/`, and each brief names its own reuse target and what to keep.
 
 ## The lift spine
 
