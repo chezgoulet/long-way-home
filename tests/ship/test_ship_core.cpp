@@ -116,16 +116,20 @@ static void TestBatteriesKeepTheCrewAlive()
 	CHECK(s.stores.batteries == 0.0f);
 	CHECK(s.PowerAvailable() == 0 && s.systems[SYS_LIFE_SUPPORT].output == 0.0f);
 
-	// With no life support the air goes stale, slowly; it does not vanish.
+	// With no life support the air goes stale, slowly; it does not vanish -- and the plating loses
+	// its hold too: gravity is life support's, sited on deck 12 (docs/ship-master-map.md).
 	const float before = s.decks[4].atmosphere;
+	const float gravityBefore = s.decks[4].gravity;
 	Tick(s, Hours(s, 3.0f));
 	CHECK(s.decks[4].atmosphere < before && s.decks[4].atmosphere > 0.5f);
+	CHECK(s.decks[4].gravity < gravityBefore && s.decks[4].gravity > 0.0f);
 
-	// Bring a reactor back and the ship recovers by itself.
+	// Bring a reactor back and the ship recovers by itself: air and gravity both.
 	SetSourceOnline(s, SRC_AUXILIARY, true);
 	Tick(s, Hours(s, 2.0f));
 	CHECK(s.systems[SYS_LIFE_SUPPORT].output == 1.0f);
 	CHECK(s.decks[4].atmosphere == 1.0f);
+	CHECK(s.decks[4].gravity == 1.0f);
 }
 
 static void TestHullBreach()
@@ -1447,9 +1451,36 @@ static void TestCrewJusticeAndBorg()
 	int sealed = 0;
 	for (const CrewMember &c : d.crew) if (c.quartersSealed) ++sealed;
 	CHECK(sealed >= 1);
+	// The wall of names records the dead, and the sealed quarters are legible with their deck.
+	bool onWall = false;
+	for (const std::string &name : WallOfNames(d)) if (name == d.crew[50].name) onWall = true;
+	CHECK(onWall);
+	bool sealedQ = false;
+	for (const SealedQuarter &q : SealedQuarters(d)) if (q.crew == 50) { CHECK(q.deck == 9); sealedQ = true; }
+	CHECK(sealedQ);
+	int witnesses = 0;
+	for (const CrewMember &c : d.crew) if (Recall(c, MEM_DEATH)) ++witnesses;
+	CHECK(witnesses >= 1);                                    // someone on deck 9 saw it
+	int survivor = -1;
+	for (int i = 0; i < static_cast<int>(d.crew.size()) && survivor < 0; ++i)
+		if (d.crew[i].status == CREW_FIT) survivor = i;
+	CHECK(survivor >= 0);
 	SetRole(d, ROLE_IN_COMMAND);
 	CHECK(HoldFuneral(d));
 	for (const CrewMember &c : d.crew) CHECK(!c.quartersSealed);
+	CHECK(SealedQuarters(d).empty());                         // the doors are opened again
+	onWall = false;                                           // the name stays on the wall
+	for (const std::string &name : WallOfNames(d)) if (name == d.crew[50].name) onWall = true;
+	CHECK(onWall);
+	// The funeral metabolises the loss: a positive mark toward whoever held it, and the death's
+	// valence softened toward shared memory instead of growing dread.
+	bool funeralMark = false;
+	for (const Memory &m : d.crew[survivor].memories)
+		if (m.event == MEM_FUNERAL) { funeralMark = true; CHECK(m.valence > 0.0f); if (m.person >= 0) CHECK(Bond(d, survivor, m.person) > 0.0f); }
+	CHECK(funeralMark);
+	for (const CrewMember &c : d.crew)
+		for (const Memory &m : c.memories)
+			if (m.event == MEM_DEATH) CHECK(m.valence >= -0.2f);
 
 	// The career: a promotion within the complement, by whoever commands.
 	Ship p = NewShip();

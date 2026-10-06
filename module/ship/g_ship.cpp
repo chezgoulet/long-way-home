@@ -285,6 +285,19 @@ void Publish( void )
 		gi.cvar_set( "lwh_ship_loss_count", Fmt( "%d", static_cast<int>( losses.size() ) ).c_str() );
 	}
 
+	// Grief, for the personnel screen and the HUD: the quarters still sealed (name|deck) and the
+	// wall of names -- the dead the ship carries with it (docs/morale.md).
+	{
+		std::string sealedTxt, wallTxt;
+		const std::vector<ship::SealedQuarter> sealed = ship::SealedQuarters( vessel );
+		for ( size_t i = 0; i < sealed.size(); ++i )
+			sealedTxt += Fmt( "%s|deck%d;", vessel.crew[sealed[i].crew].name.c_str(), sealed[i].deck );
+		const std::vector<std::string> wall = ship::WallOfNames( vessel );
+		for ( size_t i = 0; i < wall.size(); ++i ) wallTxt += Fmt( "%s;", wall[i].c_str() );
+		gi.cvar_set( "lwh_ship_sealed", sealedTxt.c_str() );
+		gi.cvar_set( "lwh_ship_wall", wallTxt.c_str() );
+	}
+
 	// The endurance clocks, for Engineering (the air-and-endurance gap): a countdown wherever the air
 	// is going, and the ship's time to dark on the stores it has.
 	{
@@ -1203,6 +1216,35 @@ void RunTest( void )
 			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
 		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_deck12\n" ); step = 2; }
 		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 53 )
+	{//grief in the game (docs/morale.md): a death seals the quarters the player can read, puts the
+		//name on the wall, and the funeral opens the quarters and leaves a positive mark. Needs
+		//`map voyager`. The rules are unit-tested; this shows the player-facing path.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			ship::KillCrew( vessel, 10, "a hull breach on deck 9" );
+			gi.Printf( "SHIP: grief: %s is dead, %d quarters sealed, %d on the wall\n",
+				vessel.crew[10].name.c_str(), static_cast<int>( ship::SealedQuarters( vessel ).size() ),
+				static_cast<int>( ship::WallOfNames( vessel ).size() ) );
+			gi.SendConsoleCommand( "ship wall\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4000 ) { gi.SendConsoleCommand( "set g_shipRole 1\nship role\n" ); step = 2; }
+		if ( step == 2 && level.time >= 5000 ) { gi.SendConsoleCommand( "ship funeral\n" ); step = 3; }
+		if ( step == 3 && level.time >= 6000 )
+		{
+			gi.Printf( "SHIP: grief: after the funeral %d quarters sealed, %d on the wall, crew 11 funeral mark %d\n",
+				static_cast<int>( ship::SealedQuarters( vessel ).size() ),
+				static_cast<int>( ship::WallOfNames( vessel ).size() ),
+				ship::Recall( vessel.crew[11], ship::MEM_FUNERAL ) ? 1 : 0 );
+			gi.SendConsoleCommand( "ship wall\n" );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 7000 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
 		return;
 	}
 	if ( g_shipTest->integer == 25 )
@@ -2558,6 +2600,16 @@ void Svcmd_Ship_f( void )
 		if ( !ship::ImproveQuarters( vessel ) ) gi.Printf( "SHIP: not enough material to improve the quarters\n" );
 		else gi.Printf( "SHIP: the crew's quarters are improved; material %.0f\n", vessel.stores.materials );
 		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "wall" ) )
+	{//the wall of names, and the quarters grief still keeps shut (docs/morale.md)
+		const std::vector<std::string> names = ship::WallOfNames( vessel );
+		gi.Printf( "SHIP: the wall of names, %d the ship has buried:\n", static_cast<int>( names.size() ) );
+		for ( const std::string &name : names ) gi.Printf( "SHIP:   %s\n", name.c_str() );
+		const std::vector<ship::SealedQuarter> sealed = ship::SealedQuarters( vessel );
+		for ( const ship::SealedQuarter &q : sealed )
+			gi.Printf( "SHIP:   %s's quarters, deck %d, are sealed\n", vessel.crew[q.crew].name.c_str(), q.deck );
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "pylon" ) && a[0] )

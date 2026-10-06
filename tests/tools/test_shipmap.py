@@ -177,6 +177,23 @@ class Stitch(unittest.TestCase):
         waypoints = [k for k, _ in ents if k["classname"] == "waypoint" and k["lwh_deck"] == "6"]
         self.assertGreater(len(waypoints), 50, "a deck that can hold crew has somewhere for them to walk")
 
+    def test_generated_deck_declares_its_lift_edge(self):
+        sys.path.insert(0, os.path.join(ROOT, "tools", "shipmap"))
+        import gendeck
+        # The deck's own source declares a target_level_change carrying a mapname: a new deck with no
+        # edge is unreachable, so it must say where it reaches (docs/authoring-a-location.md).
+        src = gendeck.deck_map(12)
+        self.assertIn('"classname" "target_level_change"', src)
+        self.assertIn('"mapname" "tour/deck04"', src)
+        # After stitching it is a teleporter the turbolift can use, to deck 4's arrival point, and
+        # the reverse edge exists so the new deck is reachable from the lifted decks too.
+        _, ents, report, _ = self.run_stitch({4: deck(), 12: gendeck.deck_map(12)}, pitch=3072)
+        by_name = {k.get("targetname"): k for k, _ in ents}
+        self.assertEqual(by_name["lwh_lift_d12"]["classname"], "target_teleporter")
+        self.assertEqual(by_name["lwh_lift_d12"]["target"], "d04_arrival")
+        self.assertEqual(by_name["d04_tour_turbo_12"]["target"], "d12_arrival")
+        self.assertEqual(report["turbolift_links"], 1)
+
     def test_every_entity_knows_its_deck_and_the_output_parses(self):
         _, ents, report, reparsed = self.run_stitch({1: deck(), 9: deck()})
         self.assertEqual({k["lwh_deck"] for k, _ in ents}, {"1", "9"})
