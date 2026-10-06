@@ -162,7 +162,8 @@ transwarp hub**, and calls it the journey's endgame. It has never been designed.
 
 ## The last stretch
 
-**The counter is the instrument for it.** The estimate is a projection from current capability and the
+**The counter is the instrument for it** — once it exists; it was specified and unbuilt as of 2026-10-06
+(`docs/story-and-semantics.md`, conflict 7). The estimate is a projection from current capability and the
 derivative since the last entry is the story. For most of the run that arrow points the wrong way in small
 amounts. Coming home it turns and turns hard — decades collapsing to years to months — and that single number
 does more emotional work than any content we could author. The crew's excitement should be visible there

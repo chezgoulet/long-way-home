@@ -32,6 +32,9 @@ Three modes, contract in `docs/client-modes.md`:
 - `docs/lore-ledger.md` -- every number claiming to describe Voyager, sourced or marked invented.
 - `docs/confidence-and-verification.md` -- what to trust, and how far. Read before believing anything.
 - `docs/gates.md` -- the ledger: what is closed, what is measured, what is next.
+- `docs/path-to-playtest.md` -- **the ordered path**: which stage of the remainder comes next, each with
+  its exit criteria, and the one decision each of them waits on. The ledger says what is closed; this says
+  in what order the rest is done.
 - `docs/story-and-semantics.md` -- **what the game means and how it should feel.** Read before authoring any
   content: a scenario, a line of dialogue, a system or an ending.
 - `docs/the-record-and-the-log.md` -- the record, the log and the memory as three separate layers; veracity,

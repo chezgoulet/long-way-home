@@ -1,5 +1,8 @@
 # Gate ledger
 
+> What is closed, measured and next. **The order of the remainder is not this document** — it is
+> `docs/path-to-playtest.md`, which owns sequencing while this owns state.
+
 Status of the programme's gates. The charter defines *what* each gate requires; this records *whether*
 it passed, on what evidence, and what is still open.
 

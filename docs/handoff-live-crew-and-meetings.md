@@ -40,15 +40,24 @@ Verified in the tree, not assumed:
 - **The clock already has watches.** `CrewMember::watch` (0 alpha 0800–1600, 1 beta 1600–2400, 2 gamma
   0000–0800) and `ScheduledActivity(watch, secondOfDay)` — a meeting scheduled at a watch change needs no new
   calendar.
-- **The record does not yet have memory and marks.** `struct CrewMember` (`module/ship/ship_core.h:128`) carries
-  name, type, rank, department, watch, post, quarters, status, fatigue, morale, exposure, wounds, severity,
-  recovery, underCare, activity and deck. There is **no `struct Memory`, no valence, no salience, no bond and
-  no allegiance anywhere in `module/`**, and morale is a single 0-to-1 float rather than the three-component
-  record `docs/morale.md` specifies. **M1 therefore creates the memory and bond structures rather than
-  extending them**, and the design to build is `docs/the-record-and-the-log.md`.
-  *(Corrected: this brief previously asserted that the record already had memory and marks, naming a
-  `struct Memory` with source, valence and salience and bonds "already folded from marks". No such code exists
-  anywhere in the tree.)*
+- **The record already has memory and marks — verified against the working tree this time.** `struct Memory`
+  (`module/ship/ship_core.h:213`) is `event · person · source · time · valence · salience`, held on
+  `CrewMember` as a bounded `std::vector<Memory>` with `MEMORY_MAX = 8`; `enum MemorySource` carries exactly the
+  four provenances the design asks for (saw it myself, was told, rumour, read it in the log); `enum MemoryEvent`
+  declares six events (`MEM_DEATH`, `MEM_ORDER`, `MEM_PROMISE`, `MEM_LIE`, `MEM_RESCUE`, `MEM_VIOLATION`);
+  `Remember()` writes, `MemoryDecay()` fades salience, and `Bond(a, b)` folds a relationship out of the marks
+  and is readable from the console as `ship bond <a> <b>`. `CrewMember` also carries `faction` (0 Starfleet,
+  1 Maquis) and the ship carries `resentment`. It has been there since save version 18.
+  **What is thin is the wiring, not the structure:** only five `Remember()` calls exist in the whole module, and
+  of the six declared events just four are ever written — **`MEM_ORDER`, `MEM_PROMISE`, `MEM_LIE` and
+  `MEM_RESCUE` are declared and never produced.** So M1 *extends* the record rather than creating it, and the
+  first work is to give the promise and the lie their writers.
+  *(Two earlier versions of this bullet were wrong in opposite directions. The original asserted that the record
+  already had memory and marks, naming a `struct Memory` and bonds "already folded from marks". A correction then
+  asserted there was no `struct Memory`, no valence, no salience, no bond and no allegiance anywhere in
+  `module/`. That correction was measured by grepping `origin/feature/g3-reactive-crew` at `26b8fa4`, where this
+  work was still uncommitted in the working tree, and it generalised "absent from that commit" into "absent from
+  the project". **A grep against a ref proves what that ref holds, never what the project has.**)*
 - **The arbiter already decides.** `crew_core.h`: `Arbitrate(Signals)` over `LEVEL_SCRIPT 1 > LEVEL_COMBAT 2 >
   LEVEL_DIRECTOR 3 > LEVEL_DUTY 4 > LEVEL_IDLE 5`. **Its order is the charter's rule; deviations are bugs.**
 - **Sound is played from the module by path.** `G_Sound(&g_entities[0], G_SoundIndex("sound/ambience/voyager/
