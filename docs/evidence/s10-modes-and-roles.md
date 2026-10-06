@@ -34,16 +34,73 @@ evidenced by `tests/ship`, with the settings exposed in the game as cvars.
 | In command, the player may operate anything; as Munro, Tactical only, and does not command | rank, clearance and the player |
 | Mode, clock, role, the created character's name and rank, and the wall-clock stamp are in the save | rank, clearance and the player |
 
+## Wall-clock catch-up in the game (2026-10-07)
+
+The catch-up the tests established now runs in the game module. `g_shipTest 20` sets the wall clock
+and calls it:
+
+```
+SHIP: wall-clock test: before, day 0, deuterium 100%
+SHIP: wall-clock test: after two days away, day 2, deuterium 99%
+SHIP: wall-clock test: a year away advanced her to day 32 (capped at 30)
+```
+
+Two days away is two days aboard and the fuel is burned; a year away advances her thirty days, not
+three hundred and sixty-five. On a real load the engine calls the same `CatchUp` with the wall-clock
+time stored in the save (`Ship_Frame`), so this is the code path a session exercises.
+
+## The non-station panels open the ship's screens (2026-10-07)
+
+The panels that are not stations now open Long Way Home's own screens, from the command a map's
+`target_interface` fires (`genericmenu <id>`), exactly as the station panels do:
+
+- a **log** or **padd** terminal opens the ship's log (`ui_lwh_log`, the fourth gap's browsable
+  artifact);
+- a **ready room** or **command** panel opens the command console (`ui_lwh_command`, the standing
+  orders);
+- a **personnel** or **crew** panel opens the personnel screen (`ui_lwh_character`, character
+  creation).
+
+Checked by `scripts/s4-check.sh` (final section, `g_shipTest 23`):
+
+```
+LWH: the log7 terminal opens the ship's log
+LWH: the readyroom panel opens the command console
+LWH: the personnel panel opens the personnel screen
+```
+
+The ids here are the map's, and the ship's own interfaces are named the way the published decks name
+them; where a map uses a different id, it is an authoring fix, not the capability.
+
 ## What S10 still needs
 
-- **Enforcement: clearance and ironman are now enforced in the game** (both below).
-- **Orders are given from a command console** and **a character is created on a personnel screen**
-  (`ui_lwh_command`, `ui_lwh_character`; checked by `scripts/s10-check.sh`). Names are chosen from a
-  short invented list — there is nowhere to type one yet — and neither screen is reached from a
-  panel in the world.
-- **The player's character being the body the player walks in.**
-- **Wall-clock catch-up has run only in tests.** The game calls it on load; no session has spanned
-  a real absence.
+- **The owner's playthrough**, which the gate's exit evidence also names.
+
+## The player's character is the body (2026-10-07)
+
+The player's crew record and clearance were already the player's; the model was still the retail
+Munro. Now `ApplyPlayerBody` (`module/ship/g_ship.cpp`) sets the player's head, torso and legs from
+the crew record when a character is chosen (or the Munro role taken), through the game's own
+`headModel`/`torsoModel`/`legsModel` path — the character's own face, and the uniform their
+department wears (command red, science and medical blue, the rest gold; the female torso has no red
+skin, so a woman of command wears the neutral cut). It runs once a map, and again on `ship body`,
+`ship role` or `ship character`. The Starfleet humanoid models share one animation set, so no anim
+reset is needed. `scripts/playerbody-check.sh` (`g_shipTest 33`) creates a Security character typed
+`tuvok` and reports:
+
+```
+    SHIP: Tuvok Test walks as head tuvok/default, torso crewthin/gold, legs crewthin/default
+PASS  the player's character is the body walked in: the head is the character's, the uniform the department's
+```
+
+A photograph is left behind, but the player is first-person, so it does not show the body; the model
+swap is proven by the game accepting the names (no model-load warning) and is for the owner to see in
+a third-person view. This is off entirely while the simulation is off (`g_ship 0`), so the retail
+campaign is untouched.
+
+The **career** is now reached from a UI too: the command console shows the player's character and a
+field promotion, and the ship's answer is drawn on it (`lwh_ship_promote`); `scripts/promote-check.sh`
+(`g_shipTest 36`) proves the confirmation reaches that cvar.
 
 ## Clearance, enforced in the game (later the same day)
 

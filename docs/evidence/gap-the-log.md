@@ -44,11 +44,23 @@ five facts are present; the scope filters (at least two `hull` entries); and the
 and a load in order. The whole suite passes, as do `test.sh`, `scripts/s2-check.sh`,
 `scripts/s4-check.sh` and `scripts/s10-check.sh`.
 
+## The screen, the names and the captain's log (2026-10-07)
+
+The three items the first slice left are built and tested (`TestLog`, `TestGapCompletions`,
+`scripts/gaps-check.sh`):
+
+- **A browsable screen.** `ui_lwh_log` draws the ship's record newest-first — when, who, scope, what —
+  scrollable, reading `lwh_ship_log`. It is the ready-room terminal the contract names.
+- **Every author.** The log no longer signs events with a subsystem. `AuthorFor` picks the senior fit
+  crew member of the department on duty (damage control is an engineer, an order is the commanding
+  officer, a death is the medical officer); a station's name remains only as a fallback when nobody
+  of that department is on duty. The crew records carry the names.
+- **The captain's log.** `ship captain` prints a summarised artifact in the captain's voice — the day
+  and condition, the crew's state, the systems needing attention, the intruders and the contact —
+  generated from the ship's state, and `ship captain <text>` writes an authored entry under
+  `CommandingOfficer`'s name. It is distinct from the raw feed.
+
 ## What is left for this gap
 
-- **A browsable screen.** The log is a console query; the contract's "browsable artifact" wants a
-  scrollable full-screen log, a ready-room terminal, and the captain's log. The console has the data;
-  the screen needs drawing.
-- **Every author.** Some events are still written by the subsystem ("damage control") rather than a
-  named crew member; the crew records now carry names, so a person can sign them.
-- **The captain's log** as an authored, summarised artifact, distinct from the raw feed.
+- Nothing in the contract. A physical ready-room terminal (a panel in the world that opens the
+  screen) is the ready-room deck-build item, not a gap item.

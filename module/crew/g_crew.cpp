@@ -28,6 +28,12 @@
 #include <string>
 #include <vector>
 
+// The game's own effect spawn functions, used to make damage and fire visible in the world (S6). A
+// spawn function, not a new class: the map's fx_spark and this are the same thing.
+extern void SP_fx_spark( gentity_t *ent );
+extern void SP_fx_smoke( gentity_t *ent );
+extern void SP_fx_electricfire( gentity_t *ent );
+
 extern void NPC_Respond( gentity_t *self, int userNum );
 extern void NPC_SetLookTarget( gentity_t *self, int entNum, int clearTime );
 extern void SP_NPC_starfleet( gentity_t *self );
@@ -720,6 +726,124 @@ void SyncIntruders( void )
 	}
 }
 
+// ---- damage, visible (S6) ---------------------------------------------------------------------
+//
+// Damage must be visible in the world, not only a health number: a system the ship has damaged
+// sparks where it is worked, on the deck the player is on. The tie is one-way and honest -- the
+// ship's own health decides, and repairing the system or leaving the deck puts the sparks out. The
+// spot is the game's own fx_spark, spawned at the station marker (the same marker the crew stand
+// at), so no new art and no new class.
+
+const float DAMAGE_VISIBLE = 0.85f; // below this share of health, a system visibly sparks
+
+struct DamageSpot { int system; int deck; int ent; };
+std::vector<DamageSpot> damageSpots;
+int damageSerial = 0;
+
+void SyncDamage( void )
+{
+	ship::Ship *vessel = Ship_Get();
+	if ( !vessel ) return;
+	const int deck = PlayersDeck();
+	if ( deck < 1 || deck > ship::DECKS ) return;
+
+	// Drop a spot whose system is repaired, or which the player has left, or whose entity is gone.
+	for ( size_t k = 0; k < damageSpots.size(); )
+	{
+		const int ent = damageSpots[k].ent;
+		const bool live = ent > 0 && ent < globals.num_entities && g_entities[ent].inuse;
+		const bool hurt = vessel->systems[damageSpots[k].system].health < DAMAGE_VISIBLE;
+		if ( damageSpots[k].deck != deck || !hurt )
+		{
+			if ( live ) G_FreeEntity( &g_entities[ent] );
+			damageSpots.erase( damageSpots.begin() + k );
+			continue;
+		}
+		if ( !live ) { damageSpots.erase( damageSpots.begin() + k ); continue; }
+		++k;
+	}
+
+	for ( int sys = 0; sys < ship::SYS_COUNT; ++sys )
+	{
+		if ( ship::Spec( static_cast<ship::SystemId>( sys ) ).deck != deck ) continue;
+		if ( vessel->systems[sys].health >= DAMAGE_VISIBLE ) continue;
+		bool have = false;
+		for ( const DamageSpot &d : damageSpots ) if ( d.system == sys ) { have = true; break; }
+		if ( have ) continue;
+		vec3_t at;
+		if ( !StationFor( sys, at ) ) continue; // no marker: nowhere to show it
+		gentity_t *sp = G_Spawn();
+		if ( !sp ) return;
+		G_SetOrigin( sp, at );
+		VectorCopy( at, sp->s.origin );
+		vec3_t angles = { 0, 0, 0 };
+		G_SetAngles( sp, angles );
+		SP_fx_spark( sp );
+		damageSpots.push_back( { sys, deck, static_cast<int>( sp - g_entities ) } );
+		gi.Printf( "CREW: %s is damaged; sparks at %s on deck %d\n",
+			ship::Spec( static_cast<ship::SystemId>( sys ) ).name, vtos( at ), deck );
+	}
+}
+
+// ---- fire, visible (S6) -----------------------------------------------------------------------
+//
+// A burning deck is a deck the player can see burn: smoke (and a little electrical fire) at points
+// across the deck, as many as the fire is strong, put out when the fire is, or when the player
+// leaves. The ship counts the fire; the world shows it. Uses the game's own fx_smoke/fx_electricfire.
+
+const float FIRE_VISIBLE = 0.05f; // below this the fire is not worth drawing
+const int FIRE_SPOT_CAP = 8;
+
+struct FireSpot { int deck; int ent; bool flame; };
+std::vector<FireSpot> fireSpots;
+
+void SyncFire( void )
+{
+	ship::Ship *vessel = Ship_Get();
+	if ( !vessel ) return;
+	const int deck = PlayersDeck();
+	if ( deck < 1 || deck > ship::DECKS ) return;
+	const float fire = vessel->decks[deck - 1].fire;
+
+	for ( size_t k = 0; k < fireSpots.size(); )
+	{
+		const int ent = fireSpots[k].ent;
+		const bool live = ent > 0 && ent < globals.num_entities && g_entities[ent].inuse;
+		if ( fireSpots[k].deck != deck || fire < FIRE_VISIBLE )
+		{
+			if ( live ) G_FreeEntity( &g_entities[ent] );
+			fireSpots.erase( fireSpots.begin() + k );
+			continue;
+		}
+		if ( !live ) { fireSpots.erase( fireSpots.begin() + k ); continue; }
+		++k;
+	}
+	if ( fire < FIRE_VISIBLE ) return;
+
+	const std::vector<int> nodes = DeckNodes( deck );
+	if ( nodes.empty() ) return;
+	const int want = std::min( FIRE_SPOT_CAP, static_cast<int>( std::ceil( fire * FIRE_SPOT_CAP - 1e-3f ) ) );
+	const size_t before = fireSpots.size();
+	while ( static_cast<int>( fireSpots.size() ) < want )
+	{
+		vec3_t at;
+		navigator.GetNodePosition( nodes[fireSpots.size() % nodes.size()], at );
+		gentity_t *sp = G_Spawn();
+		if ( !sp ) return;
+		G_SetOrigin( sp, at );
+		VectorCopy( at, sp->s.origin );
+		vec3_t angles = { 0, 0, 0 };
+		G_SetAngles( sp, angles );
+		const bool flame = ( fireSpots.size() % 3 == 0 ); // one in three is flame, the rest smoke
+		if ( flame ) SP_fx_electricfire( sp );
+		else SP_fx_smoke( sp );
+		fireSpots.push_back( { deck, static_cast<int>( sp - g_entities ), flame } );
+	}
+	if ( fireSpots.size() > before )
+		gi.Printf( "CREW: fire on deck %d (%d%%); %d effects in the world\n", deck,
+			static_cast<int>( fire * 100 + 0.5f ), static_cast<int>( fireSpots.size() ) );
+}
+
 // Declared crew with a type and a position are spawned through the map's own spawner, exactly as
 // an NPC_starfleet entity in the map would be: an existing character, its own model and voice.
 void SpawnDeclaredCrew( void )
@@ -1201,7 +1325,7 @@ void Crew_Frame( void )
 	if ( level.time >= cs.nextScanMs )
 	{
 		cs.nextScanMs = level.time + ROSTER_SCAN_MS;
-		if ( g_crewFromShip->integer ) { SyncShipRoster(); SyncIntruders(); }
+		if ( g_crewFromShip->integer ) { SyncShipRoster(); SyncIntruders(); SyncDamage(); SyncFire(); }
 		ScanRoster();
 	}
 	//Decisions are taken every frame, after every entity has thought. A script that takes an NPC
@@ -1237,20 +1361,63 @@ void Crew_Frame( void )
 	}
 }
 
+void SpeakFromMemory( gentity_t *self ); // defined with the response code, below
+
 // The player used an NPC. Counted as an address only when the game's own rules say a generic
 // response is due -- the same tests NPC_Use and NPC_UseResponse apply -- so an NPC that is
 // rightly silent (mid-script, mid-sentence, hostile) is not scored as having ignored the player.
 void Crew_OnUsed( gentity_t *self, gentity_t *user )
 {
-	const int i = MemberIndex( self );
-	if ( i < 0 || !user || user->s.number != 0 || !self->NPC || !self->client || !user->client ) return;
-	if ( self->behaviorSet[BSET_USE] || self->enemy || gi.S_Override[self->s.number] ) return;
+	if ( !user || user->s.number != 0 || !self->NPC || !self->client || !user->client ) return;
+	if ( self->enemy || gi.S_Override[self->s.number] ) return;
 	if ( ( self->NPC->scriptFlags & SCF_NO_RESPONSE ) || self->NPC->blockedSpeechDebounceTime > level.time ) return;
 	if ( self->client->playerTeam != user->client->playerTeam ) return;
-	if ( cs.members[i].addressedMs >= 0 ) return;
 
+	// The player has addressed them: they answer from what they remember, whichever way the game's
+	// own use behaviour then goes. (Ship-embodied crew are not the layer's own members, so this runs
+	// before the member lookup; the acknowledgement bookkeeping needs a member and follows.)
+	SpeakFromMemory( self );
+
+	const int i = MemberIndex( self );
+	if ( i < 0 ) return;
+	if ( self->behaviorSet[BSET_USE] ) return;
+	if ( cs.members[i].addressedMs >= 0 ) return;
 	cs.members[i].addressedMs = level.time;
 	++cs.st.addresses;
+}
+
+// The crew member's account, drawn from their strongest mark -- what they say when the player
+// addresses them. This is the memory model reaching dialogue, not only the log: the line is theirs.
+std::string AccountLine( const ship::Ship &s, const ship::CrewMember &c )
+{
+	const ship::Memory *best = NULL;
+	for ( const ship::Memory &mk : c.memories )
+		if ( mk.event != 0 && ( !best || mk.salience > best->salience ) ) best = &mk;
+	if ( !best ) return "All quiet, Captain.";
+	const bool about = best->person >= 0 && best->person < static_cast<int>( s.crew.size() );
+	const char *who = about ? s.crew[best->person].name.c_str() : "them";
+	switch ( best->event )
+	{
+	case ship::MEM_DEATH:     return Fmt( "We lost %s. I still think about it.", who );
+	case ship::MEM_ORDER:     return "Your order still stands.";
+	case ship::MEM_PROMISE:   return "You gave me your word. I am holding you to it.";
+	case ship::MEM_LIE:       return "You told me one thing and did another.";
+	case ship::MEM_RESCUE:    return "You came back for us. I have not forgotten.";
+	case ship::MEM_VIOLATION: return "We crossed a line out there. People will remember.";
+	}
+	return "All quiet, Captain.";
+}
+
+void SpeakFromMemory( gentity_t *self )
+{
+	ship::Ship *s = Ship_Get();
+	if ( !s || !self->fullName ) return;
+	for ( size_t k = 0; k < s->crew.size(); ++k )
+		if ( s->crew[k].name == self->fullName )
+		{
+			gi.Printf( "CREW: %s says: \"%s\"\n", s->crew[k].name.c_str(), AccountLine( *s, s->crew[k] ).c_str() );
+			return;
+		}
 }
 
 void Crew_OnResponded( gentity_t *self )

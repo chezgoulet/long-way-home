@@ -132,6 +132,7 @@ static void TestHullBreach()
 {
 	g_test = "a breached deck vents, and only that deck";
 	Ship s = NewShip();
+	s.stores.spareParts = 0.0f; // no parts: the crew cannot seal it, so the deck stays open
 	BreachDeck(s, 9, 1.0f);
 	Tick(s, Hours(s, 0.05f)); // three minutes
 	CHECK(s.decks[8].atmosphere < 0.6f && s.decks[8].atmosphere > 0.2f);
@@ -376,7 +377,7 @@ static void TestSave()
 	Tick(s, Hours(s, 5.5f));
 
 	const std::vector<uint8_t> blob = Pack(s);
-	CHECK(blob.size() < 8192); // the whole ship and its 141 crew
+	CHECK(blob.size() < 65536); // the whole ship, its 141 crew, and their bounded memories
 	Ship back;
 	CHECK(Unpack(blob.data(), blob.size(), back));
 	CHECK(Pack(back) == blob);
@@ -460,6 +461,7 @@ static void TestCasualties()
 {
 	g_test = "casualties";
 	Ship s = NewShip();
+	s.stores.spareParts = 0.0f; // no parts: the hull cannot be sealed while we watch the attrition
 	Tick(s, 1.0f);
 	const int onEleven = static_cast<int>(CrewOnDeck(s, 11).size());
 	CHECK(onEleven >= 5);
@@ -512,6 +514,23 @@ static void TestCasualties()
 	CHECK(CrewOnDeck(held, 1).size() < CrewOnDeck(NewShip(), 1).size() + 1);
 }
 
+// S6's second injury cause: radiation from a failing reactor hurts the engineering watch.
+static void TestRadiation()
+{
+	g_test = "radiation from a failing core";
+	Ship rad = NewShip();
+	rad.stores.spareParts = 0.0f;              // the core cannot be mended out from under the check
+	DamageSource(rad, SRC_WARP_CORE, 0.8f);    // the reactor is at a fifth
+	Ship ok = NewShip();
+	Tick(rad, Hours(rad, 0.1f));               // six minutes on deck 11
+	Tick(ok, Hours(ok, 0.1f));
+	int hurt = 0, clean = 0;
+	for (const CrewMember &c : rad.crew) if (c.status == CREW_INJURED) ++hurt;
+	for (const CrewMember &c : ok.crew) if (c.status == CREW_INJURED) ++clean;
+	CHECK(hurt > 0);       // the engineering watch was irradiated
+	CHECK(clean == 0);     // a whole core is clean
+}
+
 // The triage gap: more casualties than beds is a decision, not a queue that clears itself.
 static void TestTriage()
 {
@@ -551,7 +570,9 @@ static void TestTriage()
 	CHECK(careRank >= waitRank);
 
 	// Waiting without treatment kills: no supplies means the ward only holds, so the untreated die.
+	// (The replicators restock supplies -- the triage gap's control -- so they are stood down first.)
 	Ship t = NewShip();
+	SetEnabled(t, SYS_REPLICATORS, false);
 	t.stores.medicalSupplies = 0.0f;
 	for (CrewMember &c : t.crew) { if (c.status != CREW_FIT) continue; c.status = CREW_INJURED; c.severity = 0.4f; }
 	Tick(t, Hours(t, 30.0f));
@@ -836,12 +857,14 @@ static void TestBorg()
 	CHECK(s.systems[SYS_SENSORS].control == 0.0f);
 
 	// Drive them off (vent the deck): the drones die, and the deck is still Borg.
+	s.stores.spareParts = 0.0f; // no parts: the crew cannot seal the breach and spoil the vent
 	BreachDeck(s, 8, 1.0f);
 	Tick(s, Hours(s, 1.0f));
 	CHECK(s.decks[7].intruders == 0.0f && !s.decks[7].borg);
 	CHECK(DeckAssimilated(s, 8) && Hijacked(s, SYS_SENSORS));
 
 	// Seal it, and the engineers strip it: hours and parts. Only then do its systems answer.
+	s.stores.spareParts = 100.0f; // the parts the strip will need
 	RepairDeck(s, 8, 1.0f);
 	for (int d = 0; d < DECKS; ++d) { s.decks[d].intruders = 0.0f; s.decks[d].borg = false; } // (any that had moved on)
 	const float parts = s.stores.spareParts;
@@ -968,6 +991,8 @@ static void TestCombat()
 	GoTo(s, hostile - 1);
 	s.enemy = Enemy();
 	CHECK(Jump(s, hostile));
+	s.enemy.kind = ENEMY_RAIDER; s.enemy.firepower = 0.25f; // the standard raider, for a stable fight
+	s.contact2 = Enemy();                                    // and no wingman, so the fight is the one fight
 	CHECK(InCombat(s) && s.enemy.hull == 1.0f && s.enemy.shields == 1.0f);
 
 	// At condition green the weapons are stood down: we do them no harm and our shields are not up.
@@ -992,9 +1017,13 @@ static void TestCombat()
 	Tick(s, Hours(s, 20.0f / 60.0f));
 	CHECK(!InCombat(s) && s.enemy.hull == 0.0f);
 	CHECK(!FireTorpedo(s) && s.stores.torpedoes == torpedoes - 1); // nothing left to shoot at
-	const float hullAfter = s.decks[0].hull + s.decks[7].hull + s.decks[14].hull;
+	// The firing has stopped: no system takes new damage. (Hulls and fires may still be settling.)
+	int systemsHurt = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) if (s.systems[i].health < 1.0f) ++systemsHurt;
 	Tick(s, Hours(s, 10.0f / 60.0f));
-	CHECK(s.decks[0].hull + s.decks[7].hull + s.decks[14].hull == hullAfter); // the firing has stopped
+	int systemsHurtAfter = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) if (s.systems[i].health < 1.0f) ++systemsHurtAfter;
+	CHECK(systemsHurtAfter <= systemsHurt);
 
 	// The fight is decided by the ship's systems: with the phasers wrecked, time alone does not win it.
 	Ship weak = NewShip();
@@ -1002,6 +1031,7 @@ static void TestCombat()
 	GoTo(weak, hostile - 1);
 	weak.enemy = Enemy();
 	Jump(weak, hostile);
+	weak.enemy.kind = ENEMY_RAIDER; weak.enemy.firepower = 0.25f;
 	SetAlert(weak, ALERT_RED);
 	DamageSystem(weak, SYS_PHASERS, 1.0f);
 	weak.stores.spareParts = 0.0f;
@@ -1033,6 +1063,7 @@ static void TestCombat()
 	GoTo(w, hostile - 1);
 	w.enemy = Enemy();
 	Jump(w, hostile);
+	w.enemy.kind = ENEMY_RAIDER; w.enemy.firepower = 0.25f; w.contact2 = Enemy();
 	SetAlert(w, ALERT_RED);
 	Tick(w, Hours(w, 3.0f / 60.0f));
 	const std::vector<uint8_t> blob = Pack(w);
@@ -1043,6 +1074,1440 @@ static void TestCombat()
 	Tick(w, Hours(w, 5.0f / 60.0f));
 	Tick(back, Hours(back, 5.0f / 60.0f));
 	CHECK(Describe(back) == Describe(w));
+}
+
+static void StartFightTest(Ship &s);
+
+// S9: more than one contact at a time.
+static void TestMultipleContacts()
+{
+	g_test = "more than one contact";
+	auto setFight = [](Ship &x) {
+		Tick(x, 1.0f);
+		x.enemy = Enemy();
+		x.enemy.present = true; x.enemy.kind = ENEMY_RAIDER;
+		x.enemy.hull = 1.0f; x.enemy.shields = 1.0f; x.enemy.weapons = 1.0f; x.enemy.firepower = 0.25f;
+	};
+	Ship a = NewShip(); setFight(a);
+	Ship b = NewShip(); setFight(b); b.contact2 = b.enemy; // a wingman joins
+	Tick(a, Hours(a, 0.4f));
+	Tick(b, Hours(b, 0.4f));
+	float ha = 0.0f, hb = 0.0f;
+	for (int i = 0; i < SYS_COUNT; ++i) { ha += a.systems[i].health; hb += b.systems[i].health; }
+	CHECK(hb < ha); // two contacts firing do more damage than one
+
+	// Destroy the primary and the wingman becomes the primary.
+	Ship c = NewShip(); setFight(c); c.contact2 = c.enemy;
+	c.enemy.hull = 0.0f;
+	Tick(c, 0.01f);
+	CHECK(!c.contact2.present && c.enemy.present && c.enemy.hull > 0.0f);
+
+	// A wingman survives a save.
+	Tick(b, 0.0f); // recompute the derived counts from the final fires, as the game does after a change
+	std::vector<uint8_t> blob = Pack(b);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.contact2.present == b.contact2.present);
+	CHECK(std::fabs(back.contact2.hull - b.contact2.hull) < 1e-4f && Describe(back) == Describe(b));
+}
+
+// S9, full: an opponent with systems of its own, choices at a beacon, pursuit, and an end to reach.
+static void TestEnemySystemsAndOutsideChoices()
+{
+	g_test = "the outside: enemy systems, choices, pursuit, and an end";
+
+	// An enemy has systems: Tactical targets one, and breaking it changes what the enemy can do.
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int hostile = FirstOfKind(s, BEACON_HOSTILE);
+	CHECK(hostile > 0);
+	GoTo(s, hostile - 1);
+	s.enemy = Enemy();
+	Jump(s, hostile);
+	s.enemy.kind = ENEMY_RAIDER; s.enemy.firepower = 0.25f; s.enemy.shieldGen = 0.0f; s.enemy.shields = 0.0f;
+	s.contact2 = Enemy();
+	SetTarget(s, TARGET_WEAPONS);
+	CHECK(Target(s) == TARGET_WEAPONS && std::string(EnemySubsystemName(TARGET_WEAPONS)) == "its weapons");
+	SetAlert(s, ALERT_RED);
+	const float hullBefore = s.enemy.hull;
+	Tick(s, Hours(s, 6.0f));
+	CHECK(s.enemy.weapons < 1.0f);          // its weapons are broken down
+	CHECK(std::fabs(s.enemy.hull - hullBefore) < 0.05f); // and its hull, untargeted, is barely touched
+	Ship other = NewShip();                 // a warship answers harder than a raider
+	CHECK(std::string(EnemyKindName(ENEMY_WARSHIP)) == "a warship" && std::string(EnemyKindName(ENEMY_BORG_VESSEL)) == "a Borg vessel");
+
+	// Choices at a beacon: trade, answer a distress call, hail, run.
+	Ship t = NewShip();
+	CHECK(!Trade(t)); // nothing to trade with in empty space
+	t.sector[t.beacon].kind = BEACON_TRADER;
+	t.sector[t.beacon].visited = false;
+	t.stores.rations = 10.0f;
+	const float partsBefore = t.stores.spareParts, ratBefore = t.stores.rations;
+	CHECK(Trade(t) && t.stores.spareParts < partsBefore && t.stores.rations > ratBefore);
+	Ship d = NewShip();
+	d.beacon = 4;                            // even: a wreck to help, not a trap
+	d.sector[4].kind = BEACON_DISTRESS; d.sector[4].visited = false;
+	d.stores.medicalSupplies = 50.0f;
+	const float medBefore = d.stores.medicalSupplies;
+	CHECK(AnswerDistress(d) && d.stores.medicalSupplies > medBefore);
+	Ship trap = NewShip();
+	trap.beacon = 5;                         // odd: a trap
+	trap.sector[5].kind = BEACON_DISTRESS; trap.sector[5].visited = false;
+	CHECK(AnswerDistress(trap) && InCombat(trap));
+	Ship h = NewShip();
+	h.sector[h.beacon].kind = BEACON_HOSTILE; h.sector[h.beacon].visited = false;
+	CHECK(Hail(h) && InCombat(h));           // a hostile answers with its weapons
+
+	// Pursuit: a raider whose engines survived follows us, and repairs suffer while it does.
+	Ship p = NewShip();
+	p.beacon = 1;
+	StartFightTest(p);
+	Tick(p, Hours(p, 0.1f));
+	CHECK(Pursued(p) && PursuitJumps(p) > 0);
+	const int behind = PursuitJumps(p);
+	CHECK(Jump(p, p.sector[p.beacon].links.front()) && PursuitJumps(p) == behind - 1);
+	// A damaged system mends more slowly with a raider behind us.
+	Ship fast = NewShip(); DamageSystem(fast, SYS_SENSORS, 0.5f); Tick(fast, Hours(fast, 1.0f));
+	Ship slow = NewShip(); slow.pursued = true; DamageSystem(slow, SYS_SENSORS, 0.5f); Tick(slow, Hours(slow, 1.0f));
+	CHECK(slow.systems[SYS_SENSORS].health < fast.systems[SYS_SENSORS].health);
+
+	// An end to reach: the sector's last beacon ends it; crossing three sectors wins.
+	Ship e = NewShip();
+	GoTo(e, SECTOR_BEACONS - 1);
+	CHECK(AtEnd(e));
+	CHECK(AdvanceSector(e) && SectorNumber(e) == 1 && e.beacon == 0 && !AtEnd(e));
+	e.beacon = SECTOR_BEACONS - 1; e.reachedEnd = true;
+	CHECK(AdvanceSector(e) && SectorNumber(e) == 2);
+	e.beacon = SECTOR_BEACONS - 1; e.reachedEnd = true;
+	CHECK(AdvanceSector(e) && Won(e));
+	CHECK(!AdvanceSector(e)); // nothing left to cross
+
+	// It is all in the save.
+	Ship w = NewShip();
+	w.target = TARGET_ENGINES; w.pursued = true; w.pursuitJumps = 2; w.sectorNumber = 1; w.reachedEnd = true;
+	std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.target == TARGET_ENGINES && back.pursued && back.pursuitJumps == 2);
+	CHECK(back.sectorNumber == 1 && back.reachedEnd && Describe(back) == Describe(w));
+}
+
+// A smallest fight at the ship's beacon: a raider already breaking up, engines intact, so it flees.
+static void StartFightTest(Ship &s)
+{
+	s.enemy.present = true;
+	s.enemy.kind = ENEMY_RAIDER;
+	s.enemy.hull = 0.1f;
+	s.enemy.shields = 1.0f;
+	s.enemy.engines = 1.0f;
+	s.enemy.weapons = 1.0f;
+	s.enemy.firepower = 0.25f;
+}
+
+// The backlog's first items: the tractor beam and salvage as the door to a materials economy, and the
+// three travel systems each gating or risking a jump; and the EMH.
+static void TestMaterialsAndTravel()
+{
+	g_test = "the materials economy, travel systems and the EMH";
+
+	// A derelict is stripped with the tractor: parts and raw material, once.
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int derelict = FirstOfKind(s, BEACON_DERELICT);
+	if (derelict > 0) {
+		GoTo(s, derelict - 1);
+		s.enemy = Enemy();
+		Jump(s, derelict);                 // the quick look yields parts (S9)
+		const float matBefore = s.stores.materials, partsBefore = s.stores.spareParts;
+		CHECK(TractorWreck(s));            // the hold strips it fully
+		CHECK(s.stores.materials == matBefore + SALVAGE_MATERIALS && s.stores.spareParts == partsBefore + SALVAGE_PARTS);
+		CHECK(!TractorWreck(s));           // once
+		// With the tractor down, nothing to strip.
+		Ship t = NewShip();
+		t.sector[t.beacon].kind = BEACON_DERELICT;
+		SetEnabled(t, SYS_TRACTOR_BEAM, false);
+		Tick(t, 1.0f);
+		CHECK(!TractorWreck(t));
+	}
+
+	// Fabrication: with the replicators running, material becomes spare parts.
+	Ship f = NewShip();
+	Tick(f, 1.0f);
+	f.stores.materials = 30.0f;
+	const float parts = f.stores.spareParts;
+	CHECK(FabricateParts(f, 12) && f.stores.materials == 18.0f && f.stores.spareParts == parts + 12.0f);
+	CHECK(!FabricateParts(f, 100));        // not enough material
+	SetEnabled(f, SYS_REPLICATORS, false);
+	SetAlert(f, ALERT_RED);
+	Tick(f, 1.0f);
+	CHECK(!FabricateParts(f, 5));          // no replicators, no fabrication
+
+	// The tractor beam holds a contact so it cannot break off.
+	Ship h = NewShip();
+	h.beacon = 1;
+	StartFightTest(h);                     // a raider with hull going, engines intact
+	Tick(h, Hours(h, 0.1f));
+	CHECK(Held(h) == false && Pursued(h)); // it ran
+	Ship lock = NewShip();
+	lock.beacon = 1;
+	StartFightTest(lock);
+	CHECK(TractorHold(lock) && Held(lock));
+	Tick(lock, Hours(lock, 0.1f));
+	CHECK(InCombat(lock) && !Pursued(lock)); // held: it cannot run
+	CHECK(!TractorHold(lock));             // release
+	Tick(lock, Hours(lock, 0.1f));
+	CHECK(Pursued(lock));                  // now it runs
+
+	// The travel systems: safe with all three, and a weak drive costs on the jump.
+	CHECK(TravelSafe(NewShip()));
+	Ship d = NewShip();
+	DamageSystem(d, SYS_NAV_DEFLECTOR, 1.0f);
+	d.stores.spareParts = 0.0f;
+	Tick(d, 1.0f); Tick(d, 1.0f);
+	CHECK(!TravelSafe(d));
+	const int deck = static_cast<int>((d.hits + 3u) % DECKS) + 1;
+	CHECK(Jump(d, d.sector[d.beacon].links.front()));
+	CHECK(d.decks[deck - 1].hull < 1.0f);  // dust through the weak deflector
+	Ship m = NewShip();
+	DamageSystem(m, SYS_INERTIAL_DAMPERS, 1.0f);
+	m.stores.spareParts = 0.0f;
+	Tick(m, 1.0f); Tick(m, 1.0f);
+	int before = 0;
+	for (const CrewMember &c : m.crew) if (c.status == CREW_INJURED) ++before;
+	CHECK(Jump(m, m.sector[m.beacon].links.front()));
+	int after = 0;
+	for (const CrewMember &c : m.crew) if (c.status == CREW_INJURED) ++after;
+	CHECK(after > before);                 // the jump shook the crew
+
+	// The EMH: with the medical staff dead and no sickbay, the program keeps the ward going.
+	Ship e = NewShip();
+	for (CrewMember &c : e.crew) if (c.dept == DEPT_MEDICAL) c.status = CREW_DEAD;
+	SetEnabled(e, SYS_SICKBAY, false);
+	Tick(e, 1.0f);                         // let the sickbay's output fall to zero first
+	e.crew[3].status = CREW_INJURED;
+	e.crew[3].severity = 0.5f;
+	Tick(e, Hours(e, 2.0f));
+	CHECK(e.crew[3].recovery == 0.0f);     // nobody to treat them
+	CHECK(ActivateEMH(e, true) && EMHActive(e));
+	Tick(e, Hours(e, 2.0f));
+	CHECK(e.crew[3].recovery > 0.0f);      // the hologram does
+	e.stores.spareParts = 0.0f;            // so the core cannot be mended out from under the check
+	DamageSystem(e, SYS_COMPUTER_CORE, 1.0f);
+	Tick(e, 1.0f);
+	CHECK(!EMHActive(e));                  // a hologram needs the computer
+
+	// The galley: material becomes food, so a crew out of rations can eat again.
+	Ship galley = NewShip();
+	galley.stores.materials = 20.0f;
+	galley.stores.rations = 10.0f;
+	CHECK(FabricateRations(galley, 10) && galley.stores.rations == 20.0f && galley.stores.materials == 10.0f);
+	CHECK(!FabricateRations(galley, 100));
+	// The Maquis split is a drag: half a crew at odds with the other half is worse than a united one.
+	Ship united = NewShip(), split = NewShip();
+	for (int i = 0; i < static_cast<int>(split.crew.size()); ++i) split.crew[i].faction = static_cast<uint8_t>(i % 2);
+	Tick(united, Hours(united, 24.0f));
+	Tick(split, Hours(split, 24.0f));
+	float um = 0.0f, sm = 0.0f;
+	for (const CrewMember &c : united.crew) if (c.status == CREW_FIT) um += c.morale;
+	for (const CrewMember &c : split.crew) if (c.status == CREW_FIT) sm += c.morale;
+	CHECK(sm < um);
+
+	// It is all in the save.
+	Ship w = NewShip();
+	w.stores.materials = 33.0f;
+	w.emhActive = true;
+	w.enemyHeld = true;
+	w.sector[w.beacon].looted = true;
+	std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.stores.materials == 33.0f && back.emhActive && back.enemyHeld);
+	CHECK(back.sector[w.beacon].looted && Describe(back) == Describe(w));
+}
+
+// The crew and ship tied together: training and credentials, the brig, a funeral, the player's career
+// and body, and the Borg's adaptation.
+static void TestCrewJusticeAndBorg()
+{
+	g_test = "credentials, the brig, grief, the career and the Borg's adaptation";
+
+	// A credential lets a crew member operate a station their department does not own.
+	Ship s = NewShip();
+	int scientist = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].dept == DEPT_SCIENCES && s.crew[i].rank < 4 && s.crew[i].status == CREW_FIT && s.crew[i].post == SYS_COUNT) { scientist = i; break; }
+	CHECK(scientist >= 0);
+	CHECK(!MayOperate(s.crew[scientist], STN_TACTICAL));
+	CHECK(Train(s, scientist, STN_TACTICAL) && Qualified(s.crew[scientist], STN_TACTICAL));
+	CHECK(MayOperate(s.crew[scientist], STN_TACTICAL));       // trained: may now work Tactical
+	CHECK(!Train(s, scientist, STN_TACTICAL));                // already qualified
+
+	// The brig: confined, a crew member operates nothing and stands no watch.
+	CHECK(Brig(s, scientist, true) && Brigged(s, scientist));
+	CHECK(!MayOperate(s.crew[scientist], STN_TACTICAL));
+	Tick(s, 1.0f);
+	CHECK(s.crew[scientist].activity != ACT_ON_DUTY);
+	CHECK(Brig(s, scientist, false) && !Brigged(s, scientist));
+
+	// A funeral lifts the crew, and only whoever commands holds one.
+	Ship f = NewShip();
+	for (CrewMember &c : f.crew) c.morale = 0.3f;
+	CHECK(!HoldFuneral(f));                                   // nobody in particular
+	SetRole(f, ROLE_IN_COMMAND);
+	const float before = f.crew[0].morale;
+	CHECK(HoldFuneral(f) && f.crew[0].morale > before);
+
+	// Grief: a death is notified and the quarters sealed; the funeral opens them again. A crew member
+	// asleep on a deck that loses its air dies (their quarters are there, so the injured stay in it).
+	Ship d = NewShip();
+	d.decks[8].atmosphere = 0.0f;
+	d.decks[8].hull = 0.0f;
+	d.crew[50].watch = 1; d.crew[50].post = SYS_COUNT; d.crew[50].quartersDeck = 9; // off duty, asleep there
+	Tick(d, Hours(d, 0.12f)); // past EXPOSURE_KILLS
+	CHECK(d.crew[50].status == CREW_DEAD && d.crew[50].quartersSealed);
+	int sealed = 0;
+	for (const CrewMember &c : d.crew) if (c.quartersSealed) ++sealed;
+	CHECK(sealed >= 1);
+	SetRole(d, ROLE_IN_COMMAND);
+	CHECK(HoldFuneral(d));
+	for (const CrewMember &c : d.crew) CHECK(!c.quartersSealed);
+
+	// The career: a promotion within the complement, by whoever commands.
+	Ship p = NewShip();
+	const int who = CreateCharacter(p, "Ensign Reyes", DEPT_ENGINEERING, 1);
+	CHECK(who >= 0);
+	const uint8_t was = p.crew[who].rank;
+	SetRole(p, ROLE_IN_COMMAND);
+	CHECK(Promote(p, who) && p.crew[who].rank == was + 1);
+	CHECK(!PlayerIncapacitated(p));
+	p.crew[who].status = CREW_INJURED;
+	CHECK(PlayerIncapacitated(p));                            // the player's body is a crew record
+
+	// The Borg adapt: the same fire does less to a cube than to a raider.
+	auto HurtAfter = [](Ship &sh, EnemyKind kind) {
+		Tick(sh, 1.0f);
+		const int hostile = FirstOfKind(sh, BEACON_HOSTILE);
+		GoTo(sh, hostile - 1);
+		sh.enemy = Enemy();
+		Jump(sh, hostile);
+		sh.enemy.kind = kind; sh.enemy.borg = kind == ENEMY_BORG_VESSEL;
+		sh.enemy.shields = 0.0f; sh.enemy.shieldGen = 0.0f; sh.enemy.firepower = 0.0f;
+		SetAlert(sh, ALERT_RED);
+		Tick(sh, Hours(sh, 10.0f));
+		return sh.enemy.hull;
+	};
+	Ship raider = NewShip(), cube = NewShip();
+	const float raiderHull = HurtAfter(raider, ENEMY_RAIDER);
+	const float cubeHull = HurtAfter(cube, ENEMY_BORG_VESSEL);
+	CHECK(cubeHull > raiderHull);                             // the Borg take less after adapting
+	CHECK(cube.enemy.adaptation > 0.0f);
+
+	// It is all in the save.
+	Tick(f, 0.0f); // derive manning with the funeral's morale, as the game does after an order
+	std::vector<uint8_t> blob = Pack(f);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.crew[0].faction == f.crew[0].faction && back.crew[0].credentials == f.crew[0].credentials);
+	CHECK(Describe(back) == Describe(f));
+}
+
+// The memory model (docs/memory-and-consequence.md): bounded marks with provenance, decay, bonds.
+static void TestMemoryAndConsequence()
+{
+	g_test = "memory and consequence";
+
+	Ship s = NewShip();
+	// A mark is held with its provenance; a character who was not told does not hold it.
+	Remember(s, 0, MEM_DEATH, 5, MEM_SAW, -0.8f);
+	CHECK(Recall(s.crew[0], MEM_DEATH) && RecallSource(s.crew[0], MEM_DEATH) == MEM_SAW);
+	CHECK(!Recall(s.crew[1], MEM_DEATH));           // not present, not told: does not know
+	Brief(s, MEM_DEATH, -0.4f);                      // command tells the crew
+	CHECK(Recall(s.crew[1], MEM_DEATH) && RecallSource(s.crew[1], MEM_DEATH) == MEM_TOLD);
+
+	// Telling the same thing again reinforces the mark rather than duplicating it.
+	const int before = MemoryCount(s.crew[0]);
+	Remember(s, 0, MEM_DEATH, 5, MEM_SAW, -0.8f);
+	CHECK(MemoryCount(s.crew[0]) == before);
+
+	// Bonds: remembered valence toward a person, positive and negative.
+	Remember(s, 2, MEM_RESCUE, 3, MEM_SAW, 0.9f);
+	Remember(s, 4, MEM_LIE, 3, MEM_TOLD, -0.9f);
+	CHECK(Bond(s, 2, 3) > 0.5f);                     // a rescue remembered
+	CHECK(Bond(s, 4, 3) < -0.5f);                    // a lie remembered
+	CHECK(Bond(s, 0, 3) == 0.0f);                    // nothing between these two
+
+	// The store is bounded: over the cap, the least salient (oldest on a tie) falls off.
+	Ship b = NewShip();
+	for (uint16_t e = 100; e < 110; ++e) { Remember(b, 0, e, -1, MEM_SAW, -0.1f); Tick(b, 1.0f); }
+	CHECK(MemoryCount(b.crew[0]) == MEMORY_MAX);
+	CHECK(!Recall(b.crew[0], 100));                  // the first, least salient, was evicted
+
+	// Salience decays with time.
+	float sal = 0.0f;
+	for (const Memory &m : b.crew[0].memories) sal = std::max(sal, m.salience);
+	Tick(b, Hours(b, 10.0f));
+	float sal2 = 0.0f;
+	for (const Memory &m : b.crew[0].memories) sal2 = std::max(sal2, m.salience);
+	CHECK(sal2 < sal);
+
+	// The director reads the marks: one person's story reaches the log.
+	Ship dr = NewShip();
+	Remember(dr, 7, MEM_DEATH, 5, MEM_SAW, -1.0f);
+	Tick(dr, Hours(dr, 6.0f));
+	bool told = false;
+	for (const LogEntry &e : dr.log) if (e.what.find(dr.crew[7].name + " is still carrying what happened") != std::string::npos) told = true;
+	CHECK(told);
+
+	// And it is all in the save.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(Recall(back.crew[0], MEM_DEATH) && Recall(back.crew[1], MEM_DEATH));
+	CHECK(RecallSource(back.crew[1], MEM_DEATH) == MEM_TOLD);
+	CHECK(std::fabs(Bond(back, 2, 3) - Bond(s, 2, 3)) < 1e-4f);
+	CHECK(Pack(back) == blob);
+}
+
+// The backlog, continued: resource acquisition (mining a belt), population pressure (refugees), and
+// justice (a hearing).
+static void TestResourcesAndPressure()
+{
+	g_test = "resource belts, refugees and the hearing";
+
+	// A belt yields material and fuel once, with a tractor or sensors to reach it.
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int belt = FirstOfKind(s, BEACON_BELT);
+	if (belt > 0) {
+		GoTo(s, belt - 1);
+		s.enemy = Enemy();
+		Jump(s, belt);
+		const float mat = s.stores.materials, deut = s.stores.deuterium;
+		CHECK(MineBelt(s) && s.stores.materials == mat + BELT_MATERIALS && s.stores.deuterium > deut);
+		CHECK(!MineBelt(s)); // worked out
+	}
+	Ship none = NewShip();
+	none.sector[none.beacon].kind = BEACON_BELT;
+	SetEnabled(none, SYS_TRACTOR_BEAM, false);
+	SetEnabled(none, SYS_SENSORS, false);
+	Tick(none, 1.0f);
+	CHECK(!MineBelt(none));
+
+	// Refugees eat and crowd the ship: fewer rations and lower morale than a ship without them.
+	Ship empty = NewShip(), full = NewShip();
+	empty.stores.rations = 60.0f; full.stores.rations = 60.0f;
+	CHECK(TakeSurvivors(full, 40) && Refugees(full) == 40);
+	Tick(empty, Hours(empty, 24.0f));
+	Tick(full, Hours(full, 24.0f));
+	CHECK(full.stores.rations < empty.stores.rations);
+	float em = 0.0f, fm = 0.0f;
+	for (const CrewMember &c : empty.crew) if (c.status == CREW_FIT) em += c.morale;
+	for (const CrewMember &c : full.crew) if (c.status == CREW_FIT) fm += c.morale;
+	CHECK(fm < em);
+
+	// A hearing releases the innocent, and a conviction keeps them confined.
+	Ship h = NewShip();
+	CHECK(Brig(h, 12, true));
+	CHECK(!Hearing(h, 12, true) || Brigged(h, 12)); // convicted: still in the brig
+	CHECK(Brig(h, 13, true));
+	CHECK(Hearing(h, 13, false) && !Brigged(h, 13)); // acquitted: released
+	CHECK(!Hearing(h, 5, false));                    // nobody by that number is confined
+
+	// It is all in the save.
+	std::vector<uint8_t> blob = Pack(full);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.refugees == 40 && Describe(back) == Describe(full));
+}
+
+// Phenomena: an anomaly with hidden attributes, revealed one scan at a time, with a correct response
+// that depends on the set revealed (docs/exploration-and-science.md).
+static void TestPhenomenon()
+{
+	g_test = "phenomena: hidden attributes, one scan at a time, and the right response";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_RED);
+	Tick(s, 1.0f);
+	int ph = -1;
+	for (int i = 0; i < static_cast<int>(s.sector.size()); ++i) if (s.sector[i].phenomenon) ph = i;
+	CHECK(ph >= 0);
+	GoTo(s, ph);
+	CHECK(RevealPhenomenon(s) == 1);
+	CHECK(RevealPhenomenon(s) == 2);
+	CHECK(RevealPhenomenon(s) == 3);
+	CHECK((s.sector[ph].phenomAttrs & 0x7) == 0x7); // all three known
+	CHECK(RevealPhenomenon(s) == 3);                 // scanning a resolved phenomenon is a no-op
+	// The correct response is a function of the three attribute values: it can only be worked out
+	// once they are all resolved (docs/exploration-and-science.md).
+	const int vsum = s.sector[ph].phenomAttrVal[0] + s.sector[ph].phenomAttrVal[1] + s.sector[ph].phenomAttrVal[2];
+	CHECK(s.sector[ph].phenomTruth == vsum % PHENOM_RESPONSE_COUNT);
+
+	// The sensors are the instrument: dark, no attribute is resolved.
+	s.sector[ph].phenomAttrs = 1;
+	SetEnabled(s, SYS_SENSORS, false);
+	Tick(s, 1.0f);
+	CHECK(RevealPhenomenon(s) == -1);
+	SetEnabled(s, SYS_SENSORS, true);
+	Tick(s, 1.0f);
+
+	// The correct response is the science reward; a wrong one is damage the crew can watch.
+	const int truth = s.sector[ph].phenomTruth;
+	const float mat = s.stores.materials;
+	CHECK(RespondPhenomenon(s, truth) && s.stores.materials > mat);
+	const int wrong = (truth + 1) % PHENOM_RESPONSE_COUNT;
+	const float mat2 = s.stores.materials;
+	int hullBefore = 0; for (const Deck &d : s.decks) hullBefore += static_cast<int>(d.hull * 1000);
+	CHECK(!RespondPhenomenon(s, wrong));
+	int hullAfter = 0; for (const Deck &d : s.decks) hullAfter += static_cast<int>(d.hull * 1000);
+	CHECK(hullAfter < hullBefore && s.stores.materials == mat2);
+
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.sector[ph].phenomAttrs == s.sector[ph].phenomAttrs);
+}
+
+// Probes: consumable exploration and the safe way to look at something hostile
+// (docs/exploration-and-science.md).
+static void TestProbes()
+{
+	g_test = "probes: the safe way to look at something hostile";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_RED);          // red alert brings the launchers up
+	Tick(s, 1.0f);
+	CHECK(s.stores.probes == 6);
+	const int target = s.sector[s.beacon].links.empty() ? 1 : s.sector[s.beacon].links[0];
+	s.sector[target].visited = false;
+	s.sector[target].surveyed = false;
+	CHECK(LaunchProbe(s, target));
+	CHECK(s.stores.probes == 5);
+	CHECK(s.sector[target].surveyed); // its telemetry charts the target without the ship going
+	CHECK(!LaunchProbe(s, s.beacon)); // not the beacon we are at
+
+	SetEnabled(s, SYS_TORPEDO_LAUNCHERS, false);
+	Tick(s, 1.0f);                    // the outputs settle: the launchers are down
+	CHECK(!LaunchProbe(s, target));   // no launcher, no probe
+	SetEnabled(s, SYS_TORPEDO_LAUNCHERS, true);
+	Tick(s, 1.0f);
+	s.stores.probes = 0;
+	CHECK(!LaunchProbe(s, target));   // none left
+
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.stores.probes == s.stores.probes);
+}
+
+// A dedicated survey to locate a dilithium source: the design's "survey, chart, detour".
+static void TestLocateDilithium()
+{
+	g_test = "a survey can locate a dilithium source";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_RED);
+	Tick(s, 1.0f);
+	const int at = LocateDilithium(s);
+	CHECK(at >= 0);
+	CHECK(s.sector[at].surveyed); // it is charted, so the crew can detour to it
+	CHECK(s.sector[at].kind == BEACON_BELT || s.sector[at].kind == BEACON_TRADER || s.sector[at].kind == BEACON_DERELICT);
+
+	// The sensors are the instrument: dark, no survey.
+	Ship d = NewShip();
+	SetAlert(d, ALERT_RED);
+	Tick(d, 1.0f);
+	SetEnabled(d, SYS_SENSORS, false);
+	Tick(d, 1.0f);
+	CHECK(LocateDilithium(d) == -1);
+}
+
+// The dilithium constraint: warp spends the crystal, recomposition buys some back until it cannot,
+// and only a new crystal -- found by exploring -- resets it. No crystal, no warp.
+static void TestDilithium()
+{
+	g_test = "dilithium: the constraint that forces exploration";
+
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	CHECK(s.dilithium == 1.0f && s.crystalQuality == 1.0f);
+	CHECK(DilithiumRange(s) == static_cast<int>(DILITHIUM_LIGHT_YEARS + 0.5f));
+	CHECK(WarpPossible(s));
+
+	// Warp use spends the crystal: every jump leaves less.
+	GoTo(s, 0);
+	float prev = s.dilithium;
+	for (int i = 0; i < 3; ++i) {
+		s.enemy = Enemy(); s.contact2 = Enemy();
+		CHECK(Jump(s, s.beacon + 1));
+		CHECK(s.dilithium < prev);
+		prev = s.dilithium;
+	}
+
+	// Recomposition buys back life in the frame, but the ceiling falls each time; eventually it
+	// cannot reach the crystal any more.
+	Ship r = NewShip();
+	Tick(r, 1.0f);
+	r.dilithium = 0.2f;
+	const float ceil0 = r.crystalCeiling;
+	CHECK(Recomposite(r) && r.dilithium > 0.2f);
+	CHECK(r.crystalCeiling < ceil0);
+	for (int i = 0; i < 20; ++i) Recomposite(r);
+	r.dilithium = r.crystalCeiling;
+	CHECK(!Recomposite(r)); // the crystal is spent: only replacement will do
+
+	// A new crystal, found by exploring. Mined from a belt; a bad trade is refused; research makes a
+	// better crystal that shortens the journey.
+	Ship m = NewShip();
+	Tick(m, 1.0f);
+	m.sector[m.beacon].kind = BEACON_BELT;
+	m.dilithium = 0.1f;
+	CHECK(AcquireDilithium(m, DIL_MINE) && m.dilithium == 1.0f && m.crystalReplacements == 1);
+	CHECK(!AcquireDilithium(m, DIL_TRADE)); // no trader here
+	Ship q = NewShip();
+	Tick(q, 1.0f);
+	CHECK(AcquireDilithium(q, DIL_RESEARCH) && q.crystalQuality > 1.0f);
+	CHECK(DilithiumRange(q) > DilithiumRange(NewShip()));
+
+	// No crystal, no warp: home stops getting closer, but the ship still runs.
+	Ship none = NewShip();
+	Tick(none, 1.0f);
+	none.dilithium = 0.0f;
+	none.enemy = Enemy();
+	CHECK(!WarpPossible(none) && !Jump(none, none.beacon + 1));
+
+	// It is all in the save (q's sector is unmodified, so the whole state round-trips).
+	std::vector<uint8_t> blob = Pack(q);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.crystalQuality == q.crystalQuality);
+	CHECK(Describe(back) == Describe(q));
+}
+
+// Every system has three named failure states, not just one (docs/failure-is-content.md).
+static void TestSystemStates()
+{
+	g_test = "every system has three failure states, each change named";
+	Ship s = NewShip();
+	s.cfg.dayScale = 1.0f;
+	Tick(s, 1.0f);
+	s.stores.spareParts = 0.0f; // no parts, so damage control cannot quietly repair the state away
+	const int id = SYS_SENSORS;
+	CHECK(s.systems[id].fault == SYS_NOMINAL);
+	DamageSystem(s, SYS_SENSORS, 0.4f);
+	Tick(s, 1.0f);
+	CHECK(s.systems[id].fault == SYS_DEGRADED);
+	DamageSystem(s, SYS_SENSORS, 0.3f); // health 0.3: below a third, offline
+	Tick(s, 1.0f);
+	CHECK(s.systems[id].fault == SYS_OFFLINE);
+	DamageSystem(s, SYS_SENSORS, 1.0f); // health 0: destroyed
+	Tick(s, 1.0f);
+	CHECK(s.systems[id].fault == SYS_DESTROYED);
+	bool named = false;
+	for (const LogEntry &e : s.log) { if (e.what.find("degraded") != std::string::npos) named = true; }
+	CHECK(named);
+
+	// A disabled system is offline even at full health, and returns to nominal when switched back.
+	Ship d = NewShip();
+	d.cfg.dayScale = 1.0f;
+	Tick(d, 1.0f);
+	SetEnabled(d, SYS_SENSORS, false);
+	Tick(d, 1.0f);
+	CHECK(d.systems[SYS_SENSORS].fault == SYS_OFFLINE);
+	SetEnabled(d, SYS_SENSORS, true);
+	Tick(d, 1.0f);
+	CHECK(d.systems[SYS_SENSORS].fault == SYS_NOMINAL);
+
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.systems[id].fault == s.systems[id].fault);
+}
+
+// Injury causes beyond air, fire, fighting wounds and radiation: a poisoned site, and an exploding
+// console (docs/failure-is-content.md, S6's "more injury causes").
+static void TestHazardInjuries()
+{
+	g_test = "injury causes beyond air, fire, wounds and radiation";
+
+	// A poisoned site: beaming to a phenomenon hazards the away team.
+	Ship s = NewShip();
+	SetAlert(s, ALERT_RED);
+	Tick(s, 1.0f);
+	int ph = -1;
+	for (int i = 0; i < static_cast<int>(s.sector.size()); ++i) if (s.sector[i].phenomenon) ph = i;
+	CHECK(ph >= 0);
+	GoTo(s, ph);
+	s.shieldStrength = 0.0f;
+	CHECK(TransportAway(s, 3));
+	bool siteHurt = false;
+	for (const LogEntry &e : s.log) if (e.what.find("was hurt by the site") != std::string::npos) siteHurt = true;
+	CHECK(siteHurt);
+
+	// An exploding console: a hit on a manned station's deck hurts whoever was there.
+	Ship c = NewShip();
+	c.cfg.dayScale = 1.0f; // so a short tick is one exchange of fire, not sixty
+	SetAlert(c, ALERT_RED);
+	Tick(c, 1.0f);
+	const int hostile = FirstOfKind(c, BEACON_HOSTILE);
+	GoTo(c, hostile - 1);
+	c.enemy = Enemy();
+	Jump(c, hostile);
+	SetEnabled(c, SYS_SHIELDS, false); // our shields stay down: the hits land
+	Tick(c, 1.0f);
+	c.enemy.kind = ENEMY_WARSHIP; c.enemy.hull = 1.0f; c.enemy.shields = 0.0f; c.enemy.shieldGen = 0.0f;
+	c.enemy.firepower = 0.8f;
+	// Read the log each step, before it is bounded by later events.
+	bool consoleHurt = false;
+	for (int i = 0; i < 240 && !consoleHurt; ++i) {
+		Tick(c, 10.0f);
+		for (const LogEntry &e : c.log) if (e.what.find("exploding console") != std::string::npos) consoleHurt = true;
+	}
+	CHECK(consoleHurt);
+}
+
+// The warp core cascade: coolant loss -> overheat -> falling containment -> a breach countdown, with
+// several interrupts, and a breach as the one unwinnable end (docs/failure-is-content.md).
+static void TestCoreCascade()
+{
+	g_test = "the warp core cascade: a chain, and a wall";
+	Ship s = NewShip();
+	s.cfg.dayScale = 1.0f;
+	Tick(s, 1.0f);
+	DamageSystem(s, SYS_WARP_DRIVE, 0.8f); // a badly hurt core loses coolant and heats
+	Tick(s, 1.0f);
+	const float coolant0 = s.coolant;
+	for (int i = 0; i < 24; ++i) Tick(s, 60.0f); // a few hours
+	CHECK(s.coolant < coolant0 && s.coreTemp > 0.0f);
+
+	// If nothing is done, containment falls and a breach countdown begins.
+	Ship doomed = NewShip();
+	doomed.cfg.dayScale = 1.0f;
+	Tick(doomed, 1.0f);
+	for (int i = 0; i < 5000 && doomed.breachCountdown < 0.0f && !CoreBreached(doomed); ++i) { DamageSystem(doomed, SYS_WARP_DRIVE, 0.4f); Tick(doomed, 60.0f); }
+	CHECK(doomed.breachCountdown >= 0.0f || CoreBreached(doomed));
+
+	// Interrupt: shut the core down and it stabilises (but warp is gone until restarted).
+	Ship k = NewShip();
+	k.cfg.dayScale = 1.0f;
+	Tick(k, 1.0f);
+	DamageSystem(k, SYS_WARP_DRIVE, 0.8f);
+	for (int i = 0; i < 500 && k.containment > CONTAINMENT_CRITICAL; ++i) Tick(k, 60.0f);
+	Tick(k, 1.0f);
+	CHECK(k.breachCountdown >= 0.0f);
+	CHECK(ShutDownCore(k) && !WarpPossible(k));
+	for (int i = 0; i < 500 && k.containment <= CONTAINMENT_CRITICAL; ++i) Tick(k, 60.0f);
+	CHECK(k.containment > CONTAINMENT_CRITICAL && k.breachCountdown < 0.0f);
+	for (int i = 0; i < 500 && k.containment < 0.6f; ++i) Tick(k, 60.0f);
+	CHECK(RestartCore(k));
+
+	// Eject is the last resort: no warp until a new core is found.
+	Ship e = NewShip();
+	e.cfg.dayScale = 1.0f;
+	Tick(e, 1.0f);
+	CHECK(EjectCore(e) && e.coreEjected && !WarpPossible(e));
+
+	// Abandoned past the countdown: the one unwinnable end.
+	Ship l = NewShip();
+	l.cfg.dayScale = 1.0f;
+	Tick(l, 1.0f);
+	for (int i = 0; i < 8000 && !CoreBreached(l); ++i) { DamageSystem(l, SYS_WARP_DRIVE, 0.4f); Tick(l, 60.0f); }
+	CHECK(CoreBreached(l));
+
+	// The cascade is in the save.
+	DamageSystem(k, SYS_WARP_DRIVE, 0.2f);
+	Tick(k, 1.0f);
+	std::vector<uint8_t> blob = Pack(k);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.coreShutdown == k.coreShutdown);
+}
+
+// The security squad: a fireteam command sends to retake a deck, advancing a deck at a time
+// (docs/borg-incursion.md).
+static void TestSquad()
+{
+	g_test = "the security squad: advancing to retake a deck";
+	Ship s = NewShip();
+	s.cfg.dayScale = 1.0f;
+	SetRole(s, ROLE_IN_COMMAND);
+	SetAlert(s, ALERT_RED);
+	Tick(s, 1.0f);
+	const int d = 11; // engineering, two decks from the muster (9)
+	s.decks[d - 1].intruders = 3.0f;
+	s.decks[d - 1].boarderKind = BOARDER_RAIDER;
+	CHECK(OrderEvacuate(s, d));       // nobody else fights
+	CHECK(OrderAdvance(s, d));
+	CHECK(s.advanceDeck == d && s.advanceAt == 9);
+	Tick(s, SQUAD_TRAVEL_MINUTES * 60.0f * 0.5f);
+	CHECK(s.advanceAt != d);          // still en route
+	for (int i = 0; i < 400 && s.advanceDeck != 0; ++i) Tick(s, 60.0f);
+	CHECK(s.advanceDeck == 0);        // stood down
+	CHECK(s.decks[d - 1].intruders == 0.0f); // deck retaken
+
+	// It needs whoever commands.
+	Ship n = NewShip();
+	Tick(n, 1.0f);
+	CHECK(!OrderAdvance(n, 5));
+
+	// In the save.
+	Ship b = NewShip();
+	SetRole(b, ROLE_IN_COMMAND);
+	Tick(b, 1.0f);
+	CHECK(OrderAdvance(b, 5));
+	std::vector<uint8_t> blob = Pack(b);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.advanceDeck == b.advanceDeck && back.advanceAt == b.advanceAt);
+}
+
+// Force fields rated 1-10 (docs/borg-incursion.md): a field holds intruders and drains under
+// pressure; a level-10 field cuts a drone from the Collective.
+static void TestForceFieldKit()
+{
+	g_test = "force fields rated: a field holds, drains, and a level-10 field cuts the Collective";
+	Ship s = NewShip();
+	s.cfg.dayScale = 1.0f;
+	SetRole(s, ROLE_IN_COMMAND);
+	Tick(s, 1.0f);
+	const int d = 4; // the transporter deck
+	s.decks[d - 1].intruders = 2.0f;
+	s.decks[d - 1].boarderKind = BOARDER_RAIDER;
+	CHECK(OrderEvacuate(s, d));
+	SetForceFieldLevel(s, d, FIELD_MAX);
+	Tick(s, 60.0f);                                     // a minute held
+	CHECK(s.systems[SYS_TRANSPORTERS].control == 1.0f); // no hack: the field holds them
+	CHECK(!s.decks[d - 1].compromised && s.decks[d - 1].dwell == 0.0f);
+	CHECK(s.decks[d - 1].forceFieldLevel < static_cast<float>(FIELD_MAX)); // and it drained
+	for (int i = 0; i < 200 && s.decks[d - 1].forceField; ++i) Tick(s, 60.0f);
+	CHECK(!s.decks[d - 1].forceField);                  // under pressure it fails
+
+	// A level-10 field on a Borg deck cuts them from the Collective: adaptation is suppressed.
+	Ship b = NewShip();
+	b.cfg.dayScale = 1.0f;
+	Tick(b, 1.0f);
+	b.decks[d - 1].intruders = 2.0f; b.decks[d - 1].borg = true; b.decks[d - 1].boarderKind = BOARDER_BORG;
+	SetForceFieldLevel(b, d, FIELD_MAX);
+	Tick(b, 1.0f);
+	CHECK(b.adaptationSuppressed > 0.0f);
+
+	SetForceFieldLevel(b, d, 99);
+	CHECK(b.decks[d - 1].forceFieldLevel == static_cast<float>(FIELD_MAX)); // clamped
+	SetForceFieldLevel(b, d, 0);
+	CHECK(!b.decks[d - 1].forceField);
+
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.decks[d - 1].forceFieldLevel == s.decks[d - 1].forceFieldLevel);
+}
+
+// De-assimilation: reversible only in a narrow window, and never whole (docs/borg-incursion.md).
+static void TestDeassimilation()
+{
+	g_test = "de-assimilation: a narrow window, and never whole";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int who = 10;
+	s.crew[who].wounds = 0.5f;
+	s.crew[who].status = CREW_INJURED;
+	const float sup = s.stores.medicalSupplies;
+	CHECK(RecoverCaptive(s, who));
+	CHECK(s.crew[who].wounds == 0.0f && s.crew[who].status == CREW_INJURED);
+	CHECK(s.crew[who].assimScar >= 0.5f);
+	CHECK(s.stores.medicalSupplies < sup);
+
+	// Past the window it is too late, and without supplies nothing can be done.
+	Ship late = NewShip();
+	Tick(late, 1.0f);
+	late.crew[who].wounds = 0.9f; late.crew[who].status = CREW_INJURED;
+	CHECK(!RecoverCaptive(late, who));
+	Ship poor = NewShip();
+	Tick(poor, 1.0f);
+	poor.crew[who].wounds = 0.5f; poor.crew[who].status = CREW_INJURED;
+	poor.stores.medicalSupplies = 0.0f;
+	CHECK(!RecoverCaptive(poor, who));
+
+	// The residue never fully fades: a scarred ship's crew are worse off than a clean one's.
+	Ship scarred = NewShip(), clean = NewShip();
+	Tick(scarred, 1.0f); Tick(clean, 1.0f);
+	scarred.crew[who].assimScar = 1.0f;
+	Tick(scarred, Hours(scarred, 24.0f)); Tick(clean, Hours(clean, 24.0f));
+	CHECK(scarred.crew[who].morale < clean.crew[who].morale);
+
+	// It is all in the save.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.crew[who].assimScar == s.crew[who].assimScar);
+}
+
+// The counter-play kit: the phaser adapter's rotating modulation and a vinculum raid
+// (docs/borg-incursion.md). Adaptation cannot be absolute, and the crew can buy their weapons back.
+static void TestCounterPlay()
+{
+	g_test = "the counter-play kit: remodulation and a vinculum raid";
+
+	auto DamageOne = [](Ship &sh) { const float h = sh.enemy.hull; FireTorpedo(sh); return h - sh.enemy.hull; };
+
+	Ship s = NewShip();
+	s.cfg.dayScale = 1.0f;
+	Tick(s, 1.0f);
+	const int hostile = FirstOfKind(s, BEACON_HOSTILE);
+	GoTo(s, hostile - 1);
+	s.enemy = Enemy();
+	Jump(s, hostile);
+	s.enemy.kind = ENEMY_BORG_VESSEL; s.enemy.borg = true;
+	s.enemy.hull = 1.0f; s.enemy.shields = 0.0f; s.enemy.shieldGen = 0.0f; s.enemy.firepower = 0.0f;
+	s.enemy.adaptation = 0.6f;
+	SetAlert(s, ALERT_RED);
+	Tick(s, 1.0f);                             // red alert brings the weapons up
+
+	const float withLock = DamageOne(s);       // they have adapted: little gets through
+	s.enemy.adaptation = 0.6f; s.enemy.hull = 1.0f; s.stores.torpedoes = 38;
+	CHECK(Remodulate(s));                      // rotate the modulation
+	CHECK(s.enemy.adaptation < 0.2f);
+	CHECK(DamageOne(s) > withLock);            // and now the shots land again
+	CHECK(!Remodulate(s));                     // but not every second: it costs attention
+	Tick(s, REMODULATE_COOLDOWN + 1.0f);
+	CHECK(Remodulate(s));
+
+	// A vinculum raid needs Borg here and spends a security party; while it is down they do not adapt.
+	Ship v = NewShip();
+	v.cfg.dayScale = 1.0f;
+	Tick(v, 1.0f);
+	const int h2 = FirstOfKind(v, BEACON_HOSTILE);
+	GoTo(v, h2 - 1); v.enemy = Enemy(); Jump(v, h2);
+	v.enemy.kind = ENEMY_BORG_VESSEL; v.enemy.borg = true; v.enemy.hull = 1.0f;
+	v.enemy.adaptation = 0.5f; v.enemy.shields = 0.0f; v.enemy.shieldGen = 0.0f; v.enemy.firepower = 0.0f;
+	SetAlert(v, ALERT_RED);
+	Tick(v, 1.0f);                             // red alert brings the weapons up
+	CHECK(RaidVinculum(v));
+	CHECK(v.enemy.adaptation == 0.0f && v.adaptationSuppressed > 0.0f);
+	bool hurt = false;
+	for (const CrewMember &c : v.crew) if (c.status == CREW_INJURED && c.dept == DEPT_SECURITY) hurt = true;
+	CHECK(hurt);
+	DamageOne(v);
+	CHECK(v.enemy.adaptation == 0.0f);         // severed: no adaptation while it is down
+	CHECK(!RaidVinculum(v));                    // already suppressed
+}
+
+// Shuttles: supported, not pilotable. The bay's contents, an away shuttle and its manifest, losing
+// one permanently as a build job, and a hit on the bay (docs/shuttles.md).
+static void TestShuttles()
+{
+	g_test = "shuttles: the bay's contents and what reads them";
+
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	CHECK(ShuttlesInBay(s) == 4 && ShuttlesAway(s) == 0);
+	CHECK(ShuttleByClass(s, SHUTTLE_CLASS2) && ShuttleByClass(s, SHUTTLE_CLASS2)->location == SHUTTLE_IN_BAY);
+
+	std::vector<int> manifest;
+	for (size_t i = 0; i < s.crew.size() && manifest.size() < 3; ++i) if (s.crew[i].status == CREW_FIT) manifest.push_back(static_cast<int>(i));
+	const float mat = s.stores.materials;
+	CHECK(LaunchShuttle(s, SHUTTLE_TYPE6, 3, manifest));
+	CHECK(ShuttlesAway(s) == 1 && ShuttlesInBay(s) == 3);
+	CHECK(ShuttleByClass(s, SHUTTLE_TYPE6)->manifest.size() == manifest.size());
+	for (int i : manifest) CHECK(s.crew[i].away);
+	CHECK(s.stores.materials < mat);
+	CHECK(!LaunchShuttle(s, SHUTTLE_TYPE6, 4, manifest)); // already away, not in the bay
+
+	// Save and load keeps the bay correct, an away shuttle and its manifest included.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(ShuttlesInBay(back) == 3 && ShuttlesAway(back) == 1);
+	CHECK(ShuttleByClass(back, SHUTTLE_TYPE6)->location == SHUTTLE_AWAY && ShuttleByClass(back, SHUTTLE_TYPE6)->awayBeacon == 3);
+	CHECK(ShuttleByClass(back, SHUTTLE_TYPE6)->manifest.size() == manifest.size());
+
+	// Recall: home, and the crew are aboard again.
+	CHECK(RecallShuttle(s, SHUTTLE_TYPE6) && ShuttlesInBay(s) == 4);
+	for (int i : manifest) CHECK(!s.crew[i].away);
+
+	// Losing one is permanent: the crew are lost with it and a replacement becomes a build job.
+	Ship l = NewShip();
+	Tick(l, 1.0f);
+	std::vector<int> m2;
+	for (size_t i = 0; i < l.crew.size() && m2.size() < 2; ++i) if (l.crew[i].status == CREW_FIT) m2.push_back(static_cast<int>(i));
+	CHECK(LaunchShuttle(l, SHUTTLE_TYPE8, 5, m2));
+	CHECK(LoseShuttle(l, SHUTTLE_TYPE8));
+	CHECK(ShuttleByClass(l, SHUTTLE_TYPE8)->location == SHUTTLE_LOST);
+	for (int i : m2) CHECK(l.crew[i].status == CREW_DEAD);
+	bool buildJob = false;
+	for (const Job &j : Jobs(l)) if (j.kind == JOB_BUILD && j.target == -(SHUTTLE_TYPE8 + 1)) buildJob = true;
+	CHECK(buildJob);
+
+	// Stranded: the crew beam back and the shuttle is left behind -- a loss with a location.
+	Ship st = NewShip();
+	Tick(st, 1.0f);
+	CHECK(LaunchShuttle(st, SHUTTLE_CLASS2, 2, std::vector<int>()));
+	CHECK(StrandShuttle(st, SHUTTLE_CLASS2));
+	CHECK(ShuttleByClass(st, SHUTTLE_CLASS2)->location == SHUTTLE_LOST && ShuttleByClass(st, SHUTTLE_CLASS2)->awayBeacon == 2);
+
+	// A hit on the bay damages what is parked in it.
+	Ship h = NewShip();
+	Tick(h, 1.0f);
+	CHECK(ShuttleBayHit(h, 0.6f));
+	CHECK(ShuttleByClass(h, SHUTTLE_CLASS2)->condition < 1.0f);
+
+	// The replacement: work the build job with material, and the second bay builds a new one.
+	Ship b = NewShip();
+	Tick(b, 1.0f);
+	CHECK(LaunchShuttle(b, SHUTTLE_CLASS2, 1, std::vector<int>()));
+	CHECK(LoseShuttle(b, SHUTTLE_CLASS2));
+	b.stores.materials = 200.0f;
+	for (int i = 0; i < 40 && ShuttleByClass(b, SHUTTLE_CLASS2)->location == SHUTTLE_LOST; ++i) Tick(b, Hours(b, 1.0f));
+	CHECK(ShuttleByClass(b, SHUTTLE_CLASS2)->location == SHUTTLE_IN_BAY);
+}
+
+// The Borg incursion's keystone: who holds a deck, whether its systems are compromised, and the
+// clean intercept recorded as a win (docs/borg-incursion.md).
+static void TestIncursion()
+{
+	g_test = "the incursion: controller, compromise and the clean intercept";
+
+	// A guard beats a single boarder before any system is touched: a clean intercept, recorded.
+	Ship s = NewShip();
+	SetRole(s, ROLE_IN_COMMAND);
+	Tick(s, 1.0f);
+	const int deck = 4;
+	s.decks[deck - 1].intruders = 1.0f;
+	s.decks[deck - 1].boarderKind = BOARDER_RAIDER;
+	CHECK(OrderSecurityTo(s, deck));
+	const int before = s.cleanIntercepts;
+	for (int i = 0; i < 300 && s.decks[deck - 1].intruders > 0.0f; ++i) Tick(s, 5.0f);
+	CHECK(s.decks[deck - 1].intruders == 0.0f);
+	CHECK(s.cleanIntercepts == before + 1);           // the win is recorded
+	CHECK(!s.decks[deck - 1].compromised);
+	CHECK(s.decks[deck - 1].controller == CTRL_CREW);
+
+	// No defenders: the boarders write to the systems, and the deck is compromised and contested.
+	Ship b = NewShip();
+	SetRole(b, ROLE_IN_COMMAND);
+	Tick(b, 1.0f);
+	const int d2 = 1;                                  // the bridge: a deck with workable systems
+	b.decks[d2 - 1].intruders = 4.0f;
+	b.decks[d2 - 1].boarderKind = BOARDER_RAIDER;
+	CHECK(OrderEvacuate(b, d2));                       // nobody stays to fight
+	for (int i = 0; i < 60; ++i) Tick(b, 60.0f);        // a ship-hour of hacking
+	CHECK(b.decks[d2 - 1].compromised);
+	CHECK(b.decks[d2 - 1].controller == CTRL_CONTESTED);
+	CHECK(b.decks[d2 - 1].dwell > 0.0f);
+	CHECK(b.systems[SYS_COMMUNICATIONS].control < 1.0f); // the bridge's comms, under their hands
+
+	// No dwell, no write: an unopposed boarder below the threshold writes nothing; past it, writes.
+	Ship g = NewShip();
+	g.cfg.dayScale = 1.0f;                              // so Tick seconds are ship seconds
+	SetRole(g, ROLE_IN_COMMAND);
+	Tick(g, 1.0f);
+	const int dg = 1; // the bridge: workable systems
+	g.decks[dg - 1].intruders = 4.0f;
+	CHECK(OrderEvacuate(g, dg));                        // unopposed
+	Tick(g, DWELL_COMPROMISE * 0.5f);                   // half the threshold
+	CHECK(g.systems[SYS_COMMUNICATIONS].control == 1.0f && !g.decks[dg - 1].compromised);
+	Tick(g, DWELL_COMPROMISE);                          // cross it
+	CHECK(g.systems[SYS_COMMUNICATIONS].control < 1.0f && g.decks[dg - 1].compromised);
+
+	// The three thresholds: compromise begins, then they hold ground, then seizure outright.
+	Ship t = NewShip();
+	t.cfg.dayScale = 1.0f;
+	SetRole(t, ROLE_IN_COMMAND);
+	Tick(t, 1.0f);
+	const int dt = 4; // the transporter deck
+	t.decks[dt - 1].intruders = 4.0f;
+	t.decks[dt - 1].boarderKind = BOARDER_RAIDER;
+	CHECK(OrderEvacuate(t, dt));
+
+	t.decks[dt - 1].dwell = DWELL_COMPROMISE - 0.5f;
+	t.systems[SYS_TRANSPORTERS].control = 1.0f;
+	Tick(t, 1.0f);                                     // crosses the first threshold
+	CHECK(t.decks[dt - 1].compromised);
+	CHECK(t.decks[dt - 1].controller == CTRL_CREW);    // compromised, but the crew still hold
+
+	t.decks[dt - 1].dwell = DWELL_HOLD - 0.5f;
+	Tick(t, 1.0f);                                     // crosses the second
+	CHECK(t.decks[dt - 1].controller == CTRL_CONTESTED);
+
+	t.decks[dt - 1].dwell = DWELL_SEIZE - 0.5f;
+	t.systems[SYS_TRANSPORTERS].control = 1.0f;
+	Tick(t, 1.0f);                                     // crosses the third
+	CHECK(t.systems[SYS_TRANSPORTERS].control == 0.0f); // seized outright
+
+	// The fields are in the save.
+	Ship back;
+	std::vector<uint8_t> blob = Pack(b);
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.decks[d2 - 1].compromised && back.cleanIntercepts == b.cleanIntercepts);
+}
+
+// The holodeck's uses, trauma read by the simulation, and living conditions.
+static void TestHolodeckAndQuarters()
+{
+	g_test = "the holodeck, trauma and quarters";
+
+	// The holodeck does nothing with the system down.
+	Ship down = NewShip();
+	SetEnabled(down, SYS_HOLODECKS, false);
+	Tick(down, 1.0f);
+	CHECK(!RunHolodeck(down, HOLO_RECREATION, 0));
+
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	// Recreation lifts the mood.
+	s.crew[0].morale = 0.5f;
+	CHECK(RunHolodeck(s, HOLO_RECREATION, 0) && s.crew[0].morale > 0.5f);
+	// Training grants the credential for the crew member's own department station.
+	CHECK(!Qualified(s.crew[0], STN_CONN));  // Janeway, command: the Conn is the department's station
+	CHECK(RunHolodeck(s, HOLO_TRAINING, 0) && Qualified(s.crew[0], STN_CONN));
+	CHECK(!RunHolodeck(s, HOLO_TRAINING, 0)); // already qualified
+	// Therapy fades what a character carries.
+	Remember(s, 3, MEM_DEATH, 5, MEM_SAW, -0.9f);
+	const float before = Trauma(s.crew[3]);
+	CHECK(before > 0.5f);
+	CHECK(RunHolodeck(s, HOLO_THERAPY, 3));
+	CHECK(Trauma(s.crew[3]) < before);
+	// Forensic reconstruction reports what they hold.
+	CHECK(RunHolodeck(s, HOLO_FORENSIC, 3));
+
+	// Trauma drags on the mood: a crew carrying a death is worse off than one that is not.
+	Ship calm = NewShip(), hurt = NewShip();
+	for (CrewMember &c : hurt.crew) Remember(hurt, static_cast<int>(&c - hurt.crew.data()), MEM_DEATH, 5, MEM_SAW, -0.9f);
+	Tick(calm, Hours(calm, 24.0f));
+	Tick(hurt, Hours(hurt, 24.0f));
+	float cm = 0.0f, hm = 0.0f;
+	for (const CrewMember &c : calm.crew) if (c.status == CREW_FIT) cm += c.morale;
+	for (const CrewMember &c : hurt.crew) if (c.status == CREW_FIT) hm += c.morale;
+	CHECK(hm < cm);
+
+	// Living conditions: better quarters, at a cost in material.
+	Ship q = NewShip();
+	q.stores.materials = 50.0f;
+	const float quality = q.crew[0].quartersQuality;
+	CHECK(ImproveQuarters(q) && q.crew[0].quartersQuality > quality && q.stores.materials == 40.0f);
+	Ship poor = NewShip();
+	poor.stores.materials = 0.0f;
+	CHECK(!ImproveQuarters(poor));
+
+	// The nacelle pylons: a hit can take them, and a ship without them cannot go to warp.
+	Ship py = NewShip();
+	CHECK(PylonsIntact(py));
+	DamagePylon(py, 0.6f);
+	CHECK(!PylonsIntact(py));
+	CHECK(!Jump(py, py.sector[py.beacon].links.front()));
+
+	// The mobile emitter lets the EMH work harder away from sickbay.
+	auto prep = [](Ship &x) {
+		for (CrewMember &c : x.crew) if (c.dept == DEPT_MEDICAL) c.status = CREW_DEAD;
+		SetEnabled(x, SYS_SICKBAY, false);
+		Tick(x, 1.0f);
+		x.crew[3].status = CREW_INJURED; x.crew[3].severity = 0.5f;
+		ActivateEMH(x, true);
+	};
+	Ship noEmitter = NewShip(); prep(noEmitter);
+	Ship emitter = NewShip(); prep(emitter); SetMobileEmitter(emitter, true);
+	Tick(noEmitter, Hours(noEmitter, 2.0f));
+	Tick(emitter, Hours(emitter, 2.0f));
+	CHECK(emitter.crew[3].recovery > noEmitter.crew[3].recovery);
+
+	// The program that will not end: too much time in it and a crew member stops standing watch;
+	// command pulls them out.
+	Ship h = NewShip();
+	for (int i = 0; i < 4; ++i) CHECK(RunHolodeck(h, HOLO_RECREATION, 7));
+	CHECK(h.crew[7].holoCompulsion >= 1.0f);
+	Tick(h, 1.0f);
+	CHECK(h.crew[7].activity == ACT_RECREATION);
+	CHECK(EndHolodeckProgram(h, 7) && h.crew[7].holoCompulsion == 0.0f);
+
+	// It is all in the save.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(std::fabs(back.crew[0].quartersQuality - s.crew[0].quartersQuality) < 1e-4f);
+	CHECK(Qualified(back.crew[0], STN_CONN) && Describe(back) == Describe(s));
+}
+
+// EVA, Prime Directive contact, and the Maquis arc.
+static void TestEVAAndContact()
+{
+	g_test = "EVA, first contact and the Maquis arc";
+
+	// EVA: a suited party already out reaches a belt the systems cannot, once.
+	Ship s = NewShip();
+	s.sector[s.beacon].kind = BEACON_BELT;
+	s.sector[s.beacon].looted = false;
+	CHECK(TransportAway(s, 3)); // a party on the site
+	Tick(s, 0.0f);
+	const float mat = s.stores.materials;
+	CHECK(EVA(s) && s.stores.materials == mat + BELT_MATERIALS);
+	CHECK(!EVA(s));             // worked out
+	Ship none = NewShip();
+	none.sector[none.beacon].kind = BEACON_BELT;
+	CHECK(!EVA(none));          // no party out
+
+	// First contact: observing is free and good; interfering takes, and costs.
+	Ship obs = NewShip();
+	obs.sector[obs.beacon].kind = BEACON_PREWARP;
+	const float m0 = obs.stores.materials;
+	CHECK(ObservePreWarp(obs) && obs.stores.materials > m0);
+	CHECK(!Recall(obs.crew[0], MEM_VIOLATION));
+	Ship vio = NewShip();
+	vio.sector[vio.beacon].kind = BEACON_PREWARP;
+	CHECK(InterferePreWarp(vio));
+	CHECK(Recall(vio.crew[0], MEM_VIOLATION));   // the whole crew carry it
+	CHECK(Resentment(vio) > Resentment(obs));    // and the crew are divided
+
+	// The Maquis arc: resentment can be worked through, and when it is gone the split is too.
+	Ship r = NewShip();
+	r.resentment = 0.5f;
+	Ship nobody = NewShip();
+	CHECK(!ReconcileFactions(nobody));           // nobody in particular commands
+	SetRole(r, ROLE_IN_COMMAND);
+	CHECK(ReconcileFactions(r) && Resentment(r) < 0.5f);
+	for (int k = 0; k < 10; ++k) ReconcileFactions(r);
+	CHECK(Resentment(r) == 0.0f);
+	bool oneCrew = true;
+	for (const CrewMember &c : r.crew) if (c.faction != 0) oneCrew = false;
+	CHECK(oneCrew);
+
+	// The airponics bay grows food without the replicators.
+	Ship withA = NewShip(), noA = NewShip();
+	withA.stores.rations = 20.0f; noA.stores.rations = 20.0f;
+	SetEnabled(withA, SYS_REPLICATORS, false); SetEnabled(noA, SYS_REPLICATORS, false);
+	CHECK(SetAirponics(withA, true) && Airponics(withA));
+	Tick(withA, Hours(withA, 24.0f));
+	Tick(noA, Hours(noA, 24.0f));
+	CHECK(withA.stores.rations > noA.stores.rations);
+
+	// It is all in the save.
+	std::vector<uint8_t> blob = Pack(vio);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(std::fabs(back.resentment - vio.resentment) < 1e-4f && Recall(back.crew[0], MEM_VIOLATION));
+}
+
+// S7, the rest: more than one kind of boarder, and objectives.
+static void TestBoarderKinds()
+{
+	g_test = "boarder kinds and objectives";
+
+	auto noSecurity = [](Ship &x) { for (CrewMember &c : x.crew) if (c.dept == DEPT_SECURITY) c.status = CREW_DEAD; };
+
+	// An objective sends a party the way it was told, not the nearest of the bridge and Engineering.
+	Ship o = NewShip();
+	noSecurity(o);
+	BoardAs(o, 3, 3, BOARDER_RAIDER, 9);   // making for the computer core
+	Tick(o, Hours(o, 2.0f / 60.0f));
+	CHECK(o.decks[3].intruders > 0.0f);    // deck 4: one step toward 9
+	CHECK(o.decks[1].intruders == 0.0f);   // not toward the bridge
+	Ship a = NewShip();
+	noSecurity(a);
+	Board(a, 3, 3);                        // no objective: the auto target, the bridge from deck 3
+	Tick(a, Hours(a, 2.0f / 60.0f));
+	CHECK(a.decks[1].intruders > 0.0f);    // deck 2: toward the bridge
+
+	// Raiders loot when they hold a deck with nothing to take.
+	Ship l = NewShip();
+	noSecurity(l);
+	BoardAs(l, 3, 3, BOARDER_RAIDER, 3);   // hold deck 3
+	const float parts = l.stores.spareParts;
+	Tick(l, Hours(l, 1.0f));
+	CHECK(l.stores.spareParts < parts);
+
+	// Hunters come for the crew.
+	Ship h = NewShip();
+	noSecurity(h);
+	BoardAs(h, 9, 4, BOARDER_HUNTER, 9);   // there are crew on deck 9
+	const int hurtBefore = [&] { int n = 0; for (const CrewMember &c : h.crew) if (c.status == CREW_INJURED || c.wounds > 0.0f) ++n; return n; }();
+	Tick(h, Hours(h, 0.5f));
+	const int hurtAfter = [&] { int n = 0; for (const CrewMember &c : h.crew) if (c.status == CREW_INJURED || c.wounds > 0.0f) ++n; return n; }();
+	CHECK(hurtAfter > hurtBefore);
+	CHECK(std::string(BoarderKindName(BOARDER_HUNTER)) == "a hunter");
+
+	// Kind and objective survive a save.
+	std::vector<uint8_t> blob = Pack(o);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.decks[2].boarderKind == BOARDER_RAIDER && back.decks[2].objective == 9);
+}
+
+// Borg strategic awareness, and memory (a grudge) read by the simulation.
+static void TestAwarenessAndLoyalty()
+{
+	g_test = "Borg awareness and a grudge read by the simulation";
+
+	// A Borg contact raises the Collective's awareness of the ship.
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int cube = FirstOfKind(s, BEACON_BORG);
+	if (cube > 0) {
+		GoTo(s, cube - 1);
+		s.enemy = Enemy();
+		CHECK(Jump(s, cube) && s.enemy.borg && BorgAwareness(s) > 0.0f);
+	}
+
+	// The more the Collective knows, the faster it adapts: the same fire does less to a cube it has
+	// already met.
+	auto cubeHull = [](float aware) {
+		Ship x = NewShip();
+		Tick(x, 1.0f);
+		const int h = FirstOfKind(x, BEACON_HOSTILE);
+		GoTo(x, h - 1);
+		x.enemy = Enemy();
+		Jump(x, h);
+		x.enemy.kind = ENEMY_BORG_VESSEL; x.enemy.borg = true;
+		x.enemy.shields = 0.0f; x.enemy.shieldGen = 0.0f; x.enemy.firepower = 0.0f;
+		x.borgAwareness = aware;
+		SetAlert(x, ALERT_RED);
+		Tick(x, Hours(x, 10.0f));
+		return x.enemy.hull;
+	};
+	CHECK(cubeHull(0.9f) > cubeHull(0.0f));
+
+	// A grudge toward whoever commands is going through the motions: the post delivers less.
+	Ship g = NewShip();
+	int holder = -1;
+	for (int i = 0; i < static_cast<int>(g.crew.size()); ++i)
+		if (g.crew[i].post == SYS_SENSORS && g.crew[i].rank < 5 && g.crew[i].status == CREW_FIT) { holder = i; break; }
+	CHECK(holder >= 0);
+	Remember(g, holder, MEM_LIE, 0, MEM_SAW, -0.9f); // a grudge against Janeway, who commands
+	CHECK(Loyalty(g, holder) < -0.3f);
+	Tick(g, 1.0f);
+	Ship c = NewShip();
+	Tick(c, 1.0f);
+	CHECK(g.systems[SYS_SENSORS].output < c.systems[SYS_SENSORS].output);
+
+	// It is all in the save.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(std::fabs(back.borgAwareness - s.borgAwareness) < 1e-4f);
+}
+
+// S6's exit evidence: a multi-day soak with no stuck state. A deterministic sequence of damage,
+// fire, breaches, boarders, Borg, fights and orders over a fortnight, with the invariants checked
+// every day, and the whole thing saved and restored at the end.
+static void TestSoak()
+{
+	g_test = "a multi-day soak leaves no stuck state";
+	Ship s = NewShip();
+	for (int day = 0; day < 14; ++day) {
+		const int deck = 1 + (day * 5) % DECKS;
+		BreachDeck(s, deck, 0.3f);
+		IgniteDeck(s, deck, 0.2f);
+		Board(s, deck, 2);
+		if (day % 4 == 0) DamageSystem(s, static_cast<SystemId>(day % SYS_COUNT), 0.3f);
+		if (day % 7 == 3) BoardBorg(s, 1 + (day * 3) % DECKS, 2);
+		if (day % 5 == 2) { // a fight, then stand down
+			SetAlert(s, ALERT_RED);
+			s.enemy = Enemy();
+			s.enemy.present = true; s.enemy.kind = ENEMY_RAIDER;
+			s.enemy.hull = 1.0f; s.enemy.shields = 1.0f; s.enemy.weapons = 1.0f; s.enemy.firepower = 0.2f;
+		}
+		Tick(s, Hours(s, 24.0f));
+		if (s.alert == ALERT_RED) SetAlert(s, ALERT_GREEN);
+		CHECK(!std::isnan(s.clock) && !std::isnan(s.stores.deuterium) && !std::isnan(s.stores.batteries));
+		for (int i = 0; i < SYS_COUNT; ++i) {
+			CHECK(s.systems[i].health >= 0.0f && s.systems[i].health <= 1.0f);
+			CHECK(s.systems[i].output >= 0.0f && s.systems[i].output <= 1.0f);
+			CHECK(s.systems[i].control >= 0.0f && s.systems[i].control <= 1.0f);
+			CHECK(!std::isnan(s.systems[i].output));
+		}
+		for (int d = 0; d < DECKS; ++d) {
+			CHECK(s.decks[d].atmosphere >= 0.0f && s.decks[d].atmosphere <= 1.0f);
+			CHECK(s.decks[d].hull >= 0.0f && s.decks[d].hull <= 1.0f);
+			CHECK(s.decks[d].fire >= 0.0f && s.decks[d].fire <= 1.0f);
+			CHECK(s.decks[d].assimilated >= 0.0f && s.decks[d].assimilated <= 1.0f);
+		}
+		for (const CrewMember &c : s.crew) {
+			CHECK(c.morale >= 0.0f && c.morale <= 1.0f && !std::isnan(c.morale));
+			CHECK(c.fatigue >= 0.0f && c.fatigue <= 1.0f);
+			CHECK(c.severity >= 0.0f && c.severity <= 1.0f && c.wounds >= 0.0f && c.wounds <= 1.0f);
+			CHECK(c.deck <= DECKS);
+		}
+		CHECK(s.stores.spareParts >= 0.0f && s.stores.deuterium >= 0.0f && s.stores.deuterium <= 1.0f);
+	}
+	// And it still saves and restores identically after the fortnight.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(Describe(back) == Describe(s));
+}
+
+// Deferred maintenance (docs/crew-work.md): a station left undermanned fails, and the failure is
+// traceable to the work that was due.
+static void TestMaintenance()
+{
+	g_test = "deferred maintenance";
+	Ship w = NewShip();
+	for (CrewMember &c : w.crew) if (c.post == SYS_SENSORS) c.status = CREW_DEAD; // the whole watch, every watch
+	w.stores.spareParts = 0.0f;                                                    // and no parts to mend it
+	Tick(w, Hours(w, 15.0f * 24.0f)); // fifteen days
+	CHECK(w.systems[SYS_SENSORS].health < 1.0f);
+	bool traced = false;
+	for (const LogEntry &e : w.log) if (e.what.find("sensors failed for want of maintenance") != std::string::npos) traced = true;
+	CHECK(traced);
+	// A system its own watch keeps up never wears.
+	Ship m = NewShip();
+	Tick(m, Hours(m, 15.0f * 24.0f));
+	CHECK(m.systems[SYS_SENSORS].health == 1.0f);
+}
+
+// The job queue (docs/crew-work.md): the outstanding work, in the order it is worked.
+static void TestJobQueue()
+{
+	g_test = "the job queue";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	CHECK(Jobs(s).empty());
+	DamageSystem(s, SYS_HOLODECKS, 0.5f);
+	DamageSystem(s, SYS_LIFE_SUPPORT, 0.5f);
+	BreachDeck(s, 9, 0.5f);
+	Tick(s, 0.0f);
+	const std::vector<Job> &jobs = Jobs(s);
+	CHECK(jobs.size() == 3);
+	// life support (priority 0) is worked before the holodecks (17) and the seal (20)
+	CHECK(jobs[0].kind == JOB_REPAIR && jobs[0].target == SYS_LIFE_SUPPORT && jobs[0].priority == 0);
+	CHECK(jobs[1].kind == JOB_REPAIR && jobs[1].target == SYS_HOLODECKS);
+	CHECK(jobs[2].kind == JOB_SEAL && jobs[2].target == 9);
+	// The work that is due is written down, so the log can trace it.
+	bool ordered = false;
+	for (const LogEntry &e : s.log) if (e.what.find("work ordered: repair life support") != std::string::npos) ordered = true;
+	CHECK(ordered);
+
+	// Command: see first to the holodecks, and that repair goes to the head.
+	SetRole(s, ROLE_IN_COMMAND);
+	CHECK(OrderRepairFirst(s, SYS_HOLODECKS));
+	Tick(s, 0.0f);
+	CHECK(Jobs(s).front().kind == JOB_REPAIR && Jobs(s).front().target == SYS_HOLODECKS);
+	CHECK(Jobs(s).front().priority == -1);
+
+	// Repair it and the job is gone; a Borg deck queues a reclaim.
+	Repair(s, SYS_HOLODECKS, 1.0f);
+	CHECK(OrderRepairFirst(s, -1));
+	s.decks[7].assimilated = 0.8f;
+	Tick(s, 0.0f);
+	for (const Job &j : Jobs(s)) CHECK(!(j.kind == JOB_REPAIR && j.target == SYS_HOLODECKS));
+	bool reclaim = false;
+	for (const Job &j : Jobs(s)) if (j.kind == JOB_RECLAIM && j.target == 8) reclaim = true;
+	CHECK(reclaim);
+
+	// The queue survives a save and a load, unchanged.
+	Tick(s, 0.0f);
+	const std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(Pack(back) == blob && Jobs(back).size() == Jobs(s).size());
+
+	// A build job: command orders spare parts built; the crew fabricate them from material.
+	Ship b = NewShip();
+	b.stores.materials = 200.0f;
+	SetRole(b, ROLE_IN_COMMAND);
+	const float parts0 = b.stores.spareParts;
+	CHECK(OrderBuild(b, 5));
+	Tick(b, 1.0f);
+	bool building = false;
+	for (const Job &j : Jobs(b)) if (j.kind == JOB_BUILD && j.target == 5) building = true;
+	CHECK(building);
+	Tick(b, Hours(b, 12.0f));
+	CHECK(b.stores.spareParts >= parts0 + 5.0f && b.stores.materials < 200.0f);
 }
 
 // S10. How it is played, and who may do what.
@@ -1208,6 +2673,240 @@ static void TestOrders()
 	CHECK(back.orderRepairFirst == SYS_SENSORS && back.orderSecurityTo == 4 && back.orderEvacuate == 9);
 }
 
+// S4. Each station does more than switch a system: the transporter beams, astrometrics surveys, the
+// Conn lays in a course, sickbay reads its ward.
+static void TestStationPurposes()
+{
+	g_test = "the stations' purposes";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+
+	// The transporter: a party to the site, and back. The shields must be down, the transporters up.
+	CHECK(AwayTeam(s) == 0);
+	CHECK(TransportAway(s, 3));
+	CHECK(AwayTeam(s) == 3);
+	int awayOnDeck = 0;
+	for (const CrewMember &c : s.crew)
+		if (c.away) { CHECK(c.deck == 0); ++awayOnDeck; }
+	CHECK(awayOnDeck == 3);
+	Tick(s, Hours(s, 1.0f));
+	for (const CrewMember &c : s.crew) CHECK(!c.away || (c.activity == ACT_PERSONAL && c.deck == 0));
+	CHECK(TransportBack(s) && AwayTeam(s) == 0);
+
+	// With our shields up the beam cannot reach the site.
+	Ship red = NewShip();
+	SetAlert(red, ALERT_RED);
+	Tick(red, Hours(red, 0.2f));
+	CHECK(red.shieldStrength > 0.0f);
+	CHECK(!TransportAway(red, 2) && AwayTeam(red) == 0);
+	// ... and with the transporters down, there is no beam at all.
+	Ship down = NewShip();
+	SetEnabled(down, SYS_TRANSPORTERS, false);
+	Tick(down, 1.0f);
+	CHECK(!TransportAway(down, 2));
+	CHECK(!TransportBack(down)); // nobody is away to bring back
+
+	// Astrometrics: the survey reads the beacons one jump away and marks them known.
+	Ship a = NewShip();
+	const int near = a.sector[a.beacon].links.front();
+	CHECK(!a.sector[near].surveyed);
+	SetEnabled(a, SYS_SENSORS, false);
+	Tick(a, 1.0f);
+	CHECK(Survey(a) == 0); // no sensors, no survey
+	SetEnabled(a, SYS_SENSORS, true);
+	Tick(a, 1.0f);
+	CHECK(Survey(a) > 0 && a.sector[near].surveyed);
+
+	// The Conn's course: the shortest route, and setting it.
+	Ship c = NewShip();
+	const int goal = SECTOR_BEACONS - 1;
+	const std::vector<int> route = PlotCourse(c, goal);
+	CHECK(!route.empty() && route.front() == c.beacon && route.back() == goal);
+	for (size_t i = 1; i < route.size(); ++i) {
+		const std::vector<int> &links = c.sector[route[i - 1]].links;
+		CHECK(std::find(links.begin(), links.end(), route[i]) != links.end()); // every leg is a link
+	}
+	CHECK(SetCourse(c, goal) && Course(c) == goal);
+	CHECK(!SetCourse(c, 99)); // nowhere to lay a course to
+
+	// Sickbay's ward: the patients, in the order triage treats them.
+	Ship w = NewShip();
+	int made = 0;
+	for (CrewMember &m : w.crew) {
+		if (made >= 5) break;
+		if (m.status != CREW_FIT) continue;
+		m.status = CREW_INJURED;
+		m.severity = 0.1f + 0.15f * made; // 0.1 .. 0.7
+		++made;
+	}
+	const std::vector<int> ward = Patients(w);
+	CHECK(static_cast<int>(ward.size()) == 5);
+	float lastSeverity = 2.0f;
+	for (int i : ward) { CHECK(w.crew[i].status == CREW_INJURED); CHECK(w.crew[i].severity <= lastSeverity); lastSeverity = w.crew[i].severity; }
+	// Rank first reverses the order where rank decides.
+	w.orderTriage = 1;
+	for (int i : Patients(w)) CHECK(w.crew[i].status == CREW_INJURED);
+
+	// The away mission, the surveys and the course are in the save.
+	Ship p = NewShip();
+	p.sector[p.beacon].surveyed = true;
+	CHECK(SetCourse(p, goal));
+	CHECK(TransportAway(p, 2));
+	Tick(p, 0.0f); // derive manning and locations with the party away, as the console does after a command
+	const std::vector<uint8_t> blob = Pack(p);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.awayBeacon == p.awayBeacon && AwayTeam(back) == 2);
+	CHECK(back.course == p.course);
+	CHECK(back.sector[p.beacon].surveyed);
+	CHECK(back.awayBeacon == 0 && p.awayBeacon == 0);
+	CHECK(Describe(back) == Describe(p));
+	CHECK(Pack(back) == blob);
+}
+
+// The five gaps, to their criteria: replication restocks the ward, the surgical field holds the
+// gravest case, endurance is a number per source, a tricorder reads the ship's own compartments, and
+// the log signs events with people.
+static void TestGapCompletions()
+{
+	g_test = "the gaps: replication, the surgical field, endurance, the tricorder, named authors";
+
+	// The replicators restock medical supplies while they run.
+	Ship r = NewShip();
+	r.stores.medicalSupplies = 10.0f;
+	Tick(r, Hours(r, 4.0f));
+	CHECK(r.stores.medicalSupplies > 10.0f && r.stores.medicalSupplies <= 100.0f);
+	Ship dark = NewShip();
+	dark.stores.medicalSupplies = 10.0f;
+	SetEnabled(dark, SYS_REPLICATORS, false);
+	SetAlert(dark, ALERT_RED); // red alert stands the replicators down
+	Tick(dark, Hours(dark, 4.0f));
+	CHECK(dark.stores.medicalSupplies == 10.0f);
+
+	// The surgical bay's force field holds the gravest case steady when there are no supplies; without
+	// it, the same case dies.
+	Ship hold = NewShip();
+	SetEnabled(hold, SYS_REPLICATORS, false); // no restock: the field is the only thing holding them
+	hold.stores.medicalSupplies = 0.0f;
+	hold.crew[3].status = CREW_INJURED;
+	hold.crew[3].severity = 0.9f;
+	SetSurgicalField(hold, true);
+	CHECK(SurgicalField(hold));
+	Tick(hold, Hours(hold, 4.0f));
+	CHECK(hold.crew[3].status == CREW_INJURED && hold.crew[3].severity <= 0.9f + 1e-4f);
+	Ship let = NewShip();
+	SetEnabled(let, SYS_REPLICATORS, false);
+	let.stores.medicalSupplies = 0.0f;
+	let.crew[3].status = CREW_INJURED;
+	let.crew[3].severity = 0.9f;
+	Tick(let, Hours(let, 4.0f));
+	CHECK(let.crew[3].status == CREW_DEAD && !SurgicalField(let));
+
+	// Endurance is its own number per source: the batteries are the ship's endurance with the reactors
+	// off, and each reactor reports its own.
+	Ship e = NewShip();
+	for (int i = 0; i < SRC_BATTERIES; ++i) SetSourceOnline(e, static_cast<SourceId>(i), false);
+	Tick(e, 1.0f);
+	const float battery = EnduranceOf(e, SRC_BATTERIES);
+	CHECK(battery > 0.0f && battery <= 3.0f * 60.0f + 1.0f); // the cells' three hours at most
+	CHECK(EnduranceOf(e, SRC_WARP_CORE) < 0.0f); // not supplying now
+	SetSourceOnline(e, SRC_WARP_CORE, true);
+	Tick(e, 1.0f);
+	CHECK(EnduranceOf(e, SRC_WARP_CORE) > battery);
+	CHECK(EnduranceOf(e, static_cast<SourceId>(SRC_COUNT)) < 0.0f);
+
+	// A tricorder reads the ship's own compartments, wears the kit, and a dead one reads nothing.
+	Ship t = NewShip();
+	LoadAwayKit(t, 2, 0, 0, 1.0f);
+	CHECK(t.stores.kitCondition == 1.0f);
+	BreachDeck(t, 9, 1.0f);
+	const std::string reading = ScanCompartment(t, 9);
+	CHECK(reading.find("deck 9") != std::string::npos && reading.find("air") != std::string::npos);
+	CHECK(t.stores.kitCondition < 1.0f && !t.log.empty() && t.log.back().what.find("compartment scan") != std::string::npos);
+	t.stores.tricorderCharge = 0.0f;
+	CHECK(ScanCompartment(t, 9) == "the tricorder is dead");
+	CHECK(ScanCompartment(t, 99) == "no such compartment");
+
+	// The log signs events with people, not subsystems.
+	Ship who = NewShip();
+	DamageSystem(who, SYS_SENSORS, 0.4f);
+	bool named = false;
+	for (const LogEntry &le : who.log)
+		if (le.what.find("damaged") != std::string::npos)
+			named = !le.who.empty() && le.who != "damage control"; // a person signs it, not the subsystem
+	CHECK(named);
+
+	// And all of it survives a save and a load.
+	std::vector<uint8_t> blob = Pack(t);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(std::fabs(back.stores.kitCondition - t.stores.kitCondition) < 1e-4f);
+	CHECK(back.surgicalForceField == t.surgicalForceField);
+}
+
+// S6, full: hull repair is crewed work that costs parts, fire is a second way to be hurt, and the
+// galley's rations feed the crew.
+static void TestHullSealFireRations()
+{
+	g_test = "hull repair costs crew and parts; fire injures and spreads; rations feed the crew";
+
+	// Sealing a hull breach is crewed work, paid for in parts; without parts it stays open.
+	Ship s = NewShip();
+	BreachDeck(s, 9, 1.0f);
+	Tick(s, 1.0f);
+	CHECK(s.decks[8].sealing > 0 && s.decks[8].sealing <= REPAIR_TEAM_MAX);
+	const float parts = s.stores.spareParts;
+	Tick(s, Hours(s, 1.0f));
+	CHECK(s.decks[8].hull > 0.4f && s.decks[8].hull < 1.0f);
+	CHECK(s.stores.spareParts < parts);
+	Tick(s, Hours(s, 3.0f));
+	CHECK(s.decks[8].hull == 1.0f);
+	Ship poor = NewShip();
+	poor.stores.spareParts = 0.0f;
+	BreachDeck(poor, 9, 1.0f);
+	Tick(poor, Hours(poor, 6.0f));
+	CHECK(poor.decks[8].hull == 0.0f);
+
+	// Fire injures the crew, is fought down while there are hands, and spreads when there are none.
+	Ship f = NewShip();
+	IgniteDeck(f, 9, 1.0f);
+	CHECK(f.decks[8].fire == 1.0f);
+	Tick(f, Hours(f, 0.05f)); // three minutes: the fire burns and the crew turn out
+	CHECK(f.decks[8].fire < 1.0f);
+	int burned = 0;
+	for (const CrewMember &c : f.crew) if (c.burn > 0.0f || c.status == CREW_INJURED) ++burned;
+	CHECK(burned > 0);                                    // somebody was caught by it
+	Ship g = NewShip();
+	for (CrewMember &c : g.crew) c.status = CREW_DEAD;    // nobody to fight it
+	IgniteDeck(g, 9, 1.0f);
+	Tick(g, Hours(g, 2.0f));
+	CHECK(g.decks[8].fire > 0.5f);                        // still burning
+	CHECK(g.decks[7].fire > 0.0f || g.decks[9].fire > 0.0f); // and it has spread
+
+	// Rations are eaten, and a crew with none is in a worse mood than one that is fed.
+	Ship r = NewShip();
+	Tick(r, Hours(r, 12.0f));
+	CHECK(r.stores.rations < 100.0f);
+	Ship hungry = NewShip();
+	hungry.stores.rations = 0.0f;
+	SetEnabled(hungry, SYS_REPLICATORS, false);
+	Ship fed = NewShip();
+	Tick(hungry, Hours(hungry, 24.0f));
+	Tick(fed, Hours(fed, 24.0f));
+	float hungryMorale = 0.0f, fedMorale = 0.0f;
+	int hn = 0, fn = 0;
+	for (const CrewMember &c : hungry.crew) if (c.status == CREW_FIT) { hungryMorale += c.morale; ++hn; }
+	for (const CrewMember &c : fed.crew) if (c.status == CREW_FIT) { fedMorale += c.morale; ++fn; }
+	CHECK(hn > 0 && fn > 0 && hungryMorale / hn < fedMorale / fn);
+
+	// Fire and rations are in the save.
+	std::vector<uint8_t> blob = Pack(f);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(std::fabs(back.decks[8].fire - f.decks[8].fire) < 1e-4f);
+	CHECK(std::fabs(back.stores.rations - f.stores.rations) < 1e-4f);
+}
+
 static void TestStations()
 {
 	g_test = "stations";
@@ -1297,9 +2996,13 @@ int main(int argc, char **argv)
 	TestDeterminismAndStepSize();
 	TestSave();
 	TestStations();
+	TestStationPurposes();
+	TestGapCompletions();
+	TestHullSealFireRations();
 	TestCrewOnDeck();
 	TestDamageControl();
 	TestCasualties();
+	TestRadiation();
 	TestTriage();
 	TestAirAndEndurance();
 	TestLog();
@@ -1309,6 +3012,32 @@ int main(int argc, char **argv)
 	TestBorg();
 	TestSector();
 	TestCombat();
+	TestMultipleContacts();
+	TestEnemySystemsAndOutsideChoices();
+	TestMaterialsAndTravel();
+	TestCrewJusticeAndBorg();
+	TestMemoryAndConsequence();
+	TestResourcesAndPressure();
+	TestPhenomenon();
+	TestProbes();
+	TestDilithium();
+	TestLocateDilithium();
+	TestShuttles();
+	TestIncursion();
+	TestSystemStates();
+	TestHazardInjuries();
+	TestCoreCascade();
+	TestSquad();
+	TestForceFieldKit();
+	TestDeassimilation();
+	TestCounterPlay();
+	TestHolodeckAndQuarters();
+	TestEVAAndContact();
+	TestBoarderKinds();
+	TestAwarenessAndLoyalty();
+	TestSoak();
+	TestJobQueue();
+	TestMaintenance();
 	TestModesAndClocks();
 	TestRankAndRoles();
 	TestOrders();

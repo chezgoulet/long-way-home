@@ -74,3 +74,14 @@ stand in for open space doors. All of that is sourced in `docs/research/voyager-
 - A shuttle left behind is recorded as a loss with a location -- it should be findable later, or at least
   remembered.
 - And the one the owner asked for: at any moment, the ship knows whether a given shuttle is in the bay.
+
+**Implemented 2026-10-07** (`module/ship/ship_core.cpp`, save format 31; `TestShuttles`,
+`scripts/shuttle-check.sh`): the bay's four shuttles (Class 2, Type 6, Type 8, Aeroshuttle) each carry
+a location (in the bay / away / lost), condition, comms and, while away, a manifest, cargo and the
+beacon it went to. Launch puts the crew away and removes their cargo from stores; dock brings them
+home; **strand** leaves the shuttle behind (a loss with a location); **lose** kills the crew with it
+and puts a **build job** for a replacement in the second bay (worked by engineers, `RebuildShuttle`),
+not a respawn; a hit on the bay (`ShuttleBayHit`) damages what is parked. The in-game control is the
+console (`ship shuttle|launch|shuttledock|lose|bayhit|rebuild`) and the published panels are not yet
+wired to it. Not built: the **load-screen** menu (the manifest/loadout/confidence decision at the
+moment of launch) and a shuttle as an away-mission vehicle distinct from the transporter.

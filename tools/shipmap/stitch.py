@@ -63,6 +63,14 @@ STRAY_Z = -2048       # deck geometry lies well below this; the stray brush sits
 MODEL_LIMIT = 256     # the engine's model index, before S3's patch
 
 
+# NB: station markers on the published decks. Each system's station is on a fixed deck (ship_core's
+# SystemSpec), and g_crew.cpp's StationFor looks for a map entity "lwh_station_<system>". Placing one
+# at the published maps' own interface panels was tried and reverted: those panels use sky/trigger
+# shaders, so a marker at a panel's centre sits in the void, q3map2 reports "Entity leaked", writes no
+# portal file, and -vis fails. The markers need a chosen open-space origin on the right deck -- the S5
+# brief's "record the chosen origins as invention" -- which needs a person who can see the map.
+
+
 def fmt(v):
     return ("%.4f" % v).rstrip("0").rstrip(".") if v != int(v) else str(int(v))
 
@@ -204,7 +212,7 @@ def stitch(deck_files, pitch):
     first = min(decks)
     world_keys = collections.OrderedDict(decks[first][0][0])
     world, out, late = [], [], []
-    report = {"decks": {}, "pitch": pitch, "renamed": sorted(shared), "models": collections.Counter(),
+    report = {"decks": {}, "pitch": pitch, "renamed": sorted(shared), "models": collections.Counter(), "station_markers": 0,
               "dropped_stray_brushes": 0, "folded": collections.Counter(), "turbolift_links": 0, "turbolift_links_added": 0, "triggers_boxed": 0,
               "level_changes_left": []}
 
@@ -270,6 +278,11 @@ def stitch(deck_files, pitch):
             if keep:
                 report["models"][cls] += 1
             out.append((keys, [b.moved(dz) for b in keep]))
+            # NB: a station marker at a published deck's interface panel was tried and reverted. Those
+            # panels use sky/trigger shaders (common/junk_sky, common/trigger), so a marker at the
+            # panel's centre is inside the void: q3map2 reports "Entity leaked" and writes no portal
+            # file, and -vis fails. Put the marker at a chosen open-space origin on the right deck
+            # instead -- the S5 brief's "record the chosen origins as invention" -- with a person.
         report["decks"][n] = {"entities": len(ents), "z": [min(zs), max(zs)] if zs else None}
 
     # The turbolift reaches every deck from every deck. The published decks link only to each other
@@ -363,6 +376,7 @@ def main(argv=None):
           f"stray brushes dropped {report['dropped_stray_brushes']}, folded into the world {report['folded']}")
     print(f"  brush models {report['brush_models']} (engine limit {MODEL_LIMIT}): {report['models']}")
     print(f"  triggers turned from brush models into boxes: {report['triggers_boxed']}")
+    print("  station markers on the published decks: none (their panels are sky/trigger brushes and a marker there leaks; see the note in stitch.py)")
     print(f"  names renamed because more than one deck uses them: {len(report['renamed'])}")
     print(f"  surfaces given a substitute for a texture the shipped game lacks: {report['textures_substituted']}")
     print(f"  turbolift links between decks: {report['turbolift_links']} rewritten, {report['turbolift_links_added']} added; level changes left as they were "

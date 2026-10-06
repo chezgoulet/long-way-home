@@ -84,6 +84,14 @@ void CommandDraw( void )
 	UI_DrawProportionalString( 460, 160, "DECK", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	UI_DrawProportionalString( 460, 176, va( "%d", command.deck ), UI_BIGFONT, colorTable[CT_WHITE] );
 
+	// The player's character and their career: command can confirm a field promotion here.
+	ui.Cvar_VariableStringBuffer( "lwh_ship_player", line, sizeof( line ) );
+	UI_DrawProportionalString( 44, 320, va( "YOUR CHARACTER: %s", line[0] ? line : "NONE" ), UI_SMALLFONT, colorTable[CT_WHITE] );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_player_next", line, sizeof( line ) );
+	if ( line[0] ) UI_DrawProportionalString( 44, 336, va( "P  field promotion to %s", line ), UI_TINYFONT, colorTable[CT_LTBLUE1] );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_promote", line, sizeof( line ) );
+	if ( line[0] ) UI_DrawProportionalString( 44, 350, line, UI_TINYFONT, strncmp( line, "REFUSED", 7 ) == 0 ? colorTable[CT_RED] : colorTable[CT_LTGOLD1] );
+
 	UI_DrawProportionalString( 44, 412, "UP/DOWN system   LEFT/RIGHT deck   R repair that system first   G guard to that deck   V evacuate that deck",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 	UI_DrawProportionalString( 44, 426, "T sickbay triage worst/rank first   C clear all orders   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
@@ -108,6 +116,13 @@ bool CommandAct( int key )
 	case 'v': case 'V': Order( va( "evacuate %d", command.deck ) ); return true;
 	case 't': case 'T': Order( ui.Cvar_VariableValue( "lwh_ship_triage" ) > 0.5f ? "triage worst" : "triage rank" ); return true;
 	case 'c': case 'C': Order( "repair none" ); Order( "security 0" ); Order( "evacuate 0" ); return true;
+	case 'p': case 'P':
+	{
+		char idx[16];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_player_index", idx, sizeof( idx ) );
+		if ( idx[0] ) ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship promote %s\n", idx ) );
+		return true;
+	}
 	}
 	return false;
 }

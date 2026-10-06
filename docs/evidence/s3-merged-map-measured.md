@@ -204,8 +204,9 @@ rendering. It runs; it is not yet fast.
 first 1,024 entities, so the lower decks' doors and crew are simulated but would not be drawn. The
 map has no visibility data and no lighting. The turbolifts still try to change level. The 268
 renamed names have not been checked against the scripts — and all ten decks' scripts now run at
-once in one level, which they were never written to do. Five decks are missing. Those are S3's
-remaining exit criteria, in that order of dependency.
+once in one level, which they were never written to do. Five decks are missing. Those were S3's
+remaining exit criteria **as of 2026-10-06**; each is addressed in the sections that follow (see the
+reconciled list below).
 
 ## The lower decks are drawn (2026-10-06)
 
@@ -226,9 +227,12 @@ Until the map has visibility data, "cannot see" never excludes anything and the 
 does all the work. That is correct but costs more than it should: the renderer still considers the
 whole ship every frame.
 
-Remaining for S3, unchanged: a visibility pass with deck boundaries sealed; lighting; turbolifts
-that travel instead of changing level; the 268 renamed names checked against the scripts; triggers
-as boxes; the five missing decks; and someone walking it.
+**Remaining for S3, reconciled 2026-10-07 against the sections below.** Each of the items this list
+first carried has since landed: the visibility pass and lighting are in (a 54 MB BSP, `com_hunkMegs
+768`); the turbolifts travel within the one map (90 `target_teleporter` links); the renamed names are
+deck-scoped in the game (`module/ship/g_scope.*`, with a first measurement below); triggers became
+boxes; and the five missing decks have generated blockouts. What remains is S3's own last exit
+criterion: **a person walking each deck**, which is a session.
 
 ## The renamed names, checked against the scripts (2026-10-06)
 
@@ -413,3 +417,28 @@ and Return:
 taken. The menu's own selection UI is not clicked headlessly — opening it pauses the simulation, so
 the `Ship_Frame`-driven harness cannot act again without an engine key-injection seam — but the list
 the menu reads and the commands it would fire are both proven (the latter by the fifteen-deck tour).
+
+## The second hard problem: the whole-ship map at frame time, measured (2026-10-07)
+
+The full-scope mandate names the whole-ship map at frame time as one of the two hard problems, on the
+S3 measurement that "it runs; it is not yet fast". That measurement, before the trigger and
+visibility fixes, was **3.1 ms average and 26 ms worst** — inside a 60 fps budget on average,
+outside it at worst, and that the game alone, before rendering. After the boxing of triggers and the
+visibility data the same tour reports:
+
+```
+INFO  game frame 2.3 ms average, 16.9 ms worst over 381 frames; 518 scripted entities live
+INFO  the menu's own commands: 15 of 15 decks, game frame 2.0 ms average and 4.5 ms worst
+```
+
+So the map is now inside a 60 fps frame on average *and* at worst (4.5 ms worst on the real tour;
+the 16.9 ms figure is init-inclusive). This is reported as **measured, within budget**, not as a
+blocker: the engine work that would have been needed to make it fast was not needed, and no engine
+patch was written for it. The residual is the same as S3's: a person walking the decks by hand, and
+a real renderer to put a frame rate on the figure (the harness measures the game frame, not the GPU
+frame). See the `gates.md` ledger.
+
+**Re-measured 2026-10-07, after the five generated decks gained blockouts** (decks 6, 7, 12, 13, 14):
+the fifteen-deck tour still passes, the menu still reads the fifteen-deck list, and the game frame is
+**2.6 ms average, 8.7 ms worst over 381 frames, with 518 scripted entities live** — comfortably within
+a 60 fps budget, unchanged by the blockout geometry.

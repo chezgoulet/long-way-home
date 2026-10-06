@@ -5,6 +5,7 @@
 // place the two meet. Consoles (S2 onward) and embodied crew (S5) reach the ship through Ship_Get().
 
 #include "g_local.h"
+#include "g_functions.h"
 
 #include "ship_core.h"
 #include "g_ship.h"
@@ -49,6 +50,7 @@ ship::Ship vessel;
 std::vector<uint8_t> pendingSave;
 vec3_t glanceAngles = { 0, 0, 0 }; // where the glance test points the player, re-applied each frame
 bool haveGlanceAim = false;
+bool bodyApplied = false;          // S10: the player's model set from the crew record this map
 
 void WriteFile( const char *path, const void *data, int len )
 {
@@ -130,6 +132,8 @@ void Publish( void )
 	gi.cvar_set( "lwh_ship_stores", Fmt( "DEUTERIUM %.1f%%   ANTIMATTER %.1f%%   BATTERIES %.0f%%   TORPEDOES %d   CREW FIT %d OF %d",
 		vessel.stores.deuterium * 100, vessel.stores.antimatter * 100, vessel.stores.batteries * 100, vessel.stores.torpedoes,
 		vessel.CrewFit(), static_cast<int>( vessel.crew.size() ) ).c_str() );
+	gi.cvar_set( "lwh_ship_dilithium", Fmt( "DILITHIUM %.0f%%   RANGE %d LY   QUALITY %.2f", vessel.dilithium * 100,
+		ship::DilithiumRange( vessel ), vessel.crystalQuality ).c_str() );
 	gi.cvar_set( "lwh_ship_kit", Fmt( "AWAY KIT  TRICORDERS %d (%d%%)   PHASERS %d   EV SUITS %d",
 		vessel.stores.tricorders, static_cast<int>( vessel.stores.tricorderCharge * 100 + 0.5f ),
 		vessel.stores.phasers, vessel.stores.evSuits ).c_str() );
@@ -140,19 +144,26 @@ void Publish( void )
 			static_cast<int>( src.health * 100 + 0.5f ), src.online ? 1 : 0 ).c_str() );
 	}
 	// The outside, for Tactical and the Conn.
-	gi.cvar_set( "lwh_ship_enemy", !vessel.enemy.present ? "" : Fmt( "%s   HULL %d%%   SHIELDS %d%%%s", vessel.enemy.borg ? "BORG VESSEL" : "HOSTILE VESSEL",
+	gi.cvar_set( "lwh_ship_enemy", !vessel.enemy.present ? "" : Fmt( "%s   HULL %d%%   SHIELDS %d%%   WEAPONS %d%%   ENGINES %d%%   TARGETING %s%s",
+		vessel.enemy.kind == ship::ENEMY_BORG_VESSEL ? "BORG VESSEL" : vessel.enemy.kind == ship::ENEMY_WARSHIP ? "WARSHIP" : "RAIDER",
 		static_cast<int>( vessel.enemy.hull * 100 + 0.5f ), static_cast<int>( vessel.enemy.shields * 100 + 0.5f ),
-		vessel.enemy.hull <= 0.0f ? "   DESTROYED" : "" ).c_str() );
+		static_cast<int>( vessel.enemy.weapons * 100 + 0.5f ), static_cast<int>( vessel.enemy.engines * 100 + 0.5f ),
+		ship::EnemySubsystemName( vessel.target ), vessel.enemy.hull <= 0.0f ? "   DESTROYED" : "" ).c_str() );
+	gi.cvar_set( "lwh_ship_pursued", vessel.pursued ? Fmt( "%d", vessel.pursuitJumps ).c_str() : "" );
+	gi.cvar_set( "lwh_ship_sector", Fmt( "SECTOR %d OF %d%s", vessel.sectorNumber + 1, ship::SECTORS_TO_CROSS, vessel.won ? "   HOME" : "" ).c_str() );
 	gi.cvar_set( "lwh_ship_shields", Fmt( "%d", static_cast<int>( vessel.shieldStrength * 100 + 0.5f ) ).c_str() );
 	{
-		static const char *const KINDS[] = { "EMPTY SPACE", "HOSTILE", "DERELICT", "BORG" };
-		std::string chart = Fmt( "AT BEACON %d OF %d.   JUMPS:", vessel.beacon, static_cast<int>( vessel.sector.size() ) - 1 );
+		static const char *const KINDS[] = { "EMPTY SPACE", "HOSTILE", "DERELICT", "BORG", "TRADER", "DISTRESS", "RESOURCE BELT", "PRE-WARP", "THE END" };
+		std::string chart = Fmt( "SECTOR %d   AT BEACON %d OF %d.   JUMPS:", vessel.sectorNumber + 1, vessel.beacon, static_cast<int>( vessel.sector.size() ) - 1 );
 		std::string links;
 		for ( int l : vessel.sector[vessel.beacon].links )
 		{
-			chart += Fmt( "   [%d] %s", l, vessel.sector[l].visited ? KINDS[vessel.sector[l].kind] : "UNCHARTED" );
+			const ship::Beacon &b = vessel.sector[l];
+			chart += Fmt( "   [%d] %s%s", l, ( b.visited || b.surveyed ) ? KINDS[b.kind] : "UNCHARTED",
+				b.surveyed && !b.visited ? "?" : "" );
 			links += Fmt( "%d ", l );
 		}
+		if ( vessel.course >= 0 ) chart += Fmt( "   COURSE: BEACON %d", vessel.course );
 		gi.cvar_set( "lwh_ship_chart", chart.c_str() );
 		gi.cvar_set( "lwh_ship_links", links.c_str() );
 	}
@@ -164,6 +175,9 @@ void Publish( void )
 				aboard += Fmt( "%s DECK %d: %d   ", vessel.decks[d].borg ? "BORG" : "INTRUDERS", d + 1, static_cast<int>( std::ceil( vessel.decks[d].intruders ) ) );
 			if ( vessel.decks[d].assimilated > 0.0f )
 				aboard += Fmt( "DECK %d %d%% ASSIMILATED   ", d + 1, static_cast<int>( vessel.decks[d].assimilated * 100 + 0.5f ) );
+			if ( vessel.decks[d].fire > 0.0f )
+				aboard += Fmt( "FIRE DECK %d: %d%%%s   ", d + 1, static_cast<int>( vessel.decks[d].fire * 100 + 0.5f ),
+					vessel.decks[d].firefighting ? " BEING FOUGHT" : "" );
 		}
 		gi.cvar_set( "lwh_ship_aboard", aboard.c_str() );
 	}
@@ -184,22 +198,60 @@ void Publish( void )
 			injured, beds, injured - beds, lost, assimilated,
 			static_cast<int>( morale * 100 + 0.5f ), static_cast<int>( fatigue * 100 + 0.5f ),
 			vessel.orderTriage == 1 ? "RANK FIRST" : "WORST FIRST" ).c_str() );
+		// The ward itself, one row per casualty in the order triage treats them, for the triage screen.
+		std::string ward;
+		const std::vector<int> rows = ship::Patients( vessel );
+		for ( int i : rows )
+		{
+			const ship::CrewMember &c = vessel.crew[i];
+			ward += Fmt( "%s|%d|%d;", c.name.c_str(), static_cast<int>( c.severity * 100 + 0.5f ), c.underCare ? 1 : 0 );
+		}
+		gi.cvar_set( "lwh_ship_ward", ward.c_str() );
+	}
+
+	// The away mission and the course, for the Operations and Conn consoles.
+	gi.cvar_set( "lwh_ship_away", Fmt( "%d", ship::AwayTeam( vessel ) ).c_str() );
+	gi.cvar_set( "lwh_ship_course", Fmt( "%d", vessel.course ).c_str() );
+	gi.cvar_set( "lwh_ship_goal", Fmt( "%d", static_cast<int>( vessel.sector.size() ) - 1 ).c_str() );
+
+	// The log, newest first, for the browsable screen: when|who|scope|what, one per entry.
+	{
+		std::string entries;
+		int n = 0;
+		for ( int i = static_cast<int>( vessel.log.size() ) - 1; i >= 0 && n < 24; --i, ++n )
+		{
+			const ship::LogEntry &e = vessel.log[i];
+			const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
+			const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
+			entries += Fmt( "D%d %02d:%02d|%s|%s|%s;", day, sod / 3600, sod % 3600 / 60, e.who.c_str(), e.scope.c_str(), e.what.c_str() );
+		}
+		gi.cvar_set( "lwh_ship_log", entries.c_str() );
 	}
 
 	// The endurance clocks, for Engineering (the air-and-endurance gap): a countdown wherever the air
 	// is going, and the ship's time to dark on the stores it has.
 	{
 		std::string clocks;
-		int going = 0;
+		int going = 0, breachDeck = 0;
+		float worstAir = 1.0f;
 		for ( int d = 0; d < ship::DECKS; ++d )
 		{
 			const float air = ship::MinutesOfAir( vessel, d + 1 );
 			if ( air >= 0.0f ) { clocks += Fmt( "DECK %d AIR %d MIN   ", d + 1, static_cast<int>( air + 0.5f ) ); ++going; }
+			if ( vessel.decks[d].atmosphere < worstAir ) { worstAir = vessel.decks[d].atmosphere; breachDeck = d + 1; }
 		}
 		const float dark = ship::MinutesToDark( vessel );
-		if ( dark >= 0.0f && dark < 1440.0f ) clocks += Fmt( "ENDURANCE %dH %02dM", static_cast<int>( dark ) / 60, static_cast<int>( dark ) % 60 );
+		if ( dark >= 0.0f && dark < 1440.0f ) clocks += Fmt( "ENDURANCE %dH %02dM   ", static_cast<int>( dark ) / 60, static_cast<int>( dark ) % 60 );
+		// Battery and auxiliary endurance as their own numbers (the air-and-endurance gap).
+		const float battery = ship::EnduranceOf( vessel, ship::SRC_BATTERIES );
+		const float aux = ship::EnduranceOf( vessel, ship::SRC_AUXILIARY );
+		if ( battery >= 0.0f && battery < 1440.0f ) clocks += Fmt( "BATTERY %dH %02dM   ", static_cast<int>( battery ) / 60, static_cast<int>( battery ) % 60 );
+		if ( aux >= 0.0f && aux < 1440.0f ) clocks += Fmt( "AUXILIARY %dH %02dM", static_cast<int>( aux ) / 60, static_cast<int>( aux ) % 60 );
 		gi.cvar_set( "lwh_ship_clocks", clocks.c_str() );
 		gi.cvar_set( "lwh_ship_clocks_alarm", going || ( dark >= 0.0f && dark < 60.0f ) ? "1" : "0" );
+		// The compartment losing air and whether a field covers it, for the environmental-control control.
+		gi.cvar_set( "lwh_ship_breach_deck", breachDeck && worstAir < 1.0f ? Fmt( "%d", breachDeck ).c_str() : "" );
+		gi.cvar_set( "lwh_ship_breach_field", breachDeck && worstAir < 1.0f && vessel.decks[breachDeck - 1].forceField ? "1" : "0" );
 	}
 
 	// Standing orders and who the player is, for the command console and the personnel screen.
@@ -214,6 +266,8 @@ void Publish( void )
 		static const char *const RANKS[] = { "Crewman", "Ensign", "Lt. j.g.", "Lieutenant", "Lt. Commander", "Commander", "Captain" };
 		const bool chosen = vessel.player >= 0 && vessel.player < static_cast<int>( vessel.crew.size() );
 		gi.cvar_set( "lwh_ship_player", chosen ? Fmt( "%s %s", RANKS[vessel.crew[vessel.player].rank], vessel.crew[vessel.player].name.c_str() ).c_str() : "" );
+		gi.cvar_set( "lwh_ship_player_index", chosen ? Fmt( "%d", vessel.player ).c_str() : "" );
+		gi.cvar_set( "lwh_ship_player_next", chosen && vessel.crew[vessel.player].rank < 6 ? RANKS[vessel.crew[vessel.player].rank + 1] : "" );
 	}
 
 	int order[ship::SYS_COUNT];
@@ -247,6 +301,55 @@ void ReportWatchedTrigger( const char *when )
 	}
 	gi.Printf( "SHIP: no trigger found at %s\n", g_shipTestWatch->string );
 }
+
+// Find a usable panel the player can stand in front of and stand there, aiming at it. A panel's
+// facing is its thinnest axis; stand a pace out along it, on the floor, and look back at it. Used
+// by the glance test (13) and the viewscreen test (30). Returns the panel, or NULL; sets
+// glanceAngles/haveGlanceAim so the frame loop can hold the aim.
+gentity_t *StandAtPanel( void )
+{
+	gentity_t *chosen = NULL;
+	vec3_t stand = { 0, 0, 0 }, dir = { 0, 0, 0 };
+	for ( int i = 1; i < globals.num_entities && !chosen; ++i )
+	{
+		gentity_t *e = &g_entities[i];
+		if ( !e->inuse || !e->classname || Q_stricmp( e->classname, "func_usable" ) ) continue;
+		if ( !e->model || e->model[0] != '*' ) continue;
+		vec3_t span;
+		for ( int a = 0; a < 3; ++a ) span[a] = e->absmax[a] - e->absmin[a];
+		if ( span[0] <= 0.0f || span[1] <= 0.0f || span[2] <= 0.0f ) continue;
+		int axis = span[0] <= span[1] ? 0 : 1;
+		if ( span[2] < span[axis] ) axis = 2;      // a floor panel: not a standing console
+		if ( axis == 2 ) continue;
+		vec3_t center;
+		for ( int a = 0; a < 3; ++a ) center[a] = ( e->absmin[a] + e->absmax[a] ) * 0.5f;
+		for ( int sign = 1; sign >= -1 && !chosen; sign -= 2 )
+		{
+			vec3_t at = { center[0], center[1], center[2] }, eye;
+			at[axis] = center[axis] + sign * ( span[axis] * 0.5f + 40.0f );
+			eye[0] = at[0]; eye[1] = at[1]; eye[2] = center[2];
+			trace_t tr;
+			gi.trace( &tr, eye, vec3_origin, vec3_origin, center, 0, MASK_OPAQUE | CONTENTS_BODY | CONTENTS_ITEM | CONTENTS_CORPSE );
+			if ( tr.entityNum != i ) continue;
+			vec3_t from = { at[0], at[1], e->absmax[2] + 64.0f }, to = { at[0], at[1], e->absmin[2] - 128.0f };
+			gi.trace( &tr, from, vec3_origin, vec3_origin, to, 0, MASK_PLAYERSOLID );
+			if ( tr.fraction == 1.0f ) continue; // no floor: cannot stand here
+			VectorCopy( at, stand );
+			stand[2] = tr.endpos[2] + 1.0f;
+			VectorSubtract( center, stand, dir );
+			chosen = e;
+		}
+	}
+	if ( !chosen ) return NULL;
+	vec3_t angles;
+	vectoangles( dir, angles );
+	TeleportPlayer( &g_entities[0], stand, angles, 0 );
+	VectorCopy( angles, glanceAngles );
+	haveGlanceAim = true;
+	return chosen;
+}
+
+void ApplyPlayerBody( void ); // S10: defined below, after the harness section
 
 // The harness (scripts/s2-check.sh): do to the ship what a console would, then prove the result
 // is what the save holds.
@@ -363,6 +466,8 @@ void RunTest( void )
 		{
 			gi.Printf( "SHIP: console test: sensors control %d%%, %s\n", static_cast<int>( vessel.systems[ship::SYS_SENSORS].control * 100 + 0.5f ),
 				ship::Hijacked( vessel, ship::SYS_SENSORS ) ? "still hijacked" : "ours again" );
+			// the first beacon the Conn lists is a contact, so the check exercises the fight deterministically
+			if ( vessel.sector.size() > 1 ) { vessel.sector[1].kind = ship::BEACON_HOSTILE; vessel.sector[1].visited = false; }
 			gi.SendConsoleCommand( "ui_navigation\n" );
 			nextKeyMs = level.time;
 			step = 6;
@@ -464,50 +569,10 @@ void RunTest( void )
 		if ( level.time < 1000 ) step = 0;
 		if ( step == 0 && level.time >= 3000 )
 		{
-			// find any usable brush the player can stand in front of. A panel's facing is its thinnest
-			// axis; stand a pace out along it, on the floor, and look back at the panel.
-			gentity_t *chosen = NULL;
-			vec3_t stand = { 0, 0, 0 }, dir = { 0, 0, 0 };
-			for ( int i = 1; i < globals.num_entities && !chosen; ++i )
-			{
-				gentity_t *e = &g_entities[i];
-				if ( !e->inuse || !e->classname || Q_stricmp( e->classname, "func_usable" ) ) continue;
-				if ( !e->model || e->model[0] != '*' ) continue;
-				vec3_t span;
-				for ( int a = 0; a < 3; ++a ) span[a] = e->absmax[a] - e->absmin[a];
-				if ( span[0] <= 0.0f || span[1] <= 0.0f || span[2] <= 0.0f ) continue;
-				int axis = span[0] <= span[1] ? 0 : 1;
-				if ( span[2] < span[axis] ) axis = 2;      // a floor panel: not a standing console
-				if ( axis == 2 ) continue;
-				vec3_t center;
-				for ( int a = 0; a < 3; ++a ) center[a] = ( e->absmin[a] + e->absmax[a] ) * 0.5f;
-				for ( int sign = 1; sign >= -1 && !chosen; sign -= 2 )
-				{
-					vec3_t at = { center[0], center[1], center[2] }, eye;
-					at[axis] = center[axis] + sign * ( span[axis] * 0.5f + 40.0f );
-					eye[0] = at[0]; eye[1] = at[1]; eye[2] = center[2];
-					trace_t tr;
-					gi.trace( &tr, eye, vec3_origin, vec3_origin, center, 0, MASK_OPAQUE | CONTENTS_BODY | CONTENTS_ITEM | CONTENTS_CORPSE );
-					if ( tr.entityNum != i ) continue;
-					vec3_t from = { at[0], at[1], e->absmax[2] + 64.0f }, to = { at[0], at[1], e->absmin[2] - 128.0f };
-					gi.trace( &tr, from, vec3_origin, vec3_origin, to, 0, MASK_PLAYERSOLID );
-					if ( tr.fraction == 1.0f ) continue; // no floor: cannot stand here
-					VectorCopy( at, stand );
-					stand[2] = tr.endpos[2] + 1.0f;
-					VectorSubtract( center, stand, dir );
-					chosen = e;
-				}
-			}
+			gentity_t *chosen = StandAtPanel();
 			if ( chosen )
-			{
-				vec3_t angles;
-				vectoangles( dir, angles );
-				TeleportPlayer( &g_entities[0], stand, angles, 0 );
-				VectorCopy( angles, glanceAngles );
-				haveGlanceAim = true;
-				gi.Printf( "SHIP: glance test: standing at %s looking at %s (%s)\n", vtos( stand ),
+				gi.Printf( "SHIP: glance test: standing at %s looking at %s (%s)\n", vtos( g_entities[0].client->ps.origin ),
 					chosen->targetname ? chosen->targetname : "?", chosen->classname );
-			}
 			else
 				gi.Printf( "SHIP: glance test: no usable panel with a standable side found\n" );
 			step = 1;
@@ -517,6 +582,314 @@ void RunTest( void )
 			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
 		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_glance\n" ); step = 2; }
 		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 30 )
+	{//stand at a panel with a contact and photograph the live viewscreen beside it (S9's "see")
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			gentity_t *chosen = StandAtPanel();
+			// a contact of a known, damaged state, so the image drawn is deterministic
+			vessel.enemy.present = true;
+			vessel.enemy.kind = ship::ENEMY_WARSHIP;
+			vessel.enemy.hull = 0.62f;
+			vessel.enemy.shields = 0.35f;
+			vessel.target = ship::TARGET_WEAPONS;
+			if ( chosen )
+				gi.Printf( "SHIP: viewscreen test: standing at %s with a contact hull 62%% shields 35%%\n",
+					chosen->targetname ? chosen->targetname : "?" );
+			else
+				gi.Printf( "SHIP: viewscreen test: no usable panel with a standable side found\n" );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 5500 ) { gi.SendConsoleCommand( "screenshot lwh_viewscreen\n" ); step = 2; }
+		if ( step == 2 && level.time >= 7000 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 32 )
+	{//the adopted RPG-X target_shaderremap: it spawned, and firing it toggles the shader (Harvest B)
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			gentity_t *e = G_Find( NULL, FOFS( classname ), (char *)"target_shaderremap" );
+			if ( e )
+			{
+				gi.Printf( "SHIP: shaderremap test: found target_shaderremap at %s\n", vtos( e->s.origin ) );
+				GEntity_UseFunc( e, e, e );   // swap falsename -> truename
+				GEntity_UseFunc( e, e, e );   // and back again
+			}
+			else
+				gi.Printf( "SHIP: shaderremap test: no target_shaderremap in the map\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4000 ) { gi.SendConsoleCommand( "quit\n" ); step = 2; }
+		return;
+	}
+	if ( g_shipTest->integer == 33 )
+	{//S10: the player's character is the body they walk in -- set a named character and apply it
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			const int who = ship::CreateCharacter( vessel, "Tuvok Test", ship::DEPT_SECURITY, 2 );
+			if ( who >= 0 ) { vessel.crew[who].type = "tuvok"; ApplyPlayerBody(); }
+			else gi.Printf( "SHIP: body test: no character could be created\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4500 ) { gi.SendConsoleCommand( "screenshot lwh_body\n" ); step = 2; }
+		if ( step == 2 && level.time >= 6000 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 34 )
+	{//S6: damage is visible -- a damaged system sparks where it is worked on the player's deck
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			gentity_t *arrival = NULL;
+			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "d12_arrival" ) ) arrival = e;
+			}
+			if ( arrival )
+			{
+				vec3_t at, angles = { 0, 0, 0 };
+				VectorCopy( arrival->currentOrigin, at );
+				at[2] += 24.0f;
+				TeleportPlayer( &g_entities[0], at, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: damage test: standing on deck 12 at %s\n", vtos( at ) );
+			}
+			else gi.Printf( "SHIP: damage test: no d12_arrival on this map\n" );
+			ship::DamageSystem( vessel, ship::SYS_LIFE_SUPPORT, 0.4f );
+			gi.Printf( "SHIP: damage test: life support at %d%% health\n", static_cast<int>( vessel.systems[ship::SYS_LIFE_SUPPORT].health * 100 + 0.5f ) );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_damage\n" ); step = 2; }
+		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 35 )
+	{//S6: a burning deck is seen to burn -- smoke and flame across the deck the player is on
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			gentity_t *arrival = NULL;
+			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "d12_arrival" ) ) arrival = e;
+			}
+			if ( arrival )
+			{
+				vec3_t at, angles = { 0, 0, 0 };
+				VectorCopy( arrival->currentOrigin, at );
+				at[2] += 24.0f;
+				TeleportPlayer( &g_entities[0], at, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: fire test: standing on deck 12 at %s\n", vtos( at ) );
+			}
+			else gi.Printf( "SHIP: fire test: no d12_arrival on this map\n" );
+			ship::IgniteDeck( vessel, 12, 0.6f );
+			gi.Printf( "SHIP: fire test: deck 12 alight at %d%%\n", static_cast<int>( vessel.decks[11].fire * 100 + 0.5f ) );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_fire\n" ); step = 2; }
+		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 36 )
+	{//S10: the command console confirms a field promotion (the ship's answer reaches the UI cvar)
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			ship::SetRole( vessel, ship::ROLE_IN_COMMAND );
+			const int who = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 0 );
+			if ( who < 0 ) gi.Printf( "SHIP: promote test: no character could be created\n" );
+			else { gi.Printf( "SHIP: promote test: Reyes is crew number %d at rank %d\n", who, vessel.crew[who].rank ); gi.SendConsoleCommand( Fmt( "ship promote %d\n", who ).c_str() ); }
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4500 )
+		{
+			gi.Printf( "SHIP: promote test: the ship says \"%s\"\n", gi.cvar( "lwh_ship_promote", "", 0 )->string );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 6000 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 37 )
+	{//memory: a crew member speaks a line drawn from what they remember, when addressed
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3500 )
+		{
+			ship::Ship *s = Ship_Get();
+			gentity_t *who = NULL;
+			int idx = -1;
+			if ( s )
+				for ( int n = 1; n < globals.num_entities && !who; ++n )
+				{
+					gentity_t *e = &g_entities[n];
+					if ( !e->inuse || !e->fullName ) continue;
+					for ( size_t k = 0; k < s->crew.size(); ++k )
+						if ( s->crew[k].name == e->fullName ) { idx = static_cast<int>( k ); who = e; break; }
+				}
+			if ( s && who && idx >= 0 )
+			{
+				ship::Remember( *s, idx, ship::MEM_RESCUE, s->player, ship::MEM_SAW, 0.9f );
+				gi.Printf( "SHIP: speech test: %s carries a rescue; addressing them\n", s->crew[idx].name.c_str() );
+				GEntity_UseFunc( who, &g_entities[0], &g_entities[0] );
+			}
+			else gi.Printf( "SHIP: speech test: no embodied crew found\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 5500 ) { gi.SendConsoleCommand( "quit\n" ); step = 2; }
+		return;
+	}
+	if ( g_shipTest->integer == 38 )
+	{//dilithium: the crystal, recomposition, and the journey's scoreboard, driven at the console
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 ) { gi.SendConsoleCommand( "ship dilithium\n" ); step = 1; }
+		if ( step == 1 && level.time >= 3200 ) { vessel.dilithium = 0.5f; gi.SendConsoleCommand( "ship recomposite\n" ); step = 2; }
+		if ( step == 2 && level.time >= 4500 ) { gi.SendConsoleCommand( "ship dilithium\n" ); step = 3; }
+		if ( step == 3 && level.time >= 5200 ) { gi.SendConsoleCommand( "ship finddilithium\n" ); step = 4; }
+		if ( step == 4 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
+		return;
+	}
+	if ( g_shipTest->integer == 39 )
+	{//shuttles: the bay, a launch with a manifest, and a recall, at the console
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 ) { gi.SendConsoleCommand( "ship shuttle\n" ); step = 1; }
+		if ( step == 1 && level.time >= 3200 ) { gi.SendConsoleCommand( "ship launch 1 3 5 6\n" ); step = 2; }
+		if ( step == 2 && level.time >= 4200 ) { gi.SendConsoleCommand( "ship shuttle\n" ); step = 3; }
+		if ( step == 3 && level.time >= 5200 ) { gi.SendConsoleCommand( "ship shuttledock 1\n" ); step = 4; }
+		if ( step == 4 && level.time >= 6000 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
+		return;
+	}
+	if ( g_shipTest->integer == 40 )
+	{//the incursion's field: board a deck, let security answer, and report who holds it
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 ) { gi.SendConsoleCommand( "ship board 4 2 raider\n" ); step = 1; }
+		if ( step == 1 && level.time >= 4000 ) { gi.SendConsoleCommand( "ship controller\n" ); step = 2; }
+		if ( step == 2 && level.time >= 9000 ) { gi.SendConsoleCommand( "ship controller\n" ); step = 3; }
+		if ( step == 3 && level.time >= 10500 ) { gi.SendConsoleCommand( "quit\n" ); step = 4; }
+		return;
+	}
+	if ( g_shipTest->integer == 41 )
+	{//the counter-play kit: a Borg whose adaptation is broken by rotating the phaser modulation
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			vessel.enemy.present = true; vessel.enemy.kind = ship::ENEMY_BORG_VESSEL; vessel.enemy.borg = true;
+			vessel.enemy.hull = 1.0f; vessel.enemy.shields = 0.0f; vessel.enemy.adaptation = 0.6f;
+			gi.Printf( "SHIP: counterplay test: adaptation %d%% before remodulation\n", static_cast<int>( vessel.enemy.adaptation * 100 + 0.5f ) );
+			gi.SendConsoleCommand( "ship remodulate\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4000 ) { gi.SendConsoleCommand( "quit\n" ); step = 2; }
+		return;
+	}
+	if ( g_shipTest->integer == 42 )
+	{//de-assimilation: a crew member in the window is recovered, with lasting residue
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			if ( vessel.crew.size() > 10 )
+			{
+				vessel.crew[10].wounds = 0.5f;
+				vessel.crew[10].status = ship::CREW_INJURED;
+				gi.Printf( "SHIP: recover test: %s is 50%% assimilated\n", vessel.crew[10].name.c_str() );
+				gi.SendConsoleCommand( "ship recover 10\n" );
+			}
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4000 ) { gi.SendConsoleCommand( "quit\n" ); step = 2; }
+		return;
+	}
+	if ( g_shipTest->integer == 43 )
+	{//force fields rated: a level-10 field holds boarders and drains under their pressure
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 ) { gi.SendConsoleCommand( "ship order evacuate 4\n" ); step = 1; }
+		if ( step == 1 && level.time >= 3000 ) { gi.SendConsoleCommand( "ship board 4 2 raider\n" ); step = 2; }
+		if ( step == 2 && level.time >= 3800 ) { gi.SendConsoleCommand( "ship field 4 10\n" ); step = 3; }
+		if ( step == 3 && level.time >= 5500 ) { gi.SendConsoleCommand( "ship controller\n" ); step = 4; }
+		if ( step == 4 && level.time >= 7000 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
+		return;
+	}
+	if ( g_shipTest->integer == 44 )
+	{//probes: the safe way to look at something hostile
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 ) { gi.SendConsoleCommand( "ship alert red\n" ); step = 1; }
+		if ( step == 1 && level.time >= 3200 ) { gi.SendConsoleCommand( "ship probe 2\n" ); step = 2; }
+		if ( step == 2 && level.time >= 4500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 45 )
+	{//a phenomenon: scan its hidden attributes one at a time, then answer it correctly
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 ) { gi.SendConsoleCommand( "ship alert red\n" ); step = 1; }
+		if ( step == 1 && level.time >= 3000 )
+		{
+			int ph = -1;
+			for ( int i = 0; i < static_cast<int>( vessel.sector.size() ); ++i ) if ( vessel.sector[i].phenomenon ) ph = i;
+			if ( ph >= 0 )
+			{
+				vessel.beacon = ph;
+				vessel.enemy = ship::Enemy();
+				gi.Printf( "SHIP: phenomenon test: at beacon %d, the correct response is %d\n", ph, vessel.sector[ph].phenomTruth );
+				gi.SendConsoleCommand( "ship scan\n" );
+				gi.SendConsoleCommand( "ship scan\n" );
+				gi.SendConsoleCommand( "ship scan\n" );
+				gi.SendConsoleCommand( Fmt( "ship study %d\n", vessel.sector[ph].phenomTruth ).c_str() );
+			}
+			else gi.Printf( "SHIP: phenomenon test: none in this sector\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 5000 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 46 )
+	{//the security squad: sent to retake a deck the boarders hold
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 ) { gi.SendConsoleCommand( "ship order evacuate 4\n" ); step = 1; }
+		if ( step == 1 && level.time >= 3000 ) { gi.SendConsoleCommand( "ship board 4 2 raider\n" ); step = 2; }
+		if ( step == 2 && level.time >= 3800 ) { gi.SendConsoleCommand( "ship advance 4\n" ); step = 3; }
+		if ( step == 3 && level.time >= 22000 ) { gi.SendConsoleCommand( "ship controller\n" ); step = 4; }
+		if ( step == 4 && level.time >= 24000 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
+		return;
+	}
+	if ( g_shipTest->integer == 47 )
+	{//the warp core cascade: a damaged core overheats, then command shuts it down to stop the breach
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 ) { ship::DamageSystem( vessel, ship::SYS_WARP_DRIVE, 0.8f ); step = 1; }
+		if ( step == 1 && level.time >= 4000 ) { gi.SendConsoleCommand( "ship core\n" ); step = 2; }
+		if ( step == 2 && level.time >= 5500 ) { gi.SendConsoleCommand( "ship core shutdown\n" ); step = 3; }
+		if ( step == 3 && level.time >= 7000 ) { gi.SendConsoleCommand( "ship core\n" ); step = 4; }
+		if ( step == 4 && level.time >= 8500 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
 		return;
 	}
 	if ( g_shipTest->integer == 14 )
@@ -535,6 +908,156 @@ void RunTest( void )
 		tested = true;
 		gi.Printf( "SHIP: medical state: %s\n", gi.cvar( "lwh_ship_medical", "", 0 )->string );
 		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 28 )
+	{//a generic generated-deck blockout photograph: the deck number in g_shipTestPos, the arrival
+		//point dNN_arrival on the merged ship, the screenshot lwh_deckNN (used by scripts/deck-check.sh)
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			const int deck = atoi( g_shipTestPos->string );
+			char name[32];
+			Com_sprintf( name, sizeof( name ), "d%02d_arrival", deck );
+			gentity_t *arrival = NULL;
+			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, name ) ) arrival = e;
+			}
+			if ( arrival )
+			{
+				vec3_t at, angles = { 0, 0, 0 };
+				VectorCopy( arrival->currentOrigin, at );
+				at[2] += 24.0f;
+				TeleportPlayer( &g_entities[0], at, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: deck %d blockout: standing at %s\n", deck, vtos( at ) );
+			}
+			else gi.Printf( "SHIP: deck %d blockout: no %s on this map\n", deck, name );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 5000 )
+		{
+			gi.SendConsoleCommand( Fmt( "screenshot lwh_deck%02d\n", atoi( g_shipTestPos->string ) ).c_str() );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 27 )
+	{//the deck 13 blockout: stand on the generated life-support plant and photograph it, for the
+		//owner to approve before detail (docs/locations/deck13-life-support.brief.md)
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			gentity_t *arrival = NULL;
+			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "d13_arrival" ) ) arrival = e;
+			}
+			if ( arrival )
+			{
+				vec3_t at, angles = { 0, 0, 0 };
+				VectorCopy( arrival->currentOrigin, at );
+				at[2] += 24.0f;
+				TeleportPlayer( &g_entities[0], at, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: deck 13 blockout: standing at %s\n", vtos( at ) );
+			}
+			else gi.Printf( "SHIP: deck 13 blockout: no d13_arrival on this map\n" );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_deck13\n" ); step = 2; }
+		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 26 )
+	{//the deck 12 blockout: stand on the generated environmental-control deck and photograph it, for
+		//the owner to approve before detail (docs/locations/deck12-environmental-control.brief.md)
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			gentity_t *arrival = NULL;
+			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "d12_arrival" ) ) arrival = e;
+			}
+			if ( arrival )
+			{
+				vec3_t at, angles = { 0, 0, 0 };
+				VectorCopy( arrival->currentOrigin, at );
+				at[2] += 24.0f;
+				TeleportPlayer( &g_entities[0], at, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: deck 12 blockout: standing at %s\n", vtos( at ) );
+			}
+			else gi.Printf( "SHIP: deck 12 blockout: no d12_arrival on this map\n" );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_deck12\n" ); step = 2; }
+		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 25 )
+	{//runtime asset replacement on the merged ship: stand on a deck (g_shipTestPos, default 6),
+		//assimilate it, and photograph the surfaces before and after the Borg swap (BorgAssets). Needs
+		//`map voyager`. Works for a generated deck and, with lwh_decks.txt, a published one.
+		static int step = 0;
+		static int deck = 6;
+		if ( level.time < 1000 ) { step = 0; deck = g_shipTestPos->string[0] ? atoi( g_shipTestPos->string ) : 6; }
+		if ( step == 0 && level.time >= 3000 )
+		{
+			char name[32];
+			Com_sprintf( name, sizeof( name ), "d%02d_arrival", deck );
+			gentity_t *arrival = NULL;
+			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, name ) ) arrival = e;
+			}
+			if ( arrival )
+			{
+				vec3_t at, angles = { 0, 0, 0 };
+				VectorCopy( arrival->currentOrigin, at );
+				at[2] += 24.0f;
+				TeleportPlayer( &g_entities[0], at, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: borg deck test: standing on deck %d at %s\n", deck, vtos( at ) );
+			}
+			else gi.Printf( "SHIP: borg deck test: no %s on this map\n", name );
+			// Borg aboard: the ship's own damage control leaves the deck alone, so the assimilation
+			// we set stands for the photograph (otherwise the crew strip it back as fast as it grows).
+			vessel.decks[deck - 1].intruders = 1.0f;
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		// Before; half assimilated (some sections Borg); wholly assimilated (all sections Borg).
+		if ( step == 1 && level.time >= 4500 ) { gi.SendConsoleCommand( "screenshot lwh_borg_deck_before\n" ); vessel.decks[deck - 1].assimilated = ship::ASSIMILATED * 0.5f; step = 2; }
+		if ( step == 2 && level.time >= 6000 ) { gi.SendConsoleCommand( "screenshot lwh_borg_deck_partial\n" ); vessel.decks[deck - 1].assimilated = 1.0f; step = 3; }
+		if ( step == 3 && level.time >= 7500 ) { gi.SendConsoleCommand( "screenshot lwh_borg_deck_after\n" ); step = 4; }
+		if ( step == 4 && level.time >= 9000 )
+		{
+			gi.Printf( "SHIP: borg deck test: deck %d assimilated %d%%\n", deck, static_cast<int>( vessel.decks[deck - 1].assimilated * 100 + 0.5f ) );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 5;
+		}
 		return;
 	}
 	if ( g_shipTest->integer == 15 )
@@ -584,6 +1107,7 @@ void RunTest( void )
 		}
 		if ( step == 1 && level.time >= 4500 )
 		{
+			gi.SendConsoleCommand( "ship jobs\n" );
 			gi.Printf( "SHIP: --- the log ---\n" );
 			for ( const ship::LogEntry &e : vessel.log )
 			{
@@ -595,6 +1119,194 @@ void RunTest( void )
 			step = 2;
 		}
 		if ( step == 2 && level.time >= 5500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 24 )
+	{//runtime asset replacement (S8): swap a surface's shader for the Borg one live, then back
+		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 3000, "ship borgfx on\n" },
+			{ 4500, "screenshot lwh_borgfx\n" },
+			{ 5500, "ship borgfx off\n" },
+		};
+		static size_t step = 0;
+		if ( level.time < 1000 ) step = 0;
+		while ( step < sizeof( STEPS ) / sizeof( STEPS[0] ) && level.time >= STEPS[step].ms )
+			gi.SendConsoleCommand( STEPS[step++].command );
+		if ( tested || level.time < 7000 ) return;
+		tested = true;
+		gi.Printf( "SHIP: borgfx test done\n" );
+		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 23 )
+	{//the panels that are not stations: the log terminal, the ready room and the personnel padd open
+		//the ship's own screens, driven by the command a map's interface fires
+		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 3000, "genericmenu log7\n" },
+			{ 4200, "genericmenu readyroom\n" },
+			{ 5400, "genericmenu personnel\n" },
+			{ 6200, "genericmenu replicator\n" },
+			{ 7200, "screenshot lwh_nonstation\n" },
+		};
+		static size_t step = 0;
+		if ( level.time < 1000 ) step = 0;
+		while ( step < sizeof( STEPS ) / sizeof( STEPS[0] ) && level.time >= STEPS[step].ms )
+			gi.SendConsoleCommand( STEPS[step++].command );
+		if ( tested || level.time < 8000 ) return;
+		tested = true;
+		gi.Printf( "SHIP: non-station panel test done\n" );
+		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 21 )
+	{//the backlog batch: the tractor and salvage, fabrication, the EMH, and the crew systems
+		static int step = 0;
+		if ( level.time < 1000 ) { step = 0; }
+		if ( step == 0 && level.time >= 3000 )
+		{
+			ship::SetRole( vessel, ship::ROLE_IN_COMMAND );
+			vessel.sector[0].kind = ship::BEACON_DERELICT;
+			vessel.sector[0].looted = false;
+			gi.SendConsoleCommand( "ship as 1 tractor\n" );     // strip the wreck
+			gi.SendConsoleCommand( "ship as 0 fabricate 5\n" ); // material into parts
+			gi.SendConsoleCommand( "ship as 4 emh on\n" );      // the hologram
+			gi.SendConsoleCommand( "ship train 20 1\n" );       // a cross-qualification
+			gi.SendConsoleCommand( "ship promote 20\n" );       // a promotion
+			gi.SendConsoleCommand( "ship brig 40 on\n" );       // the brig
+			gi.SendConsoleCommand( "ship funeral\n" );          // a funeral
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4800 )
+		{
+			gi.Printf( "SHIP: backlog test: material %.0f, parts %.0f, EMH %d\n", vessel.stores.materials, vessel.stores.spareParts,
+				ship::EMHActive( vessel ) ? 1 : 0 );
+			gi.Printf( "SHIP: backlog test: crew 20 qualified at Tactical %d, rank %d; crew 40 brigged %d\n",
+				ship::Qualified( vessel.crew[20], ship::STN_TACTICAL ) ? 1 : 0, vessel.crew[20].rank, ship::Brigged( vessel, 40 ) ? 1 : 0 );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 2;
+		}
+		return;
+	}
+	if ( g_shipTest->integer == 20 )
+	{//the wall clock (S10): the ship lives on while the game is closed. Two days away is two days
+		//aboard, and a year away is capped at thirty.
+		static int step = 0;
+		if ( level.time < 1000 ) { step = 0; }
+		if ( step == 0 && level.time >= 3000 )
+		{
+			vessel.cfg.clockMode = ship::CLOCK_WALL; // the clock that lives on while the game is closed
+			gi.Printf( "SHIP: wall-clock test: before, day %d, deuterium %d%%\n", vessel.Day(), static_cast<int>( vessel.stores.deuterium * 100 + 0.5f ) );
+			ship::CatchUp( vessel, 2.0 * ship::SECONDS_PER_DAY );
+			gi.Printf( "SHIP: wall-clock test: after two days away, day %d, deuterium %d%%\n", vessel.Day(), static_cast<int>( vessel.stores.deuterium * 100 + 0.5f ) );
+			ship::CatchUp( vessel, 365.0 * ship::SECONDS_PER_DAY );
+			gi.Printf( "SHIP: wall-clock test: a year away advanced her to day %d (capped at %d)\n",
+				vessel.Day(), static_cast<int>( ship::MAX_CATCH_UP_DAYS ) );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4200 ) { gi.SendConsoleCommand( "quit\n" ); step = 2; }
+		return;
+	}
+	if ( g_shipTest->integer == 19 )
+	{//the outside, full (S9): target an enemy subsystem, hail, run, read the sector and the chart
+		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 3000, "ship as 1 target weapons\n" },
+			{ 3600, "ship as 2 hail\n" },
+			{ 4200, "ship as 3 run\n" },
+			{ 5000, "ship chart\n" },
+			{ 5600, "screenshot lwh_outside\n" },
+		};
+		static size_t step = 0;
+		if ( level.time < 1000 ) { step = 0; ship::SetRole( vessel, ship::ROLE_IN_COMMAND ); }
+		while ( step < sizeof( STEPS ) / sizeof( STEPS[0] ) && level.time >= STEPS[step].ms )
+			gi.SendConsoleCommand( STEPS[step++].command );
+		if ( tested || level.time < 6500 ) return;
+		tested = true;
+		gi.Printf( "SHIP: outside test: %s, at beacon %d, target %s, in combat %d, pursued %d\n",
+			gi.cvar( "lwh_ship_sector", "", 0 )->string, vessel.beacon, ship::EnemySubsystemName( ship::Target( vessel ) ),
+			ship::InCombat( vessel ) ? 1 : 0, ship::Pursued( vessel ) ? 1 : 0 );
+		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 18 )
+	{//the five gaps' completions: replication, the surgical field, endurance per source, the tricorder
+		//reading a compartment, and the captain's log -- by console, as the panels drive them
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			ship::SetRole( vessel, ship::ROLE_IN_COMMAND );
+			ship::BreachDeck( vessel, 9, 1.0f );
+			vessel.stores.medicalSupplies = 0.0f;
+			ship::SetEnabled( vessel, ship::SYS_REPLICATORS, false ); // so the ward does not restock during the demo
+			for ( ship::CrewMember &c : vessel.crew )
+				if ( c.status == ship::CREW_FIT ) { c.status = ship::CREW_INJURED; c.severity = 0.9f; break; }
+			gi.SendConsoleCommand( "ship scancomp 9\n" );
+			gi.SendConsoleCommand( "ship surgical on\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4600 )
+		{
+			gi.SendConsoleCommand( "ship as 4 patients\n" );
+			gi.SendConsoleCommand( "ship captain\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 6000 )
+		{
+			gi.Printf( "SHIP: gap test: clocks: %s\n", gi.cvar( "lwh_ship_clocks", "", 0 )->string );
+			gi.Printf( "SHIP: gap test: surgical field %d, kit condition %d%%\n",
+				ship::SurgicalField( vessel ) ? 1 : 0, static_cast<int>( vessel.stores.kitCondition * 100 + 0.5f ) );
+			gi.SendConsoleCommand( "screenshot lwh_gaps\n" );
+			gi.SendConsoleCommand( "ui_lwh_log\n" );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 7200 ) { gi.SendConsoleCommand( "screenshot lwh_log\n" ); step = 4; }
+		if ( step == 4 && level.time >= 8000 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
+		return;
+	}
+	if ( g_shipTest->integer == 17 )
+	{//the stations' purposes (S4): the transporter beams a party, astrometrics surveys, the Conn lays
+		//in a course, sickbay reads its ward -- each through the console a station's panel opens
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			ship::SetRole( vessel, ship::ROLE_IN_COMMAND );
+			// a few casualties, so the ward has something to read
+			int made = 0;
+			for ( ship::CrewMember &c : vessel.crew ) {
+				if ( made >= 5 ) break;
+				if ( c.status != ship::CREW_FIT ) continue;
+				c.status = ship::CREW_INJURED;
+				c.severity = 0.2f + 0.15f * made;
+				++made;
+			}
+			gi.SendConsoleCommand( "ship as 2 survey\n" );
+			gi.SendConsoleCommand( "ship as 2 transport 3\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4200 )
+		{
+			gi.SendConsoleCommand( "ship as 3 course 5\n" );
+			gi.SendConsoleCommand( "ship as 4 patients\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 5600 )
+		{
+			int surveyed = 0;
+			for ( const ship::Beacon &b : vessel.sector ) if ( b.surveyed ) ++surveyed;
+			gi.Printf( "SHIP: station purposes: away team %d on beacon %d, course %d, %d beacons surveyed, %d in the ward\n",
+				ship::AwayTeam( vessel ), vessel.awayBeacon, vessel.course, surveyed,
+				static_cast<int>( ship::Patients( vessel ).size() ) );
+			gi.SendConsoleCommand( "ship as 2 recall\n" );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 6200 )
+		{
+			gi.Printf( "SHIP: station purposes: away team back, %d away now\n", ship::AwayTeam( vessel ) );
+			gi.SendConsoleCommand( "screenshot lwh_stations\n" );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 7400 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
 		return;
 	}
 	if ( g_shipTest->integer == 12 )
@@ -700,6 +1412,133 @@ void RunTest( void )
 	gi.SendConsoleCommand( "quit\n" );
 }
 
+// Runtime asset replacement (S8's first hard problem): a deck the Borg hold turns Borg, and is
+// stripped back. gi.RemapShader addresses a shader by name, so this works on the generated decks,
+// whose wall and floor shaders are deck-unique (tools/shipmap/data/lwh_borg.shader). The published
+// decks share shader names and cannot be addressed this way without a stitcher pass.
+static void BorgAssets( ship::Ship *s )
+{
+	if ( !s ) return;
+	static int turned[ship::DECKS] = {0}; // how many of a deck's sections are Borg now
+	static std::vector<std::string> deckShaders[ship::DECKS];
+	static bool loaded = false;
+	if ( !loaded )
+	{
+		loaded = true;
+		// The generated decks' shaders are known here (gendeck splits each into four sections); the
+		// published decks' are in lwh_decks.txt, written by the stitcher and shipped in the pak. The
+		// order is the order the sections turn Borg as the deck's assimilation rises.
+		static const char *const DECK_SECTIONS[ship::DECKS][4] = {
+			{ NULL, NULL, NULL, NULL },
+			{ NULL, NULL, NULL, NULL },
+			{ NULL, NULL, NULL, NULL },
+			{ NULL, NULL, NULL, NULL },
+			{ NULL, NULL, NULL, NULL },
+			{ "textures/lwh/deck06wall0", "textures/lwh/deck06wall1", "textures/lwh/deck06wall2", "textures/lwh/deck06floor" },
+			{ "textures/lwh/deck07wall0", "textures/lwh/deck07wall1", "textures/lwh/deck07wall2", "textures/lwh/deck07floor" },
+			{ NULL, NULL, NULL, NULL },
+			{ NULL, NULL, NULL, NULL },
+			{ NULL, NULL, NULL, NULL },
+			{ "textures/lwh/deck12wall0", "textures/lwh/deck12wall1", "textures/lwh/deck12wall2", "textures/lwh/deck12floor" },
+			{ "textures/lwh/deck13wall0", "textures/lwh/deck13wall1", "textures/lwh/deck13wall2", "textures/lwh/deck13floor" },
+			{ "textures/lwh/deck14wall0", "textures/lwh/deck14wall1", "textures/lwh/deck14wall2", "textures/lwh/deck14floor" },
+			{ NULL, NULL, NULL, NULL },
+		};
+		for ( int d = 0; d < ship::DECKS; ++d )
+			for ( int k = 0; k < 4; ++k )
+				if ( DECK_SECTIONS[d][k] ) deckShaders[d].push_back( DECK_SECTIONS[d][k] );
+		void *buf = NULL;
+		const int len = gi.FS_ReadFile( "lwh_decks.txt", &buf );
+		if ( len > 0 && buf )
+		{
+			const std::string text( static_cast<const char *>( buf ), len );
+			size_t at = 0;
+			while ( at < text.size() )
+			{
+				const size_t nl = text.find( '\n', at );
+				const std::string line = text.substr( at, nl == std::string::npos ? std::string::npos : nl - at );
+				at = nl == std::string::npos ? text.size() : nl + 1;
+				const size_t colon = line.find( ':' );
+				if ( line.empty() || line[0] == '#' || colon == std::string::npos ) continue;
+				const int deck = atoi( line.substr( 0, colon ).c_str() );
+				if ( deck < 1 || deck > ship::DECKS ) continue;
+				std::string rest = line.substr( colon + 1 );
+				size_t i = 0;
+				while ( i < rest.size() )
+				{
+					while ( i < rest.size() && ( rest[i] == ' ' || rest[i] == '\t' || rest[i] == '\r' ) ) ++i;
+					size_t j = i;
+					while ( j < rest.size() && rest[j] != ' ' && rest[j] != '\t' && rest[j] != '\r' ) ++j;
+					if ( j > i ) deckShaders[deck - 1].push_back( "textures/" + rest.substr( i, j - i ) );
+					i = j;
+				}
+			}
+			gi.FS_FreeFile( buf );
+		}
+	}
+	for ( int d = 0; d < ship::DECKS; ++d )
+	{
+		if ( deckShaders[d].empty() ) continue;
+		const int n = static_cast<int>( deckShaders[d].size() );
+		// Sections turn in order as assimilation rises to ASSIMILATED, so the deck is taken part by
+		// part, not all at once: "parts of the ship".
+		int want = static_cast<int>( std::floor( s->decks[d].assimilated / ship::ASSIMILATED * n + 1e-4f ) );
+		want = want < 0 ? 0 : ( want > n ? n : want );
+		if ( want == turned[d] ) continue;
+		for ( int k = 0; k < n; ++k )
+		{
+			const std::string &name = deckShaders[d][k];
+			const bool borg = k < want;
+			const bool was = k < turned[d];
+			if ( borg && !was ) gi.RemapShader( name.c_str(), "textures/lwh/borg", "0" );
+			// RE_RemapShader(name, name) clears the remap: the section is ours again.
+			else if ( !borg && was ) gi.RemapShader( name.c_str(), name.c_str(), "0" );
+		}
+		if ( want == n ) gi.Printf( "SHIP: deck %d has turned Borg (%d of %d sections)\n", d + 1, want, n );
+		else if ( want > 0 ) gi.Printf( "SHIP: deck %d is turning Borg (%d of %d sections)\n", d + 1, want, n );
+		else gi.Printf( "SHIP: deck %d is ours again\n", d + 1 );
+		turned[d] = want;
+	}
+}
+
+// S10: the player's character is the body they walk in. The single-player player is Munro by
+// default; when a character is chosen (or the Munro role taken) we set the player's head, torso and
+// legs from the crew record -- the character's own face, and the uniform their department wears.
+// The model change rides the game's own headModel/torsoModel/legsModel path (the one it uses for a
+// disguise), and the Starfleet humanoid models share one animation set, so no anim reset is needed.
+// Off unless the simulation is on and a character is chosen.
+bool IsNamedType( const std::string &type )
+{
+	static const char *const NAMED_TYPES[] = { "janeway", "chakotay", "tuvok", "paris", "kim",
+		"torres", "doctor", "seven", "neelix", "vorik", "munro" };
+	for ( const char *n : NAMED_TYPES ) if ( type == n ) return true;
+	return false;
+}
+
+void ApplyPlayerBody( void )
+{
+	if ( !active ) return;
+	if ( vessel.player < 0 || vessel.player >= static_cast<int>( vessel.crew.size() ) ) return;
+	bodyApplied = true;
+	const ship::CrewMember &c = vessel.crew[vessel.player];
+
+	const bool female = c.type == "janeway" || c.type == "torres" || c.type == "seven"
+		|| ( c.type.size() >= 2 && c.type[1] == 'F' && ( c.type[0] == 'R' || c.type[0] == 'G' || c.type[0] == 'B' ) );
+	const bool isCommand = c.dept == ship::DEPT_COMMAND;
+	const bool isScience = c.dept == ship::DEPT_SCIENCES || c.dept == ship::DEPT_MEDICAL;
+	// the female torso has no red skin; a woman of command wears the neutral cut
+	const char *colour = isCommand ? ( female ? "default" : "red" ) : isScience ? "blue" : "gold";
+
+	char head[64], torso[64], legs[64];
+	if ( IsNamedType( c.type ) ) std::snprintf( head, sizeof( head ), "%s/default", c.type.c_str() );
+	else std::snprintf( head, sizeof( head ), "%s", female ? "torres/default" : "munro/default" );
+	std::snprintf( torso, sizeof( torso ), "%s/%s", female ? "crewfemale" : "crewthin", colour );
+	std::snprintf( legs, sizeof( legs ), "%s/default", female ? "crewfemale" : "crewthin" );
+
+	gi.SendConsoleCommand( Fmt( "headModel %s; torsoModel %s; legsModel %s\n", head, torso, legs ).c_str() );
+	gi.Printf( "SHIP: %s walks as head %s, torso %s, legs %s\n", c.name.c_str(), head, torso, legs );
+}
+
 } // namespace
 
 ship::Ship *Ship_Get( void ) { return active ? &vessel : NULL; }
@@ -727,6 +1566,7 @@ void Ship_Init( void )
 	gi.cvar_set( "g_ironman", active && g_shipMode->integer != 1 ? "1" : "0" );
 	nextIronmanSaveMs = IRONMAN_SAVE_MS;
 	tested = false;
+	bodyApplied = false;
 	pendingSave.clear();
 	if ( !active ) return;
 
@@ -758,6 +1598,13 @@ void Ship_Init( void )
 void Ship_Frame( void )
 {
 	if ( !active ) return;
+	// S10: once a character is the player, the body follows. Applied after the world exists (a
+	// console command needs a live client), once per map, and again whenever the character changes.
+	if ( !bodyApplied && vessel.player >= 0 )
+	{
+		bodyApplied = true;
+		ApplyPlayerBody();
+	}
 	if ( !pendingSave.empty() )
 	{
 		if ( ship::Unpack( pendingSave.data(), pendingSave.size(), vessel ) )
@@ -778,8 +1625,20 @@ void Ship_Frame( void )
 	}
 	const int ms = level.time - level.previousTime;
 	if ( ms > 0 && ms < 1000 ) ship::Tick( vessel, ms / 1000.0f );
+	// The alert klaxon (S9's "hear"): the game ships a red-alert and an alarm sound; play one when the
+	// condition changes, around the player.
+	static int lastAlert = -1;
+	if ( vessel.alert != lastAlert ) {
+		const int was = lastAlert;
+		lastAlert = vessel.alert;
+		if ( was >= 0 ) {
+			if ( vessel.alert == ship::ALERT_RED ) G_Sound( &g_entities[0], G_SoundIndex( "sound/ambience/voyager/redalert.mp3" ) );
+			else if ( vessel.alert == ship::ALERT_YELLOW ) G_Sound( &g_entities[0], G_SoundIndex( "sound/ambience/voyager/alarm1.mp3" ) );
+		}
+	}
 	if ( level.time / 250 != level.previousTime / 250 ) Publish();
 	LWH_Panel_Frame( &vessel ); // the status panel's live surface (S4's glance, second half)
+	BorgAssets( &vessel );      // the Borg swap the ship's state onto the generated decks (S8)
 	if ( !ship::SavesAllowed( vessel.cfg ) && level.time >= nextIronmanSaveMs && !g_shipTest->integer )
 	{//ironman: the ship is saved for you, forward only
 		nextIronmanSaveMs = level.time + IRONMAN_SAVE_MS;
@@ -815,7 +1674,6 @@ void Ship_ReadSave( void )
 	}
 	if ( data ) gi.Free( data );
 }
-
 void Svcmd_Ship_f( void )
 {
 	if ( !active )
@@ -848,9 +1706,25 @@ void Svcmd_Ship_f( void )
 		const bool isFire = !Q_stricmp( cmd, "fire" );
 		const bool isJump = !Q_stricmp( cmd, "jump" );
 		const bool isBreach = !Q_stricmp( cmd, "breach" ) || !Q_stricmp( cmd, "solve" );
+		const bool isTransport = !Q_stricmp( cmd, "transport" ) || !Q_stricmp( cmd, "recall" );
+		const bool isSurvey = !Q_stricmp( cmd, "survey" );
+		const bool isCourse = !Q_stricmp( cmd, "course" );
+		const bool isPatients = !Q_stricmp( cmd, "patients" );
+		const bool isField = !Q_stricmp( cmd, "field" );
+		const bool isSurgical = !Q_stricmp( cmd, "surgical" );
+		const bool isScanComp = !Q_stricmp( cmd, "scancomp" );
+		const bool isTarget = !Q_stricmp( cmd, "target" );
+		const bool isChoice = !Q_stricmp( cmd, "hail" ) || !Q_stricmp( cmd, "trade" ) || !Q_stricmp( cmd, "distress" )
+			|| !Q_stricmp( cmd, "mine" ) || !Q_stricmp( cmd, "survivors" ) || !Q_stricmp( cmd, "holo" )
+			|| !Q_stricmp( cmd, "eva" ) || !Q_stricmp( cmd, "observe" ) || !Q_stricmp( cmd, "interfere" );
+		const bool isRun = !Q_stricmp( cmd, "run" ) || !Q_stricmp( cmd, "cross" );
+		const bool isTractor = !Q_stricmp( cmd, "tractor" );
+		const bool isFabricate = !Q_stricmp( cmd, "fabricate" );
+		const bool isEMH = !Q_stricmp( cmd, "emh" );
 		// until a character is chosen the player is nobody in particular, and is not held to a rank
 		const bool anyone = vessel.player < 0 && vessel.cfg.role != ship::ROLE_IN_COMMAND;
-		if ( !isAlert && !isSwitch && !isPriority && !isFire && !isJump && !isBreach ) why = "that is not a console's to do";
+		if ( !isAlert && !isSwitch && !isPriority && !isFire && !isJump && !isBreach && !isTransport && !isSurvey && !isCourse && !isPatients && !isField && !isSurgical && !isScanComp && !isTarget && !isChoice && !isRun && !isTractor && !isFabricate && !isEMH )
+			why = "that is not a console's to do";
 		else if ( !anyone && !ship::PlayerMayOperate( vessel, st ) ) why = "you are not cleared for this station";
 		else if ( isAlert && !( st == ship::STN_ENGINEERING || st == ship::STN_TACTICAL ) ) why = "the alert is not called from this station";
 		else if ( isAlert && !anyone && vessel.cfg.role != ship::ROLE_IN_COMMAND && !ship::MayCallAlert( vessel.crew[vessel.player], st ) )
@@ -858,6 +1732,19 @@ void Svcmd_Ship_f( void )
 		else if ( isPriority && st != ship::STN_ENGINEERING ) why = "the power order is Engineering's to set";
 		else if ( isFire && st != ship::STN_TACTICAL ) why = "weapons are fired from Tactical";
 		else if ( isJump && st != ship::STN_CONN ) why = "the ship is flown from the Conn";
+		else if ( isCourse && st != ship::STN_CONN ) why = "the course is laid in from the Conn";
+		else if ( isTransport && st != ship::STN_OPS ) why = "the transporter is worked from Operations";
+		else if ( isSurvey && st != ship::STN_OPS ) why = "the sensors are read from Operations";
+		else if ( isPatients && st != ship::STN_SICKBAY ) why = "the ward is read from Sickbay";
+		else if ( isField && st != ship::STN_OPS ) why = "environmental control is worked from Operations";
+		else if ( isSurgical && st != ship::STN_SICKBAY ) why = "the surgical bay is Sickbay's";
+		else if ( isScanComp && st != ship::STN_OPS ) why = "the tricorder is read from Operations";
+		else if ( isTarget && st != ship::STN_TACTICAL ) why = "targets are picked at Tactical";
+		else if ( isChoice && st != ship::STN_OPS ) why = "the hailing and trade channels are Operations'";
+		else if ( isRun && st != ship::STN_CONN ) why = "the ship is flown from the Conn";
+		else if ( isTractor && st != ship::STN_TACTICAL ) why = "the tractor beam is worked from Tactical";
+		else if ( isFabricate && st != ship::STN_ENGINEERING ) why = "fabrication is Engineering's";
+		else if ( isEMH && st != ship::STN_SICKBAY ) why = "the EMH is Sickbay's";
 		else if ( !Q_stricmp( cmd, "breach" ) && ( sys < 0 || !ship::OperatedFrom( static_cast<ship::SystemId>( sys ), st ) ) )
 			why = "that system is not operated from this station";
 		else if ( ( isSwitch || isPriority ) && ( sys < 0 || !ship::OperatedFrom( static_cast<ship::SystemId>( sys ), st ) ) )
@@ -877,7 +1764,13 @@ void Svcmd_Ship_f( void )
 	if ( !Q_stricmp( cmd, "role" ) )
 	{//take up the role g_shipRole names (0 any post, 1 in command, 2 Munro)
 		ship::SetRole( vessel, g_shipRole->integer == 1 ? ship::ROLE_IN_COMMAND : g_shipRole->integer == 2 ? ship::ROLE_MUNRO : ship::ROLE_ANY_POST );
+		ApplyPlayerBody();
 		Publish();
+		return;
+	}
+	if ( !Q_stricmp( cmd, "body" ) )
+	{//put the player's character in the body their crew record and department say (S10)
+		ApplyPlayerBody();
 		return;
 	}
 	if ( !Q_stricmp( cmd, "crew" ) )
@@ -903,7 +1796,44 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "repair" ) && sys >= 0 && b[0] ) ship::Repair( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "breach" ) && a[0] && b[0] ) ship::BreachDeck( vessel, atoi( a ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "seal" ) && a[0] ) ship::RepairDeck( vessel, atoi( a ), 1.0f );
-	else if ( !Q_stricmp( cmd, "field" ) && a[0] ) ship::SetForceField( vessel, atoi( a ), !Q_stricmp( b, "on" ) );
+	else if ( !Q_stricmp( cmd, "ignite" ) && a[0] && b[0] ) ship::IgniteDeck( vessel, atoi( a ), atof( b ) );
+	else if ( !Q_stricmp( cmd, "field" ) && a[0] )
+	{//ship field <deck> <level 1-10 | on | off>
+		if ( b[0] >= '0' && b[0] <= '9' ) ship::SetForceFieldLevel( vessel, atoi( a ), atoi( b ) );
+		else ship::SetForceField( vessel, atoi( a ), !Q_stricmp( b, "on" ) );
+	}
+	else if ( !Q_stricmp( cmd, "surgical" ) )
+	{
+		ship::SetSurgicalField( vessel, !Q_stricmp( b, "on" ) || ( !b[0] && !ship::SurgicalField( vessel ) ) );
+		gi.Printf( "SHIP: the surgical bay's force field is %s\n", ship::SurgicalField( vessel ) ? "up" : "down" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "scancomp" ) && a[0] )
+	{
+		const std::string reading = ship::ScanCompartment( vessel, atoi( a ) );
+		gi.Printf( "SHIP: %s\n", reading.c_str() );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "captain" ) )
+	{//the captain's log: read the summary, or write an entry in the captain's name
+		if ( a[0] )
+		{
+			if ( !ship::PlayerMayCommand( vessel ) ) { gi.Printf( "SHIP: the captain's log is the captain's\n" ); return; }
+			std::string text;
+			for ( int i = first + 1; i < gi.argc(); ++i ) { if ( i > first + 1 ) text += " "; text += gi.argv( i ); }
+			ship::LogEvent( vessel, ship::CommandingOfficer( vessel ), "captain", text );
+			gi.Printf( "SHIP: the captain's log records: %s\n", text.c_str() );
+		}
+		else
+		{
+			const std::string summary = ship::CaptainLog( vessel );
+			gi.Printf( "SHIP: --- the captain's log ---\n" );
+			gi.Printf( "SHIP: %s", summary.c_str() );
+		}
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "kit" ) && gi.argc() > first + 4 )
 		ship::LoadAwayKit( vessel, atoi( a ), atoi( b ), atoi( gi.argv( first + 3 ) ), atof( gi.argv( first + 4 ) ) );
 	else if ( !Q_stricmp( cmd, "scan" ) )
@@ -911,8 +1841,69 @@ void Svcmd_Ship_f( void )
 		const int r = ship::Scan( vessel, vessel.beacon );
 		gi.Printf( "SHIP: scan of beacon %d: %s\n", vessel.beacon,
 			r == 1 ? "clean reading" : r == 2 ? "suspect reading" : "none" );
+		const int ph = ship::RevealPhenomenon( vessel ); // a scan resolves one attribute of a phenomenon
+		if ( ph > 0 ) gi.Printf( "SHIP: a phenomenon: %d of %d attributes resolved\n", ph, ship::PHENOM_ATTR_COUNT );
 	}
-	else if ( !Q_stricmp( cmd, "board" ) && a[0] && b[0] ) ship::Board( vessel, atoi( a ), atoi( b ) );
+	else if ( !Q_stricmp( cmd, "transport" ) )
+	{//the transporter: beam a party to the site the ship is at
+		if ( !ship::TransportAway( vessel, a[0] ? atoi( a ) : 3 ) )
+			gi.Printf( "SHIP: no beam (a party is away, the transporters are down, or the shields are up)\n" );
+		else gi.Printf( "SHIP: away team of %d beamed down\n", ship::AwayTeam( vessel ) );
+	}
+	else if ( !Q_stricmp( cmd, "recall" ) )
+	{
+		if ( !ship::TransportBack( vessel ) ) gi.Printf( "SHIP: nobody is away\n" );
+		else gi.Printf( "SHIP: the away team is back aboard\n" );
+	}
+	else if ( !Q_stricmp( cmd, "survey" ) )
+	{
+		const int n = ship::Survey( vessel );
+		gi.Printf( "SHIP: astrometrics: %d new reading(s)\n", n );
+	}
+	else if ( !Q_stricmp( cmd, "study" ) && a[0] )
+	{//respond to a phenomenon: 0 shield harmonics, 1 warp geometry, 2 distance, 3 do not touch
+		if ( !ship::RespondPhenomenon( vessel, atoi( a ) ) )
+			gi.Printf( "SHIP: the phenomenon did not answer to that (0 harmonics | 1 geometry | 2 distance | 3 do not touch)\n" );
+		else gi.Printf( "SHIP: the phenomenon answers; material %.0f\n", vessel.stores.materials );
+		Publish();
+	}
+	else if ( !Q_stricmp( cmd, "course" ) && a[0] )
+	{
+		if ( !ship::SetCourse( vessel, atoi( a ) ) ) gi.Printf( "SHIP: no course to beacon %s\n", a );
+		else
+		{
+			const std::vector<int> route = ship::PlotCourse( vessel, vessel.course );
+			std::string r;
+			for ( int b : route ) r += Fmt( " %d", b );
+			gi.Printf( "SHIP: course to beacon %d:%s\n", vessel.course, r.c_str() );
+		}
+	}
+	else if ( !Q_stricmp( cmd, "patients" ) )
+	{//sickbay's ward: one row per casualty, in the order triage treats them
+		const std::vector<int> ward = ship::Patients( vessel );
+		gi.Printf( "SHIP: %s  (%d in the ward, %d beds)\n", vessel.orderTriage == 1 ? "TRIAGE: RANK FIRST" : "TRIAGE: WORST FIRST",
+			static_cast<int>( ward.size() ), ship::SICKBAY_BEDS );
+		for ( int i : ward )
+		{
+			const ship::CrewMember &c = vessel.crew[i];
+			gi.Printf( "SHIP:   %-18s severity %2d%%  %s\n", c.name.c_str(), static_cast<int>( c.severity * 100 + 0.5f ),
+				c.underCare ? "ON A BED" : "WAITING" );
+		}
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "board" ) && a[0] && b[0] )
+	{//ship board <deck> <n> [raider|borg|hunter] [objective deck]
+		ship::BoarderKind kind = ship::BOARDER_RAIDER;
+		int objective = 0;
+		if ( gi.argc() > first + 3 )
+		{
+			const char *k = gi.argv( first + 3 );
+			if ( !Q_stricmpn( k, "borg", 4 ) ) kind = ship::BOARDER_BORG;
+			else if ( !Q_stricmpn( k, "hunt", 4 ) ) kind = ship::BOARDER_HUNTER;
+		}
+		if ( gi.argc() > first + 4 ) objective = atoi( gi.argv( first + 4 ) );
+		ship::BoardAs( vessel, atoi( a ), atoi( b ), kind, objective );
+	}
 	else if ( !Q_stricmp( cmd, "borg" ) && a[0] && b[0] ) ship::BoardBorg( vessel, atoi( a ), atoi( b ) );
 	else if ( !Q_stricmp( cmd, "order" ) && a[0] )
 	{//ship order repair <system>|security <deck>|evacuate <deck>   (0 or "none" clears it)
@@ -933,7 +1924,11 @@ void Svcmd_Ship_f( void )
 	{//ship character <name> <department 0-4> <rank 0-4>
 		const int who = ship::CreateCharacter( vessel, a, static_cast<ship::Department>( atoi( b ) ), atoi( gi.argv( 4 ) ) );
 		if ( who < 0 ) gi.Printf( "SHIP: no such character can be created (department 0-4: command, engineering, security, sciences, medical; rank 0-4)\n" );
-		else gi.Printf( "SHIP: you are %s, crew number %d\n", vessel.crew[who].name.c_str(), who );
+		else
+		{
+			gi.Printf( "SHIP: you are %s, crew number %d\n", vessel.crew[who].name.c_str(), who );
+			ApplyPlayerBody();
+		}
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "breach" ) && sys >= 0 )
@@ -973,9 +1968,433 @@ void Svcmd_Ship_f( void )
 	{
 		if ( !ship::FireTorpedo( vessel ) ) gi.Printf( "SHIP: no torpedo fired (no target, none left, or the launchers are down)\n" );
 	}
+	else if ( !Q_stricmp( cmd, "target" ) )
+	{//what Tactical aims at once the enemy's shields are down
+		int t = -1;
+		if ( !Q_stricmpn( a, "hull", 4 ) ) t = ship::TARGET_HULL;
+		else if ( !Q_stricmpn( a, "weap", 4 ) ) t = ship::TARGET_WEAPONS;
+		else if ( !Q_stricmpn( a, "eng", 3 ) ) t = ship::TARGET_ENGINES;
+		else if ( !Q_stricmpn( a, "shie", 4 ) ) t = ship::TARGET_SHIELD_GEN;
+		if ( t < 0 ) { gi.Printf( "SHIP: target hull | weapons | engines | shields\n" ); return; }
+		ship::SetTarget( vessel, static_cast<ship::EnemySubsystem>( t ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "hail" ) ) { ship::Hail( vessel ); Publish(); return; }
+	else if ( !Q_stricmp( cmd, "trade" ) )
+	{
+		if ( !ship::Trade( vessel ) ) gi.Printf( "SHIP: no trade here (no trader, or not enough parts)\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "distress" ) )
+	{
+		if ( !ship::AnswerDistress( vessel ) ) gi.Printf( "SHIP: no distress call here\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "run" ) )
+	{
+		if ( !ship::Disengage( vessel ) ) gi.Printf( "SHIP: cannot run (no way out, no warp drive, or no fuel)\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "cross" ) )
+	{
+		if ( !ship::AdvanceSector( vessel ) ) gi.Printf( "SHIP: the sector's end is not reached\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "tractor" ) )
+	{//the tractor beam: strip a derelict, or hold the contact
+		if ( ship::TractorWreck( vessel ) )
+		{
+			gi.Printf( "SHIP: tractored a derelict and stripped it: %.0f parts, %.0f material\n", ship::SALVAGE_PARTS, ship::SALVAGE_MATERIALS );
+			Publish();
+			return;
+		}
+		if ( ship::InCombat( vessel ) ) { ship::TractorHold( vessel ); Publish(); return; }
+		gi.Printf( "SHIP: nothing for the tractor beam to hold (the beam is down, or there is no wreck or contact)\n" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "fabricate" ) && a[0] )
+	{
+		if ( !ship::FabricateParts( vessel, atoi( a ) ) ) gi.Printf( "SHIP: cannot fabricate that (no replicators, or not enough material)\n" );
+		else gi.Printf( "SHIP: material %.0f, parts %.0f\n", vessel.stores.materials, vessel.stores.spareParts );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "rations" ) && a[0] )
+	{//the galley: material into food
+		if ( !ship::FabricateRations( vessel, atoi( a ) ) ) gi.Printf( "SHIP: cannot prepare that (no replicators, or not enough material)\n" );
+		else gi.Printf( "SHIP: rations %.0f, material %.0f\n", vessel.stores.rations, vessel.stores.materials );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "emh" ) )
+	{
+		const bool on = !Q_stricmp( b, "on" ) || ( !b[0] && !ship::EMHActive( vessel ) );
+		if ( !ship::ActivateEMH( vessel, on ) ) gi.Printf( "SHIP: the EMH needs the computer core\n" );
+		else gi.Printf( "SHIP: the EMH is %s\n", ship::EMHActive( vessel ) ? "active" : "off" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "train" ) && a[0] && b[0] )
+	{//ship train <crew> <station 0-4>: earn a cross-qualification
+		if ( !ship::Train( vessel, atoi( a ), static_cast<ship::Station>( atoi( b ) ) ) )
+			gi.Printf( "SHIP: no such training (bad crew number, station, or already qualified)\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "brig" ) && a[0] )
+	{//ship brig <crew> on|off
+		if ( !ship::Brig( vessel, atoi( a ), Q_stricmp( b, "off" ) != 0 ) ) gi.Printf( "SHIP: the brig takes a fit crew member\n" );
+		else gi.Printf( "SHIP: crew %s is %s\n", a, ship::Brigged( vessel, atoi( a ) ) ? "confined" : "released" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "funeral" ) )
+	{
+		if ( !ship::HoldFuneral( vessel ) ) gi.Printf( "SHIP: only whoever commands holds a funeral\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "promote" ) && a[0] )
+	{
+		static const char *const RANKS[] = { "Crewman", "Ensign", "Lt. j.g.", "Lieutenant", "Lt. Commander", "Commander", "Captain" };
+		const int who = atoi( a );
+		if ( !ship::Promote( vessel, who ) )
+		{
+			gi.Printf( "SHIP: only whoever commands promotes, and not beyond captain\n" );
+			gi.cvar_set( "lwh_ship_promote", "REFUSED: only whoever commands promotes, and not beyond captain" );
+		}
+		else
+		{
+			gi.Printf( "SHIP: crew %s now holds rank %d\n", a, vessel.crew[who].rank );
+			gi.cvar_set( "lwh_ship_promote", Fmt( "%s is promoted to %s", vessel.crew[who].name.c_str(), RANKS[vessel.crew[who].rank] ).c_str() );
+		}
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "remember" ) && a[0] && b[0] )
+	{//ship remember <crew> <event> [valence]
+		const int who = atoi( a ), ev = atoi( b );
+		const float val = gi.argc() > first + 2 ? atof( gi.argv( first + 2 ) ) : -0.5f;
+		ship::Remember( vessel, who, static_cast<uint16_t>( ev ), -1, ship::MEM_SAW, val );
+		gi.Printf( "SHIP: crew %d now remembers event %d\n", who, ev );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "brief" ) && a[0] )
+	{//command tells the crew
+		ship::Brief( vessel, static_cast<uint16_t>( atoi( a ) ), b[0] ? atof( b ) : -0.4f );
+		gi.Printf( "SHIP: the crew are told of event %s\n", a );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "recall" ) && a[0] && b[0] )
+	{
+		const int who = atoi( a ); const uint16_t ev = static_cast<uint16_t>( atoi( b ) );
+		if ( who < 0 || who >= static_cast<int>( vessel.crew.size() ) ) return;
+		const int src = ship::RecallSource( vessel.crew[who], ev );
+		static const char *const SRC[] = { "saw it", "was told", "heard it as rumour", "read it in the log" };
+		gi.Printf( "SHIP: crew %d %s event %d%s\n", who, ship::Recall( vessel.crew[who], ev ) ? "knows" : "does not know", ev,
+			src >= 0 ? Fmt( " (%s)", SRC[src] ).c_str() : "" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "bond" ) && a[0] && b[0] )
+	{
+		gi.Printf( "SHIP: bond %d -> %d: %.2f\n", atoi( a ), atoi( b ), ship::Bond( vessel, atoi( a ), atoi( b ) ) );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "mine" ) )
+	{//resource acquisition: mine a belt and siphon its gas
+		if ( !ship::MineBelt( vessel ) ) gi.Printf( "SHIP: nothing to mine here (no belt, already worked, or no tractor or sensors)\n" );
+		else gi.Printf( "SHIP: material %.0f, deuterium %.1f%%\n", vessel.stores.materials, vessel.stores.deuterium * 100 );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "core" ) )
+	{//the warp core cascade: coolant, overheat, containment, and the breach countdown
+		if ( !Q_stricmp( a, "shutdown" ) ) { if ( !ship::ShutDownCore( vessel ) ) gi.Printf( "SHIP: the core cannot be shut down now\n" ); }
+		else if ( !Q_stricmp( a, "restart" ) ) { if ( !ship::RestartCore( vessel ) ) gi.Printf( "SHIP: the core cannot be restarted yet\n" ); }
+		else if ( !Q_stricmp( a, "eject" ) ) { if ( !ship::EjectCore( vessel ) ) gi.Printf( "SHIP: no core to eject\n" ); }
+		else if ( !Q_stricmp( a, "coolant" ) ) { if ( !ship::RestoreCoolant( vessel ) ) gi.Printf( "SHIP: the coolant cannot be refilled now\n" ); }
+		gi.Printf( "SHIP: core coolant %d%%  temperature %d%%  containment %d%%%s%s%s\n",
+			static_cast<int>( vessel.coolant * 100 + 0.5f ), static_cast<int>( vessel.coreTemp * 100 + 0.5f ),
+			static_cast<int>( vessel.containment * 100 + 0.5f ),
+			vessel.breachCountdown >= 0.0f ? Fmt( "  BREACH IN %d s", static_cast<int>( vessel.breachCountdown ) ).c_str() : "",
+			vessel.coreShutdown ? "  (shut down)" : "", vessel.coreEjected ? "  (ejected)" : "" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "probe" ) && a[0] )
+	{//a probe: the safe way to look at something hostile
+		if ( !ship::LaunchProbe( vessel, atoi( a ) ) ) gi.Printf( "SHIP: no probe launched (none left, launchers down, or bad target)\n" );
+		else gi.Printf( "SHIP: probe away; %d left\n", vessel.stores.probes );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "finddilithium" ) )
+	{//a dedicated survey to locate a source: survey, chart, detour
+		const int at = ship::LocateDilithium( vessel );
+		if ( at < 0 ) gi.Printf( "SHIP: no dilithium source found (sensors down, or none in this sector)\n" );
+		else gi.Printf( "SHIP: dilithium source charted at beacon %d\n", at );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "dilithium" ) )
+	{//the constraint that forces exploration: the crystal, and how much of the journey it buys
+		gi.Printf( "SHIP: dilithium %d%% (ceiling %d%%, quality %.2f, %d replaced), range %d ly, warp %s\n",
+			static_cast<int>( vessel.dilithium * 100 + 0.5f ), static_cast<int>( vessel.crystalCeiling * 100 + 0.5f ),
+			vessel.crystalQuality, vessel.crystalReplacements, ship::DilithiumRange( vessel ),
+			ship::WarpPossible( vessel ) ? "possible" : "impossible" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "recomposite" ) )
+	{//Engineering buys back life in the crystal's frame, until the crystal is too far gone
+		if ( !ship::Recomposite( vessel ) )
+			gi.Printf( "SHIP: recomposition cannot help (the warp core is down, no engineer is free, or the crystal is spent)\n" );
+		else gi.Printf( "SHIP: dilithium now %d%% (ceiling %d%%)\n",
+			static_cast<int>( vessel.dilithium * 100 + 0.5f ), static_cast<int>( vessel.crystalCeiling * 100 + 0.5f ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "acquire" ) && a[0] )
+	{//a new crystal: mine a belt, trade, salvage, or research a better one
+		const ship::DilithiumWay way = !Q_stricmp( a, "mine" ) ? ship::DIL_MINE : !Q_stricmp( a, "trade" ) ? ship::DIL_TRADE
+			: !Q_stricmp( a, "salvage" ) ? ship::DIL_SALVAGE : !Q_stricmp( a, "research" ) ? ship::DIL_RESEARCH : ship::DIL_WAY_COUNT;
+		if ( way >= ship::DIL_WAY_COUNT || !ship::AcquireDilithium( vessel, way ) )
+			gi.Printf( "SHIP: no crystal to be had that way here (mine | trade | salvage | research)\n" );
+		else gi.Printf( "SHIP: dilithium %d%%, quality %.2f, range %d ly\n",
+			static_cast<int>( vessel.dilithium * 100 + 0.5f ), vessel.crystalQuality, ship::DilithiumRange( vessel ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "controller" ) )
+	{//the Borg incursion's field: who holds each deck, and the clean intercepts recorded
+		int shown = 0;
+		for ( int d = 0; d < ship::DECKS; ++d )
+		{
+			const ship::Deck &deck = vessel.decks[d];
+			if ( deck.intruders <= 0.0f && !deck.compromised && deck.controller == ship::CTRL_CREW && deck.forceFieldLevel <= 0.0f ) continue;
+			gi.Printf( "SHIP: deck %d %s%s, intruders %.0f, dwell %.0fs, field %d\n", d + 1, ship::ControllerName( deck.controller ),
+				deck.compromised ? " (compromised)" : "", std::ceil( deck.intruders - 1e-3f ), deck.dwell, static_cast<int>( deck.forceFieldLevel + 0.5f ) );
+			++shown;
+		}
+		gi.Printf( "SHIP: %d deck(s) not wholly ours; %d clean intercept(s)\n", shown, vessel.cleanIntercepts );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "recover" ) && a[0] )
+	{//de-assimilation: sickbay against the nanoprobes, in the narrow window
+		const int who = atoi( a );
+		if ( !ship::RecoverCaptive( vessel, who ) )
+			gi.Printf( "SHIP: nothing to recover (no one by that number is in the window, or sickbay cannot pay)\n" );
+		else gi.Printf( "SHIP: crew %d is back, with lasting residue (scar %d%%)\n", who, static_cast<int>( vessel.crew[who].assimScar * 100 + 0.5f ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "remodulate" ) )
+	{//the counter-play kit: rotate the phaser modulation and break the Borg's lock
+		if ( !ship::Remodulate( vessel ) )
+			gi.Printf( "SHIP: nothing to remodulate (no adaptation, or the adapter is still cooling)\n" );
+		else gi.Printf( "SHIP: modulation rotated; enemy adaptation now %d%%\n", static_cast<int>( vessel.enemy.adaptation * 100 + 0.5f ) );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "vinculum" ) )
+	{//a vinculum raid: sever local coordination, at a cost
+		if ( !ship::RaidVinculum( vessel ) )
+			gi.Printf( "SHIP: no vinculum to raid here (no Borg, or one is already down)\n" );
+		else gi.Printf( "SHIP: vinculum destroyed; adaptation suppressed for %d s\n", static_cast<int>( vessel.adaptationSuppressed + 0.5f ) );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "advance" ) && a[0] )
+	{//the security squad: send a fireteam to retake a deck (docs/borg-incursion.md)
+		if ( !ship::OrderAdvance( vessel, atoi( a ) ) )
+			gi.Printf( "SHIP: no squad to send (command only, a deck 1-15, and security crew fit)\n" );
+		else gi.Printf( "SHIP: a squad is advancing to retake deck %s\n", a );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "shuttle" ) )
+	{//shuttles: supported, not pilotable -- where each one is
+		gi.Printf( "SHIP: %d in the bay, %d away\n", ship::ShuttlesInBay( vessel ), ship::ShuttlesAway( vessel ) );
+		for ( const ship::Shuttle &sh : vessel.shuttles )
+			gi.Printf( "SHIP:   %-12s %-10s condition %d%%%s\n", ship::ShuttleClassName( sh.cls ), ship::ShuttleLocationName( sh.location ),
+				static_cast<int>( sh.condition * 100 + 0.5f ),
+				sh.location == ship::SHUTTLE_AWAY ? Fmt( " (beacon %d, %d aboard)", sh.awayBeacon, static_cast<int>( sh.manifest.size() ) ).c_str()
+				: ( sh.location == ship::SHUTTLE_LOST ? Fmt( " (left at beacon %d)", sh.awayBeacon ).c_str() : "" ) );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "launch" ) && a[0] && b[0] )
+	{//ship launch <class> <beacon> [crew...]: the load screen's commit
+		const int cls = atoi( a );
+		std::vector<int> manifest;
+		for ( int i = first + 3; i < gi.argc(); ++i ) manifest.push_back( atoi( gi.argv( i ) ) );
+		if ( cls < 0 || cls >= ship::SHUTTLE_CLASS_COUNT || !ship::LaunchShuttle( vessel, static_cast<ship::ShuttleClass>( cls ), atoi( b ), manifest ) )
+			gi.Printf( "SHIP: cannot launch that shuttle (not in the bay, or a crew member is not fit)\n" );
+		else gi.Printf( "SHIP: %s away to beacon %s, %d aboard\n", ship::ShuttleClassName( static_cast<ship::ShuttleClass>( cls ) ), b, static_cast<int>( manifest.size() ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "shuttledock" ) && a[0] )
+	{//"recall" is the transporter's; a shuttle comes home by docking
+		const int cls = atoi( a );
+		if ( cls < 0 || cls >= ship::SHUTTLE_CLASS_COUNT || !ship::RecallShuttle( vessel, static_cast<ship::ShuttleClass>( cls ) ) )
+			gi.Printf( "SHIP: no such shuttle is away\n" );
+		else gi.Printf( "SHIP: %s is back in the bay\n", ship::ShuttleClassName( static_cast<ship::ShuttleClass>( cls ) ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "lose" ) && a[0] )
+	{
+		const int cls = atoi( a );
+		if ( cls < 0 || cls >= ship::SHUTTLE_CLASS_COUNT || !ship::LoseShuttle( vessel, static_cast<ship::ShuttleClass>( cls ) ) )
+			gi.Printf( "SHIP: no such shuttle to lose\n" );
+		else gi.Printf( "SHIP: %s is lost; the second bay is to build a replacement\n", ship::ShuttleClassName( static_cast<ship::ShuttleClass>( cls ) ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "bayhit" ) && a[0] )
+	{
+		ship::ShuttleBayHit( vessel, static_cast<float>( atof( a ) ) );
+		gi.Printf( "SHIP: %d shuttle(s) left in the bay\n", ship::ShuttlesInBay( vessel ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "rebuild" ) && a[0] )
+	{
+		const int cls = atoi( a );
+		if ( cls < 0 || cls >= ship::SHUTTLE_CLASS_COUNT ) gi.Printf( "SHIP: no such shuttle class\n" );
+		else { ship::RebuildShuttle( vessel, static_cast<ship::ShuttleClass>( cls ) ); gi.Printf( "SHIP: a build job for a %s is on the board\n", ship::ShuttleClassName( static_cast<ship::ShuttleClass>( cls ) ) ); }
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "survivors" ) && a[0] )
+	{//population pressure: take survivors or refugees aboard
+		ship::TakeSurvivors( vessel, atoi( a ) );
+		gi.Printf( "SHIP: %d aboard\n", ship::Refugees( vessel ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "hearing" ) && a[0] )
+	{//justice: a hearing releases or confirms a confinement
+		const int who = atoi( a );
+		const bool guilty = !Q_stricmp( b, "guilty" );
+		if ( !ship::Hearing( vessel, who, guilty ) ) gi.Printf( "SHIP: there is no one by that number in the brig\n" );
+		else gi.Printf( "SHIP: crew %d is %s\n", who, ship::Brigged( vessel, who ) ? "convicted" : "acquitted" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "holo" ) && a[0] && b[0] )
+	{//the holodeck: recreation, training, therapy or forensic reconstruction
+		int use = -1;
+		if ( !Q_stricmpn( a, "rec", 3 ) ) use = ship::HOLO_RECREATION;
+		else if ( !Q_stricmpn( a, "train", 5 ) ) use = ship::HOLO_TRAINING;
+		else if ( !Q_stricmpn( a, "thera", 5 ) ) use = ship::HOLO_THERAPY;
+		else if ( !Q_stricmpn( a, "fore", 4 ) ) use = ship::HOLO_FORENSIC;
+		if ( use < 0 ) { gi.Printf( "SHIP: holo recreation | training | therapy | forensic <crew>\n" ); return; }
+		if ( !ship::RunHolodeck( vessel, static_cast<ship::HolodeckUse>( use ), atoi( b ) ) )
+			gi.Printf( "SHIP: the holodeck could not run that (the system is down, or the crew member cannot)\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "quarters" ) )
+	{
+		if ( !ship::ImproveQuarters( vessel ) ) gi.Printf( "SHIP: not enough material to improve the quarters\n" );
+		else gi.Printf( "SHIP: the crew's quarters are improved; material %.0f\n", vessel.stores.materials );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "pylon" ) && a[0] )
+	{//damage the nacelle pylons (a hit does this in a fight); a ship without them cannot warp
+		ship::DamagePylon( vessel, atof( a ) );
+		gi.Printf( "SHIP: pylons at %.0f%%%s\n", vessel.pylonHealth * 100, ship::PylonsIntact( vessel ) ? "" : "  NO WARP" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "emitter" ) )
+	{//the mobile emitter: an artifact that lets the EMH work away from sickbay
+		ship::SetMobileEmitter( vessel, Q_stricmp( b, "off" ) != 0 );
+		gi.Printf( "SHIP: mobile emitter %s\n", ship::MobileEmitter( vessel ) ? "aboard" : "stowed" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "airponics" ) )
+	{//the airponics bay: food grown, not replicated
+		ship::SetAirponics( vessel, Q_stricmp( b, "off" ) != 0 );
+		gi.Printf( "SHIP: the airponics bay is %s\n", ship::Airponics( vessel ) ? "growing food" : "shut down" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "borgfx" ) )
+	{//runtime asset replacement (S8): a surface's shader swapped live, and swapped back. On the
+		//generated decks the BorgAssets pass does this per deck by itself; this drives a known deck.
+		const bool on = Q_stricmp( a, "off" ) != 0;
+		if ( on ) gi.RemapShader( "textures/hall/hallfloor1", "textures/lwh/borg", "0" );
+		else gi.RemapShader( "textures/hall/hallfloor1", "textures/hall/hallfloor1", "0" ); // clears the remap
+		gi.Printf( "SHIP: Borg asset replacement %s\n", on ? "on" : "off" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "holoend" ) && a[0] )
+	{
+		if ( !ship::EndHolodeckProgram( vessel, atoi( a ) ) ) gi.Printf( "SHIP: that crew member is not lost in the program\n" );
+		else gi.Printf( "SHIP: crew %s is back on duty\n", a );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "eva" ) )
+	{//an away party works a belt or wreck by hand, in EV suits
+		if ( !ship::EVA( vessel ) ) gi.Printf( "SHIP: no EVA possible (no party out, no EV suits, or nothing to reach)\n" );
+		else gi.Printf( "SHIP: material %.0f, parts %.0f\n", vessel.stores.materials, vessel.stores.spareParts );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "observe" ) )
+	{
+		if ( !ship::ObservePreWarp( vessel ) ) gi.Printf( "SHIP: there is no pre-warp civilisation here\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "interfere" ) )
+	{
+		if ( !ship::InterferePreWarp( vessel ) ) gi.Printf( "SHIP: there is no pre-warp civilisation here\n" );
+		else gi.Printf( "SHIP: the Prime Directive was violated; resentment %.2f\n", ship::Resentment( vessel ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "reconcile" ) )
+	{
+		if ( !ship::ReconcileFactions( vessel ) ) gi.Printf( "SHIP: only whoever commands reconciles the crew\n" );
+		else gi.Printf( "SHIP: resentment %.2f\n", ship::Resentment( vessel ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "awareness" ) )
+	{
+		gi.Printf( "SHIP: Borg strategic awareness %.0f%%\n", ship::BorgAwareness( vessel ) * 100.0f );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "klaxon" ) )
+	{//the alert klaxon, played around the player (S9's "hear"); the game's own alert sounds
+		if ( !Q_stricmp( a, "red" ) ) G_Sound( &g_entities[0], G_SoundIndex( "sound/ambience/voyager/redalert.mp3" ) );
+		else G_Sound( &g_entities[0], G_SoundIndex( "sound/ambience/voyager/alarm1.mp3" ) );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "wingman" ) )
+	{//a second contact joins the fight (S9: more than one at a time)
+		if ( !ship::InCombat( vessel ) ) gi.Printf( "SHIP: no fight to join\n" );
+		else { vessel.contact2 = vessel.enemy; vessel.contact2.firepower *= 0.6f; vessel.contact2.boarders = 0; gi.Printf( "SHIP: a second contact joins\n" ); }
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "grudge" ) && a[0] && b[0] )
+	{//a remembered grievance: crew a holds one against crew b
+		ship::Remember( vessel, atoi( a ), ship::MEM_LIE, atoi( b ), ship::MEM_SAW, -0.9f );
+		gi.Printf( "SHIP: bond %d -> %d: %.2f\n", atoi( a ), atoi( b ), ship::Bond( vessel, atoi( a ), atoi( b ) ) );
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "chart" ) )
 	{
-		static const char *const KINDS[] = { "empty", "hostile", "derelict", "Borg" };
+		static const char *const KINDS[] = { "empty", "hostile", "derelict", "Borg", "trader", "distress", "belt", "pre-warp", "THE END" };
 		for ( size_t i = 0; i < vessel.sector.size(); ++i )
 		{
 			std::string links;
@@ -999,6 +2418,27 @@ void Svcmd_Ship_f( void )
 			++printed;
 		}
 		if ( !printed ) gi.Printf( "SHIP: the log is empty\n" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "jobs" ) )
+	{//the outstanding work, in the order it is worked (docs/crew-work.md)
+		const std::vector<ship::Job> &jobs = ship::Jobs( vessel );
+		gi.Printf( "SHIP: %d job(s) outstanding\n", static_cast<int>( jobs.size() ) );
+		for ( const ship::Job &j : jobs )
+		{
+			char what[48];
+			if ( j.kind == ship::JOB_REPAIR ) Com_sprintf( what, sizeof( what ), "%s", ship::Spec( static_cast<ship::SystemId>( j.target ) ).name );
+			else Com_sprintf( what, sizeof( what ), "deck %d", j.target );
+			gi.Printf( "SHIP:   %-8s %-24s %3d%%  priority %d\n", ship::JobKindName( j.kind ), what,
+				static_cast<int>( j.progress * 100 + 0.5f ), j.priority );
+		}
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "build" ) && a[0] )
+	{//command orders spare parts built from the ship's material
+		if ( !ship::OrderBuild( vessel, atoi( a ) ) ) gi.Printf( "SHIP: only whoever commands builds, and it takes material\n" );
+		else gi.Printf( "SHIP: building spare parts; material %.0f, parts %.0f\n", vessel.stores.materials, vessel.stores.spareParts );
+		Publish();
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "counterhack" ) && sys >= 0 && b[0] ) ship::CounterHack( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );

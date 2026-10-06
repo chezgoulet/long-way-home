@@ -1,0 +1,92 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 15/15] adopt RPG-X's target_shaderremap as a placeable entity
+
+The first class of the community harvest (docs/handoff-full-scope.md section 1b). RPG-X's
+target_shaderremap toggles the renderer's mapping of one shader to another at run time, so a
+section of the ship can visibly change and change back. It rides the single-player engine's own
+shader switch, gi.RemapShader (routed to RE_RemapShader by patches/0014), so it needs no BSP edit.
+
+The logic is not in this tree: it is module/ship/lwh_entities.cpp compiled in from LWH_MODULE_DIR,
+and this patch is only the attach point -- a useFunc entry, a dispatcher case, the spawn-table row,
+and the declarations. Ported from UberGames' RPG-X gamecode (code/game/g_target.c); their Legal
+Notice permits source reuse with credit and does not conflict with Raven's STEF terms.
+
+Without LWH_MODULE_DIR each hook resolves to an empty inline and no retail map contains the class,
+so retail behaviour and saves are untouched. The gentity_t struct is not changed (it is fixed at
+1320 bytes for the save transcoder); the shader pair lives in a module-side table.
+---
+diff --git a/efgame/src/game/g_functions.h b/efgame/src/game/g_functions.h
+--- a/efgame/src/game/g_functions.h
++++ b/efgame/src/game/g_functions.h
+@@ -446,7 +446,10 @@
+ 	useF_misc_replicator_item_remove,
+ 	useF_target_interface_use,
+ 	useF_garden_fountain_use,
+-	useF_func_bobbing_use
++	useF_func_bobbing_use,
++
++	// Long Way Home (patches/0015): the adopted RPG-X target_shaderremap, toggling a shader mapping.
++	useF_target_shaderremap
+ 
+ } useFunc_t;
+ 
+diff --git a/efgame/src/game/g_functions.cpp b/efgame/src/game/g_functions.cpp
+--- a/efgame/src/game/g_functions.cpp
++++ b/efgame/src/game/g_functions.cpp
+@@ -5,6 +5,7 @@
+ #include "g_local.h"
+ #include "../cgame/cg_local.h"
+ #include "g_functions.h"
++#include "lwh_hooks.h"
+ 
+ void GEntity_ThinkFunc(gentity_t *self)
+ {
+@@ -327,6 +328,9 @@
+ 	USECASE( target_interface_use )
+ 	USECASE( func_bobbing_use )
+ 
++	// Long Way Home (patches/0015): the adopted RPG-X target_shaderremap.
++	case useF_target_shaderremap: LWH_target_shaderremap_use(self,other,activator); break;
++
+ 	default:
+ 		Com_Error(ERR_DROP, "GEntity_UseFunc: case %d not handled!\n",self->e_UseFunc);
+ 	}
+diff --git a/efgame/src/game/g_spawn.cpp b/efgame/src/game/g_spawn.cpp
+--- a/efgame/src/game/g_spawn.cpp
++++ b/efgame/src/game/g_spawn.cpp
+@@ -3,6 +3,7 @@
+ #include "g_functions.h"
+ #include "boltons.h"
+ #include "g_infostrings.h"
++#include "lwh_hooks.h"
+ 
+ extern cvar_t *g_spskill;
+ extern void NAV_GenerateSquadRoutes (int squadPathNum);
+@@ -534,6 +535,7 @@
+ 	{"target_teleporter", SP_target_teleporter},
+ 	{"target_relay", SP_target_relay},
+ 	{"target_kill", SP_target_kill},
++	{"target_shaderremap", LWH_SP_target_shaderremap},
+ 	{"target_position", SP_target_position},
+ 	{"target_location", SP_target_location},
+ 	{"target_push", SP_target_push},
+diff --git a/efgame/src/game/lwh_hooks.h b/efgame/src/game/lwh_hooks.h
+--- a/efgame/src/game/lwh_hooks.h
++++ b/efgame/src/game/lwh_hooks.h
+@@ -11,6 +11,7 @@
+ #include "g_crew.h"
+ #include "g_ship.h"
+ #include "g_scope.h"
++#include "lwh_entities.h"
+ #else
+ struct gentity_s;
+ inline void Crew_RegisterCvars( void ) {}
+@@ -33,6 +34,8 @@
+ inline void LWH_ScopeBegin( int ) {}
+ inline void LWH_ScopeEnd( void ) {}
+ inline const char *LWH_ScopedName( const char *name ) { return name; }
++inline void LWH_SP_target_shaderremap( struct gentity_s * ) {}
++inline void LWH_target_shaderremap_use( struct gentity_s *, struct gentity_s *, struct gentity_s * ) {}
+ #endif
+ 
+ #endif

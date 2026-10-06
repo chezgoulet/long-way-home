@@ -28,6 +28,7 @@ chosen for play.
 | Main Engineering | deck 11 | on screen | recalled |
 | Computer core | deck 9 | the game's own turbolift menu (`sp_turbolift.dat`: "DECK9 Computer Core") | game |
 | Hazard Ops | deck 4 | the same file | game |
+| The five decks with no published source (6, 7, 12, 13, 14) | a sealed hall with a waypoint grid; each now has a blockout: deck 6 two holodeck doorframes and an armory locker, deck 7 an auxiliary core column and cargo islands, deck 12 two chambers with the plant on a raised deck, deck 13 a plant hall with a machinery island and catwalk, deck 14 stasis pods and a holodeck doorframe | nothing canonical exists; invented, and logged as such | invented |
 | Astrometrics and the cargo bay | deck 8 | the same file | game |
 | Environmental control, torpedo bay, impulse engineering, deflector control | decks 12, 9, 10, 11 | — | invented placement |
 | Decks present as maps | 1, 2, 3, 4, 5, 8, 9, 10, 11, 15 | the expansion pack's `maps/tour/` | game |
@@ -155,9 +156,110 @@ outline. The thresholds are invented.
 | Tractor beam at Tactical; deflector and inertial dampers at the Conn; life support, structural integrity and the computer core under Operations | — | invented |
 | Only Engineering sets the power order; only Engineering and Tactical call the alert | — | invented (on screen the captain calls it; command authority is S10) |
 
+## The materials economy, travel systems and the crew (2026-10-07)
+
+All invented; none of these figures is stated on screen or in the manuals. They are in
+`module/ship/ship_core.h` and can be overruled in one place.
+
+| fact | value |
+|---|---|
+| A derelict, stripped with the tractor beam | 25 more spare parts and 20 raw material |
+| Fabrication | 1 raw material becomes 1 spare part, at the replicators |
+| Machine, tractor and travel thresholds | the system must deliver above 50% to be doing its job |
+| A weak deflector on a jump | breaches a deck by 20% |
+| An undamped jump | injures one or two crew |
+| Structural integrity and hits | hull damage scales with `2 − integrity output` |
+| The EMH | holds the ward at 50% output, needs the computer core |
+| A Borg vessel's adaptation | phaser adaptation rises by 2× the damage dealt, torpedo by 1.5×; damage falls by `1 − adaptation` |
+| A funeral | lifts a crew member's morale by 0.15, up to 0.7 |
+| The brig | a fit crew member confined, off duty, operating nothing |
+| A training credential | one station, earned by training, no crew-hours modelled |
+| A resource belt | 30 raw material and 8% tankage of deuterium, once |
+| A refugee | eats one crew-day of rations a day; crowding drags morale by 5% at the full complement |
+| Memory | at most 8 marks per person; salience fades 1% an hour; a mark carries provenance |
+| Trauma | the summed negative salient valence, up to 15% of the morale target |
+| The holodeck | recreation +0.15 morale; training grants one credential; therapy fades negative marks to 40% |
+| Quarters quality | senior 0.7, others 0.4–0.8; ±5% of the morale target; improving all quarters costs 10 material |
+| The holodeck's hold | recreation adds 0.3 compulsion a visit; at 1.0 the crew member is lost in it until pulled out |
+| The nacelle pylons | a warp jump needs them above 50%; a hit on Main Engineering damages them |
+| The mobile emitter | the EMH holds the ward at 0.8 instead of 0.5 |
+| A pre-warp contact | observing yields 10 material and +0.03 morale; interfering takes 30 material and 20 supplies, a violation mark, and +0.2 resentment |
+| The Maquis split | about one generated crew member in six is Maquis; resentment seeds at up to 0.3 and drags morale by 0.15×; reconciling removes 0.2 a time |
+| The airponics bay | grows 0.5 days of rations an hour while life support runs, without the replicators |
+| A wingman | every third hostile beacon also holds a second raider at 60% of the primary's firepower |
+| The alert klaxon | the game's own `sound/ambience/voyager/redalert.mp3` on red, `alarm1.mp3` on yellow | game |
+| Core radiation | a core below half health irradiates deck 11 at `(0.5 − health)` seconds a second; injures at 60 s, kills at 300 s |
+| An exploding console | a hit on a deck injures one fit crew member manning a station there | inv |
+| A poisoned site | beaming an away team to a phenomenon or a belt injures one of them | inv |
+| The job queue | one job per damaged system (priority from the system's shedding order), breached hull (20), assimilated deck (30) or player build (40); command's "see first to" makes it −1; bounded at 24 |
+| A build job | up to 4 free engineers make 1 spare part per 4 engineer-hours from 1 material each |
+| Deferred maintenance | a wholly undermanned station fails after 10 days of it, losing 40% of its health |
+| Boarder kinds | raider (loots stores when it holds), Borg (assimilates), hunter (wounds the crew); a party can be sent for a named deck |
+| Borg strategic awareness | +0.15 a cube contact, plus a little while assimilating; above 0.4 a quarter of hostiles become Borg in the next sector; adds to the adaptation rate |
+| A grudge toward command | remembered valence below −0.3 toward whoever commands multiplies a post-holder's effectiveness by (1 + bond) |
+| Visible damage | a system below 85% health sparks at its station on the player's deck | inv |
+| Visible fire | a burning deck draws min(8, ceil(fire×8)) smoke/flame effects, one in three a flame | inv |
+| Borg deck sections | a generated deck's four sections turn Borg in order, one per `ASSIMILATED/4` of assimilation | inv |
+
+Borg strategic awareness beyond a single vessel's adaptation is named in the design and not yet
+modelled.
+
+## Dilithium, the constraint that forces exploration (`docs/exploration-and-science.md`)
+
+| item | value | source |
+|---|---|---|
+| One crystal's worth of progress | about 3,000 light years | canon: an Intrepid core lasts up to 3 years and 75,000 ly at warp 6.2 is some 75 years, so ~25 supplies [lore] |
+| A fresh crystal lasts | 40 cruising jumps | inv |
+| Recomposition buys back | 0.35 of the crystal's life | inv |
+| The ceiling falls per recomposition | 0.15, so replacement is eventually necessary | inv |
+| A trader takes for a crystal | 40 material | inv |
+| A researched better crystal | +0.10 efficiency, which shortens every jump | inv |
+| Below | 2% crystal | there is no warp; the ship still runs sublight |
+| Acquired by | mining a resource belt, trading, salvaging a derelict, or researching a better crystal | canon's five ways, four built |
+| A probe | charts a target without the ship, spending one of the six carried; sometimes lost | inv |
+| A dilithium survey | charts the nearest belt/trader/derelict reachable through the sector, so the crew can detour | inv |
+| A phenomenon | three hidden attribute values, revealed one scan each; the right response (their sum mod 4) gives 30 material, the wrong one breaches a deck | inv |
+
+## The Borg incursion (`docs/borg-incursion.md`)
+
+| item | value | source |
+|---|---|---|
+| A clean intercept | intruders cleared without any system touched: recorded, named, no casualties | owner's rule, 2026-10-05 |
+| No dwell, no write | an unopposed intruder writes nothing for the first 120 ship-seconds (then compromise begins) | inv |
+| The three thresholds | compromise at 120 s, contested at 240 s, systems seized at 360 s (unopposed) | inv |
+| A force field | rated 0-10; one intruder drains one level per 5 minutes; a level-10 field suppresses Borg adaptation while it holds | inv |
+| A security squad | musters at deck 9, advances one deck per 3 minutes, then holds the deck with 4 defenders until it is clear | inv |
+| `dwell` | ship-seconds the intruders have held unopposed | inv |
+| `compromised` | set when any system on the deck loses control to intruders, or assimilation begins | inv |
+| Deck controllers | crew / borg / contested / sealed / uninhabitable | design |
+| A modulation rotation | breaks 0.5 of the Borg's adaptation, then a 120-second cooldown | inv |
+| A vinculum raid | adaptation to zero and suppressed for 300 s, at the cost of one wounded security crew | inv |
+| De-assimilation window | a captive with wounds in (0, 0.8); past 0.8 it is too late | inv |
+| The cost of recovery | wounds × 40 supplies and × 20 material; the scar equals the wounds, and drags morale by scar × 0.25 | inv |
+
+## Shuttles (`docs/shuttles.md`)
+
+| item | value | source |
+|---|---|---|
+| Starting complement | Class 2, Type 6, Type 8, and the Aeroshuttle | canon: "Class 2, Type 6 and Type 8 shuttles plus the runabout-sized Aeroshuttle" [lore] |
+| The Delta Flyer | built by the crew, so not present at the start | canon (2375) [lore] |
+| A replacement costs | 30 material and 8 crew-hours in the second bay | inv |
+| Cargo carried out | up to 10 material, 10 rations, 10 parts per launch | inv |
+
+## The warp core cascade (`docs/failure-is-content.md`)
+
+| item | value | source |
+|---|---|---|
+| Coolant loss | a failing core empties its coolant loops in 20 minutes | inv |
+| Containment | at full overheat, falls to critical in 10 minutes | inv |
+| The breach countdown | 180 seconds once containment is critical (interruptible) | inv |
+| System failure states | nominal; degraded below two-thirds health; offline below a third or switched off; destroyed at zero | inv |
+| Refilling the coolant | 15 material, +0.5 coolant | inv |
+
 ## Not yet modelled
 
-Bio-neural gel packs, the EMH's dependence on sickbay power and holo-emitters, dilithium, the
-variable-geometry nacelles, the aeroshuttle, shuttles, cargo bays, replicator rations as a resource,
-and holodeck power being incompatible with other systems (a point Voyager makes on screen, which
-would change the `holodecks` row above).
+Bio-neural gel packs, the EMH's dependence on sickbay power and holo-emitters, the
+variable-geometry nacelles, cargo bays, replicator rations as a resource, and holodeck power being
+incompatible with other systems (a point Voyager makes on screen, which would change the
+`holodecks` row above). Shuttles are modelled (`docs/shuttles.md`): the bay's complement and where
+each one is, an away shuttle with its manifest, a loss as a build job, and a bay hit.

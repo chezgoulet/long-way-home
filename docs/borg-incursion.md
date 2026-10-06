@@ -214,3 +214,63 @@ With the owner's answer, reversal becomes a value rather than a gate:
   more materials, more risk of failure, and a higher chance of lasting damage;
 - and reclamation of the ship is the same shape, done by *work* rather than medicine -- see
   `docs/crew-work.md`, where stripping Borg modification is one of the four activities the crew do.
+
+## Implemented (2026-10-07)
+
+The keystone and the owner's clean-intercept rule are in, in `module/ship/ship_core.cpp` (save format
+32; `TestIncursion`, `scripts/controller-check.sh`):
+
+- **`controller` per deck** -- `crew`, `borg`, `contested`, `sealed`, `uninhabitable` -- computed each
+  tick from the ship's own state and reported at the console (`ship controller`).
+- **`compromised` and `dwell` per deck.** `dwell` is the ship-seconds the intruders have held
+  *unopposed*; `compromised` is set the moment any system on the deck loses control to them (or
+  assimilation begins). The console shows both.
+- **The clean intercept, recorded as a win.** When intruders are cleared from a deck they never
+  compromised, the ship writes it down and increments `cleanIntercepts`: *"<team> cleared the
+  intruders on deck N; no systems compromised"* -- names in the log's author field.
+
+`scripts/controller-check.sh` boards deck 4, lets security outnumber the raiders, and shows the field:
+`deck 4 crew, intruders 2` at first contact, then `0 deck(s) not wholly ours; 1 clean intercept`.
+
+- **No dwell, no write, enforced, in three thresholds.** An unopposed intruder must hold a deck for
+  `DWELL_COMPROMISE` (**120 ship-seconds**) before anything here is written: a system's control does
+  not fall, the Collective does not learn, and nobody is taken until the clock crosses it. At
+  `DWELL_HOLD` (**240 s**) the deck counts as **contested** -- they hold ground. At `DWELL_SEIZE`
+  (**360 s**) their systems are **seized outright** (for anyone but the Borg, whose path is
+  assimilation). Below the first threshold the crew still hold the deck and nothing is written;
+  security reaching them inside the window is a genuine reprieve, and the clean intercept above is
+  that reprieve recorded. `TestIncursion` walks all three thresholds on one deck: compromised but
+  crew-held, then contested, then the transporter seized.
+
+- **The counter-play kit: remodulation and a vinculum raid.** `Remodulate` rotates the phaser
+  modulation, subtracting 0.5 from the Borg's `adaptation` so the next shots land again, with a
+  120-second cooldown (the cost in attention). `RaidVinculum` needs Borg here (aboard or a vessel),
+  sets `adaptation` to zero and suppresses its growth for 300 seconds -- a reprieve with a cost, never
+  a win -- and spends a security party (one is wounded). Console `ship remodulate|vinculum`;
+  `scripts/counterplay-check.sh` shows a 60% adaptation broken to 10%.
+
+- **De-assimilation: a narrow window, and never whole.** A crew member the drones have begun to take
+  (their `wounds` in `(0, 0.8)`) can be recovered: `RecoverCaptive` spends sickbay and supplies,
+  *rising with how far it got*, and returns them **changed** -- a permanent `assimScar` that drags
+  their morale target forever, and a `MEM_VIOLATION` mark (*"I was taken, and I came back changed"*).
+  Past 0.8 it is too late. Console `ship recover <crew>`; `scripts/recovery-check.sh` shows a 50%
+  captive recovered with a 50% scar; `TestDeassimilation`.
+
+- **Force fields, rated 1-10.** `SetForceFieldLevel` rates a field 0..10 (the air-holding field is a
+  level 10). While a field stands it **holds** the intruders on that deck -- no hacking, no advance --
+  and **drains** under their pressure (`free intruders × minutes / 5` levels), failing when it empties.
+  A **level-10 field on a Borg deck cuts them from the Collective**: adaptation is suppressed while it
+  holds. Console `ship field <deck> <1-10|on|off>`; `scripts/forcefield-check.sh` shows a level-10
+  field holding two raiders and draining to 9; `TestForceFieldKit`.
+
+- **The security squad: a fireteam command sends to retake a deck.** `OrderAdvance` (console
+  `ship advance <deck>`) musters security at deck 9 and advances **one deck at a time** (3 minutes a
+  deck); in position the squad fights there until the deck is clear, then stands down and the deck is
+  ours again (`compromised` cleared). Console `ship advance`; `scripts/squad-check.sh` shows a squad
+  ordered to deck 4 and the report `0 deck(s) not wholly ours`; `TestSquad`.
+
+**Still to come:** the crew layer embodying the squad as bodies moving deck by deck (the design's
+"room by room", which needs a session to see); the threshold ratio is the number the design says to
+tune hardest (120 / 240 / 360 seconds is our first cut). Otherwise the incursion is built to the
+design: controller, compromise and the three thresholds; the clean intercept; remodulation, a vinculum
+raid, rated force fields; de-assimilation; and the squad.

@@ -34,12 +34,21 @@ a dead tricorder scans nothing and says so; and the kit survives a save and a lo
 passes, as do `test.sh`, `scripts/s2-check.sh`, `scripts/s4-check.sh`, `scripts/s10-check.sh` and
 `scripts/g3-measure.sh`.
 
+## Reading the ship, and the kit's condition (2026-10-07)
+
+- **A human-scale scan.** `ScanCompartment` reads a deck of the ship itself — air, hull, life support
+  — the same kind of write the sensors make of a site, over a smaller radius, and a weak charge reads
+  the air better than it is. `ship scancomp <deck>` reaches it from the Operations console.
+- **Kit condition.** The away kit carries `kitCondition`; a scan wears it, drawing a fresh loadout
+  from the locker (`LoadAwayKit`) restores it, and it survives a save (format **version 14**).
+- **The party is on the site.** S4's transporter (`TransportAway`) puts the away team on the beacon,
+  off the ship's decks, and brings them back — the party the tricorder belongs to.
+
 ## What is left for this gap
 
-- **The away site itself.** Scanning targets the sector beacon the ship is at; there is no walkable
-  away site, no loadout at a transporter-room panel, and no human-scale scan yet. Teaching the
-  tricorder to read the ship's own compartments (the same function, a smaller radius) is the honest
-  next step.
-- **Kit condition and loss.** Charge exists; condition, dropped kit and lost kit do not.
+- **The away site itself.** The transporter delivers to the sector beacon the ship is at; there is no
+  walkable site to walk on, so the scan is of the site's chart entry rather than of a place a person
+  stands in. This is content (an away-site map), and it is where the acceptance run needs a session.
+- **Kit loss.** Condition exists; dropped and lost kit do not. A property of the away site.
 - **The acceptance run** — an away mission solved by scanning rather than shooting — needs the away
   site and a session.

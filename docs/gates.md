@@ -141,14 +141,14 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 |---|---|---|
 | **S1** ship core | ✅ done 2026-10-05 | `docs/evidence/s1-ship-core.md` |
 | **S2** Engineering console in game | 🔶 built and verified headless; awaiting the owner at the console | `docs/evidence/s2-engineering-console.md` |
-| **S3** whole-ship map | 🔶 one map, fifteen decks (five generated placeholders), toured by turbolift 15 of 15, the retail menu reading the ship's fifteen-deck list and opening; game frame 2.3 ms; awaiting a person walking it | `docs/evidence/s3-merged-map-measured.md`, `scripts/s3-check.sh` |
-| **S4** every station's console | 🔶 first slice: stations in the core; Engineering, Tactical, Ops and Conn consoles open from the ship's own panels and operate within their authority; the transporter and astrometrics panels open Operations and Sickbay draws the ship's medical state; the ship's live state is drawn at the panel the player stands at, and painted onto the panel's texture itself (`patches/0014`) | `docs/evidence/s4-station-consoles.md`, `scripts/s4-check.sh`, `scripts/s4-glance-check.sh`, `scripts/s4-panel-check.sh` |
-| **S5** crew daily lives | 🔶 first slice: the crew embodied on the player's deck are whoever the ship's routine has there, arriving and leaving with it and walking to a place; checked on one deck; not on the merged ship, places not yet real stations | `scripts/s5-check.sh`, plan in `docs/HANDOFF.md` |
-| **S6** damage, repair, resources | 🔶 first slice, in the core: crewed repair that costs parts, casualties from airless decks, sickbay recovery; not yet visible in the game | `docs/evidence/s6-damage-and-casualties.md` |
-| **S7** intruders and hacking | 🔶 first slice, the rules in the core: boarders, contested control, hijacking, security response, the breach puzzle; boarders are hostile bodies on the player's deck and killing one counts; the breach puzzle is a console screen | `docs/evidence/s7-intruders-and-control.md`, `scripts/s7-check.sh` |
-| **S8** the Borg | 🔶 first slice, the rules in the core: drones convert decks and take crew, assimilated systems are lost outright, stripping costs hours and parts; drones are bodies on the player's deck; assets do not change yet | `docs/evidence/s8-the-borg.md`, `scripts/s7-check.sh` |
-| **S9** the outside | 🔶 first slice, the rules in the core: a sector of beacons, jumps, ship-to-ship combat through the ship's own systems, hits landing on decks, boarding when shields fall, salvage; jumps from the Conn console and torpedoes from Tactical | `docs/evidence/s9-the-outside.md`, `scripts/s9-check.sh` |
-| **S10** play modes, roles, character creation | 🔶 first slice, the rules in the core: ironman/holodeck, three clocks with wall-clock catch-up, clearance by rank and department, three player roles, character creation; clearance and ironman are enforced in the game; standing orders are given from a command console and obeyed; a personnel screen creates the character | `docs/evidence/s10-modes-and-roles.md`, `scripts/s10-check.sh`, `scripts/s4-check.sh` |
+| **S3** whole-ship map | 🔶 one map, fifteen decks (five generated with blockouts), toured by turbolift 15 of 15 with the retail menu reading the ship's fifteen-deck list; game frame **2.6 ms average, 8.7 ms worst** on the latest run (the whole-ship frame time is measured within a 60 fps budget — see the evidence); awaiting a person walking it | `docs/evidence/s3-merged-map-measured.md`, `scripts/s3-check.sh` |
+| **S4** every station's console | 🔶 each station's purpose is in the core and on its console: Tactical fires, the transporter beams and recalls, astrometrics surveys, the Conn lays in a course, Sickbay reads its ward in triage order; the ship's live state is drawn at the panel and painted onto the panel's texture (`patches/0014`); the non-station panels (log, ready room, personnel, replicator) open the ship's own screens. A person at a panel remains | `docs/evidence/s4-station-consoles.md`, `scripts/s4-check.sh`, `scripts/s4-glance-check.sh`, `scripts/s4-panel-check.sh` |
+| **S5** crew daily lives | 🔶 the crew embodied on the player's deck are whoever the routine has there, arriving and leaving with it; the **cap is raised to 24 and measured** (all 24 embodied follow the routine, all reach their place within the meal hour). Station markers sit at the generated decks' own fixtures; published-deck markers are blocked (a marker at their interface panels leaks — sky/trigger brushes) and need chosen open-space origins by a person | `docs/evidence/s5-stations.md`, `scripts/s5-check.sh` |
+| **S6** damage, repair, resources | 🔶 in the core: crewed system repair and hull sealing that cost parts, airless and burning decks and radiation from a failing core as casualty causes, fighting wounds, sickbay recovery and triage, rations; **a deterministic fourteen-day soak** with the invariants checked daily (`TestSoak`). The crew layer embodies the repair and firefighting parties, and **damage is visible in the world**: a damaged system sparks where it is worked (`SyncDamage`, `scripts/damage-check.sh`) and a burning deck is smoke and flame across it (`SyncFire`, `scripts/fire-check.sh`). **Injury causes** run from air, fire and fighting wounds to radiation, an exploding console and a poisoned site | `docs/evidence/s6-damage-and-casualties.md`, `scripts/damage-check.sh`, `scripts/fire-check.sh` |
+| **S7** intruders and hacking | 🔶 in the core: boarders, contested control, hijacking, security response, the breach puzzle; boarders are hostile bodies on the player's deck and the ship's security are embodied as bodies too; **boarder kinds and objectives** (raider/Borg/hunter, sent for a deck). The puzzle played by hand needs a session | `docs/evidence/s7-intruders-and-control.md`, `scripts/s7-check.sh` |
+| **S8** the Borg | 🔶 rules in the core: drones convert decks and take crew, assimilated systems are lost outright, stripping costs hours and parts; drones are bodies on the player's deck. **Runtime asset replacement** (the first hard problem) is **built and verified on the merged ship's generated decks**: a deck the simulation assimilates turns Borg in the world **part by part** (four sections, turning in order as assimilation rises) and is stripped back (`BorgAssets`, `scripts/borg-deck-check.sh`); the published decks still need the stitcher pass or the engine section tag | `docs/evidence/s8-the-borg.md`, `scripts/s7-check.sh`, `scripts/borg-deck-check.sh` |
+| **S9** the outside | 🔶 in the core (2026-10-07): an opponent with targetable weapons, engines and a shield generator, and raider/warship/Borg kinds; choices at a beacon (hail, trade, answer a distress call, run); pursuit that stops the ship sitting still to repair; three sectors and an end to reach; jumps from the Conn and torpedoes/targeting from Tactical; more than one contact at a time (a raider's wingman). Engine-side feedback: the screen shakes on a hit, a live in-world viewscreen draws the contact's image beside the panel, and the alert klaxon plays (the viewscreen is a drawn schematic, not an engine render of the model) | `docs/evidence/s9-the-outside.md`, `scripts/s9-check.sh`, `scripts/viewscreen-check.sh` |
+| **S10** play modes, roles, character creation | 🔶 rules in the core: ironman/holodeck, three clocks with wall-clock catch-up (demonstrated in the game), clearance by rank and department, three player roles, character creation, enforced; standing orders from a command console; a personnel screen creates the character; the log/ready-room/personnel **panels open the ship's screens** from a map interface; **the player's character is the body the player walks in** (head, torso and legs set from the crew record and department when a character is chosen), and **the command console carries the career** (shows the character, and `P` confirms a field promotion from the ship). The owner's playthrough remains | `docs/evidence/s10-modes-and-roles.md`, `scripts/s10-check.sh`, `scripts/s4-check.sh`, `scripts/playerbody-check.sh`, `scripts/promote-check.sh` |
 
 ## Adopted from RPG-X prior art (2026-10-04)
 
@@ -164,6 +164,27 @@ Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere con
   campaign map, so we know how much of the budget retail already spends.
 
 ## G5 — capstone scenario ⏳ pending
+
+---
+
+## Community harvests (handoff §1b)
+
+**Harvest A — Elite Reinforce fixes and tools: ✅ closed 2026-10-07, no code needed.** The mandate
+listed four single-player fixes and two authoring tools as absent. They are not: the pinned upstream
+(`VoyagerSP-Android` @ `0d8942e8`) already inherited all of them — the borg1 freeze guard and its
+`g_fixFreezeBorg1` cvar (on by default), the forge3 `AimAtTarget` height fix, the menu-softlock
+`ingameFlag` reset, the `saveholodeck` command, `cg_highlightDeathScripts`, and `g_showPaths`. The
+audit checked our module and patches and missed the base. Evidence: `docs/evidence/harvest-a-elite-reinforce.md`.
+
+**Harvest B — RPG-X's entity classes: 🔶 first class adopted and verified.** `target_shaderremap`
+(a placed entity that toggles a shader mapping at run time, riding `gi.RemapShader`) is implemented
+in `module/ship/lwh_entities.cpp`, registered by `patches/0015` (as attach points only, off without
+`LWH_MODULE_DIR`), documented in the validator dictionary, placed on the generated decks, and proven
+by `scripts/shaderremap-check.sh` (`g_shipTest 32`): it spawns and firing it swaps the shader and
+swaps it back with no renderer "not found". This is also the mechanism candidate for the first hard
+problem. The remaining classes we need are adopted each with a dictionary entry and a fixture.
+Licence: RPG-X code is adoptable with credit to UberGames (see `NOTICE`); assets are not. Details:
+`docs/evidence/harvest-b-rpgx-classes.md`.
 
 ---
 
@@ -236,25 +257,107 @@ air and endurance clocks, the log as a browsable artifact, tricorders and away-t
 core-plus-console, tested, and honest about what is left; the next work is the deck build order in
 `docs/ship-master-map.md` (deck 12 environmental control and deck 13 life support first).
 
+**The five gaps, to their full criteria (2026-10-07, later the same day).** The first slice's
+remaining items are now built and evidenced by `scripts/gaps-check.sh` and `TestGapCompletions`:
+morale's "the log can say why" (a periodic mood line naming the driver); the triage screen
+(`ui_lwh_triage`), replication restocking medical supplies, and the surgical bay's force field;
+force fields from the Operations panel and battery/auxiliary endurance as their own numbers; the
+browsable log screen (`ui_lwh_log`), named authors (`AuthorFor`), and the captain's log
+(`ship captain`); and the tricorder reading the ship's own compartments (`ScanCompartment`) with kit
+condition. Save format **version 14**.
+
+What remains is content, not rules: the crew's *manner* (barks wired to morale — needs the crew
+layer, session to judge), the EMH (the mobile-emitter backlog item), the environmental-control
+countdown at deck 12 itself (the deck build), and a walkable away site (content; the acceptance run
+needs it and a session). The model says so in each evidence document.
+
 ### Then, in rough order
 
-- the **tractor beam**, and salvage as the door to the materials economy
-- **structural integrity** as a gate on warp speed and hull loss
-- the **navigational deflector** as a maintained system, and travel that is unsafe without it
-- **inertial dampers**, **nacelle pylons**, and the **EMH's confinement** with the mobile emitter as an artifact
-- **airponics and the galley**: food as a system, a job site, and a morale engine
-- **living conditions and bunking**; **relationships** between crew as a small data structure
-- **grief**: funerals, casualty notifications, sealed quarters
-- **discipline and justice**: the brig with a hearing, and Prime Directive consequences
-- the **Maquis split**: factions, resentment, integration as an arc
-- **training and qualification** as the source of credentials
-- the **holodeck's uses**: training, recreation, forensic reconstruction, therapy, and the programme that will
-  not end
-- **resource acquisition**: mining, salvage, EVA, siphoning
-- **trade**, and **population pressure** -- refugees and survivors spending stores, quarters and air
-- the **player's own body**: wounds, incapacitation, assimilation, death
-- the **player's career**: qualification, trust, promotion, access
-- **Borg strategic awareness**; a **persistent pursuer**; and **time travel explicitly refused**
+**First batch done (2026-10-07)** — `docs/evidence/backlog-materials-and-crew.md`, `scripts/backlog-check.sh`,
+`TestMaterialsAndTravel`, `TestCrewJusticeAndBorg`:
+
+- the **tractor beam** (strip a derelict, lock a contact), **salvage** and **fabrication** as the
+  materials economy ✅
+- **structural integrity** as a gate on hull loss and travel safety ✅
+- the **navigational deflector**: a weak one lets dust through on a jump ✅
+- **inertial dampers**: an undamped jump shakes the crew ✅; **the EMH** (needs the computer core) ✅
+- **grief**: a death is notified and the quarters sealed, and a funeral opens them and lifts the crew ✅
+- **discipline and justice**: the brig ✅ (the hearing and Prime Directive consequences remain)
+- **training and qualification** as the source of credentials ✅
+- the **Maquis split**: the faction field ✅ (resentment and integration as an arc remain)
+- the **player's own body**: `PlayerIncapacitated` ✅ (the model in the world remains)
+- the **player's career**: promotion by whoever commands ✅
+- **Borg strategic awareness**: a Borg vessel adapts to our weapons ✅; a **persistent pursuer** ✅
+- **trade** (a trader beacon) ✅
+- **Relationships and memory**: the bounded per-character mark set of
+  `docs/memory-and-consequence.md` (provenance, valence, salience, decay, eviction), bonds derived
+  from remembered valence, and the galley's food fabrication ✅
+- **Resource acquisition**: mining a resource belt for material and siphoning fuel ✅ (EVA remains)
+- **Population pressure**: survivors and refugees taken aboard eat, breathe and crowd ✅
+- **Justice**: a hearing (acquittal or conviction) ✅ (Prime Directive consequences remain)
+- **The holodeck's uses**: recreation, training, therapy, forensic reconstruction ✅; **memory read by
+  the simulation** (trauma drags on morale) ✅
+- **Living conditions**: quarters quality colours the mood, and can be improved ✅ (bunking as a
+  mapped place remains)
+- **The holodeck programme that will not end**: time in the program accumulates and command can pull
+  a crew member out ✅
+- **Nacelle pylons**: damageable, and a ship without them cannot go to warp ✅
+- **The mobile emitter** as an artifact, strengthening the EMH ✅
+- **EVA** as a way to acquire what mining cannot reach ✅
+- **The Prime Directive**: observing a pre-warp civilisation, or interfering and owning the mark ✅
+- **The Maquis split as an arc**: resentment seeds from the roster, drags on morale, and command can
+  reconcile the two factions into one crew ✅
+- **Airponics and the galley**: the galley fabricates food, and the airponics bay grows it without the
+  replicators ✅ (the bay as a mapped place remains)
+- **Borg strategic awareness**: awareness rises with every Borg contact, makes the next sector more
+  theirs, and speeds their adaptation ✅
+- **Memory read by the simulation**: a grudge toward whoever commands measurably reduces a post's
+  output, alongside trauma (the marks move the sim, not only answer a query) ✅
+- **The job queue** of `docs/crew-work.md` as a visible, saved, ordered work list (repair/seal/reclaim/
+  **build** with kind, target, progress and priority; console `ship jobs`; a build job fabrics parts
+  from material) and **deferred maintenance** (an undermanned station fails, traceably) ✅
+- **The dilithium constraint** that forces exploration (`docs/exploration-and-science.md`): the
+  crystal's life falls with warp use, Engineering recomposites it until the ceiling will not rise
+  again, and a new crystal is found by mining a belt, trading, salvaging or researching a better one;
+  no crystal, no warp (`ship dilithium|recomposite|acquire`; `TestDilithium`,
+  `scripts/dilithium-check.sh`) ✅
+- **The warp core cascade** (`docs/failure-is-content.md`, `docs/damage-and-budgets.md`): coolant loss
+  -> overheat -> falling containment -> a breach countdown, visible on the console and interruptible
+  (coolant, shutdown, restart, eject, repair); ignored, the breach is the one unwinnable end
+  (`ship core`, `TestCoreCascade`, `scripts/core-check.sh`); and **every system's three named failure
+  states** (degraded, offline, destroyed), each change written to the log (`TestSystemStates`) ✅
+- **Probes** (`docs/exploration-and-science.md`): the safe way to look at something hostile -- a
+  probe charts a target without the ship going there, spending one of the complement; sometimes lost
+  (`ship probe`, `TestProbes`, `scripts/probe-check.sh`) ✅; and **phenomena** -- one anomaly per
+  sector, hidden attributes revealed one scan at a time, a correct response rewarded and a wrong one
+  damaging (`ship study`, `TestPhenomenon`, `scripts/phenomenon-check.sh`) ✅; probe classes and
+  response-demanding telemetry, and a response depending on the revealed set, remain
+- **Shuttles** (`docs/shuttles.md`): supported, not pilotable -- the bay's complement and where each
+  is, an away shuttle with its manifest and cargo, a loss (stranded or lost with its crew) becoming a
+  build job in the second bay, and a hit on the bay wrecks what is parked (`TestShuttles`,
+  `scripts/shuttle-check.sh`) ✅
+- **The Borg incursion's keystone** (`docs/borg-incursion.md`): a per-deck `controller`
+  (crew/borg/contested/sealed/uninhabitable), `compromised` and `dwell`; the **hard "no dwell, no
+  write" gate in three thresholds** (120 s compromise, 240 s contested, 360 s seized); and the
+  **clean intercept recorded as a win** when intruders are cleared before they touch a system; and
+  the **counter-play kit** (rotate the phaser modulation to break adaptation; a vinculum raid that
+  severs coordination at a cost; **force fields rated 1-10**, a level-10 field cutting a drone from
+  the Collective); and **de-assimilation** in a narrow window, never whole (a lasting scar and a
+  mark); and a **security squad** command sends to retake a deck, advancing one at a time
+  (`TestIncursion`/`TestSquad`/`TestForceFieldKit`/`TestCounterPlay`/`TestDeassimilation`,
+  `scripts/controller-check.sh`, `scripts/squad-check.sh`, `scripts/forcefield-check.sh`,
+  `scripts/counterplay-check.sh`, `scripts/recovery-check.sh`) ✅
+
+Still to do, in order:
+
+- the **airponics bay and the galley** as mapped places and job sites (their food production is in)
+- **living quarters and bunking** as a mapped place (the quality that colours morale is in)
+- ~~the **player's body and career in the world**~~ **Done 2026-10-07** — the model the player walks
+  in (`ApplyPlayerBody`, `scripts/playerbody-check.sh`) and the career in a UI (the console's field
+  promotion, `scripts/promote-check.sh`)
+- ~~**memory driving spoken dialogue**~~ **Done 2026-10-07** — asked to account, a crew member says a
+  line drawn from their strongest mark (`scripts/speech-check.sh`)
+- **time travel explicitly refused**
 
 ## Residuals (named, queued, not forgotten)
 

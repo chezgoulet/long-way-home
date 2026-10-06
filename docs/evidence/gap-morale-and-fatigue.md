@@ -40,9 +40,17 @@ morale survives Pack/Unpack. The whole suite (every earlier property included) p
 `test.sh`, `scripts/s2-check.sh`, `scripts/s4-check.sh`, `scripts/s4-glance-check.sh`,
 `scripts/s4-panel-check.sh` and `scripts/g3-measure.sh`.
 
+## The log can say why (2026-10-07)
+
+The fourth gap (the log) now exists, so morale's acceptance is met end to end. Every six ship-hours
+the ship writes one line naming the driver of the crew's mood — `the crew's mood: morale nn%,
+fatigue nn% (red alert | losses still felt | the night watch | an ordinary watch)` — under the name
+of the senior medical officer on duty. A player can reconstruct a bad month from the log alone; see
+`docs/evidence/gap-the-log.md`.
+
 ## What is left for this gap
 
 - **Manner.** The contract asks for the crew's manner as well as their numbers; the crew layer's
-  barks and idles are the place, and are not wired to morale yet.
-- **"The log can say why"** waits on the fourth gap (the log as a browsable artifact).
+  barks and idles are the place, and are not wired to morale yet. This is the one item of the
+  contract still open, and it needs the crew layer's animation set (a session to judge the result).
 - More drivers the owner may want: warmth, rations, relationships, grief; each is one target term.

@@ -81,3 +81,16 @@ console in it?**
 No new art. No new species. Do not build the atmosphere plant accurately -- it needs to *read* as plant, not
 simulate it. Do not build section 42 or the Haunting entity here; that is a scenario next door, and putting
 it in this room would spend the adjacency.
+
+## 10. Status (2026-10-07)
+
+**Blockout built, awaiting the owner's approval before detail** (`docs/authoring-a-location.md`: the
+blockout is approved before detail). The generated deck (it has no published source) is now a working
+half-deck in **two chambers** — a dividing wall with a doorway, and the plant on a **raised deck** with
+a lower walkway — with the life-support station marked. It loads on the merged ship, is reachable on
+foot, and is photographed: `scripts/deck12-check.sh`, `g_shipTest 26`, screenshot
+`build/g3-home/baseEF/screenshots/lwh_deck12.tga`.
+
+Not yet done, and waiting on the approval: reusing `tour/deck11`'s console and plant models (the brief's
+reuse target), the parts list from the pak census, the watch console at the entrance, the Jefferies tube
+exit, the lighting states, and section 42 next door (a scenario, not this room).

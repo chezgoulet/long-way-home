@@ -58,10 +58,45 @@ walks to the marker, not to a random node:
 CREW: lwh_crew_015 at post 'place_lwh_crew_015' after 1000 ms
 ```
 
-## What is left
+## Markers on the published decks: a blocker, measured (2026-10-07)
 
-- **Markers on the published decks.** The bridge (shields/phasers, communications/turbolifts),
-  Main Engineering (warp drive and the rest), Sickbay, the transporter room, astrometrics, the mess
-  hall. The stitcher can place them at chosen fixture origins once the bridge's station models are
-  identified by eye; do that with a person, or record the chosen origins as invention.
-- Then raise the embodied cap (10 now) toward 20-30 and measure, as the hand-off plans.
+Placing a station marker at a published deck's **own interface panel** was tried and **reverted**. The
+panels are brush entities whose surfaces use sky/trigger shaders (`common/junk_sky`, `common/trigger`),
+so a marker at the panel's centre is inside the void — q3map2 reports:
+
+```
+******* leaked *******
+Entity 1708, Brush 0: Entity leaked
+```
+
+— writes no portal file (`.prt`), and `-vis` then fails (`Error opening voyager.prt: No such file`), so
+the whole-ship build is lost. That is the measurement: the fixture positions the maps carry are not
+usable as marker origins.
+
+The markers therefore need a **chosen open-space origin on the right deck**, recorded as invention —
+the S5 brief's "do that with a person, or record the chosen origins as invention". It needs a person
+who can see the merged map. The **mechanism** is in: `g_crew.cpp`'s `StationFor` reads
+`lwh_station_<system>`, and the generated decks already carry their own (holodecks on 6, life support
+on 12), so the crew go to a real place there.
+
+## The embodied cap raised to 24 and measured (2026-10-07)
+
+The layer's default cap is raised from 10 to 24 (`module/crew/crew_core.h`, toward the hand-off's
+20–30). `scripts/s5-check.sh` on deck 4 told it is the mess deck, with the ship's own roster:
+
+```
+ship time 15:04, deck 2: the ship has 40 here (showing up to 24), 24 embodied
+...
+PASS  through 4 meals and 4 spells between them, the crew embodied were the crew the ship had aboard
+INFO  of 24 embodied, 24 reached their place within the meal hour and 0 gave up
+PASS  most of the crew embodied walked to their place on the deck
+```
+
+Twenty-four are embodied and follow the routine — arriving with the watch, leaving with it, all 24
+reaching their place within the meal hour. That is S5's "20–30 embodied" figure for one deck; the
+frame budget with the crew was measured in G3 (0.34 ms with crew, 0.24 without) and on the merged
+ship in S3.
+
+**Station coverage across watch changes** is `TestADayAboard` in `tests/ship`: over two full days,
+with every watch change included, no station is ever short-handed — `s.systems[i].manned >=
+Spec(i).crewNeeded` for every system at every hour, while the crew also sleep, eat and live.

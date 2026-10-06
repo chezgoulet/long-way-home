@@ -42,15 +42,28 @@ Two outcomes came from the rules rather than from the tests' first expectations.
 against two boarders win without anyone being put out of the fight — wounded, not injured. And
 boarders on a vented deck do not all die: those who had already taken the torpedo bay had moved on.
 
+## Boarder kinds and objectives (2026-10-07)
+
+`TestBoarderKinds`:
+
+- **More than one kind of boarder.** A party has a `BoarderKind` — **raider**, **Borg**, or
+  **hunter** — and behaves accordingly. Raiders loot the ship's stores when they hold a deck with
+  nothing left to take; Borg assimilate (S8); hunters come for the crew, wounding whoever they find
+  whether or not they are held.
+- **Objectives.** A party can be sent for a deck (`BoardAs`, console `ship board <deck> <n>
+  [raider|borg|hunter] [objective]`), not only the nearest of the bridge or Engineering: a party
+  making for the computer core walks toward deck 9, not toward the bridge.
+- **Security as bodies.** The ship's security are embodied like all crew: `CrewOnDeck` puts the
+  defenders on the boarded deck, the crew layer spawns them there, and the boarders are teams hostile
+  to them, so the fight is bodies against bodies where the player is. The ship's rate-based fight
+  still runs underneath, so a fight off the player's deck still resolves.
+
 ## What S7 still needs
 
-- **Bodies: done for the player's deck** (below). Still to do: the ship's own security fighting
-  them as bodies too, rather than by a rate, when the player is there to see it.
-- **The puzzle on a screen: done** (`scripts/s9-check.sh`): any console's countermeasures key asks
-  the ship for a puzzle for the selected system and presents it; the picks are sent back and scored
-  by the ship. It runs against a thirty-second trace: when time is up, what has been entered is what is sent. Nobody has played it by hand.
-- **Who the boarders are.** One kind, one behaviour. Species, weapons, objectives: later.
-- **How they arrive** — transporters, breaching pods — belongs with the outside loop (S9).
+- **The puzzle played by hand.** It is on a screen and driven headlessly (`scripts/s9-check.sh`), but
+  nobody has solved one at a console by hand; that needs a session.
+- **How they arrive** — transporters, breaching pods — belongs with the outside loop (S9); the
+  outer-loop boarding is by the enemy's own party today.
 - Every rate is invented and in the lore ledger.
 
 ## Boarders as bodies (later the same day)

@@ -339,7 +339,9 @@ void Draw( void )
 	UI_DrawProportionalString( 44, 426, screen.station == 0
 		? "UP/DOWN select   ENTER on/off   LEFT/RIGHT priority   1 2 3 condition green/yellow/red   ESC leave"
 		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   1 2 3 condition   F fire torpedo   H countermeasures   ESC leave"
-		: screen.station == 3 ? "UP/DOWN select   ENTER on/off   J K L jump to the first, second, third beacon listed   H countermeasures   ESC leave"
+		: screen.station == 2 ? "UP/DOWN select   ENTER on/off   T beam a party   R recall   U survey   O force field   H countermeasures   ESC leave"
+		: screen.station == 3 ? "UP/DOWN select   ENTER on/off   J K L jump   C lay in a course   H countermeasures   ESC leave"
+		: screen.station == 4 ? "UP/DOWN select   ENTER on/off   B surgical field   H countermeasures   ESC leave"
 		: "UP/DOWN select   ENTER on/off   H countermeasures   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
@@ -378,6 +380,34 @@ bool Act( int key )
 		}
 		return true;
 	case 'f': case 'F': Send( "ship fire" ); return true;
+	case 't': case 'T': // the transporter beams a party (Operations)
+		if ( screen.station != 2 ) return false;
+		Send( "ship transport 3" );
+		return true;
+	case 'r': case 'R': // bring the away team back
+		if ( screen.station != 2 ) return false;
+		Send( "ship recall" );
+		return true;
+	case 'u': case 'U': // astrometrics makes its survey
+		if ( screen.station != 2 ) return false;
+		Send( "ship survey" );
+		return true;
+	case 'c': case 'C': // the Conn lays in a course for the far end of the sector
+		if ( screen.station != 3 ) return false;
+		Send( va( "ship course %d", static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_goal" ) ) ) );
+		return true;
+	case 'o': case 'O': // raise or lower the field over the deck that is losing air (environmental control)
+	{
+		if ( screen.station != 2 ) return false;
+		char deck[16];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_breach_deck", deck, sizeof( deck ) );
+		if ( deck[0] ) Send( va( "ship field %s %s", deck, ui.Cvar_VariableValue( "lwh_ship_breach_field" ) > 0.5f ? "off" : "on" ) );
+		return true;
+	}
+	case 'b': case 'B': // the surgical bay's force field (Sickbay)
+		if ( screen.station != 4 ) return false;
+		Send( "ship surgical" );
+		return true;
 	case 'h': case 'H': // countermeasures on the selected system: ask the ship for a puzzle, then present it
 		Send( va( "ship breach \"%s\"", r.name ) );
 		ui.Cmd_ExecuteText( EXEC_APPEND, "lwh_eng_key breachopen\n" ); //after the ship has published it
@@ -481,11 +511,134 @@ void ReportTurboliftDecks( void )
 	ui.FS_FreeFile( buf );
 }
 
+// ---- the triage screen (S4 / the triage gap) ---------------------------------------------------
+//
+// The ward, one row per casualty, in the order the triage standing order treats them -- read straight
+// from the ship (lwh_ship_ward), as the station consoles read their cvars. The order itself is given
+// at the command console; this screen only shows who is on a bed and who is waiting.
+
+struct {
+	menuframework_s menu;
+} triage;
+
+void TriageDraw( void )
+{
+	char medical[256], ward[1024];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_medical", medical, sizeof( medical ) );
+	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
+	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTBLUE1] );
+	UI_FillRect( 20, 42, 14, 396, colorTable[CT_DKPURPLE1] );
+	UI_FillRect( 20, 442, 600, 10, colorTable[CT_DKPURPLE1] );
+	UI_DrawProportionalString( 44, 19, "SICKBAY  -  TRIAGE", UI_SMALLFONT, colorTable[CT_BLACK] );
+	UI_DrawProportionalString( 44, 46, medical, UI_TINYFONT, colorTable[CT_LTGOLD1] );
+	UI_DrawProportionalString( 44, 70, "NAME", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 300, 70, "SEVERITY", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 440, 70, "STATUS", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_ward", ward, sizeof( ward ) );
+	int row = 0;
+	for ( char *tok = strtok( ward, ";" ); tok && row < 20; tok = strtok( NULL, ";" ), ++row )
+	{
+		char *bar1 = strchr( tok, '|' );
+		if ( !bar1 ) continue;
+		*bar1 = 0;
+		char *bar2 = strchr( bar1 + 1, '|' );
+		if ( !bar2 ) continue;
+		const int sev = atoi( bar1 + 1 ), care = atoi( bar2 + 1 );
+		const int y = 88 + row * 16;
+		UI_DrawProportionalString( 44, y, tok, UI_SMALLFONT, colorTable[CT_WHITE] );
+		Bar( 300, y + 2, 120, 10, sev, sev >= 70 ? CT_RED : sev >= 40 ? CT_LTORANGE : CT_LTBLUE1 );
+		UI_DrawProportionalString( 300, y + 14, va( "%d%%", sev ), UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+		UI_DrawProportionalString( 440, y, care ? "ON A BED" : "WAITING", UI_SMALLFONT, colorTable[care ? CT_LTBLUE1 : CT_RED] );
+	}
+	if ( !row ) UI_DrawProportionalString( 44, 88, "THE WARD IS EMPTY", UI_SMALLFONT, colorTable[CT_LTBLUE1] );
+	UI_DrawProportionalString( 44, 426, "One row per casualty; the triage order is given at the command console.   ESC leave",
+		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+}
+
+sfxHandle_t TriageKey( int key ) { return Menu_DefaultKey( &triage.menu, key ); }
+
+// ---- the log, as a browsable artifact (the log gap) -------------------------------------------
+//
+// The ship's record, newest first, from lwh_ship_log. This is the ready-room terminal and the
+// captain's log's raw feed; the summary itself is written at the command console.
+
+struct {
+	menuframework_s menu;
+	int scroll;
+} logscreen;
+
+void LogDraw( void )
+{
+	char raw[2048];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_log", raw, sizeof( raw ) );
+	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
+	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTGOLD1] );
+	UI_FillRect( 20, 42, 14, 396, colorTable[CT_DKPURPLE1] );
+	UI_FillRect( 20, 442, 600, 10, colorTable[CT_DKPURPLE1] );
+	UI_DrawProportionalString( 44, 19, "SHIP'S LOG  -  READY ROOM TERMINAL", UI_SMALLFONT, colorTable[CT_BLACK] );
+	UI_DrawProportionalString( 44, 48, "WHEN", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 150, 48, "WHO", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 290, 48, "SCOPE", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 360, 48, "WHAT", UI_TINYFONT, colorTable[CT_LTORANGE] );
+
+	// Walk the entries to the scroll offset, then draw the window.
+	char *tok = strtok( raw, ";" );
+	for ( int i = 0; tok && i < logscreen.scroll; ++i ) tok = strtok( NULL, ";" );
+	int row = 0;
+	for ( ; tok && row < 22; tok = strtok( NULL, ";" ), ++row )
+	{
+		char *when = tok;
+		char *who = strchr( when, '|' ); if ( !who ) continue; *who++ = 0;
+		char *scope = strchr( who, '|' ); if ( !scope ) continue; *scope++ = 0;
+		char *what = strchr( scope, '|' ); if ( !what ) continue; *what++ = 0;
+		const int y = 66 + row * 17;
+		UI_DrawProportionalString( 44, y, when, UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+		UI_DrawProportionalString( 150, y, who, UI_TINYFONT, colorTable[CT_LTBLUE1] );
+		UI_DrawProportionalString( 290, y, scope, UI_TINYFONT, colorTable[CT_LTGOLD1] );
+		UI_DrawProportionalString( 360, y, what, UI_TINYFONT, colorTable[CT_WHITE] );
+	}
+	if ( !row ) UI_DrawProportionalString( 44, 66, "THE LOG IS EMPTY", UI_SMALLFONT, colorTable[CT_LTBLUE1] );
+	UI_DrawProportionalString( 44, 426, "UP/DOWN scroll   the captain's log is written at the command console   ESC leave",
+		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+}
+
+sfxHandle_t LogKey( int key )
+{
+	if ( key == K_UPARROW ) { if ( logscreen.scroll > 0 ) --logscreen.scroll; return menu_null_sound; }
+	if ( key == K_DOWNARROW ) { ++logscreen.scroll; return menu_null_sound; }
+	return Menu_DefaultKey( &logscreen.menu, key );
+}
+
 } // namespace
 
 qboolean LWH_UI_ConsoleCommand( const char *cmd )
 {
 	if ( LWH_UI_CommandScreens( cmd ) ) return qtrue;
+	if ( !Q_stricmp( cmd, "ui_lwh_triage" ) )
+	{
+		memset( &triage.menu, 0, sizeof( triage.menu ) );
+		triage.menu.draw = TriageDraw;
+		triage.menu.key = TriageKey;
+		triage.menu.fullscreen = qfalse;
+		triage.menu.wrapAround = qtrue;
+		triage.menu.initialized = qtrue;
+		UI_PushMenu( &triage.menu );
+		ui.Cvar_Set( "ui_liveMenu", "1" );
+		return qtrue;
+	}
+	if ( !Q_stricmp( cmd, "ui_lwh_log" ) )
+	{
+		logscreen.scroll = 0;
+		memset( &logscreen.menu, 0, sizeof( logscreen.menu ) );
+		logscreen.menu.draw = LogDraw;
+		logscreen.menu.key = LogKey;
+		logscreen.menu.fullscreen = qfalse;
+		logscreen.menu.wrapAround = qtrue;
+		logscreen.menu.initialized = qtrue;
+		UI_PushMenu( &logscreen.menu );
+		ui.Cvar_Set( "ui_liveMenu", "1" );
+		return qtrue;
+	}
 	if ( !Q_stricmp( cmd, "lwh_ui_turbolift" ) ) { ReportTurboliftDecks(); return qtrue; }
 	if ( !Q_stricmp( cmd, "ui_lwh_engineering" ) )
 	{
@@ -536,6 +689,33 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 					Open( STATION_PANELS[i].station );
 					return qtrue;
 				}
+			}
+			// The replicator and the mess hall: worked from Operations (the galley is an Ops service).
+			if ( !Q_stricmpn( id, "replicat", 8 ) || !Q_stricmpn( id, "mess", 4 ) )
+			{
+				ui.Printf( "LWH: the %s panel opens the OPERATIONS console\n", id );
+				Open( 2 );
+				return qtrue;
+			}
+			// The panels that are not stations: the log terminal, the ready room, the personnel padd.
+			// The map's own interface names decide which; the ship's screens open in their place.
+			if ( !Q_stricmpn( id, "log", 3 ) || !Q_stricmpn( id, "padd", 4 ) )
+			{
+				ui.Printf( "LWH: the %s terminal opens the ship's log\n", id );
+				ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_log\n" );
+				return qtrue;
+			}
+			if ( !Q_stricmpn( id, "ready", 5 ) || !Q_stricmpn( id, "command", 7 ) )
+			{
+				ui.Printf( "LWH: the %s panel opens the command console\n", id );
+				ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_command\n" );
+				return qtrue;
+			}
+			if ( !Q_stricmpn( id, "personnel", 9 ) || !Q_stricmpn( id, "crew", 4 ) )
+			{
+				ui.Printf( "LWH: the %s panel opens the personnel screen\n", id );
+				ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_character\n" );
+				return qtrue;
 			}
 		}
 	}
