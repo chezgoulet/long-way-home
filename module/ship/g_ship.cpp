@@ -183,6 +183,22 @@ void Publish( void )
 			vessel.orderTriage == 1 ? "RANK FIRST" : "WORST FIRST" ).c_str() );
 	}
 
+	// The endurance clocks, for Engineering (the air-and-endurance gap): a countdown wherever the air
+	// is going, and the ship's time to dark on the stores it has.
+	{
+		std::string clocks;
+		int going = 0;
+		for ( int d = 0; d < ship::DECKS; ++d )
+		{
+			const float air = ship::MinutesOfAir( vessel, d + 1 );
+			if ( air >= 0.0f ) { clocks += Fmt( "DECK %d AIR %d MIN   ", d + 1, static_cast<int>( air + 0.5f ) ); ++going; }
+		}
+		const float dark = ship::MinutesToDark( vessel );
+		if ( dark >= 0.0f && dark < 1440.0f ) clocks += Fmt( "ENDURANCE %dH %02dM", static_cast<int>( dark ) / 60, static_cast<int>( dark ) % 60 );
+		gi.cvar_set( "lwh_ship_clocks", clocks.c_str() );
+		gi.cvar_set( "lwh_ship_clocks_alarm", going || ( dark >= 0.0f && dark < 60.0f ) ? "1" : "0" );
+	}
+
 	// Standing orders and who the player is, for the command console and the personnel screen.
 	{
 		std::string orders;
@@ -856,6 +872,7 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "repair" ) && sys >= 0 && b[0] ) ship::Repair( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "breach" ) && a[0] && b[0] ) ship::BreachDeck( vessel, atoi( a ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "seal" ) && a[0] ) ship::RepairDeck( vessel, atoi( a ), 1.0f );
+	else if ( !Q_stricmp( cmd, "field" ) && a[0] ) ship::SetForceField( vessel, atoi( a ), !Q_stricmp( b, "on" ) );
 	else if ( !Q_stricmp( cmd, "board" ) && a[0] && b[0] ) ship::Board( vessel, atoi( a ), atoi( b ) );
 	else if ( !Q_stricmp( cmd, "borg" ) && a[0] && b[0] ) ship::BoardBorg( vessel, atoi( a ), atoi( b ) );
 	else if ( !Q_stricmp( cmd, "order" ) && a[0] )

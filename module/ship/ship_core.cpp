@@ -700,7 +700,8 @@ static void UpdateDecks(Ship &s, float shipSeconds)
 	const float support = s.systems[SYS_LIFE_SUPPORT].output;
 	const float hours = shipSeconds / 3600.0f;
 	for (Deck &d : s.decks) {
-		const float vent = (1.0f - d.hull) * shipSeconds / (VENT_MINUTES * 60.0f);
+		// A force field over a breach holds the air; without one, an open hull vents to vacuum.
+		const float vent = d.forceField ? 0.0f : (1.0f - d.hull) * shipSeconds / (VENT_MINUTES * 60.0f);
 		// Life support cannot hold an atmosphere in a compartment open to space.
 		const float regen = support * d.hull * hours / ATMOSPHERE_REGEN_HOURS;
 		const float stale = (1.0f - support) * hours / ATMOSPHERE_STALE_HOURS;
@@ -1006,6 +1007,50 @@ void RepairDeck(Ship &s, int deck, float amount)
 	if (deck >= 1 && deck <= DECKS && amount > 0.0f) s.decks[deck - 1].hull = Clamp01(s.decks[deck - 1].hull + amount);
 }
 
+void SetForceField(Ship &s, int deck, bool on)
+{
+	if (deck >= 1 && deck <= DECKS) s.decks[deck - 1].forceField = on;
+}
+
+// The air clock: how long this deck has before it cannot be breathed, at the rates UpdateDecks uses.
+// -1 means it is holding or refilling -- there is no countdown.
+float MinutesOfAir(const Ship &s, int deck)
+{
+	if (deck < 1 || deck > DECKS) return -1.0f;
+	const Deck &d = s.decks[deck - 1];
+	if (d.atmosphere < AIRLESS) return 0.0f;
+	const float support = s.systems[SYS_LIFE_SUPPORT].output;
+	const float ventPerHour = d.forceField ? 0.0f : (1.0f - d.hull) * 60.0f / VENT_MINUTES;
+	const float regenPerHour = support * d.hull / ATMOSPHERE_REGEN_HOURS;
+	const float stalePerHour = (1.0f - support) / ATMOSPHERE_STALE_HOURS;
+	const float net = regenPerHour - stalePerHour - ventPerHour;
+	if (net >= 0.0f) return -1.0f;
+	return (d.atmosphere - AIRLESS) / (-net) * 60.0f;
+}
+
+// The power clock: how long until the first source supplying now runs out. -1 if nothing supplies.
+float MinutesToDark(const Ship &s)
+{
+	float best = -1.0f;
+	for (int i = 0; i < SRC_COUNT; ++i) {
+		const Source &src = s.sources[i];
+		const SourceSpec &sp = SOURCES[i];
+		if (!src.online || src.health <= 0.0f || src.output <= 0 || sp.capacity <= 0) continue;
+		const float load = static_cast<float>(src.output) / sp.capacity;
+		float minutes;
+		if (i == SRC_BATTERIES) {
+			minutes = s.stores.batteries / load * BATTERY_HOURS * 60.0f;
+		} else {
+			float days = 1.0e9f;
+			if (sp.deuteriumPerDay > 0.0f) days = std::min(days, s.stores.deuterium / (sp.deuteriumPerDay * load));
+			if (sp.antimatterPerDay > 0.0f) days = std::min(days, s.stores.antimatter / (sp.antimatterPerDay * load));
+			minutes = days * 24.0f * 60.0f;
+		}
+		if (minutes >= 0.0f && (best < 0.0f || minutes < best)) best = minutes;
+	}
+	return best;
+}
+
 // ---- persistence ------------------------------------------------------------------------------
 
 namespace {
@@ -1055,7 +1100,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(s.alert);
 	for (const System &sys : s.systems) { w.F(sys.health); w.U8(sys.enabled); w.U16(static_cast<uint16_t>(sys.priority)); w.F(sys.control); }
 	for (const Source &src : s.sources) { w.F(src.health); w.U8(src.online); }
-	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); }
+	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); w.U8(d.forceField ? 1 : 0); }
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
 	w.F(s.stores.spareParts); w.F(s.stores.medicalSupplies);
@@ -1109,7 +1154,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	s.alert = static_cast<Alert>(alert);
 	for (System &sys : s.systems) { sys.health = r.Unit(); sys.enabled = r.U8() != 0; sys.priority = static_cast<int16_t>(r.U16()); sys.control = r.Unit(); }
 	for (Source &src : s.sources) { src.health = r.Unit(); src.online = r.U8() != 0; }
-	for (Deck &d : s.decks) { d.atmosphere = r.Unit(); d.hull = r.Unit(); d.intruders = r.F(); if (!(d.intruders >= 0.0f && d.intruders <= 10000.0f)) return false; d.borg = r.U8() != 0; d.assimilated = r.Unit(); }
+	for (Deck &d : s.decks) { d.atmosphere = r.Unit(); d.hull = r.Unit(); d.intruders = r.F(); if (!(d.intruders >= 0.0f && d.intruders <= 10000.0f)) return false; d.borg = r.U8() != 0; d.assimilated = r.Unit(); d.forceField = r.U8() != 0; }
 	s.stores.deuterium = r.Unit(); s.stores.antimatter = r.Unit(); s.stores.batteries = r.Unit();
 	s.stores.torpedoes = r.U16();
 	s.stores.spareParts = r.F(); s.stores.medicalSupplies = r.F();

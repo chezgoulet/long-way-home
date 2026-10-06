@@ -561,6 +561,37 @@ static void TestTriage()
 	CHECK(t.stores.medicalSupplies == 0.0f);
 }
 
+// The air-and-endurance gap: a breach is a number, and the number moves when the crew act.
+static void TestAirAndEndurance()
+{
+	g_test = "a breach has a number; seal it or hold the field and the number goes";
+	Ship s = NewShip();
+	CHECK(MinutesOfAir(s, 9) < 0.0f);            // intact and holding: no countdown
+	BreachDeck(s, 9, 1.0f);
+	const float toVacuum = MinutesOfAir(s, 9);
+	CHECK(toVacuum > 0.0f && toVacuum < 60.0f);  // an open deck is minutes, not weeks
+	// A force field over the breach holds the air: the countdown goes.
+	SetForceField(s, 9, true);
+	CHECK(MinutesOfAir(s, 9) < 0.0f);
+	SetForceField(s, 9, false);
+	// Sealing it is the other answer.
+	RepairDeck(s, 9, 1.0f);
+	CHECK(MinutesOfAir(s, 9) < 0.0f);
+	CHECK(s.decks[8].hull == 1.0f);
+
+	// The power clock: with the reactors off, the batteries are the ship's endurance.
+	Ship t = NewShip();
+	SetSourceOnline(t, SRC_WARP_CORE, false);
+	SetSourceOnline(t, SRC_IMPULSE_REACTORS, false);
+	SetSourceOnline(t, SRC_AUXILIARY, false);
+	Tick(t, 1.0f);
+	const float battery = MinutesToDark(t);
+	CHECK(battery > 0.0f && battery <= 3.0f * 60.0f + 1.0f); // at most the cells' three hours
+	SetSourceOnline(t, SRC_WARP_CORE, true);
+	Tick(t, 1.0f);
+	CHECK(MinutesToDark(t) > battery);           // a reactor back on stretches endurance
+}
+
 // S7. Boarders take systems; the crew take them back.
 static void TestBoarding()
 {
@@ -1197,6 +1228,7 @@ int main(int argc, char **argv)
 	TestDamageControl();
 	TestCasualties();
 	TestTriage();
+	TestAirAndEndurance();
 	TestBoarding();
 	TestBreachPuzzle();
 	TestBorg();

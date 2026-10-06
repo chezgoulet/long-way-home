@@ -202,6 +202,11 @@ the ship. *Control:* sealing, force fields, rerouting, power allocation. *Visibl
 problem is. *Failure:* a compartment that runs out, a ship that goes dark. *Location:* environmental control
 (deck 12), the EPS grid, every sealed compartment. *Acceptance:* a breach produces a number, and the number
 moves when the crew act.
+**First slice 2026-10-07** (`docs/evidence/gap-air-and-endurance.md`, `tests/ship/test_ship_core.cpp`):
+`MinutesOfAir` per deck and `MinutesToDark` for the ship, read from the same rates the sim uses; a force
+field over a breach (`SetForceField`, save format **version 10**); the clocks published as `lwh_ship_clocks`
+and drawn on the Operations console. Force fields from the panel, endurance per source, and the clocks at
+deck 12 itself remain.
 
 **4. The log as a browsable artifact.** *State:* log entries with time, author, subject and fact. *Control:*
 each post reads its own scope, command sees all, the player can search. *Visible:* the log itself -- and it

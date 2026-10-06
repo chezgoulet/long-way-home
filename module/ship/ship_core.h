@@ -100,6 +100,7 @@ struct Deck {
 	float intruders = 0.0f;  // hostile boarders on this deck (fractional while a fight wears them down)
 	bool borg = false;       // the boarders here are Borg: they assimilate what they hold
 	float assimilated = 0.0f; // 0 ours .. 1 wholly Borg; at ASSIMILATED the deck's systems are theirs outright
+	bool forceField = false; // a field over a hull breach: the deck keeps its air (environmental control)
 	int stripping = 0;       // engineers cutting Borg technology out of this deck this tick
 	int defenders = 0;       // security crew fighting here this tick
 };
@@ -257,6 +258,14 @@ void DamageSource(Ship &s, SourceId id, float amount);
 void BreachDeck(Ship &s, int deck, float amount);   // hull damage; atmosphere then vents by itself
 void Repair(Ship &s, SystemId id, float amount);
 void RepairDeck(Ship &s, int deck, float amount);   // seal the hull; life support then refills the deck
+void SetForceField(Ship &s, int deck, bool on);     // hold a breached deck's air with a field
+
+// Endurance clocks (the air-and-endurance gap): the numbers a compartment or the whole ship is running
+// on. MinutesOfAir is the time until a deck's atmosphere reaches AIRLESS, or -1 if it is holding or
+// rising. MinutesToDark is the time until the first supplying source runs out -- the ship goes dark --
+// or -1 if nothing is supplying.
+float MinutesOfAir(const Ship &s, int deck);
+float MinutesToDark(const Ship &s);
 
 // ---- damage control and casualties (S6) -------------------------------------------------------------
 //
@@ -386,7 +395,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 9;   // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, medical supplies, triage
+const uint16_t SAVE_VERSION = 10;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.
