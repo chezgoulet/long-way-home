@@ -143,5 +143,9 @@ of the judgement, and that gap grows with every stage.
 - One stage, one branch, one pull request into `feature/g3-reactive-crew`. CI green before the merge; a red
   check is worked, never re-run past.
 - New work discovered mid-stage is appended to the *next* stage's criteria, never absorbed into the current one.
+- **After any document lands on `testing`, merge `testing` into the builder trunk before dispatching the
+  next brief.** A document the builder cannot see does not exist — that is design creed #9, and it was
+  re-learned when this path document landed on `testing` and a session was dispatched onto a branch that
+  predated it, so its first act was a failed read.
 - Every stage closes with its own evidence document under `docs/evidence/`, in the house form: PASS lines
   stating what was observed, and the command that produced them.
