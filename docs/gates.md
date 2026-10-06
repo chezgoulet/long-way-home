@@ -297,6 +297,29 @@ Remaining (specified, not built): the official and personal logs as separate sto
 built per participant from marks and log; assimilation taking the personal log **and** the access
 levels, with the Collective speaking in the assimilated person's voice.
 
+### The navigation counter
+
+`docs/navigation-counter.md`, implemented 2026-10-06 (`docs/evidence/the-navigation-counter.md`,
+`TestNavigation`, `test_ship_core --nav`, `scripts/nav-check.sh`). Save format **version 45**. It
+replaces the misnamed stand-in (`NavigationCounter` returned the fuel range) with the projection the
+document asks for, over state already in the save.
+
+- distance to Earth from the position model (`sectorNumber`/`SECTORS_TO_CROSS`,
+  `beacon`/`SECTOR_BEACONS`), in the goal's own unit ✅
+- the estimated time projected from the capability the ship can actually sustain — crystal, drive,
+  crew, charted resupply — not an arithmetic quotient ✅
+- the **nominal** and **current-capability** figures, both shown, with the gap visible ✅
+- the **change since the last entry**, the derivative, and the month report's headline ✅
+- recorded in the log about weekly, and the read survives save and load ✅
+- on the panel and the HUD glance without a special mode, on every station console, and queryable as
+  `ship nav` ✅
+- **command sees the forecasts** — the estimate under each available course ✅
+- a unit test, and `scripts/test.sh` and `scripts/check.sh` both exit 0 ✅
+
+Remaining: the human check (whether the arrow *feels* like a hard month) is the owner's; and the
+per-route risk split in the document's own example is projected as the estimate per course, not two
+numbers per course.
+
 ### Then, in rough order
 
 **First batch done (2026-10-07)** — `docs/evidence/backlog-materials-and-crew.md`, `scripts/backlog-check.sh`,

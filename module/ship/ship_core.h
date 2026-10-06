@@ -264,7 +264,7 @@ const char *ReportAudienceName(uint8_t a);
 struct MonthReport {
 	int number = 0;
 	double time = 0.0;          // ship seconds it was drafted
-	float counter = 0.0f;       // the navigation counter at this entry, in light-years
+	float counter = 0.0f;       // the navigation counter at this entry: the estimated years at current capability (-1: no warp)
 	float counterChange = 0.0f; // ... since the previous entry: the derivative, the headline
 	std::string signer;
 	int department = DEPT_COUNT; // the section it covers, or DEPT_COUNT for the captain's whole ship
@@ -607,7 +607,7 @@ struct Ship {
 	MonthReport report;                // the open draft
 	std::vector<MonthReport> reports;  // signed reports, each keeping its diff
 	std::vector<Promise> promises;     // promises held, so they can mature
-	float navCounterLast = 0.0f;       // the counter at the last entry (the derivative's baseline)
+	float navCounterLast = 0.0f;       // the counter (estimated years) at the last entry: the derivative's baseline
 	bool logPurged = false;            // the published logs have been purged
 
 	// the away mission and the course (S4): where a beamed party is, and where the conn is making for
@@ -1047,10 +1047,54 @@ int MakePromise(Ship &s, int officer, int crew, PromiseKind kind, const std::str
 bool ResolvePromise(Ship &s, int index, bool kept);
 const std::vector<Promise> &Promises(const Ship &s);
 
+// ---- the navigation counter (docs/navigation-counter.md) ------------------------------------------
+//
+// The ship's scoreboard, and the document calls it the emotional centre of the design: how far home
+// is, how long it will take, and how much that has changed since it was last written down. It is a
+// **read**, not a system -- a pure projection over state already in the save. `docs/outside-the-ship.md`
+// says the counter is a readout *of* the chart, not a separate thing, and so it is: the distance comes
+// from the position model (the sectors still to cross, `sectorNumber`/`SECTORS_TO_CROSS`, and the
+// beacons still to reach within the current one, `beacon`/`SECTOR_BEACONS`), and the time is that
+// distance over the effective speed the ship can **actually sustain** -- the crystal's integrity and
+// quality, the warp drive's output, the crew at the post, and whether any resupply is charted -- not
+// an arithmetic quotient of a nominal speed. It never lies: `nominalYears` is what the journey costs
+// if nothing changes, `currentYears` what it costs at the capability we have, and the gap between
+// them is the honest difference, shown rather than hidden.
+const float NAV_LIGHT_YEARS = 75000.0f; // the Delta Quadrant: canon's 75,000 light years home [lore]
+const float NAV_NOMINAL_C = 1000.0f;    // canon's effective projected rate, on the order of 1,000 c [lore]
+// The floors of the speed factors: a ship not at its best still goes, only worse. All four are [inv].
+const float CRYSTAL_SPEED_FLOOR = 0.92f; // a crystal near the end of its life warps, but not as well
+const float ENGINE_SPEED_FLOOR = 0.90f;  // a warp drive at half output still drives
+const float CREW_SPEED_FLOOR = 0.95f;    // a station at half manning still runs, on automation
+const float UNCHARTED_SUPPLY = 0.98f;    // no dilithium source charted: the route home is less certain
+const float NAV_LOG_DAYS = 7.0f;         // the counter is written to the log this often [inv]
+
+struct Navigation {
+	float distanceLy = 0.0f;   // light years remaining, in the same unit as the goal
+	float nominalYears = 0.0f; // the journey at nominal capability: what it costs if nothing changes
+	float currentYears = 0.0f; // ... at the capability the ship can actually sustain now (-1: no warp)
+	float changeYears = 0.0f;  // currentYears since the counter was last written down: the derivative
+	float speedC = 0.0f;       // the effective speed the current capability sustains, in c
+	bool warp = true;          // false: no warp at all, and home stops getting closer
+};
+// The read. Pure: the same ship gives the same counter.
+Navigation NavigationCounter(const Ship &s);
+
+// The forecasts -- what command sees that the crew do not (docs/navigation-counter.md): the estimate
+// under each available course, one jump from here. Everyone sees where they are; command decides
+// where to go, and that is the line the rank design draws.
+struct NavCourse {
+	int beacon = -1;             // a beacon one jump away
+	float distanceLy = 0.0f;     // the distance remaining once there (a backward link is a detour)
+	float years = 0.0f;          // the estimate from there, at current capability (-1: no warp)
+	bool charted = false;        // has it been surveyed or visited?
+	uint8_t kind = BEACON_EMPTY;
+};
+std::vector<NavCourse> NavigationForecasts(const Ship &s);
+
 // The month report (docs/the-record-and-the-log.md). The simulation drafts it honestly from the
 // record; the player edits it; the record keeps the diff; a purge empties the published logs and
 // leaves the MEM_LOG-sourced marks orphaned, not erased.
-int NavigationCounter(const Ship &s);       // the scoreboard, read from the record (never lies)
 void DraftReport(Ship &s, int department);  // draft the month report from the record
 const MonthReport &OpenReport(const Ship &s);
 bool StrikeReportLine(Ship &s, int line);   // strike a line from the published version
@@ -1097,7 +1141,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 44;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge
+const uint16_t SAVE_VERSION = 45;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

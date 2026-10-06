@@ -76,3 +76,14 @@ costs at the capability we actually have.
 - It is readable on every deck through a console query.
 - The **nominal vs current** gap is displayed, not hidden.
 - And the human check: a player who looks at it after a hard month should feel the arrow move.
+
+**Implemented 2026-10-06** (`module/ship/ship_core.cpp`; save format 45; `TestNavigation`,
+`test_ship_core --nav`, `scripts/nav-check.sh`; evidence `docs/evidence/the-navigation-counter.md`).
+`NavigationCounter` is the projection the document asks for, over state already in the save: distance
+remaining is built from the position model (`sectorNumber`/`SECTORS_TO_CROSS`, `beacon`/`SECTOR_BEACONS`),
+and the estimate is that distance over the speed the ship can actually sustain -- the crystal,
+the warp drive, the crew at the post, and whether a resupply is charted. It carries the nominal and
+current figures and the change since the counter was last written down, is recorded in the log about
+weekly, is painted on the panel and the HUD glance, is on every station console, and is queryable as
+`ship nav`; command alone sees the forecasts under each available course. The month report's headline
+is the counter's change since the last entry.

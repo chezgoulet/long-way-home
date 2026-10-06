@@ -64,6 +64,11 @@ void CommandDraw( void )
 	ui.Cvar_VariableStringBuffer( "lwh_ship_aboard", line, sizeof( line ) );
 	if ( line[0] ) UI_DrawProportionalString( 44, 76, line, UI_TINYFONT, colorTable[CT_RED] );
 
+	// The navigation counter: everyone's fact (docs/navigation-counter.md). Here in the ready room it
+	// sits above the forecasts, which are command's alone.
+	ui.Cvar_VariableStringBuffer( "lwh_ship_nav", line, sizeof( line ) );
+	if ( line[0] ) UI_DrawProportionalString( 44, 88, line, UI_TINYFONT, colorTable[CT_LTBLUE1] );
+
 	UI_DrawProportionalString( 44, 100, "ORDERS IN FORCE", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	ui.Cvar_VariableStringBuffer( "lwh_ship_orders", line, sizeof( line ) );
 	UI_DrawProportionalString( 44, 114, line[0] ? line : "NONE", UI_SMALLFONT, colorTable[CT_WHITE] );
@@ -112,6 +117,16 @@ void CommandDraw( void )
 	if ( line[0] ) UI_DrawProportionalString( 44, 336, va( "P  field promotion to %s", line ), UI_TINYFONT, colorTable[CT_LTBLUE1] );
 	ui.Cvar_VariableStringBuffer( "lwh_ship_promote", line, sizeof( line ) );
 	if ( line[0] ) UI_DrawProportionalString( 44, 350, line, UI_TINYFONT, strncmp( line, "REFUSED", 7 ) == 0 ? colorTable[CT_RED] : colorTable[CT_LTGOLD1] );
+
+	// Command sees the forecasts: the estimate under each available course (docs/navigation-counter.md).
+	ui.Cvar_VariableStringBuffer( "lwh_ship_forecast", line, sizeof( line ) );
+	if ( line[0] )
+	{
+		UI_DrawProportionalString( 44, 362, "FORECASTS - the estimate under each course", UI_TINYFONT, colorTable[CT_LTORANGE] );
+		int row = 0;
+		for ( char *tok = strtok( line, ";" ); tok && row < 3; tok = strtok( NULL, ";" ), ++row )
+			UI_DrawProportionalString( 44, 376 + row * 12, tok, UI_TINYFONT, colorTable[CT_LTBLUE1] );
+	}
 
 	UI_DrawProportionalString( 44, 412, "UP/DOWN system   LEFT/RIGHT deck   R repair that system first   G guard to that deck   V evacuate that deck",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );

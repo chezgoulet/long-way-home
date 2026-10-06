@@ -218,6 +218,27 @@ numbers it left to us, all invented. They are in `module/ship/ship_core.h`.
 | Report lines per report | at most 24 |
 | Signed reports kept with their diff | at most 8 |
 
+## The navigation counter (`docs/navigation-counter.md`)
+
+Canon supplies the two figures; every factor that turns them into a projection is invented, and the
+mapping of the position model onto the 75,000 light years is ours.
+
+| item | value | source |
+|---|---|---|
+| The whole journey | 75,000 light years | canon: the Delta Quadrant crossing [lore] |
+| Nominal effective rate | 1,000 c | canon: 75,000 ly at warp 6.2 is about 75 years [lore] |
+| The crossing as beacon steps | `SECTORS_TO_CROSS × (SECTOR_BEACONS−1)` = 33 forward jumps | inv |
+| Crystal speed floor | ×0.92 at a spent crystal, ×1.0 at full life | inv |
+| Warp drive speed floor | ×0.90 at no output, ×1.0 at full | inv |
+| Crew speed floor | ×0.95 at half manning, ×1.0 at full | inv |
+| No source charted | ×0.98 (a charted belt, trader or derelict is ×1.0) | inv |
+| The counter is written to the log | about every 7 days | inv |
+| A better researched crystal | ×quality on the effective speed, so it can beat the nominal figure | inv |
+
+The worked example in the document (*71 years nominal, 76 at current capability* for a ship 71,240 ly
+out with a 62% crystal, a worn engine and no charted source) is reproduced by these factors to the
+year: 0.9696 × 0.98 × 0.98 × 1,000 c = 931 c, and 71,240 / 931 = 76 years.
+
 ## Dilithium, the constraint that forces exploration (`docs/exploration-and-science.md`)
 
 | item | value | source |

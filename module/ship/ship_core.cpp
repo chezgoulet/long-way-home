@@ -1988,6 +1988,9 @@ Ship NewShip(const Config &cfg)
 	BuildShuttles(s);
 	BuildSector(s, 0);
 	Tick(s, 0.0f); // so a new ship is already in a consistent state: powered, manned, located
+	// The navigation counter's baseline starts at the opening figure, so the first entry's change is
+	// measured from the beginning of the run rather than from zero (docs/navigation-counter.md).
+	s.navCounterLast = NavigationCounter(s).currentYears;
 	return s;
 }
 
@@ -2393,10 +2396,103 @@ const std::vector<Promise> &Promises(const Ship &s) { return s.promises; }
 
 // ---- the month report (docs/the-record-and-the-log.md) -----------------------------------------
 
-// The navigation counter, read from the record: the scoreboard the corpus already carries
-// (`DilithiumRange`, itself called "the scoreboard" -- docs/exploration-and-science.md). There is
-// no second quantity: the report's headline is this counter's change since the last entry.
-int NavigationCounter(const Ship &s) { return DilithiumRange(s); }
+// ---- the navigation counter (docs/navigation-counter.md) ------------------------------------------
+
+// The resupply the route offers: a source (a belt to mine, a trader, a derelict to salvage) that has
+// been surveyed or visited, so the crew know where to detour for a crystal. A read of the chart.
+static bool SupplyCharted(const Ship &s)
+{
+	for (const Beacon &b : s.sector)
+		if ((b.surveyed || b.visited) && (b.kind == BEACON_BELT || b.kind == BEACON_TRADER || b.kind == BEACON_DERELICT))
+			return true;
+	return false;
+}
+
+// Light years still to travel, from the position model already in the save. The crossing is
+// SECTORS_TO_CROSS sectors of SECTOR_BEACONS-1 forward jumps each; the ship has made the sectors
+// behind her plus the beacons reached in this one, and the goal beacon of the last sector is home.
+// The total and the goal are canon; mapping the beacon steps onto it is [inv].
+static float DistanceRemaining(const Ship &s)
+{
+	if (s.won) return 0.0f;
+	const int steps = SECTORS_TO_CROSS * (SECTOR_BEACONS - 1);
+	int made = s.sectorNumber * (SECTOR_BEACONS - 1) + s.beacon;
+	if (made < 0) made = 0;
+	if (made > steps) made = steps;
+	return NAV_LIGHT_YEARS * static_cast<float>(steps - made) / static_cast<float>(steps);
+}
+
+Navigation NavigationCounter(const Ship &s)
+{
+	Navigation nav;
+	nav.distanceLy = DistanceRemaining(s);
+	nav.nominalYears = nav.distanceLy / NAV_NOMINAL_C;
+	// No crystal, no drive, or no pylons: sublight only. The honest conditional is not a bigger
+	// number, it is that home stops getting closer (docs/exploration-and-science.md).
+	if (!WarpPossible(s)) {
+		nav.warp = false;
+		nav.speedC = 0.0f;
+		nav.currentYears = -1.0f;
+		nav.changeYears = 0.0f;
+		return nav;
+	}
+	// The speed the ship can actually sustain: canon's rate, made the ship's own. Every factor is 1
+	// when the ship is whole, so a healthy ship reads the nominal figure bar the route's uncertainty;
+	// a researched crystal (quality > 1) is the one factor allowed above 1, and it shortens the
+	// journey -- the positive loop of docs/exploration-and-science.md.
+	const float crystal = CRYSTAL_SPEED_FLOOR + (1.0f - CRYSTAL_SPEED_FLOOR) * Clamp01(s.dilithium);
+	const float engine = ENGINE_SPEED_FLOOR + (1.0f - ENGINE_SPEED_FLOOR) * Clamp01(s.systems[SYS_WARP_DRIVE].output);
+	const int need = SPECS[SYS_WARP_DRIVE].crewNeeded;
+	const float manning = need > 0 ? std::min(1.0f, s.systems[SYS_WARP_DRIVE].staffing / need) : 1.0f;
+	const float crew = CREW_SPEED_FLOOR + (1.0f - CREW_SPEED_FLOOR) * Clamp01(manning);
+	const float supply = SupplyCharted(s) ? 1.0f : UNCHARTED_SUPPLY;
+	nav.speedC = NAV_NOMINAL_C * std::max(0.0f, s.crystalQuality) * crystal * engine * crew * supply;
+	nav.currentYears = nav.speedC > 0.0f ? nav.distanceLy / nav.speedC : -1.0f;
+	nav.changeYears = nav.currentYears - s.navCounterLast;
+	return nav;
+}
+
+std::vector<NavCourse> NavigationForecasts(const Ship &s)
+{
+	std::vector<NavCourse> out;
+	if (s.sector.empty() || s.beacon < 0 || s.beacon >= static_cast<int>(s.sector.size())) return out;
+	const Navigation here = NavigationCounter(s);
+	const int steps = SECTORS_TO_CROSS * (SECTOR_BEACONS - 1);
+	for (int l : s.sector[s.beacon].links) {
+		if (l < 0 || l >= static_cast<int>(s.sector.size())) continue;
+		NavCourse c;
+		c.beacon = l;
+		c.kind = s.sector[l].kind;
+		c.charted = s.sector[l].surveyed || s.sector[l].visited;
+		// Where the jump leaves the ship: a forward link is closer to home, a backward link is a
+		// detour and costs the difference. Reaching the goal beacon crosses the sector.
+		int made = s.sectorNumber * (SECTOR_BEACONS - 1) + l;
+		if (made < 0) made = 0;
+		if (made > steps) made = steps;
+		c.distanceLy = NAV_LIGHT_YEARS * static_cast<float>(steps - made) / static_cast<float>(steps);
+		c.years = (here.warp && here.speedC > 0.0f) ? c.distanceLy / here.speedC : -1.0f;
+		out.push_back(c);
+	}
+	return out;
+}
+
+// The counter is written to the log periodically, so the crew can look back -- "when we crossed that
+// expanse we were sixty-one years out" (docs/navigation-counter.md). Doing it here also moves the
+// derivative's baseline, so the report's change means "since the counter was last written down".
+static void RecordNavigation(Ship &s)
+{
+	const Navigation nav = NavigationCounter(s);
+	char buf[160];
+	if (!nav.warp)
+		std::snprintf(buf, sizeof(buf), "navigation: no warp, home stops getting closer; %d light years out",
+			static_cast<int>(nav.distanceLy + 0.5f));
+	else
+		std::snprintf(buf, sizeof(buf), "navigation: %d light years from home, %d years nominal, %d at current capability",
+			static_cast<int>(nav.distanceLy + 0.5f), static_cast<int>(nav.nominalYears + 0.5f),
+			static_cast<int>(nav.currentYears + 0.5f));
+	LogEvent(s, AuthorFor(s, DEPT_COMMAND, "the bridge"), "bridge", buf);
+	s.navCounterLast = nav.warp ? nav.currentYears : 0.0f;
+}
 
 const char *ReportAudienceName(uint8_t a)
 {
@@ -2451,13 +2547,19 @@ void DraftReport(Ship &s, int department)
 	r.number = static_cast<int>(s.reports.size()) + 1;
 	r.time = s.clock;
 	r.department = (department >= 0 && department < DEPT_COUNT) ? department : DEPT_COUNT;
-	r.counter = static_cast<float>(NavigationCounter(s));
-	r.counterChange = r.counter - s.navCounterLast;
+	const Navigation nav = NavigationCounter(s);
+	r.counter = nav.warp ? nav.currentYears : -1.0f;
+	r.counterChange = nav.warp ? nav.currentYears - s.navCounterLast : 0.0f;
 
 	char buf[256];
 	// The headline: the counter's change since the last entry. The derivative is the story.
-	std::snprintf(buf, sizeof(buf), "the ship can still make %d light years, %+.0f since the last entry",
-		NavigationCounter(s), static_cast<double>(r.counterChange));
+	if (!nav.warp)
+		std::snprintf(buf, sizeof(buf), "the ship has no warp: %d light years out, and home stops getting closer",
+			static_cast<int>(nav.distanceLy + 0.5f));
+	else
+		std::snprintf(buf, sizeof(buf), "home %d light years; %d years nominal, %d now, %+.1f since the last entry",
+			static_cast<int>(nav.distanceLy + 0.5f), static_cast<int>(nav.nominalYears + 0.5f),
+			static_cast<int>(nav.currentYears + 0.5f), static_cast<double>(r.counterChange));
 	{ ReportLine h; h.scope = "bridge"; h.draft = buf; h.text = buf; r.lines.push_back(h); }
 
 	// The ship's condition, honestly, from the record.
@@ -2610,7 +2712,7 @@ bool SignReport(Ship &s, int signer, uint8_t audience)
 
 	r.open = false;
 	r.signed_ = true;
-	s.navCounterLast = r.counter;
+	if (r.counter >= 0.0f) s.navCounterLast = r.counter; // the derivative's baseline (no warp: leave it)
 	s.reports.push_back(r);
 	if (static_cast<int>(s.reports.size()) > REPORT_MAX) s.reports.erase(s.reports.begin());
 	s.report = MonthReport(); // a fresh, empty draft
@@ -2863,6 +2965,7 @@ static void Advance(Ship &s, double shipSecondsTotal)
 	double shipSeconds = shipSecondsTotal;
 	do {
 		const float step = static_cast<float>(std::min(shipSeconds, 60.0));
+		const double was = s.clock;
 		s.clock += step;
 		// The counter-play cooldowns age first, so anything that refreshes them this step survives it.
 		s.remodulateCooldown = std::max(0.0f, s.remodulateCooldown - step);
@@ -2877,6 +2980,12 @@ static void Advance(Ship &s, double shipSecondsTotal)
 		UpdateDecks(s, step);
 		UpdateFire(s, step);
 		UpdateSystemStates(s); // name every system's failure-state change, from the tick's final health
+		// The navigation counter, written to the log about weekly so the crew can look back -- and so
+		// the report's change since the last entry has a baseline (docs/navigation-counter.md).
+		if (step > 0.0f) {
+			const double period = static_cast<double>(NAV_LOG_DAYS) * SECONDS_PER_DAY;
+			if (std::floor(was / period) != std::floor(s.clock / period)) RecordNavigation(s);
+		}
 		shipSeconds -= step;
 	} while (shipSeconds > 0.0);
 }

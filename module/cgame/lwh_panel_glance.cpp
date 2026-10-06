@@ -101,7 +101,7 @@ void LWH_CG_DrawPanelGlance( void )
 	static const int ALERT_COLOR[3] = { CT_LTBLUE1, CT_YELLOW, CT_RED };
 	const int alert = s->alert >= 0 && s->alert < 3 ? s->alert : 0;
 	const int sod = s->SecondOfDay();
-	char l1[64], l2[80], l3[80];
+	char l1[64], l2[80], l3[80], l4[80];
 	Com_sprintf( l1, sizeof( l1 ), "DAY %d  %02d:%02d  CONDITION %s", s->Day(), sod / 3600, sod % 3600 / 60, ALERTS[alert] );
 	Com_sprintf( l2, sizeof( l2 ), "POWER %d/%d   CREW FIT %d/%d", s->PowerAvailable(), s->PowerAllocated(),
 		s->CrewFit(), static_cast<int>( s->crew.size() ) );
@@ -120,14 +120,26 @@ void LWH_CG_DrawPanelGlance( void )
 	else
 		Com_sprintf( l3, sizeof( l3 ), "%sTORPEDOES %d", hurt ? va( "%d SYSTEMS DAMAGED   ", hurt ) : "", s->stores.torpedoes );
 
+	// The navigation counter (docs/navigation-counter.md): the crew's shared fact, on the panel the
+	// player is standing at, so it is visible without entering a special mode.
+	{
+		const ship::Navigation nav = ship::NavigationCounter( *s );
+		if ( !nav.warp )
+			Com_sprintf( l4, sizeof( l4 ), "NO WARP: HOME STOPS GETTING CLOSER; %d LY OUT", static_cast<int>( nav.distanceLy + 0.5f ) );
+		else
+			Com_sprintf( l4, sizeof( l4 ), "HOME %d LY   %d YR NOM   %d YR NOW", static_cast<int>( nav.distanceLy + 0.5f ),
+				static_cast<int>( nav.nominalYears + 0.5f ), static_cast<int>( nav.currentYears + 0.5f ) );
+	}
+
 	// A small LCARS block sitting above the panel.
-	const float w = 234.0f, h = 46.0f;
+	const float w = 234.0f, h = 59.0f;
 	const float bx = static_cast<float>( x ) - w * 0.5f, by = static_cast<float>( y ) - h;
 	CG_FillRect( bx, by, w, h, colorTable[CT_BLACK] );
 	CG_FillRect( bx, by, w, 3.0f, colorTable[ALERT_COLOR[alert]] );
 	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 4, l1, CG_SMALLFONT, colorTable[ALERT_COLOR[alert]] );
 	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 17, l2, CG_SMALLFONT, colorTable[CT_LTGOLD1] );
 	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 30, l3, CG_SMALLFONT, colorTable[CT_LTBLUE1] );
+	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 43, l4, CG_SMALLFONT, colorTable[CT_LTBLUE1] );
 	// The viewscreen, when there is a contact: a live image of it beside the panel, redrawn each
 	// frame from the same state the Tactical console reads -- a schematic of the ship scaled and
 	// coloured by its hull, wrapped in a shield bubble that fades as its shields fall. Bars below

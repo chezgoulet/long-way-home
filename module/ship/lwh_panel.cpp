@@ -136,12 +136,22 @@ void Render( const ship::Ship *s )
 	char line[64];
 	Com_sprintf( line, sizeof( line ), "DAY %d  %02d:%02d  %s", s->Day(), sod / 3600, sod % 3600 / 60,
 		WATCH[s->Watch() >= 0 && s->Watch() < 3 ? s->Watch() : 0] );
-	Text( 6, 22, line, GOLD );
+	Text( 6, 20, line, GOLD );
 	Com_sprintf( line, sizeof( line ), "CONDITION %s", ALERTS[alert] );
-	Text( 6, 46, line, ALERT_COL[alert] );
+	Text( 6, 38, line, ALERT_COL[alert] );
 	Com_sprintf( line, sizeof( line ), "POWER %d/%d  CREW %d/%d", s->PowerAvailable(), s->PowerAllocated(),
 		s->CrewFit(), static_cast<int>( s->crew.size() ) );
-	Text( 6, 70, line, BLUE );
+	Text( 6, 56, line, BLUE );
+
+	// The navigation counter (docs/navigation-counter.md), painted on the panel so it is visible
+	// without opening a screen: how far home, and the estimate at the capability we have now.
+	{
+		const ship::Navigation nav = ship::NavigationCounter( *s );
+		if ( !nav.warp ) Com_sprintf( line, sizeof( line ), "NO WARP  %d LY OUT", static_cast<int>( nav.distanceLy + 0.5f ) );
+		else Com_sprintf( line, sizeof( line ), "NAV %dLY %dYR", static_cast<int>( nav.distanceLy + 0.5f ),
+			static_cast<int>( nav.currentYears + 0.5f ) );
+		Text( 6, 74, line, nav.warp ? BLUE : RED );
+	}
 
 	int boarders = 0, assimilated = 0, hurt = 0;
 	for ( int d = 0; d < ship::DECKS; ++d )
@@ -158,7 +168,7 @@ void Render( const ship::Ship *s )
 		Com_sprintf( line, sizeof( line ), "DAMAGE %d SYSTEMS  TORP %d", hurt, s->stores.torpedoes );
 	else
 		Com_sprintf( line, sizeof( line ), "ALL SYSTEMS NOMINAL  TORP %d", s->stores.torpedoes );
-	Text( 6, 94, line, ( boarders || assimilated ) ? RED : GOLD );
+	Text( 6, 92, line, ( boarders || assimilated ) ? RED : GOLD );
 
 	// What the ship has given up (docs/damage-and-budgets.md): the count of the written-off list,
 	// painted on the panel, so it is visible without opening a screen.
