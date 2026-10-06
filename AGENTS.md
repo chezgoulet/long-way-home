@@ -32,6 +32,11 @@ Three modes, contract in `docs/client-modes.md`:
 - `docs/lore-ledger.md` -- every number claiming to describe Voyager, sourced or marked invented.
 - `docs/confidence-and-verification.md` -- what to trust, and how far. Read before believing anything.
 - `docs/gates.md` -- the ledger: what is closed, what is measured, what is next.
+- `docs/story-and-semantics.md` -- **what the game means and how it should feel.** Read before authoring any
+  content: a scenario, a line of dialogue, a system or an ending.
+- `docs/the-record-and-the-log.md` -- the record, the log and the memory as three separate layers; veracity,
+  the month report, the toll, purge, and what assimilation takes.
+- `docs/endings.md` -- arrival, the joke ending, and the destinations as readers.
 
 ## Rules that always apply
 
@@ -71,6 +76,10 @@ the binary, which silently boots the retail menu instead. Details:
 - **Game data** is on `sasquatch` (the playtest host) at the GOG installation, **read-only**; all writes go
   to `build/home`. Never write into the installation.
 - The design documents are also checked out read-only at `/home/c/big/git/lwh-docs` on sasquatch.
+- **The code and the docs are on different branches.** `testing` carries `docs/`, `engine/`, `patches/`,
+  `scripts/`, `tools/` and `data/`; it carries **no `module/`** (the 17 files of ship and crew code), no
+  `tests/` and no `scenarios/`. All three exist only on `feature/g3-reactive-crew`. When a document says "the
+  layer is `module/crew/`" or cites a `module/` line number, it is describing the builder branch.
 - `sasquatch` is shared: other agent sessions run there. Do not leave engine processes running.
 
 ## Where the work stands (2026-10-05)

@@ -46,6 +46,43 @@ a captain who has to decide what to do about them. A merge creates one crew memb
 they are. A mangled arrival is a sickbay problem, a morale problem and a command failure all at once, and it
 leaves a mark on the ship's record.
 
+## Condition sets the odds, and stress sets the severity
+
+The owner's ruling, 2026-10-06, and it is the mechanism that makes the three rules further down true rather
+than aspirational: **a system's chance of failing is a function of its condition, and this is general -- it
+applies to every system, not to the transporter alone.**
+
+- **Within the top tenth of capability** -- power, maintenance, parts -- the system is nominal: it does what it
+  says, with no consequence. A well-kept transporter does not mangle anyone.
+- **As capability degrades, the odds of an anomaly rise.**
+- **At severe degradation, or under severe stress, it lets go visibly** -- the console arcs, sparks and burns
+  at the station the operator is standing at.
+
+Which settles an old question cleanly. A duplicate, a merge or a mangled arrival is neither a prohibition nor
+a roll: it is **what a degraded transporter does**, and a competent operator maintains the system or declines
+to use it. Copy, merge and mangle are all back in play, and none of them is a reset button, because a copy is
+still not the person -- a new record, an ambiguous legal status, and a crew who know.
+
+Two refinements:
+
+- **Degradation sets the odds; stress sets the severity.** A forty-percent system run light gives a misaligned
+  beam; the same system at battle stations gives a merge. That makes *do not run the degraded system under peak
+  load* a real operator skill, and it gives the crew's skill ratings (`docs/crew-roster.md`) something to tilt.
+- **The severity ladder is the one above.** Degraded, acute, catastrophic. One curve, one doctrine, no new
+  vocabulary.
+
+**Two consequences worth carrying.**
+
+The instrument must be honest and specific. `docs/the-record-and-the-log.md`'s rule that instruments cannot lie
+means the console states *this* system's condition before it is used, at the level of *"the pattern buffer is
+at sixty-two percent, and below forty I would not send anyone."* A competent operator has the information, and
+that is a promise the panel has to keep.
+
+And **the sparking console forces the player's own body to exist.** `docs/gap-analysis.md` lists the player's
+body as unspecified, and a station that can maim the person operating it makes it load-bearing: bridge
+consoles erupt because the EPS grid is degraded, at the one place on the ship the player is standing. The
+captain cannot fix anything, and the bridge is not safe either.
+
 ## Failure writes to the crew records
 
 The crew model is what makes failure land, and each kind of failure writes differently:
@@ -88,3 +125,5 @@ coming for a long time before they reach it.
 - After any catastrophic failure, the ship's log can narrate *why* -- action, consequence, and the decision
   that made it.
 - The core breach is gated behind a chain of decisions, and is the only unwinnable end state in the design.
+- Condition sets the odds across every system: one in its top tenth of capability behaves nominally and carries
+  no consequence, while the same system degraded and under load can spark at the station the operator holds.

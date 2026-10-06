@@ -56,6 +56,40 @@ Crew crossing decks then becomes what it always should have been: a change to a 
 Nobody is simulated walking between maps. They are *recorded* as being somewhere, and the deck that loads
 spawns them accordingly. The lift version of coming and going is a special case of the same field.
 
+## The three clocks, and the two exits
+
+The owner's ruling, 2026-10-06. It maps onto the three clocks S10 already implements
+(`module/ship/ship_core.h`: accelerated, real time, wall clock) almost word for word.
+
+| mode | what it is | how it is reached |
+|---|---|---|
+| **accelerated** | a ship's day in compressed game time, only while playing | the player sleeps -- incrementally, or all at once |
+| **real time** | a day is a day, only while playing | the normal state |
+| **wall clock** | a day is a day, and the ship lives on while you are away | exit with a background process; the player is off duty until they return |
+
+The fourth case is not a clock at all: **exit without a background process, and the simulation stops.** Both
+exits are supported and the player chooses. The semantic line to hold is that **the world clock cannot be
+stopped, and the simulation can be shut down** -- suspending the process does not put the world on hold, it
+means no time existed. And the distinction is observable in the record: one run has continuous log entries and
+the other has a gap in it. **A run could be marked by whether it was ever left standing.**
+
+Fast-forward and played must converge -- a ship advanced in steps arrives where a played one would, which
+`ship_core.cpp` already enforces by cutting long steps up -- so sleeping is never a way to skip a
+consequence.
+
+Two things this makes load-bearing:
+
+- **Standing orders are what the ship does while the player sleeps** (save version 7). They stop being a
+  pleasant system and become the mechanism by which an unattended night happens at all.
+- **The log is the return surface.** The player comes back after eight hours and reads what the ship did
+  without them (`docs/the-record-and-the-log.md`). That is the loop, and it is the strongest case yet for
+  building the log early.
+
+One guard, offered as a default the owner may overrule: if suspension is available in every mode, the player
+suspends exactly the nights they would rather not have, and attrition stops biting. Tie it to the modes
+already in the header -- **holodeck may suspend the world; ironman may not**, because ironman means the ship
+keeps its own time.
+
 ## Borg, as the model expresses it
 
 The owner's framing -- board, and if left long enough to organise, assimilate crew and ship -- is a
