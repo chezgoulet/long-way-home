@@ -70,6 +70,12 @@ Station StationOf(SystemId id);        // the station that operates it (never ST
 const char *StationName(Station s);
 bool OperatedFrom(SystemId id, Station s);   // may this station see and switch this system?
 
+// Every modelled system has three failure states designed, not just one (docs/failure-is-content.md):
+// degraded, offline and destroyed, each named in the log and on the console as it is reached.
+enum SystemState : uint8_t { SYS_NOMINAL = 0, SYS_DEGRADED, SYS_OFFLINE, SYS_DESTROYED, SYS_STATE_COUNT };
+const char *SystemStateName(uint8_t state);
+uint8_t FailureStateOf(float health, bool enabled);
+
 struct System {
 	float health = 1.0f;    // 0 destroyed .. 1 intact; output can never exceed it
 	bool enabled = true;    // switched on at its console
@@ -80,6 +86,8 @@ struct System {
 	int repairing = 0;      // damage-control crew working on it this tick
 	float control = 1.0f;   // 1 = the crew's, 0 = the intruders'; below HIJACKED it answers to them, not to us
 	float output = 0.0f;    // 0..1: what the system is actually delivering
+	float wear = 0.0f;      // 0..1: deferred maintenance (derived each tick, not saved); at 1 it fails
+	uint8_t fault = 0;      // the last named failure state, to log the change (derived, but stored)
 };
 
 // ---- power ------------------------------------------------------------------------------------
@@ -94,15 +102,40 @@ struct Source {
 
 // ---- compartments and consumables ---------------------------------------------------------------
 
+// Who physically holds a deck (docs/borg-incursion.md). The Borg pressure writes it, the crew's
+// actions write it, and the deck adapter reads it on load to decide what the player walks into.
+enum DeckController : uint8_t { CTRL_CREW = 0, CTRL_BORG, CTRL_CONTESTED, CTRL_SEALED, CTRL_UNINHABITABLE, CTRL_COUNT };
+// No dwell, no write: an intruder must hold a deck unopposed this long (ship-seconds) before any
+// system here or anyone on it is written to (docs/borg-incursion.md). Below the threshold, nothing.
+// The three thresholds: compromise begins, then they hold ground (contested), then seizure outright.
+const float DWELL_COMPROMISE = 120.0f;
+const float DWELL_HOLD = 240.0f;   // ship-seconds unopposed before the deck counts as contested
+const float DWELL_SEIZE = 360.0f;  // ship-seconds before the deck's systems are seized outright
+const float FIELD_HOLD_MINUTES = 5.0f; // one intruder drains one field level in this many minutes [inv]
+const int FIELD_MAX = 10;              // a field's rating; a level-10 field can cut a drone from the Collective
+const char *ControllerName(uint8_t c);
+
 struct Deck {
 	float atmosphere = 1.0f; // 0 vacuum .. 1 breathable
 	float hull = 1.0f;       // 0 open to space .. 1 intact
 	float intruders = 0.0f;  // hostile boarders on this deck (fractional while a fight wears them down)
 	bool borg = false;       // the boarders here are Borg: they assimilate what they hold
+	uint8_t boarderKind = 0; // 0 raider, 1 Borg, 2 hunter: what they are and what they do when they hold
+	int objective = 0;       // the deck they are making for; 0 = the nearest of the bridge or Engineering
 	float assimilated = 0.0f; // 0 ours .. 1 wholly Borg; at ASSIMILATED the deck's systems are theirs outright
 	bool forceField = false; // a field over a hull breach: the deck keeps its air (environmental control)
+	float forceFieldLevel = 0.0f; // the field's rating 0..10 (docs/borg-incursion.md); 0 = no field
+	float fire = 0.0f;       // 0 none .. 1 an inferno; injures the crew and spreads until it is fought
 	int stripping = 0;       // engineers cutting Borg technology out of this deck this tick
 	int defenders = 0;       // security crew fighting here this tick
+	int sealing = 0;         // engineers sealing this deck's hull this tick
+	int firefighting = 0;    // crew fighting this deck's fire this tick
+	// The incursion: who holds the deck, whether its systems can be trusted, how long intruders have
+	// held unopposed, and whether they were ever here (for the clean-intercept record).
+	uint8_t controller = CTRL_CREW;
+	bool compromised = false; // an intruder has written to a system here
+	float dwell = 0.0f;       // ship-seconds the intruders have held unopposed
+	bool engaged = false;     // intruders are (or were) here since the last clean sweep
 };
 
 struct Stores {
@@ -112,18 +145,41 @@ struct Stores {
 	int torpedoes = 38;          // not replaceable
 	float spareParts = 100.0f;   // what repairs are made of; a system rebuilt from nothing costs PARTS_PER_SYSTEM
 	float medicalSupplies = 100.0f; // what treatment is made of; without it the injured only get worse
+	float rations = 100.0f;      // days of food in the galley's stores; the mess consumes them, the replicators restock
+	float materials = 40.0f;     // raw material from salvage; the replicators fabricate it into spare parts
+	int probes = 6;              // exploration: a probe looks at something hostile instead of the ship [lore]
 
 	// The away-team kit (the tricorder gap): what leaves the ship, and what it needs.
 	int tricorders = 4;          // scanning, and a charge shared by the set
 	int phasers = 6;             // the other answer
 	int evSuits = 4;             // for the places that have no air
 	float tricorderCharge = 1.0f; // 0 = dead .. 1 = fresh; a weak charge reads wrong
+	float kitCondition = 1.0f;   // 0 = battered .. 1 = serviceable; rough use and losses wear it
 };
 
 // ---- crew -------------------------------------------------------------------------------------
 
 enum Activity : uint8_t { ACT_ON_DUTY = 0, ACT_MEAL, ACT_RECREATION, ACT_PERSONAL, ACT_SLEEP, ACT_COUNT };
 enum CrewStatus : uint8_t { CREW_FIT = 0, CREW_INJURED, CREW_DEAD, CREW_ASSIMILATED };
+
+// ---- memory and consequence (docs/memory-and-consequence.md) -----------------------------------
+//
+// Every character keeps a bounded set of marks, per thing that happened: what, who it involved, how
+// they came to know it (provenance), when, how it felt, and how much it still matters. Provenance is
+// the whole boundary rule -- a character cannot know what they were never told. Valence toward a
+// person, repeated, is a bond: friendship or grudge. Salience decays unless reinforced, and the set
+// is bounded, evicting the least salient first.
+enum MemorySource : uint8_t { MEM_SAW = 0, MEM_TOLD, MEM_RUMOUR, MEM_LOG, MEM_SOURCE_COUNT };
+enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, MEM_RESCUE, MEM_VIOLATION };
+const int MEMORY_MAX = 8;
+struct Memory {
+	uint16_t event = 0;
+	int16_t person = -1;     // the crew member it involved, or -1 for an impersonal event
+	uint8_t source = MEM_SAW;
+	float time = 0.0f;       // ship seconds when it happened
+	float valence = 0.0f;    // -1 grief/resentment .. +1 pride/relief
+	float salience = 0.0f;   // 1 fresh; decays unless reinforced
+};
 
 struct CrewMember {
 	std::string name;
@@ -137,10 +193,21 @@ struct CrewMember {
 	float fatigue = 0.0f;    // 0 rested .. 1 exhausted
 	float morale = 1.0f;     // 0 broken, 0.5 going through the motions, 1 heart in it
 	float exposure = 0.0f;   // seconds spent on a deck without air; injures, then kills
+	float burn = 0.0f;       // seconds spent in fire (derived each tick, not saved); injures, then kills
+	float radiation = 0.0f;  // seconds of exposure to a failing core on deck 11 (derived, not saved)
 	float wounds = 0.0f;     // 0..1 taken fighting boarders; at 1 they are out of the fight, injured
+	float assimScar = 0.0f;  // 0..1 a de-assimilation's lasting residue: the deck reclaimed is a changed deck
 	float severity = 0.0f;   // 0 minor .. 1 critical: how badly an injury will go without treatment
 	float recovery = 0.0f;   // 0..1 progress of an injured crew member's treatment
 	bool underCare = false;  // derived each tick: has a sickbay bed now (not saved)
+	bool away = false;       // beamed off the ship on an away mission; on no deck until they return
+	uint8_t credentials = 0; // bitmask over Station: cross-qualifications earned by training (S10's career)
+	uint8_t faction = 0;     // 0 Starfleet, 1 Maquis: the split, and a drag between the two
+	bool brigged = false;    // confined: operates nothing, stands no watch, until the hearing
+	float quartersQuality = 0.5f; // 0 bare .. 1 comfortable: where they bunk, and how it colours the mood
+	float holoCompulsion = 0.0f;  // 0 .. 1+: time in the holodeck's program, and whether it will not end
+	bool quartersSealed = false;  // grief: the quarters of a crew member who has died are sealed
+	std::vector<Memory> memories; // bounded marks: what they know, and how they came to know it
 
 	// derived each tick
 	uint8_t activity = ACT_SLEEP;
@@ -159,24 +226,68 @@ Activity ScheduledActivity(int watch, int secondOfDay);
 // fight is won or lost in Engineering as much as at Tactical -- and what gets through lands on a
 // deck and a system. With our shields down, the enemy sends boarders across.
 
-enum BeaconKind : uint8_t { BEACON_EMPTY = 0, BEACON_HOSTILE, BEACON_DERELICT, BEACON_BORG, BEACON_KIND_COUNT };
+enum BeaconKind : uint8_t { BEACON_EMPTY = 0, BEACON_HOSTILE, BEACON_DERELICT, BEACON_BORG, BEACON_TRADER, BEACON_DISTRESS, BEACON_BELT, BEACON_PREWARP, BEACON_GOAL, BEACON_KIND_COUNT };
+const char *BeaconKindName(BeaconKind k); // the one place a beacon kind is named
 
 struct Beacon {
 	BeaconKind kind = BEACON_EMPTY;
 	bool visited = false;
+	bool surveyed = false;       // a sensor survey has said what is here, whether or not we have been
+	bool looted = false;         // a derelict has been stripped with the tractor, once
 	std::vector<int> links;      // beacons one jump away
+	// A phenomenon (docs/exploration-and-science.md): an anomaly with hidden attributes, revealed one
+	// scan at a time, whose correct response depends on the set revealed. Misreading it is a number
+	// the crew watch getting worse.
+	bool phenomenon = false;
+	uint8_t phenomAttrs = 0;     // bitmask of the attributes revealed so far
+	uint8_t phenomAttrVal[3] = {0, 0, 0}; // the hidden value of each attribute (0..3), seed-derived
+	uint8_t phenomTruth = 0;     // the correct response (0..3), a function of the three values
 };
+
+// An opponent has systems of its own, not three numbers: its weapons decide what it does to us, its
+// engines whether it can run or chase, its shield generator whether its shields come back. More than
+// one kind flies the sector, and a raider whose engines survive can follow us between beacons.
+enum EnemyKind : uint8_t { ENEMY_RAIDER = 0, ENEMY_WARSHIP, ENEMY_BORG_VESSEL, ENEMY_KIND_COUNT };
+enum EnemySubsystem : uint8_t { TARGET_HULL = 0, TARGET_WEAPONS, TARGET_ENGINES, TARGET_SHIELD_GEN, TARGET_COUNT };
 
 struct Enemy {
 	bool present = false;
-	bool borg = false;
+	bool borg = false;           // kept for the Borg path; true iff kind == ENEMY_BORG_VESSEL
+	EnemyKind kind = ENEMY_RAIDER;
 	float hull = 0.0f;           // 0..1
 	float shields = 0.0f;        // 0..1
-	float firepower = 0.0f;      // shield strength it strips from us per minute, unopposed
+	float weapons = 1.0f;        // its weapons subsystem: what it does to us scales with this
+	float engines = 1.0f;        // its engines: can it run, or chase us between beacons
+	float shieldGen = 1.0f;      // its shield generator: shields come back by this
+	float firepower = 0.0f;      // shield strength it strips from us per minute, at full weapons
 	int boarders = 0;            // it will send these across once, when our shields are down
+	float adaptation = 0.0f;     // Borg only: how far it has adapted to our weapons (0 fresh .. 1 immune)
+};
+
+// Shuttles are supported but not pilotable (docs/shuttles.md): launching one is a load screen, and
+// what the ship tracks is whether each is in the bay, away, or lost. Everything else -- lifeboat
+// arithmetic, boarding, a hit on the shuttlebay, away missions, the job queue -- reads that.
+enum ShuttleClass : uint8_t { SHUTTLE_CLASS2 = 0, SHUTTLE_TYPE6, SHUTTLE_TYPE8, SHUTTLE_AEROSHUTTLE, SHUTTLE_CLASS_COUNT };
+enum ShuttleLocation : uint8_t { SHUTTLE_IN_BAY = 0, SHUTTLE_AWAY, SHUTTLE_LOST };
+enum ShuttleComms : uint8_t { COMMS_LINKED = 0, COMMS_INTERMITTENT, COMMS_LOST };
+
+struct Shuttle {
+	ShuttleClass cls = SHUTTLE_CLASS2;
+	std::string name;             // the crew name it (canon: the Delta Flyer)
+	ShuttleLocation location = SHUTTLE_IN_BAY;
+	float condition = 1.0f;       // 0 wrecked .. 1 serviceable
+	ShuttleComms comms = COMMS_LINKED;
+	int awayBeacon = -1;          // the chart row it went to while away; the loss location after
+	float awaySince = 0.0f;       // ship time it left; their posts are empty while this stands
+	int returnCondition = 0;      // 0 transporter window, 1 rendezvous, 2 its own power
+	std::vector<int16_t> manifest;// crew records aboard while away
+	float cargoMaterial = 0.0f, cargoRations = 0.0f, cargoParts = 0.0f; // loaded out of stores
 };
 
 const int SECTOR_BEACONS = 12;
+const int SHUTTLE_BAY_DECK = 10;         // shuttlebay 1, aft dorsal [lore]
+const float SHUTTLE_REBUILD_MATERIALS = 30.0f; // material to construct a replacement [inv]
+const float SHUTTLE_REBUILD_HOURS = 8.0f;      // crew-hours of the second bay's work [inv]
 const float JUMP_DEUTERIUM = 0.01f;      // fraction of tankage per jump [inv]
 const float JUMP_ANTIMATTER = 0.01f;
 const float PHASER_MINUTES = 6.0f;       // full phasers strip an enemy's shields, or hole a bare hull, in this [inv]
@@ -186,6 +297,25 @@ const float SHIELD_RECHARGE_MINUTES = 3.0f; // full shield output restores the s
 const float HIT_SYSTEM = 0.15f;          // what a minute's unopposed fire does to the system it lands on [inv]
 const float HIT_HULL = 0.10f;            // ... and to that deck's hull
 const float SALVAGE_PARTS = 25.0f;       // spare parts recovered from a derelict [inv]
+const int SECTORS_TO_CROSS = 3;          // sectors crossed before the ship is home [inv]
+
+// The dilithium constraint (docs/exploration-and-science.md). Canon: an Intrepid core lasts up to
+// three years, 75,000 ly at warp 6.2 is some seventy-five years, so one crystal is about 3,000 ly of
+// progress. The jump cost and the recomposition numbers are ours.
+const float DILITHIUM_LIGHT_YEARS = 3000.0f;   // cannon: one crystal's worth of progress [lore]
+const float JUMP_DILITHIUM = 1.0f / 40.0f;     // a fresh crystal lasts this many cruising jumps [inv]
+const float MIN_WARP_DILITHIUM = 0.02f;        // below this there is no warp at all
+const float RECOMPOSITE_GAIN = 0.35f;          // what one recomposition restores [inv]
+const float RECOMPOSITE_CEILING_DROP = 0.15f;  // the crystal ages: each recomposition lowers what can be restored
+const float RECOMPOSITE_WARP_MIN = 0.5f;       // the warp core must be up to recomposite
+const float DILITHIUM_TRADE_MATERIALS = 40.0f; // what a trader takes for a crystal [inv]
+const float CRYSTAL_QUALITY_STEP = 0.1f;       // a researched better crystal shortens every jump
+const int PURSUIT_JUMPS = 3;             // jumps a surviving raider follows before it catches us [inv]
+const float PURSUIT_REPAIR = 0.5f;       // damage control works at this rate while pursued [inv]
+const float TRADE_PARTS = 10.0f;         // spare parts a trader takes for a consignment [inv]
+const float TRADE_RATIONS = 20.0f;       // ... and the rations, supplies and fuel given for them [inv]
+const float ENEMY_WEAPONS_RATE = 0.5f;   // what a minute's fire does to an enemy subsystem [inv]
+const float ENEMY_SHIELD_REGEN = 12.0f;  // minutes for a full shield generator to restore the shields [inv]
 
 // ---- the log (the log-as-an-artifact gap) -------------------------------------------------------
 //
@@ -202,6 +332,34 @@ struct LogEntry {
 };
 const int LOG_MAX = 128;
 void LogEvent(Ship &s, const std::string &who, const std::string &scope, const std::string &what);
+
+// ---- the job queue (docs/crew-work.md) ---------------------------------------------------------
+//
+// The ship's outstanding work as a queue with a face: one job per thing that needs doing -- a damaged
+// system repaired, a breached hull sealed, an assimilated deck reclaimed -- with its kind, its
+// target, how far it has got, and its place in the order. The damage-control party works it; command
+// sets the order. The queue is bounded and saved, so a thing left undone is still there tomorrow.
+enum JobKind : uint8_t { JOB_REPAIR = 0, JOB_SEAL, JOB_RECLAIM, JOB_BUILD, JOB_KIND_COUNT };
+const char *JobKindName(uint8_t k);
+const int JOB_MAX = 24;
+const float BUILD_HOURS_PER_PART = 4.0f; // engineer-hours to fabricate one spare part [inv]
+struct Job {
+	uint8_t kind = JOB_REPAIR;
+	int16_t target = 0;   // a system id for repair, a deck (1..15) for seal/reclaim, parts for build
+	float progress = 0.0f; // 0 .. 1 (for build, toward the next part)
+	int16_t priority = 0;  // lower is worked sooner; command sets it
+};
+// The queue as it stands after this tick (rebuilt from the ship's state, plus the player's build jobs,
+// order preserved for the jobs that persist).
+const std::vector<Job> &Jobs(const Ship &s);
+// Command orders a net-new thing built: the crew fabricate spare parts over crew-hours. Given by
+// whoever commands; false if it does not apply.
+bool OrderBuild(Ship &s, int parts);
+// The security squad (docs/borg-incursion.md): a fireteam command sends to retake a deck, advancing
+// a deck at a time and holding it while the crew restore it. The crew layer embodies them.
+const int SQUAD_MAX = 4;
+const float SQUAD_TRAVEL_MINUTES = 3.0f; // minutes to advance one deck [inv]
+bool OrderAdvance(Ship &s, int deck);
 
 // ---- the ship ---------------------------------------------------------------------------------
 
@@ -235,24 +393,107 @@ struct Ship {
 	Deck decks[DECKS];
 	Stores stores;
 	std::vector<CrewMember> crew;
+	std::vector<Shuttle> shuttles;   // the bay's complement, and where each is (docs/shuttles.md)
+
+	// The dilithium constraint that forces exploration (docs/exploration-and-science.md): without a
+	// crystal there is no warp, and finding one means survey, chart and detour. `dilithium` is the
+	// crystal's remaining life (0..1); `crystalCeiling` is how much recomposition can still restore,
+	// which ages with each recomposition; `crystalQuality` is a better crystal's efficiency (>= 1),
+	// which shortens the journey.
+	float dilithium = 1.0f;
+	float crystalCeiling = 1.0f;
+	float crystalQuality = 1.0f;
+	int crystalReplacements = 0;
 
 	// the outside
 	float shieldStrength = 1.0f; // what stands between enemy fire and the hull; 0 = hits land
 	std::vector<Beacon> sector;
 	int beacon = 0;              // where the ship is
 	Enemy enemy;
+	Enemy contact2;              // a second opponent at the same beacon (more than one at a time)
+	EnemySubsystem target = TARGET_HULL; // what Tactical aims at once the enemy's shields are down
 	uint32_t hits = 0;           // how many hits have landed: decides, deterministically, where the next one does
+	int cleanIntercepts = 0;     // intruders cleared before they touched a system: the recorded counter-wins
+	// The counter-play kit (docs/borg-incursion.md): the phaser adapter's rotating modulation, and a
+	// vinculum raid that severs the Collective's coordination for a while, each at a cost in time.
+	float remodulateCooldown = 0.0f;   // ship-seconds until the modulation may be rotated again
+	float adaptationSuppressed = 0.0f; // ship-seconds the Borg cannot adapt (a vinculum is down)
+
+	// The warp core cascade (docs/failure-is-content.md): a failing core loses coolant, overheat
+	// builds, containment falls, and a breach countdown begins. It is visible, traceable to what was
+	// done, and interruptible -- shut the core down, restore the coolant, repair the core, or eject it.
+	float coolant = 1.0f;          // coolant loops: fall with a failing core, restored by Engineering
+	float coreTemp = 0.0f;         // 0 cool .. 1 runaway
+	float containment = 1.0f;      // 1 nominal .. 0 breached
+	float breachCountdown = -1.0f; // seconds to breach once containment is critical; -1 = none
+	bool coreShutdown = false;     // the core is off: no warp, and the cascade halts
+	bool coreEjected = false;      // the core is gone: no warp until a new one is found
+	bool lost = false;             // the core breached: the ship is gone (the one unwinnable end)
+
+	// Pursuit: a raider whose engines survived follows the ship between beacons, and while it is on
+	// our tail the damage-control party works with one eye behind it.
+	bool pursued = false;
+	int pursuitJumps = 0;        // jumps until it catches us
+	float pursuitStrength = 0.0f;
+
+	// More sectors, and an end to reach: crossing a sector's last beacon opens the next; the third
+	// crossed is home.
+	int sectorNumber = 0;
+	bool reachedEnd = false;     // this sector's last beacon has been reached
+	bool won = false;            // the whole run is won
+
+	// Population pressure: survivors and refugees taken aboard spend stores, quarters and air, and
+	// crowd the crew. They are not in the roster; they are mouths.
+	int refugees = 0;
+
+	// The Maquis split as an arc: resentment between the two factions, which the crew work through.
+	float resentment = 0.0f;
+
+	// Borg strategic awareness: what the Collective has learned of this ship. It rises with every
+	// Borg contact and makes the next sector more theirs, and their adaptation faster.
+	float borgAwareness = 0.0f;
+
+	// The nacelle pylons: the structural arms that hold warp together. A hit can take them, and a
+	// ship without them cannot go to warp. The mobile emitter lets the EMH work away from sickbay.
+	float pylonHealth = 1.0f;
+	bool mobileEmitter = false;
+
+	// The airponics bay: food that grows rather than being replicated, so the replicators can be
+	// spared the power -- Kes's answer to a tight budget.
+	bool airponics = false;
 
 	// standing orders from whoever commands (S10): -1 / 0 = none
 	int orderRepairFirst = -1;   // a system the damage-control party is to see to before any other
 	int orderSecurityTo = 0;     // a deck security is to go to, boarders or not
 	int orderEvacuate = 0;       // a deck everyone is to leave
 	int orderTriage = 0;         // sickbay: 0 worst first, 1 rank first (see docs/gates.md, the gap)
+	int advanceDeck = 0;         // the deck a security squad is advancing to retake; 0 = none
+	int advanceAt = 0;           // the deck the squad is on now, on its way
+	float advanceMs = 0.0f;      // progress toward the next deck
 
 	// the player
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
 	uint64_t wallSeconds = 0;    // wall-clock time when the ship was last saved (CLOCK_WALL catches up from it)
 	std::vector<LogEntry> log;   // the ship's own record of what happened, newest last
+	std::vector<Job> jobs;       // the outstanding work, in the order it is worked (docs/crew-work.md)
+
+	// the away mission and the course (S4): where a beamed party is, and where the conn is making for
+	int awayBeacon = -1;         // the site an away team is on, or -1 if none is away
+	int course = -1;             // the beacon the conn has been told to make for, or -1
+
+	// sickbay's surgical bay (the triage gap): its sterile force field holds the gravest case steady
+	// even without supplies, until the field is lowered or the case can be treated.
+	bool surgicalForceField = false;
+
+	// The Emergency Medical Hologram: with the medical staff down, the doctor is a program -- so it
+	// needs the computer core, and it can be switched off. It holds the ward at half output.
+	bool emhActive = false;
+
+	// The tractor beam has the contact locked: it cannot break off and run while the beam holds.
+	bool enemyHeld = false;
+
+	// housekeeping for the log's periodic "why the mood is what it is" line (not saved)
+	double lastMoodLog = 0.0;
 
 	int Day() const { return static_cast<int>(clock / SECONDS_PER_DAY); }
 	int SecondOfDay() const { return static_cast<int>(clock) % SECONDS_PER_DAY; }
@@ -281,7 +522,8 @@ void DamageSource(Ship &s, SourceId id, float amount);
 void BreachDeck(Ship &s, int deck, float amount);   // hull damage; atmosphere then vents by itself
 void Repair(Ship &s, SystemId id, float amount);
 void RepairDeck(Ship &s, int deck, float amount);   // seal the hull; life support then refills the deck
-void SetForceField(Ship &s, int deck, bool on);     // hold a breached deck's air with a field
+void SetForceField(Ship &s, int deck, bool on);     // hold a breached deck's air with a field (level 10)
+void SetForceFieldLevel(Ship &s, int deck, int level); // the field's rating 1..10 (0 = none): 10 cuts a drone from the Collective
 
 // Endurance clocks (the air-and-endurance gap): the numbers a compartment or the whole ship is running
 // on. MinutesOfAir is the time until a deck's atmosphere reaches AIRLESS, or -1 if it is holding or
@@ -289,6 +531,15 @@ void SetForceField(Ship &s, int deck, bool on);     // hold a breached deck's ai
 // or -1 if nothing is supplying.
 float MinutesOfAir(const Ship &s, int deck);
 float MinutesToDark(const Ship &s);
+// The endurance of one source at its current draw, in minutes: the batteries' charge, or a reactor's
+// fuel. -1 if that source is not supplying. The gap's contract names battery and auxiliary endurance
+// separately, so each is its own number; MinutesToDark is the first of them to fail.
+float EnduranceOf(const Ship &s, SourceId id);
+
+// The surgical bay's force field (the triage gap): raised, it holds the gravest casualty steady even
+// with no medical supplies -- the one case that would otherwise be lost while the others wait.
+bool SetSurgicalField(Ship &s, bool on);
+bool SurgicalField(const Ship &s);
 
 // ---- damage control and casualties (S6) -------------------------------------------------------------
 //
@@ -301,14 +552,28 @@ float MinutesToDark(const Ship &s);
 const int REPAIR_TEAM_MAX = 3;
 const float REPAIR_HOURS_PER_SYSTEM = 6.0f;  // one engineer rebuilding a destroyed system [inv]
 const float PARTS_PER_SYSTEM = 12.0f;        // spare parts to rebuild one from nothing [inv]
+const float MAINTENANCE_DAYS = 10.0f;        // a system wholly left unmaintained fails in this [inv]
 const float EXPOSURE_INJURES = 60.0f;        // seconds without air [inv]
 const float EXPOSURE_KILLS = 300.0f;
+const float RADIATION_INJURES = 60.0f;       // seconds in a failing core's radiation at half health [inv]
+const float RADIATION_KILLS = 300.0f;
 const float AIRLESS = 0.25f;                 // a deck's atmosphere below this cannot be breathed [inv]
 const int SICKBAY_BEDS = 4;                  // three standard and one surgical [lore]; the worst get them
 const float TREATMENT_HOURS = 12.0f;         // per patient, with sickbay at full output [inv]
 const float DETERIORATE_PER_HOUR = 0.03f;    // an untreated injury worsens; at severity 1 they die [inv]
 const float MEDICAL_PER_PATIENT_HOUR = 0.4f; // supplies spent treating one patient for an hour [inv]
 const int SICKBAY_DECK = 5;
+const float SEAL_HOURS_PER_DECK = 4.0f;      // one engineer sealing a breached deck's hull [inv]
+const float PARTS_PER_DECK_SEAL = 8.0f;      // spare parts to seal one deck's breach [inv]
+const float FIRE_INJURES = 30.0f;            // seconds in a full fire [inv]
+const float FIRE_KILLS = 180.0f;             // ... and until it kills [inv]
+const float FIRE_SPREAD_PER_HOUR = 0.15f;    // fire spreads to the decks beside it at this rate [inv]
+const float FIRE_FIGHT_MINUTES = 20.0f;      // one crew member reduces a deck's fire in this [inv]
+const float RATIONS_PER_CREW_DAY = 1.0f;     // days of food one crew member eats in a day [inv]
+
+// A fire can start on a deck (combat, a damaged system, or deliberately). It injures the crew on the
+// deck and spreads to the decks beside it until the crew fight it down; it also costs the hull.
+void IgniteDeck(Ship &s, int deck, float amount);
 
 // ---- intruders and control of the ship's systems (S7) ----------------------------------------------
 //
@@ -329,6 +594,12 @@ const int BRIDGE_DECK = 1;
 const int ENGINEERING_DECK = 11;
 
 void Board(Ship &s, int deck, int boarders);
+// A boarding party of a named kind, with an objective deck (0 = the nearest of the bridge or
+// Engineering). Raiders loot when they hold a deck with nothing left to take; Borg assimilate;
+// hunters come for the crew.
+enum BoarderKind : uint8_t { BOARDER_RAIDER = 0, BOARDER_BORG, BOARDER_HUNTER, BOARDER_KIND_COUNT };
+const char *BoarderKindName(BoarderKind k);
+void BoardAs(Ship &s, int deck, int boarders, BoarderKind kind, int objective);
 // A counter-hack at a console: `strength` 0..1 is how well the operator did (BreachScore).
 void CounterHack(Ship &s, SystemId id, float strength);
 bool Hijacked(const Ship &s, SystemId id);
@@ -348,9 +619,18 @@ const float ASSIMILATE_CREW_MINUTES = 10.0f; // one unopposed drone takes one cr
 const float STRIP_HOURS_PER_DECK = 8.0f;     // one engineer strips a wholly assimilated deck in this [inv]
 const float PARTS_PER_DECK = 20.0f;          // spare parts to rebuild a wholly assimilated deck [inv]
 const int STRIP_TEAM_MAX = 4;
+// De-assimilation (docs/borg-incursion.md): reversible in a narrow window, never complete. The cost
+// and the lasting residue rise with how far the assimilation got; past RECOVERY_LIMIT it is too late.
+const float RECOVERY_LIMIT = 0.8f;           // wounds above this: the nanoprobes have won [inv]
+const float RECOVERY_SUPPLIES = 40.0f;       // medical supplies a full recovery costs, scaled by progress [inv]
+const float RECOVERY_MATERIALS = 20.0f;      // material the same [inv]
+const float SCAR_DRAG = 0.25f;               // a full scar drags the morale target by this [inv]
 
 void BoardBorg(Ship &s, int deck, int drones);
 bool DeckAssimilated(const Ship &s, int deck);
+// Recover someone the Borg have begun to assimilate (wounds in (0, RECOVERY_LIMIT)): sickbay and
+// supplies against the nanoprobes. Returns false if they are not in the window or it cannot be paid.
+bool RecoverCaptive(Ship &s, int crew);
 
 // The breach puzzle. A square grid of two-character codes and a set of target sequences. The
 // operator picks cells alternately along a row and then a column, starting in the top row, without
@@ -375,11 +655,175 @@ float BreachScore(const Breach &b, const std::vector<int> &picks);
 // 2 for a reading a weak charge has made suspect.
 void LoadAwayKit(Ship &s, int tricorders, int phasers, int evSuits, float charge);
 int Scan(Ship &s, int beacon);
+// A tricorder reading of the ship's own compartments, at human scale -- the same kind of reading the
+// sensors make of a site, over a smaller radius. Returns a one-line reading of that deck's air, hull
+// and life support, and writes it to the log. Wears the kit's condition, and a worn kit reads less.
+std::string ScanCompartment(Ship &s, int deck);
 
 bool Jump(Ship &s, int toBeacon);
 // One torpedo at the enemy. False if there is no enemy, none left, or the launchers are not delivering.
 bool FireTorpedo(Ship &s);
 bool InCombat(const Ship &s);
+// The counter-play kit (docs/borg-incursion.md): the phaser adapter's rotating modulation, and a
+// vinculum raid. Each buys back the crew's weapons for a while, at a cost.
+bool Remodulate(Ship &s);
+bool RaidVinculum(Ship &s);
+
+// Shuttles (docs/shuttles.md): supported, not pilotable. The ship always knows whether a given one
+// is in the bay; losing one is permanent and becomes a build job.
+const char *ShuttleClassName(ShuttleClass c);
+const char *ShuttleLocationName(ShuttleLocation l);
+int ShuttlesInBay(const Ship &s);            // the lifeboat arithmetic
+int ShuttlesAway(const Ship &s);
+Shuttle *ShuttleByClass(Ship &s, ShuttleClass c);
+const Shuttle *ShuttleByClass(const Ship &s, ShuttleClass c);
+bool LaunchShuttle(Ship &s, ShuttleClass c, int beacon, const std::vector<int> &manifest); // the load screen's commit
+bool RecallShuttle(Ship &s, ShuttleClass c);  // it comes home; the crew are aboard again
+bool StrandShuttle(Ship &s, ShuttleClass c);  // the crew beam back and the shuttle is left behind (a loss)
+bool LoseShuttle(Ship &s, ShuttleClass c);    // crashed, captured, destroyed: the crew aboard are lost
+bool ShuttleBayHit(Ship &s, float severity);  // a hit on the bay damages or wrecks what is parked
+bool RebuildShuttle(Ship &s, ShuttleClass c); // order the second bay to build a replacement (a build job)
+
+// The counter-play kit (docs/borg-incursion.md). Adaptation cannot be absolute: the crew can rotate
+// the phaser modulation (at a cost in attention) and raid a vinculum to buy back their weapons.
+const float REMODULATE_ADAPTATION = 0.5f;  // adaptation broken by one rotation [inv]
+const float REMODULATE_COOLDOWN = 120.0f;  // ship-seconds before another rotation [inv]
+const float VINCULUM_SUPPRESS = 300.0f;    // ship-seconds the Borg cannot adapt after a vinculum raid [inv]
+
+// The dilithium constraint (docs/exploration-and-science.md): the ratchet that makes exploration the
+// way home. Warp use spends the crystal; Engineering recomposites what it can; eventually it cannot
+// and the ship must find a new crystal -- by mine, trade, salvage or research -- or home stops
+// getting closer. No crystal, no warp; the ship still runs sublight.
+enum DilithiumWay : uint8_t { DIL_MINE = 0, DIL_TRADE, DIL_SALVAGE, DIL_RESEARCH, DIL_WAY_COUNT };
+bool WarpPossible(const Ship &s);            // a crystal left, the pylons up and the warp drive delivering
+bool Recomposite(Ship &s);                   // Engineering buys back life in the crystal's frame
+bool AcquireDilithium(Ship &s, DilithiumWay way); // at a source: mine a belt, trade, salvage, research
+int  DilithiumRange(const Ship &s);          // light-years of progress the crystal can still buy (the scoreboard)
+const char *DilithiumWayName(DilithiumWay way);
+
+// The warp core cascade (docs/failure-is-content.md): the breach is reachable only by a chain, and
+// each arrow is an interrupt. Coolant loss -> overheat -> falling containment -> a breach countdown.
+const float COOLANT_LOSS_MINUTES = 20.0f;   // a failing core loses its coolant in this [inv]
+const float CONTAINMENT_MINUTES = 10.0f;    // at full overheat, containment falls to critical in this [inv]
+const float BREACH_SECONDS = 180.0f;        // the countdown once containment is critical [inv]
+const float CONTAINMENT_CRITICAL = 0.1f;
+const float COOLANT_MATERIALS = 15.0f;      // material to refill the coolant loops [inv]
+// A dedicated survey to locate a dilithium source: the design's "she must locate a source, which
+// means survey, chart, detour" (docs/exploration-and-science.md). Charts the nearest belt, trader or
+// derelict reachable through the sector, so the crew know where to go before the crystal runs out.
+int LocateDilithium(Ship &s);    // the beacon charted, or -1
+
+bool ShutDownCore(Ship &s);      // stop the cascade and give up warp until it is started again
+bool RestartCore(Ship &s);
+bool EjectCore(Ship &s);         // the canon last resort: no warp until a new core is found
+bool RestoreCoolant(Ship &s);    // Engineering refills the coolant loops, at a cost in material
+bool CoreBreached(const Ship &s);// the one unwinnable end: the ship is gone
+
+// The materials economy (the backlog's first item): salvage is the door to it. The tractor beam holds
+// a derelict to strip it fully, or locks a contact so it cannot run; raw material becomes spare parts
+// at the replicators. Travel is at the mercy of the structural integrity, the navigational deflector
+// and the inertial dampers -- safe travel needs all three delivering, and a weak drive still jumps
+// but costs a hull breach or a shaken crew.
+const float SALVAGE_MATERIALS = 20.0f;   // raw material recovered from a derelict [inv]
+const float TRACTOR_MIN = 0.5f;          // output the tractor and travel systems need to be doing their job [inv]
+bool TractorWreck(Ship &s);              // salvage the derelict here, fully, with the tractor
+bool TractorHold(Ship &s);               // lock the contact: it cannot break off while held
+// A probe (docs/exploration-and-science.md): the safe way to look at something hostile -- launch one
+// instead of the ship. It consumes a probe, and its telemetry charts the target or is lost.
+bool LaunchProbe(Ship &s, int beacon);
+
+// A phenomenon (docs/exploration-and-science.md): reveal its hidden attributes one scan at a time,
+// then respond. The right response depends on the set revealed; the wrong one is damage.
+const int PHENOM_ATTR_COUNT = 3;         // attributes to reveal
+const int PHENOM_RESPONSE_COUNT = 4;     // shield harmonics, warp geometry, distance, do not touch
+const float PHENOM_MATERIALS = 30.0f;    // the science reward for a correct response [inv]
+int RevealPhenomenon(Ship &s);           // one scan: reveal the next attribute; -1 if none here
+bool RespondPhenomenon(Ship &s, int response); // true if it was the correct response
+const char *PhenomenonResponseName(int response);
+bool Held(const Ship &s);
+bool FabricateParts(Ship &s, int parts); // with the replicators running, material becomes spare parts
+bool FabricateRations(Ship &s, int days); // the galley: the replicators turn material into food
+const float BELT_MATERIALS = 30.0f;       // raw material mined from a belt [inv]
+const float BELT_DEUTERIUM = 0.08f;       // deuterium siphoned from a gas belt [inv]
+bool MineBelt(Ship &s);                   // resource acquisition at a belt: mining and siphoning
+bool EVA(Ship &s);                        // a suited party reaches what the tractor cannot
+bool TakeSurvivors(Ship &s, int n);       // population pressure: take survivors or refugees aboard
+int Refugees(const Ship &s);
+bool Hearing(Ship &s, int crew, bool guilty); // justice: a hearing releases or confirms a confinement
+// First contact with a pre-warp civilisation: observe it, or interfere and own the consequence.
+bool ObservePreWarp(Ship &s);
+bool InterferePreWarp(Ship &s);
+// The Maquis split as an arc: resentment between the two, and what reconciles them.
+float Resentment(const Ship &s);
+bool ReconcileFactions(Ship &s);
+// Borg strategic awareness: how much the Collective knows of the ship, and what a crew member's
+// memory of command does to their work.
+float BorgAwareness(const Ship &s);
+float Loyalty(const Ship &s, int crew); // remembered valence toward whoever commands (-1 .. +1)
+bool ActivateEMH(Ship &s, bool on);      // the Emergency Medical Hologram (needs the computer core)
+bool EMHActive(const Ship &s);
+bool TravelSafe(const Ship &s);          // integrity, deflector and dampers all delivering enough
+void DamagePylon(Ship &s, float amount);// the nacelle pylons, without which there is no warp
+bool PylonsIntact(const Ship &s);
+bool SetMobileEmitter(Ship &s, bool on); // the EMH's mobile emitter, an artifact
+bool MobileEmitter(const Ship &s);
+bool EndHolodeckProgram(Ship &s, int crew); // pull a crew member out of the program that will not end
+const float AIRPONICS_PER_HOUR = 0.5f;   // days of food the airponics bay grows in an hour [inv]
+bool SetAirponics(Ship &s, bool on);     // the airponics bay, growing food without the replicators
+bool Airponics(const Ship &s);
+
+// An opponent's systems (S9): Tactical picks what to aim at, and its weapons, engines and shield
+// generator are things to break in their own right.
+void SetTarget(Ship &s, EnemySubsystem t);
+EnemySubsystem Target(const Ship &s);
+const char *EnemySubsystemName(EnemySubsystem t);
+const char *EnemyKindName(EnemyKind k);
+
+// Choices at a beacon (S9): hail, trade, answer a distress call, or run. Each returns false, changing
+// nothing, if it does not apply here.
+bool Hail(Ship &s);
+bool Trade(Ship &s);
+bool AnswerDistress(Ship &s);
+bool Disengage(Ship &s);
+
+// Pursuit (S9): a raider whose engines survived follows the ship, and repairs suffer while it does.
+bool Pursued(const Ship &s);
+int PursuitJumps(const Ship &s);
+
+// More sectors, and an end to reach (S9): reaching the last beacon marks the end; crossing it opens
+// the next sector, and the third crossed is home. Returns true if a sector was crossed.
+bool AtEnd(const Ship &s);
+bool Won(const Ship &s);
+int SectorNumber(const Ship &s);
+bool AdvanceSector(Ship &s);
+
+// ---- the stations' purposes (S4) ------------------------------------------------------------------
+//
+// Each console does more than switch its systems on and off: the transporter beams a party to a site,
+// astrometrics makes a survey, the Conn lays in a course, sickbay reads its ward. These are the core
+// functions behind those controls; the console wiring and the screens call them.
+
+// The transporter: beam a party of fit crew to the site the ship is at, and bring them back. Beaming
+// needs the transporters delivering and the shields down -- a transporter cannot reach through our
+// own shields -- and a party already away is brought back first. While away the party stands no
+// watch and is on no deck. Returns false, changing nothing, if the beam cannot be made.
+bool TransportAway(Ship &s, int party);
+bool TransportBack(Ship &s);
+int AwayTeam(const Ship &s);                 // how many are off the ship now
+
+// Astrometrics: a sensor survey of the beacons one jump away -- what the chart is built from. Needs
+// the sensors delivering. Returns how many readings it added, and logs the survey.
+int Survey(Ship &s);
+
+// The Conn's course: the shortest route from here to a beacon (BFS over the links; the first entry is
+// where the ship is now), plotting it, and reading it back. An empty route means no way there.
+std::vector<int> PlotCourse(const Ship &s, int toBeacon);
+bool SetCourse(Ship &s, int toBeacon);
+int Course(const Ship &s);                   // the beacon the conn is making for, or -1
+
+// Sickbay's ward: the casualties, in the order the triage standing order treats them -- worst first
+// by default, or rank first. This is what the triage screen draws, one row per casualty.
+std::vector<int> Patients(const Ship &s);
 
 // ---- modes, rank and the player (S10) -------------------------------------------------------------
 
@@ -399,6 +843,43 @@ void CatchUp(Ship &s, double realSecondsAway);
 bool MayOperate(const CrewMember &who, Station st);
 bool MayCallAlert(const CrewMember &who, Station st);
 bool MayCommand(const CrewMember &who);
+
+// Training and credentials: a crew member earns a cross-qualification by training, and a credential
+// lets them operate a station their department does not own. The player's career is the same shape.
+bool Train(Ship &s, int crew, Station st);
+bool Qualified(const CrewMember &who, Station st);
+// Discipline and justice: the brig, a hearing, and release.
+bool Brig(Ship &s, int crew, bool on);
+bool Brigged(const Ship &s, int crew);
+// Grief: a funeral, when there is time to hold one, lifts the crew who have been lost and are missed.
+bool HoldFuneral(Ship &s);
+// The player's career: a promotion within the complement, given the trust and the rank.
+bool Promote(Ship &s, int crew);
+// The player's body: the state the player is in, as a crew record.
+bool PlayerIncapacitated(const Ship &s);
+
+// Memory and consequence. A mark is written where it happens (Remember); command can tell the whole
+// crew a thing (Brief); a query asks whether a character holds an event and how they came to (Recall,
+// RecallSource), how many marks they hold (MemoryCount), and how they feel about a person (Bond).
+void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence);
+void Brief(Ship &s, uint16_t event, float valence);
+bool Recall(const CrewMember &who, uint16_t event);
+int RecallSource(const CrewMember &who, uint16_t event);
+int MemoryCount(const CrewMember &who);
+float Bond(const Ship &s, int a, int b);
+// The unprocessed weight a character carries: their negative marks, still salient. It drags on their
+// mood until therapy fades them. This is memory read by the simulation, not only by a query.
+float Trauma(const CrewMember &who);
+
+// The holodeck's uses: recreation, training, therapy (fading trauma) and forensic reconstruction.
+// All need the holodeck delivering. Console `ship holo <recreation|training|therapy|forensic> <crew>`.
+enum HolodeckUse : uint8_t { HOLO_RECREATION = 0, HOLO_TRAINING, HOLO_THERAPY, HOLO_FORENSIC, HOLO_USE_COUNT };
+bool RunHolodeck(Ship &s, HolodeckUse use, int crew);
+// Living conditions: improve the crew's quarters, at a cost in material.
+bool ImproveQuarters(Ship &s);
+// The name that signs command's acts: the player's character if there is one, otherwise the captain
+// or first officer, otherwise "command". The captain's log is written under this name.
+std::string CommandingOfficer(const Ship &s);
 // The same questions for the player, whose role may widen or fix the answer.
 bool PlayerMayOperate(const Ship &s, Station st);
 bool PlayerMayCommand(const Ship &s);
@@ -424,7 +905,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 12;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit
+const uint16_t SAVE_VERSION = 40;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.
@@ -436,6 +917,9 @@ std::vector<int> CrewOnDeck(const Ship &s, int deck);
 
 // A one-screen status report, for the console command and for tests' failure messages.
 std::string Describe(const Ship &s);
+// The captain's log as an authored, summarised artifact, distinct from the raw feed: the situation
+// in the captain's words, generated from the ship's state. Written under CommandingOfficer's name.
+std::string CaptainLog(const Ship &s);
 
 } // namespace ship
 

@@ -38,11 +38,22 @@ cases do; with no medical supplies the untreated deteriorate and die while the s
 first patients back. The whole suite passes, as do `test.sh`, `scripts/s2-check.sh`,
 `scripts/s4-check.sh`, `scripts/s10-check.sh` and `scripts/g3-measure.sh`.
 
+## The triage screen, replication and the surgical field (2026-10-07)
+
+The three items the first slice left are built and tested (`TestGapCompletions`, `scripts/gaps-check.sh`):
+
+- **The screen.** `ui_lwh_triage` (the Sickbay console's companion screen) draws one row per casualty —
+  name, a severity bar, and `ON A BED` or `WAITING` — in the order triage treats them. It reads the
+  ship's `lwh_ship_ward`, published in the same order `Patients` returns, so the screen and the ward
+  never disagree.
+- **Replication as the control.** With the replicators running, medical supplies restock at
+  `REPLICATE_SUPPLIES_PER_HOUR`; stood down or dark, they do not. A ship that wants its no-supply
+  behaviour must now also stand its replicators down — which the triage test does.
+- **The surgical bay's force field.** `SetSurgicalField`/`ship surgical on|off` (Sickbay's `B` key)
+  holds the gravest case steady when there are no supplies — the one casualty that would otherwise be
+  lost — without healing them. It survives a save (format **version 14**).
+
 ## What is left for this gap
 
-- **A triage screen.** The ward is a line of text; the contract's "who is on a bed, who is on the
-  floor" wants a list a person can read and act on, one row per casualty. The console has the data
-  (`underCare`, `severity`); it needs the drawing.
-- **Replication as the control.** Medical supplies restock through the replicators; that tie is not
-  made yet (the drivers exist — replicator output and stores).
-- **The surgical bay's force field** and the EMH are named in the contract and not modelled.
+- **The EMH.** The Doctor is a crew record, not yet an emergency hologram that can take the ward when
+  the medical staff are down. Named in the contract; it belongs with the mobile-emitter backlog item.

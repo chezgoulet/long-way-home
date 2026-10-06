@@ -74,3 +74,47 @@ grep -q 'SHIP: medical state: INJURED ' "$HOME_DIR/s4-panels.out" \
 [ -f "$OPS_SHOT" ] && [ -f "$MED_SHOT" ] || fail "the panels did not open (no screenshots)"
 echo "PASS  the transporter panel opens Operations, and Sickbay shows the ship's medical state"
 echo "      screenshots: $OPS_SHOT, $MED_SHOT"
+
+# Each station's real purpose (not only on/off): the transporter beams a party to the site, astrometrics
+# makes a survey, the Conn lays in a course, sickbay reads its ward. Driven through the same console
+# commands a station's panel issues (`ship as <station> ...`), on one headless run.
+STN_SHOT="$GAME_DIR/screenshots/lwh_stations.tga"
+rm -f "$STN_SHOT"
+find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
+echo "==> station purposes"
+SDL_AUDIODRIVER=dummy timeout 180 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
+    +set s_useOpenAL 0 +set g_ship 1 +set g_shipTest 17 +map tour/deck04 >"$HOME_DIR/s4-purposes.out" 2>&1 || true
+grep -h '^SHIP: station purposes:\|^SHIP: away team\|^SHIP: astrometrics:\|^SHIP: course to\|^SHIP: TRIAGE:\|^SHIP:   ' "$HOME_DIR/s4-purposes.out" | sed 's/^SHIP: /    /' || true
+grep -q '^SHIP: away team of 3 beamed down$' "$HOME_DIR/s4-purposes.out" \
+  || fail "the transporter did not beam a party"
+grep -q '^SHIP: course to beacon 5: 0 1 2 3 5$' "$HOME_DIR/s4-purposes.out" \
+  || fail "the Conn did not lay in a course"
+grep -q '^SHIP: astrometrics: 2 new reading(s)$' "$HOME_DIR/s4-purposes.out" \
+  || fail "astrometrics made no survey"
+grep -q '^SHIP: station purposes: away team 3 on beacon 0, course 5, 2 beacons surveyed, 5 in the ward$' "$HOME_DIR/s4-purposes.out" \
+  || fail "the stations' purposes did not reach the ship"
+grep -q '^SHIP: station purposes: away team back, 0 away now$' "$HOME_DIR/s4-purposes.out" \
+  || fail "the away team was not recalled"
+grep -q '^SHIP:   Kathryn Janeway    severity 20%  WAITING$' "$HOME_DIR/s4-purposes.out" \
+  || fail "the ward does not read in triage order (the least hurt should be waiting)"
+echo "PASS  the transporter beams and recalls, astrometrics surveys, the Conn lays in a course, sickbay reads its ward in triage order"
+
+# The panels that are not stations: the log terminal, the ready room and the personnel padd open the
+# ship's own screens, from the command a map's interface fires.
+NON_SHOT="$GAME_DIR/screenshots/lwh_nonstation.tga"
+rm -f "$NON_SHOT"
+find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
+echo "==> non-station panels"
+SDL_AUDIODRIVER=dummy timeout 180 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
+    +set s_useOpenAL 0 +set g_ship 1 +set g_shipTest 23 +map tour/deck04 >"$HOME_DIR/s4-nonstation.out" 2>&1 || true
+grep -h '^LWH: the .* opens' "$HOME_DIR/s4-nonstation.out" | sed 's/^/    /' || true
+grep -q "^LWH: the log7 terminal opens the ship's log" "$HOME_DIR/s4-nonstation.out" \
+  || fail "the log terminal did not open the ship's log"
+grep -q '^LWH: the readyroom panel opens the command console' "$HOME_DIR/s4-nonstation.out" \
+  || fail "the ready room did not open the command console"
+grep -q '^LWH: the personnel panel opens the personnel screen' "$HOME_DIR/s4-nonstation.out" \
+  || fail "the personnel padd did not open the personnel screen"
+grep -q '^LWH: the replicator panel opens the OPERATIONS console' "$HOME_DIR/s4-nonstation.out" \
+  || fail "the replicator panel did not open the Operations console"
+[ -f "$NON_SHOT" ] || fail "the non-station panel run did not screenshot"
+echo "PASS  the log terminal, ready room, personnel padd and replicator panels open the ship's own screens"

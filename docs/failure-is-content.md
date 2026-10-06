@@ -88,3 +88,28 @@ coming for a long time before they reach it.
 - After any catastrophic failure, the ship's log can narrate *why* -- action, consequence, and the decision
   that made it.
 - The core breach is gated behind a chain of decisions, and is the only unwinnable end state in the design.
+
+## Implemented (2026-10-07)
+
+The warp core breach is now a **chain with interrupts**, in `module/ship/ship_core.cpp` (save format
+39; `TestCoreCascade`, `scripts/core-check.sh`). A failing warp drive loses **coolant**; low coolant
+raises the core **temperature**; over half temperature, **containment** falls; at containment
+critical a **breach countdown** begins. The console (`ship core`) shows coolant, temperature,
+containment and the countdown — the risk is visible before the wall. The chain is interruptible at
+several points, exactly as the design asks: `ship core coolant` (refill the loops, at a cost in
+material), `ship core shutdown` (stop the cascade and give up warp), `ship core restart` (when
+containment is back above half), `ship core eject` (the canon last resort — no warp until a new core),
+and plain repair of the warp drive. Ignored past the countdown, the ship is **lost** — the one
+unwinnable end.
+
+Not built: each modelled system's three designed failure states (this covers the core; the other
+systems still fail one way), and the written consequence of every catastrophe in the crew records.
+
+### System failure states (2026-10-07)
+
+The acceptance's first line -- *every modelled system has three failure states designed, not just
+one* -- is now mechanised (`FailureStateOf`, `SystemStateName`, `UpdateSystemStates`; save format 40;
+`TestSystemStates`). A system is **nominal**, **degraded** (health below two-thirds), **offline**
+(health below a third, or switched off) or **destroyed** (health zero), and every change is written
+to the log by name (`"<system> is degraded"`, `"<system> is restored"`) -- the risk visible before
+the wall, and the consequence traceable. The state is stored so a load does not re-narrate it.

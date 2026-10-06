@@ -1,0 +1,13 @@
+// Long Way Home: entity classes we adopt from the community, documented so the validator's entity
+// dictionary covers what our maps may place. The classes live in the game source (registered by
+// patches/0015) and are implemented in module/. Provenance and licence: see
+// docs/evidence/harvest-b-rpgx-classes.md and NOTICE.
+
+/*QUAKED target_shaderremap (1 0 0) (-8 -8 -8) (8 8 8)
+Runtime shader remapping (adopted from RPG-X by UberGames). Firing this entity points one shader
+name at another, so a section can visibly change; firing it again swaps back.
+
+Keys:
+"falsename" - the shader in game at spawn
+"truename" - the shader that replaces it when fired
+*/

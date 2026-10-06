@@ -37,6 +37,7 @@ cp "$ROOT/tools/shipmap/data/sp_turbolift.dat" "$ROOT/build/ship/files/ext_data/
 # surface (gi.UpdatePanelImage), so the shader and a real image at the same size must be present.
 mkdir -p "$ROOT/build/ship/files/scripts" "$ROOT/build/ship/files/gfx/lwh"
 cp "$ROOT/tools/shipmap/data/lwh_panel.shader" "$ROOT/build/ship/files/scripts/"
+cp "$ROOT/tools/shipmap/data/lwh_borg.shader" "$ROOT/build/ship/files/scripts/"
 python3 "$ROOT/tools/shipmap/panelart.py" "$ROOT/build/ship/files/gfx/lwh/panel.tga"
 
 python3 "$ROOT/tools/shipmap/stitch.py" --decks "$DECKS" --decks "$ROOT/build/ship/generated" --out "$ROOT/build/ship/voyager.map" \

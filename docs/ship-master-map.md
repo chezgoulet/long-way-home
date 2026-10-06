@@ -65,3 +65,27 @@ no turbolifts); the holodecks (warmth, and a safety interlock failure).
 - **Spaces already built that are not decks**: the brig, and the eight holodeck programmes.
 - **Procedure for anything new**: `docs/authoring-a-location.md`, with a brief per bespoke room from
   `docs/location-brief-template.md` (see `docs/locations/deck12-environmental-control.brief.md`).
+
+## The deck build, in order (status)
+
+1. **Deck 12, environmental control** — **blockout built 2026-10-07** and awaiting the owner's
+   approval before detail, per the procedure. The generated deck is a working half-deck in two
+   chambers (a dividing wall with a doorway) with the plant on a raised deck and a lower walkway, the
+   life-support station marked, reachable and walkable on the merged ship: `scripts/deck12-check.sh`,
+   `g_shipTest 26`, screenshot `lwh_deck12.tga`. The detail items the brief names — the plant itself,
+   the watch console furniture, the lighting states, the parts list — wait on that approval.
+2. **Deck 13, life support plant** — **blockout built 2026-10-07**, awaiting approval. A plant hall
+   with a central machinery island and a raised catwalk, the brief in
+   `docs/locations/deck13-life-support.brief.md`, reachable and walkable: `scripts/deck13-check.sh`,
+   `g_shipTest 27`, screenshot `lwh_deck13.tga`.
+3. **Deck 6, holodeck 2, armory and quarters** — **blockout built 2026-10-07**: a corridor with two
+   holodeck doorframes and an armory locker; `scripts/deck-check.sh 6`, screenshot `lwh_deck06.tga`.
+4. **Deck 14, stasis and holodeck 1** — **blockout built 2026-10-07**: stasis pods along a wall and a
+   holodeck doorframe; `scripts/deck-check.sh 14`, screenshot `lwh_deck14.tga`. The contested holodeck
+   placement is decided: Holodeck 1 on deck 14, Holodeck 2 on deck 6.
+5. **Deck 7, auxiliary core, cargo and labs** — **blockout built 2026-10-07**: a central auxiliary
+   core column and two cargo islands; `scripts/deck-check.sh 7`, screenshot `lwh_deck07.tga`.
+6. Decks 10, 8, 4 (published) and the amenity items — **station markers placed at the published maps'
+   own fixtures where they exist** (transporters on deck 4, sensors on deck 8; the rest are on the
+   deck-4 hub or the unnamed bridge, and need chosen origins — the S5 item). All five generated decks
+   have blockouts awaiting the owner's approval before detail.

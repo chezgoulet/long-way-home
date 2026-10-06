@@ -121,14 +121,53 @@ The screenshot shows the block over the panel with `DAY 0 08:00  CONDITION GREEN
 is unchanged. The whole 13-patch series was re-verified from a clean clone
 (`scripts/bootstrap-upstream.sh`): it applies, builds, and exports the intended entry points only.
 
+## Each station's purpose (2026-10-07)
+
+The console controls are no longer only on/off. Each station now does the thing the design corpus
+says it is for, worked from the console its own panel opens, and the core functions are unit-tested
+(`TestStationPurposes`):
+
+| station | the purpose, and its control | asserts |
+|---|---|---|
+| Tactical | fire at the contact (the enemy of S9); `F` fires a torpedo, the contact's hull and shields are drawn | `TestCombat` `FireTorpedo` |
+| Operations | the transporter beams a party to the site (`T`), recalls it (`R`); astrometrics makes the survey (`U`); the field and the endurance clocks are here | beams with the shields down and the transporters up, and is refused with either not so; a survey reads the beacons one jump away |
+| Conn | lay in a course for a beacon (`C`), and jump (`J K L`) | `PlotCourse` finds a route whose every leg is a link; `SetCourse` records it |
+| Sickbay | read the ward, one row per casualty in triage order (`ui_lwh_triage`) | `Patients` returns the casualties worst-first, or rank-first |
+| Main Engineering | every system's power, the priority order, the alert — unchanged | S2 |
+
+Reproduce with `scripts/s4-check.sh` (final section):
+
+```
+    astrometrics: 2 new reading(s)
+    away team of 3 beamed down
+    course to beacon 5: 0 1 2 3 5
+    TRIAGE: WORST FIRST  (5 in the ward, 4 beds)
+      Kathryn Janeway    severity 20%  WAITING
+    station purposes: away team 3 on beacon 0, course 5, 2 beacons surveyed, 5 in the ward
+    station purposes: away team back, 0 away now
+PASS  the transporter beams and recalls, astrometrics surveys, the Conn lays in a course, sickbay reads its ward in triage order
+```
+
+The transporter's rule is the real one: a beam cannot reach through our own shields, so beaming
+mid-fight means dropping them. The party stands no watch and is on no deck while away; a save with
+them away restores them away (save format **version 13**).
+
+## The non-station panels, and the replicator (2026-10-07)
+
+The panels that are not stations open the ship's own screens (checked in `scripts/s4-check.sh`,
+`g_shipTest 23`): a **log/padd** terminal opens the ship's log, a **ready room/command** panel the
+command console, a **personnel/crew** panel the personnel screen, and the **replicator/mess** panel
+opens the Operations console, where the galley is worked.
+
+```
+LWH: the log7 terminal opens the ship's log
+LWH: the readyroom panel opens the command console
+LWH: the personnel panel opens the personnel screen
+LWH: the replicator panel opens the OPERATIONS console
+```
+
 ## What S4 still needs
 
-- **Each station's real purpose.** Tactical can switch its weapons on and off; it cannot target or
-  fire, because there is nothing outside the ship yet (S9). Conn cannot set a course. The transporter
-  and astrometrics panels now open the Operations console and Sickbay shows medical state (above),
-  but none of them has a control beyond on/off yet — the transporter needs a target and a recipient,
-  sickbay needs triage, and astrometrics needs the survey; each needs its own controls and the core
-  state they act on. The replicator panel still opens its retail screen.
 - **Panel surfaces are painted** (below): the ship's state is drawn into a texture the panel shader
   uses. What remains is placing it: the published decks are remapped by texture name, and the
   invented generated-deck screen tiles rather than filling its face (an authoring fix, not an engine

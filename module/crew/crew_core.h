@@ -110,7 +110,7 @@ Action Decide(const Member &m, const Signals &s, bool atPost);
 // ---- configuration (maps/<map>.crew) --------------------------------------------------------
 
 struct Config {
-	int maxCrew = 10;
+	int maxCrew = 24;   // S5: raised from 10 toward 20-30 and measured (scripts/s5-check.sh)
 	int reachBoundMs = 90000;     // every NPC reaches its post within this, or reports failure
 	int ackBoundMs = 5000;        // address -> acknowledgement
 	int stuckMs = 10000;          // no progress for this long while travelling = one strike

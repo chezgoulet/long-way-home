@@ -36,11 +36,15 @@ IBI_DUMP="$BUILD_ROOT/ibi-dump-build/ibi-dump"
 DICT="$BUILD_ROOT/entities.json"
 
 echo "==> entity dictionary"
+# Our own adopted classes (docs/evidence/harvest-b-rpgx-classes.md) are documented here so the
+# validator covers what our maps may place, whether or not the retail defs are present.
+LWH_DEF="$ROOT/tools/entitydict/lwh_entities.def"
 if [ -f "$BUILD_ROOT/SP_entities.def" ] && [ -f "$BUILD_ROOT/HM_entities-def.txt" ]; then
   python3 "$ROOT/tools/entitydict/entitydict.py" parse \
-    --def "$BUILD_ROOT/SP_entities.def" --def "$BUILD_ROOT/HM_entities-def.txt" --json "$DICT"
+    --def "$BUILD_ROOT/SP_entities.def" --def "$BUILD_ROOT/HM_entities-def.txt" --def "$LWH_DEF" --json "$DICT"
 else
-  echo "    (put SP_entities.def and HM_entities-def.txt in $BUILD_ROOT, or the class check narrows)"
+  python3 "$ROOT/tools/entitydict/entitydict.py" parse --def "$LWH_DEF" --json "$DICT"
+  echo "    (put SP_entities.def and HM_entities-def.txt in $BUILD_ROOT for the full class check)"
 fi
 
 echo

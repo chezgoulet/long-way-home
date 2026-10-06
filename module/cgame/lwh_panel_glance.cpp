@@ -22,6 +22,23 @@ void LWH_CG_DrawPanelGlance( void )
 	if ( !s || !cg.snap ) return;
 	if ( cg.levelShot || cg.snap->ps.stats[STAT_HEALTH] <= 0 ) return;
 
+	// S9's "see and hear": a hit shakes the screen -- a red edge flash for half a second after each
+	// hit the ship takes lands. The ship counts its hits (s->hits); cgame sees the count change here.
+	{
+		static uint32_t lastHits = 0;
+		static int hitFlashAt = 0;
+		if ( s->hits != lastHits ) { lastHits = s->hits; hitFlashAt = cg.time; }
+		const int since = cg.time - hitFlashAt;
+		if ( hitFlashAt && since >= 0 && since < 500 )
+		{
+			const float w = 44.0f * ( 1.0f - since / 500.0f );
+			CG_FillRect( 0, 0, 640, w, colorTable[CT_RED] );
+			CG_FillRect( 0, 480 - w, 640, w, colorTable[CT_RED] );
+			CG_FillRect( 0, 0, w, 480, colorTable[CT_RED] );
+			CG_FillRect( 640 - w, 0, w, 480, colorTable[CT_RED] );
+		}
+	}
+
 	// The panel: what the crosshair is on, or failing that the nearest usable within a pace -- a
 	// console is read standing at it, not by aiming at a pixel.
 	gentity_t *panel = NULL;
@@ -45,8 +62,12 @@ void LWH_CG_DrawPanelGlance( void )
 		{
 			gentity_t *e = &g_entities[i];
 			if ( !e->inuse || !e->classname || Q_stricmp( e->classname, "func_usable" ) ) continue;
-			vec3_t c;
+			vec3_t c, to;
 			for ( int a = 0; a < 3; ++a ) c[a] = ( e->absmin[a] + e->absmax[a] ) * 0.5f;
+			// Only a panel the player faces: a panel behind the player would throw the readout
+			// off the back of the view and then never reach the screen.
+			VectorSubtract( c, cg.refdef.vieworg, to );
+			if ( DotProduct( to, cg.refdef.viewaxis[0] ) <= 1.0f ) continue;
 			const float d = DistanceSquared( cg.refdef.vieworg, c );
 			if ( d < best ) { best = d; panel = e; }
 		}
@@ -107,4 +128,54 @@ void LWH_CG_DrawPanelGlance( void )
 	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 4, l1, CG_SMALLFONT, colorTable[ALERT_COLOR[alert]] );
 	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 17, l2, CG_SMALLFONT, colorTable[CT_LTGOLD1] );
 	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 30, l3, CG_SMALLFONT, colorTable[CT_LTBLUE1] );
+	// The viewscreen, when there is a contact: a live image of it beside the panel, redrawn each
+	// frame from the same state the Tactical console reads -- a schematic of the ship scaled and
+	// coloured by its hull, wrapped in a shield bubble that fades as its shields fall. Bars below
+	// carry the exact fractions, as the consoles do.
+	if ( s->enemy.present && s->enemy.hull > 0.0f )
+	{
+		const float vw = 168.0f, vh = 64.0f;
+		const float vx = bx + w + 6.0f, vy = by - 18.0f;
+		CG_FillRect( vx, vy, vw, vh, colorTable[CT_BLACK] );
+		CG_FillRect( vx, vy, vw, 3.0f, colorTable[CT_RED] );
+		CG_FillRect( vx, vy, 3.0f, vh, colorTable[CT_RED] );
+		char lc[64];
+		Com_sprintf( lc, sizeof( lc ), "VIEWSCREEN  TGT %s", ship::EnemySubsystemName( s->target ) );
+		CG_DrawProportionalString( static_cast<int>( vx ) + 6, static_cast<int>( vy ) + 5, lc, CG_SMALLFONT, colorTable[CT_RED] );
+
+		// The image itself: the contact, centred, scaled to its remaining hull.
+		const float cx = vx + vw * 0.5f, cy = vy + 30.0f;
+		const float scale = 0.6f + 0.4f * s->enemy.hull;
+		const int hullCol = s->enemy.hull > 0.6f ? CT_LTGOLD1 : s->enemy.hull > 0.25f ? CT_LTORANGE : CT_RED;
+		CG_FillRect( cx - 26.0f * scale, cy - 11.0f * scale, 52.0f * scale, 5.0f * scale, colorTable[hullCol] ); // saucer
+		CG_FillRect( cx - 7.0f * scale,  cy - 6.0f * scale,  14.0f * scale, 15.0f * scale, colorTable[hullCol] ); // hull
+		CG_FillRect( cx - 23.0f * scale, cy - 15.0f * scale, 4.0f * scale, 11.0f * scale, colorTable[hullCol] ); // nacelle
+		CG_FillRect( cx + 19.0f * scale, cy - 15.0f * scale, 4.0f * scale, 11.0f * scale, colorTable[hullCol] ); // nacelle
+		// The shield bubble: an ellipse whose colour dims with the shields, drawn row by row.
+		if ( s->enemy.shields > 0.02f )
+		{
+			const int sc = s->enemy.shields > 0.5f ? CT_LTBLUE1 : CT_LTPURPLE1;
+			for ( int dy = -12; dy <= 12; ++dy )
+			{
+				const float t = static_cast<float>( dy ) / 12.0f;
+				const float halfW = 42.0f * sqrtf( 1.0f - t * t );
+				CG_FillRect( cx - halfW, cy + static_cast<float>( dy ) * 1.1f, halfW * 2.0f, 1.0f, colorTable[sc] );
+			}
+		}
+		// The exact fractions, under the image.
+		const float bw = vw - 12.0f;
+		CG_FillRect( vx + 6.0f, vy + 52.0f, bw, 4.0f, colorTable[CT_DKPURPLE3] );
+		CG_FillRect( vx + 6.0f, vy + 52.0f, bw * s->enemy.hull, 4.0f, colorTable[CT_LTGOLD1] );
+		CG_FillRect( vx + 6.0f, vy + 58.0f, bw, 4.0f, colorTable[CT_DKPURPLE3] );
+		CG_FillRect( vx + 6.0f, vy + 58.0f, bw * s->enemy.shields, 4.0f, colorTable[CT_LTBLUE1] );
+
+		// Evidence: once a second, say what the live image is showing.
+		static int lastLog = 0;
+		if ( cg.time - lastLog > 1000 )
+		{
+			lastLog = cg.time;
+			CG_Printf( "LWH: viewscreen %s hull %d%% shields %d%%\n", ship::EnemySubsystemName( s->target ),
+				static_cast<int>( s->enemy.hull * 100.0f + 0.5f ), static_cast<int>( s->enemy.shields * 100.0f + 0.5f ) );
+		}
+	}
 }

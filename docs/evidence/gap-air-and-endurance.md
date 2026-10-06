@@ -37,11 +37,18 @@ away; sealing the hull is the other answer; with the reactors off the batteries 
 endurance (at most their three hours), and bringing a reactor back stretches it. The whole suite
 passes, as do `test.sh`, `scripts/s2-check.sh`, `scripts/s4-check.sh` and `scripts/s10-check.sh`.
 
+## The field from the panel, and endurance per source (2026-10-07)
+
+- **Force fields from the panel.** The Ops console's `O` key raises or lowers the field over the deck
+  that is losing air, read from `lwh_ship_breach_deck` / `lwh_ship_breach_field` (published each
+  quarter-second). The control is the panel's, and the countdown responds to it live.
+- **Auxiliary endurance as its own number.** `EnduranceOf(s, source)` returns each source's minutes at
+  its current draw — the batteries, the auxiliary fusion reactor, the impulse reactors, the core — and
+  the clock line publishes `BATTERY hH mmM` and `AUXILIARY hH mmM` alongside `ENDURANCE`, which is
+  the first of them to fail. Tested in `TestGapCompletions`.
+
 ## What is left for this gap
 
-- **Environmental control as a place.** Deck 12 is a generated hall with a station marker; the
-  countdown is drawn on the Operations console, not yet at the environmental-control panel itself.
-- **Force fields from the panel.** The field is a console command; it wants a control on the Ops or
-  environmental panel.
-- **Auxiliary endurance as its own number.** `MinutesToDark` reports the first source to run out; the
-  contract names battery and auxiliary endurance separately, and would show both.
+- **Environmental control as a place.** The countdown and the field control are on the Operations
+  console; deck 12 itself is still a generated hall with a station marker. Drawing the countdown at
+  the environmental-control panel is the deck-12 build item in `docs/ship-master-map.md`.

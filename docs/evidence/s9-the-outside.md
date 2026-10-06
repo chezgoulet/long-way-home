@@ -38,15 +38,45 @@ This is where the gates join up. In the first row nothing was arranged by the te
 to the beacon: the damage, the casualties that follow from it, and the boarding fight in
 Engineering are S6 and S7 running because S9 gave them something to do.
 
+## An opponent with systems, choices, pursuit and an end (2026-10-07)
+
+Built and tested (`TestEnemySystemsAndOutsideChoices`, console `g_shipTest 19`):
+
+- **An opponent with systems of its own.** `Enemy` carries weapons, engines and a shield generator
+  beside hull and shields; Tactical targets one (`ship target hull|weapons|engines|shields`), and a
+  broken subsystem changes the fight — no weapons, no fire; no engines, no running or chasing; no
+  generator, no shields coming back. More than one kind flies the sector (raider, warship, Borg
+  vessel), each with its own firepower and appetite.
+- **Choices at a beacon.** New beacon kinds — a trader, a distress call, and the sector's end — and
+  the controls: `Trade` (parts for supplies and fuel), `AnswerDistress` (a wreck to help, or a trap),
+  `Hail` (a hostile answers with its weapons), and `Disengage` (run, on the same drive test as a jump).
+- **Pursuit.** A raider whose hull is going but whose engines survive breaks off and follows: it
+  closes one jump each time the ship runs, catches up as a fresh fight, and while it is on the tail
+  the damage-control party works at half rate. The ship cannot sit still to repair.
+- **More sectors, and an end to reach.** Each sector's last beacon is its end; crossing it opens the
+  next sector, and the third crossed is home (`Won`). The Conn's chart and the Operations console show
+  the sector and the end.
+- **To see and hear.** The Tactical console draws the contact's hull, shields, weapons and engines and
+  the target; the Conn draws the chart. Engine-side, cgame now **shakes the screen on a hit** (a red
+  edge flash for half a second after each hit the ship takes, read from the ship's own hit count) and
+  draws a **live viewscreen** beside the panel the player stands at: an image of the contact redrawn
+  every frame from the ship's state — a schematic of the ship scaled and coloured by its remaining
+  hull, wrapped in a shield bubble that fades as the shields fall, with the exact fractions barred
+  beneath and the targeted subsystem named. `scripts/viewscreen-check.sh` photographs it (`g_shipTest 30`);
+  console `LWH: viewscreen <target> hull n% shields n%` says what it drew. (This closed a real bug:
+  the glance could latch onto a panel *behind* the player and then never reach the screen; the panel
+  search now requires a panel the player faces.)
+  The **alert klaxon**: the condition changing plays the game's own sounds
+  (`sound/ambience/voyager/redalert.mp3`, `alarm1.mp3`) around the player, so a red alert is heard as
+  well as shown; console `ship klaxon red|yellow` sounds one on demand.
+- **More than one contact at a time.** Some raiders have a **wingman** (`Ship.contact2`): both fire on
+  the ship, the second is drawn in the tactical readout, and when the primary is destroyed the wingman
+  becomes the primary. Console `ship wingman`. Tested in `TestMultipleContacts`.
+
 ## What S9 still needs
 
-- **On the consoles: done in outline** (`scripts/s9-check.sh`). Tactical shows the contact's hull
-  and shields and our own shields, and fires torpedoes; the Conn lists the beacons one jump away
-  and jumps. Every console shows boarders and assimilated decks.
-- **Anything else to see or hear**: a viewscreen, the ship shaking, an alert klaxon, a drawn map.
-- **An opponent with systems of its own** (targetable shields, weapons, engines) rather than three
-  numbers; more than one kind; more than one at a time.
-- **Choices at a beacon** — hail, trade, run, answer a distress call — and the pressure director the
-  design calls for: pursuit, so that the ship cannot simply sit and repair.
-- **More sectors**, and an end to reach.
+- The viewscreen is a **drawn schematic** of the contact (hull/shields bars and a ship-shaped image),
+  not the engine rendering the contact's model to a surface: the renderer has no render-to-texture
+  path, and the panel-image seam (`patches/0014`) uploads a module-drawn image, which is what this
+  uses. What remains, if the owner wants a photographic image, is an engine render-target extension.
 - Every rate is invented and in the lore ledger.
