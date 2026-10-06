@@ -326,6 +326,15 @@ needs it and a session). The model says so in each evidence document.
   (coolant, shutdown, restart, eject, repair); ignored, the breach is the one unwinnable end
   (`ship core`, `TestCoreCascade`, `scripts/core-check.sh`); and **every system's three named failure
   states** (degraded, offline, destroyed), each change written to the log (`TestSystemStates`) ✅
+- **Condition sets the odds, and stress sets the severity** (`docs/failure-is-content.md`, the owner's
+  ruling of 2026-10-06): the general mechanism on every system -- condition (health capped by power)
+  sets the chance of an anomaly, zero in the top tenth, and the load at the moment of use sets the
+  severity (degraded, acute, catastrophic); the console states the system's condition before the act,
+  the log carries the chain, and at the severe end the console lets go at the operator. The
+  transporter is worked end to end: a nominal beam mangles no one, and a degraded one yields a
+  misaligned beam, a mangled arrival, a copy or a merge, each written to the records
+  (`TestConditionOdds`, `TestTransporterAnomaly`, `scripts/condition-check.sh`,
+  `docs/evidence/condition-sets-the-odds.md`; save format 42) ✅
 - **Probes** (`docs/exploration-and-science.md`): the safe way to look at something hostile -- a
   probe charts a target without the ship going there, spending one of the complement; sometimes lost
   (`ship probe`, `TestProbes`, `scripts/probe-check.sh`) ✅; and **phenomena** -- one anomaly per

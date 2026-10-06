@@ -222,6 +222,9 @@ void Publish( void )
 
 	// The away mission and the course, for the Operations and Conn consoles.
 	gi.cvar_set( "lwh_ship_away", Fmt( "%d", ship::AwayTeam( vessel ) ).c_str() );
+	// The instrument: the transporter's condition, stated before the act (the condition gap). Read
+	// by the Operations panel; it is a read of state and does not lie.
+	gi.cvar_set( "lwh_ship_transporter", ship::TransporterConditionLine( vessel ).c_str() );
 	gi.cvar_set( "lwh_ship_course", Fmt( "%d", vessel.course ).c_str() );
 	gi.cvar_set( "lwh_ship_goal", Fmt( "%d", static_cast<int>( vessel.sector.size() ) - 1 ).c_str() );
 
@@ -919,6 +922,65 @@ void RunTest( void )
 		if ( step == 2 && level.time >= 5500 ) { gi.SendConsoleCommand( "ship core shutdown\n" ); step = 3; }
 		if ( step == 3 && level.time >= 7000 ) { gi.SendConsoleCommand( "ship core\n" ); step = 4; }
 		if ( step == 4 && level.time >= 8500 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
+		return;
+	}
+	if ( g_shipTest->integer == 50 )
+	{//condition sets the odds, and stress sets the severity: the transporter, worked end to end. The
+	 //instrument states the condition before the act, a nominal beam never mangles, a degraded one
+	 //under load does, and the log carries the chain.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 )
+		{
+			vessel.shieldStrength = 0.0f;
+			vessel.sector[vessel.beacon].phenomenon = false;
+			vessel.sector[vessel.beacon].kind = ship::BEACON_EMPTY;
+			ship::SetAlert( vessel, ship::ALERT_GREEN );
+			gi.Printf( "SHIP: RISK instrument nominal: %s\n", ship::TransporterConditionLine( vessel ).c_str() );
+			int anomalies = 0, beams = 0;
+			for ( int i = 0; i < 50; ++i )
+			{
+				std::string note;
+				if ( !ship::TransportAway( vessel, 3, &note ) ) break;
+				++beams; if ( !note.empty() ) ++anomalies;
+				if ( !ship::TransportBack( vessel, &note ) ) break;
+				if ( !note.empty() ) ++anomalies;
+			}
+			gi.Printf( "SHIP: RISK nominal: %d beams, %d anomalies (top tenth)\n", beams, anomalies );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3200 )
+		{//the console states the condition before the act: the command a hand at the panel sends
+			gi.SendConsoleCommand( "ship transport 3\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 3800 ) { gi.SendConsoleCommand( "ship recall\n" ); step = 3; }
+		if ( step == 3 && level.time >= 4400 )
+		{
+			ship::DamageSystem( vessel, ship::SYS_TRANSPORTERS, 0.6f );
+			ship::SetAlert( vessel, ship::ALERT_RED );
+			gi.Printf( "SHIP: RISK instrument degraded: %s\n", ship::TransporterConditionLine( vessel ).c_str() );
+			std::string last;
+			int anomalies = 0;
+			for ( int i = 0; i < 200 && anomalies == 0; ++i )
+			{
+				vessel.systems[ship::SYS_TRANSPORTERS].health = 0.4f;
+				vessel.systems[ship::SYS_TRANSPORTERS].output = 0.4f;
+				std::string note;
+				if ( !ship::TransportAway( vessel, 3, &note ) ) break;
+				if ( !note.empty() ) { ++anomalies; last = note; }
+				ship::TransportBack( vessel, &note );
+				if ( !note.empty() ) { ++anomalies; last = note; }
+			}
+			gi.Printf( "SHIP: RISK degraded under red alert: %d anomaly, last: %s\n", anomalies, last.c_str() );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 6000 )
+		{
+			gi.SendConsoleCommand( "ship log 12\n" );
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 7500 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
 		return;
 	}
 	if ( g_shipTest->integer == 14 )
@@ -1902,15 +1964,28 @@ void Svcmd_Ship_f( void )
 		if ( ph > 0 ) gi.Printf( "SHIP: a phenomenon: %d of %d attributes resolved\n", ph, ship::PHENOM_ATTR_COUNT );
 	}
 	else if ( !Q_stricmp( cmd, "transport" ) )
-	{//the transporter: beam a party to the site the ship is at
-		if ( !ship::TransportAway( vessel, a[0] ? atoi( a ) : 3 ) )
+	{//the transporter: beam a party to the site the ship is at. The instrument states the
+	 //system's condition before the act, so the operator has the risk before them.
+		gi.Printf( "SHIP: transmitter: %s\n", ship::TransporterConditionLine( vessel ).c_str() );
+		std::string outcome;
+		if ( !ship::TransportAway( vessel, a[0] ? atoi( a ) : 3, &outcome ) )
 			gi.Printf( "SHIP: no beam (a party is away, the transporters are down, or the shields are up)\n" );
-		else gi.Printf( "SHIP: away team of %d beamed down\n", ship::AwayTeam( vessel ) );
+		else
+		{
+			gi.Printf( "SHIP: away team of %d beamed down\n", ship::AwayTeam( vessel ) );
+			if ( !outcome.empty() ) gi.Printf( "SHIP: the transporter: %s\n", outcome.c_str() );
+		}
 	}
 	else if ( !Q_stricmp( cmd, "recall" ) )
 	{
-		if ( !ship::TransportBack( vessel ) ) gi.Printf( "SHIP: nobody is away\n" );
-		else gi.Printf( "SHIP: the away team is back aboard\n" );
+		gi.Printf( "SHIP: transmitter: %s\n", ship::TransporterConditionLine( vessel ).c_str() );
+		std::string outcome;
+		if ( !ship::TransportBack( vessel, &outcome ) ) gi.Printf( "SHIP: nobody is away\n" );
+		else
+		{
+			gi.Printf( "SHIP: the away team is back aboard\n" );
+			if ( !outcome.empty() ) gi.Printf( "SHIP: the transporter: %s\n", outcome.c_str() );
+		}
 	}
 	else if ( !Q_stricmp( cmd, "survey" ) )
 	{

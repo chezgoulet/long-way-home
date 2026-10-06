@@ -21,6 +21,7 @@ namespace ship {
 
 const int DECKS = 15;
 const int COMPLEMENT = 141;
+const int MAX_DUPLICATES = 16; // a transporter copy adds a record beyond the complement, bounded [inv]
 const int WATCHES = 3;
 const int SECONDS_PER_DAY = 86400;
 const int SECONDS_PER_WATCH = SECONDS_PER_DAY / WATCHES;
@@ -76,6 +77,39 @@ enum SystemState : uint8_t { SYS_NOMINAL = 0, SYS_DEGRADED, SYS_OFFLINE, SYS_DES
 const char *SystemStateName(uint8_t state);
 uint8_t FailureStateOf(float health, bool enabled);
 
+// ---- condition sets the odds, and stress sets the severity (docs/failure-is-content.md) ----------
+//
+// The owner's ruling, 2026-10-06: a system's chance of failing is a function of its condition, and
+// the load at the moment of use sets the severity of what happens. It is general -- every system
+// carries it, not the transporter alone. The condition is the capability the rest of the simulation
+// already tracks: the system's health (maintenance and parts) capped by what power is actually
+// reaching it. The stress is the load the moment puts on it: low on a quiet watch, up to 1.0 at
+// battle stations.
+//
+//   * in the top tenth of capability (0.9 and above) the system is nominal: no anomaly, ever;
+//   * below that the odds rise as the condition falls;
+//   * at severe degradation, or under severe stress, it lets go visibly at the console.
+//
+// The three severities are the document's own: degraded, acute, catastrophic. No new vocabulary.
+
+const float NOMINAL_CONDITION = 0.9f;   // the top tenth of capability: nominal, no consequence
+const float ANOMALY_ODDS_MAX = 0.85f;   // a wholly gone system's chance of an anomaly on one use [inv]
+
+// The three severities of docs/failure-is-content.md: it still works worse; it hurts now; it is
+// permanent. ANOMALY_NONE is "the use was clean", not a fourth severity.
+enum AnomalySeverity : uint8_t { ANOMALY_NONE = 0, ANOMALY_DEGRADED, ANOMALY_ACUTE, ANOMALY_CATASTROPHIC, ANOMALY_SEVERITY_COUNT };
+const char *AnomalyName(uint8_t severity);
+
+// The chance of an anomaly on one use: 0 in the top tenth, rising as the condition falls.
+float AnomalyOdds(float condition);
+// The severity of an anomaly at this condition under this load (0..1 stress). Determined by the
+// condition first and the load second -- a 40% system run light gives the low severity, the same
+// system at battle stations the high one.
+uint8_t AnomalySeverityFor(float condition, float stress);
+// One use. `roll` is the deterministic 0..UINT32_MAX draw: the odds are checked first, then the
+// severity, exactly as the ruling says. Returns ANOMALY_NONE when the use was clean.
+uint8_t RollAnomaly(float condition, float stress, uint32_t roll);
+
 struct System {
 	float health = 1.0f;    // 0 destroyed .. 1 intact; output can never exceed it
 	bool enabled = true;    // switched on at its console
@@ -89,6 +123,10 @@ struct System {
 	float wear = 0.0f;      // 0..1: deferred maintenance (derived each tick, not saved); at 1 it fails
 	uint8_t fault = 0;      // the last named failure state, to log the change (derived, but stored)
 };
+
+// The capability a system still has, 0..1: its health, capped by what power is reaching it. This is
+// the "condition" of the ruling (docs/failure-is-content.md).
+float SystemCondition(const System &sys);
 
 // ---- power ------------------------------------------------------------------------------------
 
@@ -440,6 +478,7 @@ struct Ship {
 	Enemy contact2;              // a second opponent at the same beacon (more than one at a time)
 	EnemySubsystem target = TARGET_HULL; // what Tactical aims at once the enemy's shields are down
 	uint32_t hits = 0;           // how many hits have landed: decides, deterministically, where the next one does
+	uint32_t riskRolls = 0;      // the anomaly draws taken: the deterministic counter behind UseSystem
 	int cleanIntercepts = 0;     // intruders cleared before they touched a system: the recorded counter-wins
 	// The counter-play kit (docs/borg-incursion.md): the phaser adapter's rotating modulation, and a
 	// vinculum raid that severs the Collective's coordination for a while, each at a cost in time.
@@ -538,6 +577,15 @@ Ship NewShip(const Config &cfg = Config());
 // Advances the ship by `seconds` of simulated (not ship) time. Deterministic: the same ship and
 // the same sequence of calls give the same result.
 void Tick(Ship &s, float seconds);
+
+// The load the ship is under right now: 1.0 at battle stations, less at yellow and green. This is
+// the stress a system is used under -- the second half of the ruling.
+float StressNow(const Ship &s);
+// Use a system under a load. Rolls its odds, names the outcome and the chain in the log (the
+// condition, the load, the severity, who was at the console), and -- at the severe end -- lets it
+// go at the console, the sparking console of docs/failure-is-content.md. Returns the severity.
+// `who` signs the record; empty means the station's senior hand on duty.
+uint8_t UseSystem(Ship &s, SystemId id, float stress, const std::string &who);
 
 // ---- what consoles and events do to it ------------------------------------------------------------
 
@@ -835,9 +883,21 @@ bool AdvanceSector(Ship &s);
 // needs the transporters delivering and the shields down -- a transporter cannot reach through our
 // own shields -- and a party already away is brought back first. While away the party stands no
 // watch and is on no deck. Returns false, changing nothing, if the beam cannot be made.
-bool TransportAway(Ship &s, int party);
-bool TransportBack(Ship &s);
+//
+// The transporter is the system the ruling was written about, and it is worked end to end here. The
+// pattern buffer is its condition; a beam inside the top tenth is nominal and mangles no one. Below
+// that the odds rise, and the load at the moment of the beam sets the severity: a misaligned beam
+// (degraded), a mangled arrival (acute), and at the worst a copy or a merge (catastrophic) -- each
+// of which writes to the crew records, and none of which is a reset button, since a copy is not the
+// person. `outcome`, when given, is set to the anomaly's account, or empty for a clean beam.
+const float TRANSPORTER_ADVISE = 0.4f; // below this condition the console says: do not send anyone
+bool TransportAway(Ship &s, int party, std::string *outcome = nullptr);
+bool TransportBack(Ship &s, std::string *outcome = nullptr);
 int AwayTeam(const Ship &s);                 // how many are off the ship now
+// The instrument: an honest reading of the transporter's condition, stated before the act. One line,
+// of the shape "the pattern buffer is at 62%, and below 40 I would not send anyone". It is a read of
+// state and cannot lie (docs/the-record-and-the-log.md).
+std::string TransporterConditionLine(const Ship &s);
 
 // Astrometrics: a sensor survey of the beacons one jump away -- what the chart is built from. Needs
 // the sensors delivering. Returns how many readings it added, and logs the survey.
@@ -933,7 +993,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 41;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up)
+const uint16_t SAVE_VERSION = 42;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

@@ -1873,6 +1873,143 @@ static void TestCoreCascade()
 	CHECK(back.coreShutdown == k.coreShutdown);
 }
 
+// The general mechanism (docs/failure-is-content.md): condition sets the odds, stress sets the
+// severity, and the top tenth of capability is nominal. Measured, not asserted.
+static void TestConditionOdds()
+{
+	g_test = "condition sets the odds, and stress sets the severity";
+	// The top tenth is nominal: no anomaly of any kind, on any draw.
+	CHECK(AnomalyOdds(1.0f) == 0.0f);
+	CHECK(AnomalyOdds(NOMINAL_CONDITION) == 0.0f);
+	CHECK(AnomalyOdds(0.95f) == 0.0f);
+	CHECK(AnomalyOdds(0.85f) > 0.0f);
+	CHECK(AnomalyOdds(0.0f) == ANOMALY_ODDS_MAX);
+	float prev = -1.0f;
+	for (float c = 1.0f; c >= 0.0f; c -= 0.05f) { const float o = AnomalyOdds(c); CHECK(o >= prev - 1e-6f); prev = o; }
+
+	// The measurement: twenty thousand draws at each condition. Nominal never rolls; the odds rise as
+	// the condition falls, and the measured frequency tracks the function.
+	auto measure = [](float condition) {
+		int hits = 0;
+		for (uint32_t i = 0; i < 20000; ++i)
+			if (RollAnomaly(condition, 1.0f, i * 2654435761u + 12345u) != ANOMALY_NONE) ++hits;
+		return hits;
+	};
+	CHECK(measure(0.95f) == 0);
+	const int at62 = measure(0.62f), at40 = measure(0.40f), at00 = measure(0.0f);
+	CHECK(at62 > 0);
+	CHECK(at40 > at62);
+	CHECK(at00 > at40);
+	CHECK(at00 > 15000); // toward the maximum
+	CHECK(std::fabs(at40 / 20000.0f - AnomalyOdds(0.40f)) < 0.03f);
+
+	// The ladder: the same degraded system is worse under load than it is light.
+	CHECK(AnomalySeverityFor(0.40f, 0.15f) == ANOMALY_DEGRADED);   // 40% run light: a misaligned beam
+	CHECK(AnomalySeverityFor(0.40f, 1.0f) == ANOMALY_CATASTROPHIC); // ... at battle stations: the worst
+	CHECK(AnomalySeverityFor(0.40f, 1.0f) > AnomalySeverityFor(0.40f, 0.15f));
+	for (float st = 0.1f; st <= 1.0f; st += 0.1f)
+		CHECK(AnomalySeverityFor(0.3f, st) >= AnomalySeverityFor(0.3f, st - 0.1f)); // monotonic in load
+	for (float c = 0.1f; c <= 1.0f; c += 0.1f)
+		CHECK(AnomalySeverityFor(c, 1.0f) <= AnomalySeverityFor(c - 0.1f, 1.0f));    // ... and in condition
+	CHECK(RollAnomaly(0.95f, 1.0f, 0u) == ANOMALY_NONE); // the top tenth, whatever the load
+
+	// UseSystem advances the deterministic draw counter, writes the chain, and lets the system go.
+	Ship u = NewShip();
+	u.cfg.dayScale = 1.0f;
+	SetAlert(u, ALERT_RED);
+	Tick(u, 1.0f);
+	const uint32_t before = u.riskRolls;
+	int anomalies = 0;
+	for (int i = 0; i < 200; ++i) {
+		u.systems[SYS_TRANSPORTERS].health = 0.4f;
+		u.systems[SYS_TRANSPORTERS].output = 0.4f;
+		if (UseSystem(u, SYS_TRANSPORTERS, 1.0f, "the operator") != ANOMALY_NONE) ++anomalies;
+	}
+	CHECK(u.riskRolls == before + 200);
+	CHECK(anomalies > 0);
+	bool chain = false;
+	for (const LogEntry &e : u.log)
+		if (e.who == "the operator" && e.what.find("condition under") != std::string::npos) chain = true;
+	CHECK(chain);
+}
+
+// The transporter, worked end to end: the instrument states the condition before the act; a nominal
+// beam mangles no one over a long run; a degraded one under load does, and writes to the records.
+static void TestTransporterAnomaly()
+{
+	g_test = "the transporter: the ruling end to end";
+	Ship s = NewShip();
+	s.cfg.dayScale = 1.0f;
+	s.shieldStrength = 0.0f;
+	s.sector[s.beacon].phenomenon = false;
+	s.sector[s.beacon].kind = BEACON_EMPTY;
+	SetAlert(s, ALERT_GREEN);
+	Tick(s, 1.0f);
+	CHECK(s.systems[SYS_TRANSPORTERS].health == 1.0f);
+
+	// The instrument, read before the act: this system's condition, and the threshold.
+	const float nominalCond = SystemCondition(s.systems[SYS_TRANSPORTERS]);
+	CHECK(nominalCond >= NOMINAL_CONDITION);
+	CHECK(TransporterConditionLine(s).find("pattern buffer") != std::string::npos);
+	CHECK(TransporterConditionLine(s).find("nominal") != std::string::npos);
+	s.systems[SYS_TRANSPORTERS].health = 0.62f; // the document's own example
+	s.systems[SYS_TRANSPORTERS].output = 0.62f;
+	const std::string degradedLine = TransporterConditionLine(s);
+	CHECK(degradedLine.find("62%") != std::string::npos);
+	CHECK(degradedLine.find("below 40") != std::string::npos);
+	s.systems[SYS_TRANSPORTERS].health = 1.0f;
+	s.systems[SYS_TRANSPORTERS].output = 1.0f;
+
+	// Nominal: a hundred beams out and back, and no anomaly of any kind; the crew unchanged.
+	const size_t crew0 = s.crew.size();
+	int anomalies = 0;
+	for (int i = 0; i < 100; ++i) {
+		std::string note;
+		CHECK(TransportAway(s, 3, &note));
+		if (!note.empty()) ++anomalies;
+		CHECK(TransportBack(s, &note));
+		if (!note.empty()) ++anomalies;
+	}
+	CHECK(anomalies == 0);
+	CHECK(s.crew.size() == crew0);
+	for (const CrewMember &c : s.crew) CHECK(c.status == CREW_FIT);
+
+	// Degraded and under load: the same system now gets it wrong, and the outcome family appears.
+	// The condition is held at 40% so the test measures the ladder, not the decay it causes.
+	SetAlert(s, ALERT_RED);
+	bool degraded = false, catastrophic = false;
+	for (int i = 0; i < 400 && !(degraded && catastrophic); ++i) {
+		s.systems[SYS_TRANSPORTERS].health = 0.4f;
+		s.systems[SYS_TRANSPORTERS].output = 0.4f;
+		std::string note;
+		CHECK(TransportAway(s, 3, &note));
+		if (note.find("misaligned") != std::string::npos || note.find("mangled") != std::string::npos) degraded = true;
+		if (note.find("copy") != std::string::npos || note.find("merged") != std::string::npos) catastrophic = true;
+		CHECK(TransportBack(s, &note));
+		if (note.find("misaligned") != std::string::npos || note.find("mangled") != std::string::npos) degraded = true;
+		if (note.find("copy") != std::string::npos || note.find("merged") != std::string::npos) catastrophic = true;
+	}
+	CHECK(degraded && catastrophic); // both ends of the ladder were reached
+	bool recorded = false;
+	for (const LogEntry &e : s.log) if (e.what.find("condition under") != std::string::npos) recorded = true;
+	CHECK(recorded); // the chain -- condition, load, what happened -- is in the record
+
+	// A copy or a merge changes the records, and the save round-trips them. (The un-ticked state
+	// above is not byte-comparable: a zero tick runs triage, which can move a casualty's wounds, so
+	// the round trip is checked for stability instead.)
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.crew.size() == s.crew.size());
+	std::vector<uint8_t> blob2 = Pack(back);
+	Ship back2;
+	CHECK(Unpack(blob2.data(), blob2.size(), back2));
+	CHECK(Pack(back2) == blob2);
+	CHECK(back2.crew.size() == s.crew.size());
+	if (s.crew.size() > static_cast<size_t>(COMPLEMENT))
+		CHECK(back2.crew[COMPLEMENT].name == s.crew[COMPLEMENT].name); // the copy carries its name
+}
+
 // The security squad: a fireteam command sends to retake a deck, advancing a deck at a time
 // (docs/borg-incursion.md).
 static void TestSquad()
@@ -3056,10 +3193,27 @@ static int PrintLosses()
 	return restored && WriteOffs(back).size() == 4 ? 0 : 1;
 }
 
+// The measurement the ruling asks to be shown: the odds as a function of condition, over twenty
+// thousand draws each, and the severity the same condition takes light and at battle stations.
+static int PrintRisk()
+{
+	std::printf("condition  AnomalyOdds   measured/20000   severity light   severity battle\n");
+	for (float c = 1.0f; c >= -0.001f; c -= 0.1f) {
+		int hits = 0;
+		for (uint32_t i = 0; i < 20000; ++i)
+			if (RollAnomaly(c, 1.0f, i * 2654435761u + 12345u) != ANOMALY_NONE) ++hits;
+		std::printf("  %5.2f      %8.4f        %6d          %-13s   %s\n",
+			c, AnomalyOdds(c), hits, AnomalyName(AnomalySeverityFor(c, 0.15f)),
+			AnomalyName(AnomalySeverityFor(c, 1.0f)));
+	}
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
+	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -3108,6 +3262,8 @@ int main(int argc, char **argv)
 	TestSystemStates();
 	TestHazardInjuries();
 	TestCoreCascade();
+	TestConditionOdds();
+	TestTransporterAnomaly();
 	TestSquad();
 	TestForceFieldKit();
 	TestDeassimilation();
