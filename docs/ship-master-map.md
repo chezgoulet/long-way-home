@@ -29,9 +29,9 @@ Diagram, regenerable from `tools/mastermap.py`: `voyager-master-map.png`.
 **Ten of fifteen decks ship as maps** (01, 02, 03, 04, 05, 08, 09, 10, 11, 15). The five absent decks --
 06, 07, 12, 13, 14 -- are the build order's spine, and `tour/deck15` already exists, so do not build it.
 
-A **generated blockout now exists for each of the five** (`build/ship/generated/deck06|07|12|13|14.map`), reachable on the merged ship and carrying the
-system each hosts. The **game today** column above describes the retail game, which has no map for any
-of them. What remains for all five is the **re-dress** against a shipped interior: the brief for each is
+A **generated blockout now exists for decks 6, 7 and 14** (`build/ship/generated/deck06|07|14.map`), reachable on the merged ship and carrying the
+system each hosts; **decks 12 and 13 are re-dressed from `tour/deck11`** (below). The **game today** column above describes the retail game, which has no map for any
+of them. What remains for 6, 7 and 14 is the **re-dress** against a shipped interior: the brief for each is
 in `docs/locations/`, and each brief names its own reuse target and what to keep.
 
 ## The lift spine
@@ -47,7 +47,8 @@ destinations and is the pattern to copy. **A new deck with no incoming edge is u
 Where each modelled system lives, and therefore which decks the simulation is blocked on:
 
 - **Power**: deck 11 (core, EPS), nacelle feed through the pylons, plasma relays on deck 15.
-- **Life support**: environmental control on deck 12, plant on deck 13 -- *both absent, both first*.
+- **Life support**: environmental control on deck 12, plant on deck 13 -- *both absent, both first*;
+  both are now built as re-dresses of `tour/deck11` (see the build order below).
 - **Computer**: deck 10 (main core), deck 7 (auxiliary), gel packs distributed.
 - **Sensors**: astrometrics and science lab on deck 8; navigational control on deck 12.
 - **Medical**: deck 5. **Transporters**: deck 4. **Stores**: cargo bay 2 (deck 4), lower bays (deck 8).
@@ -73,16 +74,21 @@ no turbolifts); the holodecks (warmth, and a safety interlock failure).
 
 ## The deck build, in order (status)
 
-1. **Deck 12, environmental control** — **blockout built 2026-10-07** and awaiting the owner's
-   approval before detail, per the procedure. The generated deck is a working half-deck in two
-   chambers (a dividing wall with a doorway) with the plant on a raised deck and a lower walkway, the
-   life-support station marked, reachable and walkable on the merged ship: `scripts/deck12-check.sh`,
-   `g_shipTest 26`, screenshot `lwh_deck12.tga`. The detail items the brief names — the plant itself,
-   the watch console furniture, the lighting states, the parts list — wait on that approval.
-2. **Deck 13, life support plant** — **blockout built 2026-10-07**, awaiting approval. A plant hall
-   with a central machinery island and a raised catwalk, the brief in
+1. **Deck 12, environmental control** — **re-dressed from `tour/deck11`** and awaiting the owner's
+   walkthrough, per the procedure: the room copied and changed to be this room (compressed, the warp
+   core replaced by an atmosphere plant, a Jefferies tube exit, the watch console at the entrance),
+   the life-support station marked, reachable and walkable on the merged ship, the emergency lighting
+   state authored: `scripts/deck12-check.sh`, `g_shipTest 26`, screenshot `lwh_deck12.tga`. The tool
+   is `tools/shipmap/dressdeck12.py`; the parts list `docs/locations/deck12-parts-list.md`; evidence
+   `docs/evidence/deck12-redress.md`. What is open is the walkthrough.
+2. **Deck 13, life support plant** — **re-dressed from `tour/deck11` (2026-10-07)** and awaiting the
+   owner's walkthrough. One plant hall: the warp core replaced by a central machinery island, a
+   raised catwalk along the north wall with a stair, a Jefferies tube mouth at the far end, and the
+   local plant panel and its post on the catwalk. The brief is
    `docs/locations/deck13-life-support.brief.md`, reachable and walkable: `scripts/deck13-check.sh`,
-   `g_shipTest 27`, screenshot `lwh_deck13.tga`.
+   `g_shipTest 27`, screenshots `lwh_deck13.tga` / `lwh_deck13_catwalk.tga`. The tool is
+   `tools/shipmap/dressdeck13.py` (deck 12's pattern); the parts list
+   `docs/locations/deck13-parts-list.md`; evidence `docs/evidence/deck13-redress.md`.
 3. **Deck 6, holodeck 2, armory and quarters** — **blockout built 2026-10-07**: a corridor with two
    holodeck doorframes and an armory locker; `scripts/deck-check.sh 6`, screenshot `lwh_deck06.tga`.
 4. **Deck 14, stasis and holodeck 1** — **blockout built 2026-10-07**: stasis pods along a wall and a

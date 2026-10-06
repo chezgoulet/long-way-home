@@ -146,6 +146,11 @@ a shader the game already has) held off, working (`engineering/elight1`) on. The
 support falls below 60%, by the same pattern as the breach field. The screenshots
 (`lwh_emergency.tga` / `lwh_emergency_off.tga`) show the red present and absent.
 
+> Note (2026-10-07, after deck 13): deck 13's plant carries tagged strips
+> (`lwh_light_emergency_13_*`), and `SyncEmergencyLight` toggles them by the same prefix, so a fresh
+> run of this check now reads "8 red and 8 working strips" — the pair's, not this room's four and
+> four. Deck 12's own state is unchanged; see `docs/evidence/deck13-redress.md` (A5).
+
 ## A6 — the parts census: no new art
 
 ```
