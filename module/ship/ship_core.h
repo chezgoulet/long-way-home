@@ -679,6 +679,14 @@ float MinutesToDark(const Ship &s);
 // separately, so each is its own number; MinutesToDark is the first of them to fail.
 float EnduranceOf(const Ship &s, SourceId id);
 
+// Per-person gravity (the environment in the world). The deck's `gravity` (0 freefall .. 1 standard)
+// is how much of the world's gravity a person on it feels: the plating is life support's, sited on
+// deck 12. ScaleGravity is that arithmetic, kept here so it can be unit-tested apart from the engine;
+// at scale 1 the world's own value stands (which is what the engine's SVF_CUSTOM_GRAVITY flag is for),
+// and at 0 there is nothing to hold a body down.
+float GravityScale(const Ship &s, int deck);          // 1.0 for a deck we do not track
+int ScaleGravity(int worldGravity, float scale);      // the gravity one person feels, rounded, clamped [0, world]
+
 // The surgical bay's force field (the triage gap): raised, it holds the gravest casualty steady even
 // with no medical supplies -- the one case that would otherwise be lost while the others wait.
 bool SetSurgicalField(Ship &s, bool on);

@@ -3642,6 +3642,22 @@ float MinutesToDark(const Ship &s)
 	return best;
 }
 
+// Per-person gravity: the world's gravity scaled by the deck's plating. A person on a deck whose
+// plating has failed feels less of it; on a deck with hold, the world's own value stands.
+float GravityScale(const Ship &s, int deck)
+{
+	if (deck < 1 || deck > DECKS) return 1.0f;
+	return Clamp01(s.decks[deck - 1].gravity);
+}
+
+int ScaleGravity(int worldGravity, float scale)
+{
+	if (scale >= 1.0f) return worldGravity;
+	if (scale <= 0.0f) return 0;
+	const int scaled = static_cast<int>(static_cast<float>(worldGravity) * scale + 0.5f);
+	return scaled < 0 ? 0 : (scaled > worldGravity ? worldGravity : scaled);
+}
+
 bool SetSurgicalField(Ship &s, bool on)
 {
 	if (s.surgicalForceField == on) return true;

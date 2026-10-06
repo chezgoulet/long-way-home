@@ -89,6 +89,8 @@ ship cannot run everything at once — the core tension of the design.
 | Batteries | three hours at full draw, critical systems only | invented |
 | Atmosphere | a deck open to space empties in 5 minutes; a sealed deck without life support lasts 12 hours; restored in 1 hour | invented |
 | Gravity | the plating, on the same life-support system as the air (deck 12): a deck without life support loses hold in 6 hours, and a supplied deck gets it back in 1 | invented |
+| Gravity, felt per person | the world's gravity scaled by the deck's plating (`ScaleGravity(800, gravity)`); at full plating the world's own value stands again | the mechanism is the engine's own (`ps.gravity` plus `SVF_CUSTOM_GRAVITY`, in `g_active.cpp` / `g_target.cpp`); the scaling arithmetic is invented |
+| A breach, in the world | an authored `trigger_push` aimed at the hole, a `trigger_hurt` of 10 damage every 0.5 s, and a `func_usable` field brush across the hole | invented map detail (a deck-12 blockout); the module switches them on and off from the hull and force-field state |
 
 ## Damage control and casualties
 

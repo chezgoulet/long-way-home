@@ -11,6 +11,7 @@
 #include "g_ship.h"
 #include "g_scope.h"
 #include "lwh_panel.h"
+#include "g_crew.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -420,6 +421,27 @@ gentity_t *StandAtPanel( void )
 }
 
 void ApplyPlayerBody( void ); // S10: defined below, after the harness section
+
+// Stand the player at a named marker, a little above it. Used by the environment tests (54, 55).
+// Returns false, and does nothing, if the map has no such marker.
+bool TeleportPlayerTo( const char *name, const char *label )
+{
+	gentity_t *at = NULL;
+	for ( int i = 1; i < globals.num_entities && !at; ++i )
+	{
+		gentity_t *e = &g_entities[i];
+		if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, name ) ) at = e;
+	}
+	if ( !at ) return false;
+	vec3_t origin, angles = { 0, 0, 0 };
+	VectorCopy( at->currentOrigin, origin );
+	origin[2] += 24.0f;
+	TeleportPlayer( &g_entities[0], origin, angles, 0 );
+	VectorCopy( angles, glanceAngles );
+	haveGlanceAim = true;
+	if ( label ) gi.Printf( "SHIP: %s: standing at %s\n", label, vtos( origin ) );
+	return true;
+}
 
 // The harness (scripts/s2-check.sh): do to the ship what a console would, then prove the result
 // is what the save holds.
@@ -1653,6 +1675,98 @@ void RunTest( void )
 		}
 		return;
 	}
+	if ( g_shipTest->integer == 54 )
+	{//the environment in the world: a deck whose plating has failed. The player does not fall; the
+	 //engine's own FIXME (no way back) is closed by the magnetic boots and by the deck recovering.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			if ( !TeleportPlayerTo( "lwh_breach", "gravity test" ) )
+				TeleportPlayerTo( "d12_arrival", "gravity test" );
+			vessel.decks[11].gravity = 0.0f; // the plating on deck 12 loses hold
+			gi.Printf( "SHIP: gravity test: deck 12 plating at 0%%\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4000 )
+		{
+			gentity_t *p = &g_entities[0];
+			gi.Printf( "SHIP: gravity test: floating: ps.gravity %d, custom %d, z %.0f, on floor %d, crew floating %d\n",
+				p->client->ps.gravity, ( p->svFlags & SVF_CUSTOM_GRAVITY ) ? 1 : 0,
+				p->currentOrigin[2], p->client->ps.groundEntityNum != ENTITYNUM_NONE ? 1 : 0, Crew_Floating() );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 5000 ) { gi.SendConsoleCommand( "ship boots on\n" ); step = 3; }
+		if ( step == 3 && level.time >= 6200 )
+		{
+			gentity_t *p = &g_entities[0];
+			gi.Printf( "SHIP: gravity test: boots on: ps.gravity %d, custom %d\n",
+				p->client->ps.gravity, ( p->svFlags & SVF_CUSTOM_GRAVITY ) ? 1 : 0 );
+			gi.SendConsoleCommand( "ship boots off\n" );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 7400 )
+		{
+			gentity_t *p = &g_entities[0];
+			gi.Printf( "SHIP: gravity test: boots off: ps.gravity %d, custom %d; deck recovers\n",
+				p->client->ps.gravity, ( p->svFlags & SVF_CUSTOM_GRAVITY ) ? 1 : 0 );
+			vessel.decks[11].gravity = 1.0f; // the deck has hold again: the engine's FIXME case
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 8600 )
+		{
+			gentity_t *p = &g_entities[0];
+			gi.Printf( "SHIP: gravity test: recovered: ps.gravity %d, custom %d, crew floating %d\n",
+				p->client->ps.gravity, ( p->svFlags & SVF_CUSTOM_GRAVITY ) ? 1 : 0, Crew_Floating() );
+			gi.SendConsoleCommand( "screenshot lwh_gravity\n" );
+			step = 6;
+		}
+		if ( step == 6 && level.time >= 10000 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
+		return;
+	}
+	if ( g_shipTest->integer == 55 )
+	{//a breach you can feel and a field you can see: with the field off the authored push and hurt
+	 //are live and the air is going; raise the field and they stop, the brush is solid, air holds.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			if ( !TeleportPlayerTo( "lwh_breach", "breach test" ) )
+				TeleportPlayerTo( "d12_arrival", "breach test" );
+			vessel.decks[11].gravity = 1.0f; // gravity is not the subject of this test
+			ship::SetForceFieldLevel( vessel, 12, 0 );
+			ship::BreachDeck( vessel, 12, 1.0f );
+			gi.Printf( "SHIP: breach test: deck 12 hull %.2f, air %.2f, minutes of air %.1f\n",
+				vessel.decks[11].hull, vessel.decks[11].atmosphere, ship::MinutesOfAir( vessel, 12 ) );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 2900 )
+		{//a beat after the breach: the push has just thrown the player toward the hole
+			gentity_t *p = &g_entities[0];
+			gi.Printf( "SHIP: breach test: field off, thrown: health %d, velocity %s, at %s\n",
+				p->health, vtos( p->client->ps.velocity ), vtos( p->currentOrigin ) );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 4200 )
+		{
+			gentity_t *p = &g_entities[0];
+			gi.Printf( "SHIP: breach test: field off: health %d, velocity %s, air %.2f, minutes of air %.1f\n",
+				p->health, vtos( p->client->ps.velocity ), vessel.decks[11].atmosphere, ship::MinutesOfAir( vessel, 12 ) );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 4800 ) { gi.SendConsoleCommand( "ship field 12 on\n" ); step = 4; }
+		if ( step == 4 && level.time >= 6300 )
+		{
+			gentity_t *p = &g_entities[0];
+			gi.Printf( "SHIP: breach test: field on: health %d, velocity %s, minutes of air %.1f, published field %s\n",
+				p->health, vtos( p->client->ps.velocity ), ship::MinutesOfAir( vessel, 12 ),
+				gi.cvar( "lwh_ship_breach_field", "", 0 )->string );
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 6800 ) { gi.SendConsoleCommand( "screenshot lwh_breach\n" ); step = 6; }
+		if ( step == 6 && level.time >= 8300 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )
@@ -2063,6 +2177,12 @@ void Svcmd_Ship_f( void )
 	{//ship field <deck> <level 1-10 | on | off>
 		if ( b[0] >= '0' && b[0] <= '9' ) ship::SetForceFieldLevel( vessel, atoi( a ), atoi( b ) );
 		else ship::SetForceField( vessel, atoi( a ), !Q_stricmp( b, "on" ) );
+	}
+	else if ( !Q_stricmp( cmd, "boots" ) )
+	{//the way back out of freefall: standard gravity for the player until the plating holds again
+		Crew_ToggleBoots();
+		gi.Printf( "SHIP: magnetic boots are %s\n", Crew_BootsOn() ? "on; standard gravity for you" : "off" );
+		return;
 	}
 	else if ( !Q_stricmp( cmd, "surgical" ) )
 	{
