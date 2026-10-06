@@ -45,3 +45,15 @@ crew write      the report, written to crew/<map>.report.json under the home pat
 | `g_ship.h/.cpp` | Hosts it in the game: ticks it, saves it, carries it across level changes, and exposes the `ship` console command. Off by default (`g_ship 0`). |
 
 Programme and gates: `docs/ship-programme.md`. Every figure: `docs/lore-ledger.md`.
+
+## The environment in the world (`g_env 1`)
+
+The ship's per-deck atmosphere, gravity and breach are shown in the world by the same pattern as
+`SyncDamage` and `SyncFire` (both in `module/crew/g_crew.cpp`). Gravity is per person — the engine's
+own `ps.gravity` with `SVF_CUSTOM_GRAVITY` — so a deck whose plating has failed floats the player
+and the crew (`BS_FLY`), and the deck recovering hands the world's value back. A breach switches on
+an authored `trigger_push` aimed at the hole and a `trigger_hurt`; raising the field stops them and
+makes the authored `func_usable` brush solid and visible. The player's way back out of freefall is
+the magnetic boots, `ship boots`. Off by default (`g_env 0`): with the cvar unset the module
+behaves, and saves, exactly as before. Evidence: `docs/evidence/environment-in-the-world.md`;
+checks: `scripts/gravity-check.sh` and `scripts/breach-check.sh`.

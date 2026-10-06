@@ -152,6 +152,43 @@ def deck_map(n):
                 if x1 - 512 <= wx <= x1 - 256 and y1 - 512 <= wy <= y1 - 256:            # cargo island
                     continue
             out.append(entity([("classname", "waypoint"), ("origin", "%d %d %d" % (wx, wy, z0 + 24))]))
+
+    # The environment in the world (the breach compartment). The ship already tracks the hull and the
+    # force field; these are the authored effects it switches on and off, the same pattern as the
+    # damaged-system spark and the burning deck. Box triggers are turned into mins/maxs point
+    # entities by the stitcher, after the compile; the field is an authored func_usable brush. Every
+    # placement here is invented blockout detail and will move with the deck's re-dress.
+    if n == 12:
+        # The far chamber's front walkway, east of the dividing wall and on the low floor.
+        hurt_box = ((-3760, -3520, z0), (-3160, -3120, z1))
+        push_box = ((-3560, -3440, z0), (-3400, -3280, z0 + 96))
+        # The push's aim: a short throw toward the hole in the east bulkhead. Set a person's-hop
+        # from the push volume, not at the wall, so the shove is survivable (the engine computes a
+        # ballistic arc to this point: farther or lower makes it a launch).
+        hole_at = (-3368, -3360, z0 + 100)
+        out.append("{\n"
+                   '"classname" "trigger_push"\n'
+                   '"targetname" "lwh_breach_push"\n'
+                   '"spawnflags" "128"\n'          # INACTIVE: the module activates it
+                   '"target" "lwh_breach_hole"\n'
+                   + brush(push_box, "common/trigger") + "\n}")
+        out.append("{\n"
+                   '"classname" "trigger_hurt"\n'
+                   '"targetname" "lwh_breach_hurt"\n'
+                   '"spawnflags" "128"\n'          # INACTIVE: the module activates it
+                   '"dmg" "10"\n'
+                   '"wait" "0.5"\n'
+                   + brush(hurt_box, "common/trigger") + "\n}")
+        # The field over the hole: a thin brush across the breach, off until the field is raised.
+        out.append("{\n"
+                   '"classname" "func_usable"\n'
+                   '"targetname" "lwh_breach_field"\n'
+                   '"spawnflags" "1"\n'            # START_OFF
+                   + brush(((-3080, -3480, z0), (-3072, -3240, z1)), "voyager/field_activation3") + "\n}")
+        out.append(entity([("classname", "target_position"), ("targetname", "lwh_breach_hole"),
+                           ("origin", "%d %d %d" % hole_at)]))
+        out.append(entity([("classname", "info_notnull"), ("targetname", "lwh_breach"),
+                           ("origin", "%d %d %d" % (-3480, -3360, z0 + 24))]))
     return "\n".join(out) + "\n"
 
 

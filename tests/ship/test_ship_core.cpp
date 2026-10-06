@@ -613,8 +613,7 @@ static void TestTriage()
 }
 
 // The air-and-endurance gap: a breach is a number, and the number moves when the crew act.
-static void TestAirAndEndurance()
-{
+static void TestAirAndEndurance(){
 	g_test = "a breach has a number; seal it or hold the field and the number goes";
 	Ship s = NewShip();
 	CHECK(MinutesOfAir(s, 9) < 0.0f);            // intact and holding: no countdown
@@ -641,6 +640,39 @@ static void TestAirAndEndurance()
 	SetSourceOnline(t, SRC_WARP_CORE, true);
 	Tick(t, 1.0f);
 	CHECK(MinutesToDark(t) > battery);           // a reactor back on stretches endurance
+}
+
+// The environment in the world: one person's gravity is the deck's plating scaled onto the world's,
+// and at full plating the world's own value stands again -- the case the engine's own FIXME names.
+static void TestGravity()
+{
+	g_test = "per-person gravity scales with the deck, and hands back to the world's own";
+	CHECK(GravityScale(NewShip(), 1) == 1.0f);
+	CHECK(GravityScale(NewShip(), 8) == 1.0f && GravityScale(NewShip(), 99) == 1.0f);
+
+	// A deck whose plating has failed: no gravity to feel; a deck at half hold, half.
+	CHECK(ScaleGravity(800, 0.0f) == 0);
+	CHECK(ScaleGravity(800, 0.5f) == 400);
+	CHECK(ScaleGravity(800, 0.25f) == 200);
+
+	// Restore: at full plating the world's value stands -- what clearing the engine's custom-gravity
+	// flag gives back. It is clamped: never more than the world, never negative.
+	CHECK(ScaleGravity(800, 1.0f) == 800);
+	CHECK(ScaleGravity(800, 2.0f) == 800);
+	CHECK(ScaleGravity(800, -0.5f) == 0);
+
+	// The scale is the deck's own value, and it survives a save and a load.
+	Ship s = NewShip();
+	s.decks[11].gravity = 0.0f;
+	CHECK(GravityScale(s, 12) == 0.0f);
+	CHECK(ScaleGravity(800, GravityScale(s, 12)) == 0);
+	s.decks[4].gravity = 0.6f;
+	CHECK(ScaleGravity(800, GravityScale(s, 5)) == 480);
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.decks[11].gravity == 0.0f && back.decks[4].gravity == 0.6f);
+	CHECK(ScaleGravity(800, GravityScale(back, 5)) == 480);
 }
 
 // The log gap: a run can be reconstructed from the log alone.
@@ -3764,6 +3796,7 @@ int main(int argc, char **argv)
 	TestRadiation();
 	TestTriage();
 	TestAirAndEndurance();
+	TestGravity();
 	TestLog();
 	TestWrittenOffList();
 	TestAwayKit();

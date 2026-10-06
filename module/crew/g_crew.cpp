@@ -68,6 +68,7 @@ cvar_t *g_crewQuit;     // 1 = save and quit when the run completes (the measure
 cvar_t *g_crewDebug;    // 1 = print every decision change
 cvar_t *g_crewFromShip; // 1 = the crew on this deck are whoever the ship simulation says is on it (S5)
 cvar_t *g_crewDeck;     // which deck this map is, for a map of one deck; 0 = work it out from g_shipDeckPitch
+cvar_t *g_env;          // 1 = the ship's environment is shown in the world (gravity, a breach, a field)
 
 struct CrewState {
 	bool active = false;
@@ -844,6 +845,183 @@ void SyncFire( void )
 			static_cast<int>( fire * 100 + 0.5f ), static_cast<int>( fireSpots.size() ) );
 }
 
+// ---- the environment, in the world --------------------------------------------------------------
+//
+// The model carries per-deck atmosphere, gravity and a breach; the world showed none of it. This is
+// the same pattern as SyncDamage and SyncFire: the ship decides, the module switches an authored
+// effect on and off. Gravity is per person (the engine's own mechanism: ps.gravity plus
+// SVF_CUSTOM_GRAVITY, as target_gravity_change_use sets it), so the player feels the deck's plating
+// and the crew float on BS_FLY. A breach is an authored trigger_push aimed at the hole and a
+// trigger_hurt; the force field over it is an authored func_usable brush. With `g_env 0` none of it
+// runs, and the ship behaves and saves exactly as before.
+
+const float BREACH_WHOLE = 0.99f;                 // below this the hull is open and the air is going
+const char *const BREACH_PUSH = "lwh_breach_push";
+const char *const BREACH_HURT = "lwh_breach_hurt";
+const char *const BREACH_FIELD = "lwh_breach_field";
+
+gentity_t *FindTargetname( const char *name )
+{
+	for ( int n = 1; n < globals.num_entities; ++n )
+	{
+		gentity_t *e = &g_entities[n];
+		if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, name ) ) return e;
+	}
+	return NULL;
+}
+
+// A trigger is live when it does NOT carry SVF_INACTIVE -- exactly what the engine's own
+// target_activate / target_deactivate write (g_utils.cpp, G_SetActiveState).
+void SetTriggerLive( gentity_t *e, bool live )
+{
+	if ( !e ) return;
+	const bool isLive = !( e->svFlags & SVF_INACTIVE );
+	if ( isLive == live ) return;
+	if ( live ) e->svFlags &= ~SVF_INACTIVE;
+	else e->svFlags |= SVF_INACTIVE;
+}
+
+// The field is the game's own func_usable, toggled exactly as a button would: its `count` is the
+// on/off state the game already keeps, so we call its own use function rather than re-implement it.
+void SetFieldBrush( gentity_t *e, bool on )
+{
+	if ( !e ) return;
+	const bool isOn = e->count != 0;
+	if ( isOn == on ) return;
+	GEntity_UseFunc( e, &g_entities[0], &g_entities[0] );
+}
+
+// The crew on this deck float when the plating is weak: BS_FLY is the behaviour state the code
+// itself documents as "Moves around without gravity" (bstate.h). Only the layer's own embodied crew
+// are touched, and a script's NPC is left alone.
+void SyncGravityCrew( const std::vector<int> &embodied, bool floatNow )
+{
+	for ( int idx : embodied )
+	{
+		gentity_t *e = FindByName( RosterName( idx ) );
+		if ( !e || !e->NPC || e->health <= 0 ) continue;
+		if ( floatNow )
+		{
+			if ( e->NPC->behaviorState == BS_FLY ) continue;
+			if ( ScriptOwns( e ) ) continue;
+			e->NPC->behaviorState = BS_FLY;
+			e->NPC->stats.moveType = MT_FLYSWIM;
+		}
+		else if ( e->NPC->behaviorState == BS_FLY )
+		{
+			e->NPC->behaviorState = BS_DEFAULT;
+		}
+	}
+}
+
+bool envGravityOn = false;   // the module, not the map, set the player's custom gravity
+bool playerBoots = false;    // the way back: standard gravity for the player while they get out
+bool envCrewFloat = false;
+
+// One person's gravity, driven from the deck's plating. The engine has the mechanism and no way
+// back (its own FIXME); the way back is the point of this function: when the plating holds again,
+// clear SVF_CUSTOM_GRAVITY and the world's value returns.
+void SyncGravity( void )
+{
+	ship::Ship *vessel = Ship_Get();
+	if ( !vessel ) return;
+	gentity_t *p = &g_entities[0];
+	if ( !p->client ) return;
+	const int deck = PlayersDeck();
+	const bool known = deck >= 1 && deck <= ship::DECKS;
+	const float scale = known ? ship::GravityScale( *vessel, deck ) : 1.0f;
+	const float world = g_gravity ? g_gravity->value : gi.cvar( "g_gravity", "800", 0 )->value;
+
+	// Hands back to the engine: the plate is at full, the deck is not the ship's, or the player has
+	// chosen the boots. A deck that recovers must not stay wrong.
+	if ( !known || scale >= 1.0f || playerBoots )
+	{
+		if ( p->svFlags & SVF_CUSTOM_GRAVITY )
+		{
+			p->svFlags &= ~SVF_CUSTOM_GRAVITY;
+			p->client->ps.gravity = world;
+			if ( envGravityOn )
+				gi.Printf( playerBoots ? "ENV: magnetic boots on; the player has standard gravity\n"
+					: "ENV: deck %d has hold again; gravity is standard\n", deck );
+		}
+		if ( !known || scale >= 1.0f ) playerBoots = false;
+		envGravityOn = false;
+		if ( envCrewFloat ) { SyncGravityCrew( shipEmbodied, false ); envCrewFloat = false; }
+		return;
+	}
+
+	const int want = ship::ScaleGravity( static_cast<int>( world + 0.5f ), scale );
+	if ( !( p->svFlags & SVF_CUSTOM_GRAVITY ) || p->client->ps.gravity != want )
+	{
+		p->client->ps.gravity = want;
+		p->svFlags |= SVF_CUSTOM_GRAVITY;
+		if ( !envGravityOn )
+			gi.Printf( "ENV: deck %d plating at %d%%; the player floats on %d gravity\n",
+				deck, static_cast<int>( scale * 100 + 0.5f ), want );
+		envGravityOn = true;
+	}
+	envCrewFloat = true;
+	SyncGravityCrew( shipEmbodied, true );
+}
+
+// A breach the player can feel, and a field they can see. The ship already tracks the hull and the
+// field; this switches the authored effects to match, and says so when the state changes.
+void SyncBreach( void )
+{
+	gentity_t *push = FindTargetname( BREACH_PUSH );
+	gentity_t *hurt = FindTargetname( BREACH_HURT );
+	gentity_t *field = FindTargetname( BREACH_FIELD );
+	if ( !push && !hurt && !field ) return; // this map has no authored breach
+	ship::Ship *vessel = Ship_Get();
+	if ( !vessel ) return;
+	const int deck = PlayersDeck();
+	if ( deck < 1 || deck > ship::DECKS ) return;
+	const ship::Deck &d = vessel->decks[deck - 1];
+
+	const bool breached = d.hull < BREACH_WHOLE;
+	const bool fieldUp = breached && d.forceField;
+	const bool open = breached && !fieldUp; // the hole is pulling air and bodies out
+
+	SetTriggerLive( push, open );
+	SetTriggerLive( hurt, open );
+	SetFieldBrush( field, fieldUp );
+
+	static int last = -1;
+	const int now = open ? 0 : fieldUp ? 1 : 2;
+	if ( now != last )
+	{
+		last = now;
+		if ( open )
+			gi.Printf( "ENV: deck %d is breached; the air is going (push and hurt on, field off)%s\n", deck,
+				push ? Fmt( "; the push throws %s", vtos( push->s.origin2 ) ).c_str() : "; no push trigger" );
+		else if ( fieldUp )
+			gi.Printf( "ENV: a force field is up on deck %d; the air holds\n", deck );
+		else
+			gi.Printf( "ENV: deck %d is whole; no breach effect\n", deck );
+	}
+}
+
+void Crew_EnvFrame( void )
+{
+	if ( !g_env || !g_env->integer )
+	{//turning the extension off puts the world back the way the engine expects it
+		if ( envGravityOn )
+		{
+			gentity_t *p = &g_entities[0];
+			if ( p->client && ( p->svFlags & SVF_CUSTOM_GRAVITY ) )
+			{
+				p->svFlags &= ~SVF_CUSTOM_GRAVITY;
+				p->client->ps.gravity = g_gravity ? g_gravity->value : 800;
+			}
+			envGravityOn = false;
+			if ( envCrewFloat ) { SyncGravityCrew( shipEmbodied, false ); envCrewFloat = false; }
+		}
+		return;
+	}
+	SyncGravity();
+	SyncBreach();
+}
+
 // Declared crew with a type and a position are spawned through the map's own spawner, exactly as
 // an NPC_starfleet entity in the map would be: an existing character, its own model and voice.
 void SpawnDeclaredCrew( void )
@@ -1251,6 +1429,24 @@ void ApplySave( void )
 
 } // namespace
 
+// The environment in the world's public entry points (g_crew.h): the way back out of freefall, and
+// where the player is in it. `playerBoots` is the module's own, above.
+void Crew_ToggleBoots( void ) { playerBoots = !playerBoots; }
+bool Crew_BootsOn( void ) { return playerBoots; }
+
+// How many of the layer's embodied crew are floating on BS_FLY right now: the world's answer to the
+// deck's plating, for the report.
+int Crew_Floating( void )
+{
+	int n = 0;
+	for ( int idx : shipEmbodied )
+	{
+		gentity_t *e = FindByName( RosterName( idx ) );
+		if ( e && e->NPC && e->NPC->behaviorState == BS_FLY ) ++n;
+	}
+	return n;
+}
+
 // ---- entry points ---------------------------------------------------------------------------
 
 void Crew_RegisterCvars( void )
@@ -1261,6 +1457,7 @@ void Crew_RegisterCvars( void )
 	g_crewDebug = gi.cvar( "g_crewDebug", "0", 0 );
 	g_crewFromShip = gi.cvar( "g_crewFromShip", "0", 0 );
 	g_crewDeck = gi.cvar( "g_crewDeck", "0", 0 );
+	g_env = gi.cvar( "g_env", "0", 0 );
 }
 
 void Crew_Init( void )
@@ -1309,6 +1506,7 @@ static void BaselineFrame( void )
 
 void Crew_Frame( void )
 {
+	Crew_EnvFrame(); // the ship's environment in the world: gravity per person, a breach, a field
 	if ( cs.active || cs.baseline )
 	{//everything the game did this frame before the layer's own turn
 		const int64_t ns = std::chrono::duration_cast<std::chrono::nanoseconds>( std::chrono::steady_clock::now() - cs.frameBegan ).count();

@@ -20,4 +20,10 @@ void Crew_WriteSave(void);                                          // G_LoadSav
 void Crew_ReadSave(void);                                           // G_LoadSave_ReadMiscData
 void Svcmd_Crew_f(void);                                            // server command "crew"
 
+// The environment in the world (g_env 1): gravity per person, and the breach effects. Magnetic
+// boots are the player's way back out of freefall, and are the "ship boots" console command.
+void Crew_ToggleBoots(void);
+bool Crew_BootsOn(void);
+int Crew_Floating(void);   // embodied crew floating on BS_FLY right now (the deck's plating)
+
 #endif
