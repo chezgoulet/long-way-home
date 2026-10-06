@@ -145,6 +145,31 @@ void Publish( void )
 		vessel.CrewFit(), static_cast<int>( vessel.crew.size() ) ).c_str() );
 	gi.cvar_set( "lwh_ship_dilithium", Fmt( "DILITHIUM %.0f%%   RANGE %d LY   QUALITY %.2f", vessel.dilithium * 100,
 		ship::DilithiumRange( vessel ), vessel.crystalQuality ).c_str() );
+	// The navigation counter (docs/navigation-counter.md): the crew's shared fact, on every console,
+	// and the forecasts command alone sees. Read from the ship, never from a snapshot.
+	{
+		const ship::Navigation nav = ship::NavigationCounter( vessel );
+		if ( !nav.warp )
+			gi.cvar_set( "lwh_ship_nav", Fmt( "NAV  %d LY OUT   NO WARP: HOME STOPS GETTING CLOSER",
+				static_cast<int>( nav.distanceLy + 0.5f ) ).c_str() );
+		else
+			gi.cvar_set( "lwh_ship_nav", Fmt( "NAV  %d LY OUT   %d YR NOMINAL   %d YR NOW   %+.1f SINCE LAST",
+				static_cast<int>( nav.distanceLy + 0.5f ), static_cast<int>( nav.nominalYears + 0.5f ),
+				static_cast<int>( nav.currentYears + 0.5f ), static_cast<double>( nav.changeYears ) ).c_str() );
+		std::string forecast;
+		if ( ship::PlayerMayCommand( vessel ) )
+		{
+			const std::vector<ship::NavCourse> routes = ship::NavigationForecasts( vessel );
+			for ( size_t i = 0; i < routes.size(); ++i )
+			{
+				const ship::NavCourse &c = routes[i];
+				forecast += Fmt( "%sBEACON %d %s: %s", i ? ";" : "", c.beacon,
+					c.charted ? ship::BeaconKindName( static_cast<ship::BeaconKind>( c.kind ) ) : "UNCHARTED",
+					c.years >= 0.0f ? Fmt( "%d YR", static_cast<int>( c.years + 0.5f ) ).c_str() : "NO WARP" );
+			}
+		}
+		gi.cvar_set( "lwh_ship_forecast", forecast.c_str() );
+	}
 	gi.cvar_set( "lwh_ship_kit", Fmt( "AWAY KIT  TRICORDERS %d (%d%%)   PHASERS %d   EV SUITS %d",
 		vessel.stores.tricorders, static_cast<int>( vessel.stores.tricorderCharge * 100 + 0.5f ),
 		vessel.stores.phasers, vessel.stores.evSuits ).c_str() );
@@ -1027,6 +1052,36 @@ void RunTest( void )
 			gi.SendConsoleCommand( "quit\n" );
 			step = 4;
 		}
+		return;
+	}
+	if ( g_shipTest->integer == 52 )
+	{//the navigation counter (docs/navigation-counter.md): how far home, how long, and the arrow
+	 //moving. The console query is the same read on every deck; wrecking the crystal and jumping
+	 //closer must both show on the spot, and command sees the forecasts.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 )
+		{
+			ship::SetRole( vessel, ship::ROLE_IN_COMMAND ); // so the console answers command's forecasts
+			gi.Printf( "SHIP: nav test: the counter before anything\n" );
+			gi.SendConsoleCommand( "ship nav\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3200 )
+		{
+			vessel.dilithium = 0.2f; // wreck the crystal: the estimate must worsen on the spot
+			gi.Printf( "SHIP: nav test: the crystal wrecked\n" );
+			gi.SendConsoleCommand( "ship nav\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 4400 ) { gi.SendConsoleCommand( "ship jump 1\n" ); step = 3; }
+		if ( step == 3 && level.time >= 5400 )
+		{
+			gi.Printf( "SHIP: nav test: after a jump toward home\n" );
+			gi.SendConsoleCommand( "ship nav\n" );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 6800 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
 		return;
 	}
 	if ( g_shipTest->integer == 14 )
@@ -2327,6 +2382,29 @@ void Svcmd_Ship_f( void )
 			ship::WarpPossible( vessel ) ? "possible" : "impossible" );
 		return;
 	}
+	else if ( !Q_stricmp( cmd, "nav" ) || !Q_stricmp( cmd, "navigation" ) )
+	{//the navigation counter: how far home, how long, and how that changed (docs/navigation-counter.md)
+		const ship::Navigation nav = ship::NavigationCounter( vessel );
+		gi.Printf( "SHIP: %d light years from home; %d years nominal, %d at current capability\n",
+			static_cast<int>( nav.distanceLy + 0.5f ), static_cast<int>( nav.nominalYears + 0.5f ),
+			static_cast<int>( nav.currentYears + 0.5f ) );
+		if ( nav.warp )
+			gi.Printf( "SHIP:   %+.1f years since the last entry; effective speed %d c\n",
+				static_cast<double>( nav.changeYears ), static_cast<int>( nav.speedC + 0.5f ) );
+		else
+			gi.Printf( "SHIP:   no warp: home stops getting closer\n" );
+		if ( ship::PlayerMayCommand( vessel ) )
+		{//command sees the forecasts: the estimate under each available course
+			const std::vector<ship::NavCourse> routes = ship::NavigationForecasts( vessel );
+			if ( routes.empty() ) gi.Printf( "SHIP: forecasts: no course from here\n" );
+			else for ( const ship::NavCourse &c : routes )
+				gi.Printf( "SHIP:   forecast: beacon %d %s%s; %s from there\n", c.beacon,
+					c.charted ? ship::BeaconKindName( static_cast<ship::BeaconKind>( c.kind ) ) : "uncharted",
+					c.charted ? "" : " (not yet charted)",
+					c.years >= 0.0f ? Fmt( "%d years", static_cast<int>( c.years + 0.5f ) ).c_str() : "no warp" );
+		}
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "recomposite" ) )
 	{//Engineering buys back life in the crystal's frame, until the crystal is too far gone
 		if ( !ship::Recomposite( vessel ) )
@@ -2689,8 +2767,16 @@ void Svcmd_Ship_f( void )
 			for ( size_t i = 0; i < open.lines.size(); ++i )
 				gi.Printf( "SHIP: %2d %s[%s] %s\n", static_cast<int>( i ), open.lines[i].struck ? "(struck) " : "",
 					open.lines[i].scope.c_str(), open.lines[i].text.c_str() );
-			gi.Printf( "SHIP: headline: the ship can still make %d light years, %+.0f since the last entry\n",
-				ship::NavigationCounter( vessel ), static_cast<double>( open.counterChange ) );
+			{
+				const ship::Navigation nav = ship::NavigationCounter( vessel );
+				if ( nav.warp )
+					gi.Printf( "SHIP: headline: home %d light years; %d years nominal, %d now, %+.1f since the last entry\n",
+						static_cast<int>( nav.distanceLy + 0.5f ), static_cast<int>( nav.nominalYears + 0.5f ),
+						static_cast<int>( nav.currentYears + 0.5f ), static_cast<double>( open.counterChange ) );
+				else
+					gi.Printf( "SHIP: headline: no warp: %d light years out, and home stops getting closer\n",
+						static_cast<int>( nav.distanceLy + 0.5f ) );
+			}
 			return;
 		}
 		if ( !Q_stricmp( sub, "edit" ) && b[0] )
@@ -2790,6 +2876,7 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "       ship log [count] [scope] | seal <deck> | field <deck> on|off\n" );
 		gi.Printf( "       ship losses [sealed|stripped|uninhabitable|written] | writeoff <deck|system> [kind]\n" );
 		gi.Printf( "       ship report [draft] | strike|edit <line> ... | soften <line> [f] | add <scope> <text> | sign|file [crew] | diff | purge\n" );
+		gi.Printf( "       ship nav | navigation   (how far home, how long, and the change since the last entry)\n" );
 		gi.Printf( "       ship promise <officer> <crew> <kind> <what> | promises | keep|break <n>\n" );
 		gi.Printf( "       ship kit <tricorders> <phasers> <evsuits> <charge> | scan\n" );
 		return;

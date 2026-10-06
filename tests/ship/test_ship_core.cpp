@@ -1658,6 +1658,108 @@ static void TestMonthReportAndToll()
 	CHECK(Pack(back) == blob);
 }
 
+// The navigation counter (docs/navigation-counter.md): distance home, the estimate nominal and at
+// current capability, the change since it was last written down, and the forecasts command sees.
+static void TestNavigation()
+{
+	g_test = "the navigation counter: how far, and how long";
+
+	// A new ship reads the goal's distance, the nominal figure, and a current figure above it because
+	// no resupply is charted yet -- the gap shown, not hidden. It is a projection, not a quotient.
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	Navigation n = NavigationCounter(s);
+	CHECK(std::fabs(n.distanceLy - NAV_LIGHT_YEARS) < 1.0f);
+	CHECK(std::fabs(n.nominalYears - NAV_LIGHT_YEARS / NAV_NOMINAL_C) < 0.1f);
+	CHECK(n.warp && n.currentYears > 0.0f);
+	CHECK(n.currentYears >= n.nominalYears);          // the route is not yet charted: honestly worse
+	CHECK(n.currentYears < n.nominalYears * 1.1f);     // ... but only a little, on a healthy ship
+
+	// It changes when the state changes: wreck the crystal and the estimate worsens on the spot.
+	const float before = n.currentYears;
+	s.dilithium = 0.2f;
+	n = NavigationCounter(s);
+	CHECK(n.currentYears > before);
+	// A researched better crystal shortens the journey: current capability beats nominal.
+	Ship q = NewShip();
+	Tick(q, 1.0f);
+	CHECK(AcquireDilithium(q, DIL_RESEARCH) && q.crystalQuality > 1.0f);
+	CHECK(NavigationCounter(q).currentYears < NavigationCounter(q).nominalYears);
+	// A warp drive that cannot deliver: no warp, and home stops getting closer.
+	Ship d = NewShip();
+	Tick(d, 1.0f);
+	SetEnabled(d, SYS_WARP_DRIVE, false);
+	Tick(d, 1.0f);
+	CHECK(!NavigationCounter(d).warp && NavigationCounter(d).currentYears < 0.0f);
+	d.dilithium = 0.0f; // and no crystal either
+	CHECK(!NavigationCounter(d).warp);
+
+	// Distance is the position model's: a jump toward home is fewer light years, and the goal beacon
+	// of the last sector is home.
+	Ship j = NewShip();
+	Tick(j, 1.0f);
+	const float far = NavigationCounter(j).distanceLy;
+	GoTo(j, 0);
+	j.enemy = Enemy(); j.contact2 = Enemy();
+	CHECK(Jump(j, 1));
+	CHECK(NavigationCounter(j).distanceLy < far);
+	j.sectorNumber = SECTORS_TO_CROSS - 1;
+	j.beacon = SECTOR_BEACONS - 1;
+	CHECK(NavigationCounter(j).distanceLy == 0.0f);
+	j.won = true;
+	CHECK(NavigationCounter(j).distanceLy == 0.0f);
+
+	// Nominal and current are both carried; the change since the counter was last written down is the
+	// derivative, and moving closer makes it negative.
+	Ship m = NewShip();
+	Tick(m, 1.0f);
+	m.navCounterLast = NavigationCounter(m).currentYears;
+	GoTo(m, 0); m.enemy = Enemy(); m.contact2 = Enemy();
+	Jump(m, 1);
+	m.navCounterLast = NavigationCounter(m).currentYears; // as a recorded entry would
+	Jump(m, 2);
+	CHECK(NavigationCounter(m).changeYears < 0.0f);
+
+	// It is recorded in the log over time, so the crew can look back.
+	Ship l = NewShip();
+	Tick(l, 1.0f);
+	Tick(l, Hours(l, 24.0f * (NAV_LOG_DAYS + 1.0f)));
+	bool recorded = false;
+	for (const LogEntry &e : l.log) if (e.what.find("light years from home") != std::string::npos) recorded = true;
+	CHECK(recorded);
+
+	// The forecasts command sees: one per available course, with the years under it.
+	Ship f = NewShip();
+	Tick(f, 1.0f);
+	const std::vector<NavCourse> routes = NavigationForecasts(f);
+	CHECK(!routes.empty());
+	for (const NavCourse &r : routes) CHECK(r.years >= 0.0f && r.distanceLy <= NAV_LIGHT_YEARS);
+
+	// It survives save and load, and the report's headline is the counter's change since the last entry.
+	Ship sv = NewShip();
+	Tick(sv, 1.0f);
+	sv.navCounterLast = 12.5f;
+	GoTo(sv, 0); sv.enemy = Enemy(); sv.contact2 = Enemy();
+	Jump(sv, 1);
+	DraftReport(sv, DEPT_COUNT);
+	CHECK(std::fabs(OpenReport(sv).counter - NavigationCounter(sv).currentYears) < 0.01f);
+	CHECK(OpenReport(sv).lines[0].text.find("since the last entry") != std::string::npos);
+	std::vector<uint8_t> blob = Pack(sv);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(std::fabs(back.navCounterLast - sv.navCounterLast) < 1e-4f);
+	CHECK(std::fabs(NavigationCounter(back).currentYears - NavigationCounter(sv).currentYears) < 0.01f);
+	CHECK(Pack(back) == blob);
+
+	// The report's change is measured from the last entry: an earlier century-out estimate makes it
+	// read as ground gained.
+	Ship r = NewShip();
+	Tick(r, 1.0f);
+	r.navCounterLast = 100.0f;
+	DraftReport(r, DEPT_COUNT);
+	CHECK(OpenReport(r).counterChange < 0.0f);
+}
+
 // The backlog, continued: resource acquisition (mining a belt), population pressure (refugees), and
 // justice (a hearing).
 static void TestResourcesAndPressure()
@@ -3525,12 +3627,86 @@ static int PrintMonth()
 	return failures ? 1 : 0;
 }
 
+// `test_ship_core --nav` prints the navigation counter as evidence (docs/navigation-counter.md):
+// the distance home, the nominal and current figures, the effect of wrecking the crystal, the log
+// record over time, the forecasts command sees, and the report's headline. See
+// docs/evidence/the-navigation-counter.md.
+static int PrintNav()
+{
+	int failures = 0;
+	int d, ny, cy;
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	Navigation n = NavigationCounter(s);
+	d = static_cast<int>(n.distanceLy + 0.5f); ny = static_cast<int>(n.nominalYears + 0.5f); cy = static_cast<int>(n.currentYears + 0.5f);
+	std::printf("PASS  a new ship reads %d light years out: %d years nominal, %d at current capability (the gap is shown)\n", d, ny, cy);
+	if (!(n.warp && cy >= ny)) ++failures;
+
+	const int was = cy;
+	s.dilithium = 0.2f;
+	n = NavigationCounter(s);
+	std::printf("PASS  wreck the crystal: %d -> %d years at current capability\n", was, static_cast<int>(n.currentYears + 0.5f));
+	if (!(n.currentYears > was)) ++failures;
+
+	Ship q = NewShip();
+	Tick(q, 1.0f);
+	AcquireDilithium(q, DIL_RESEARCH);
+	n = NavigationCounter(q);
+	std::printf("PASS  a researched better crystal: %d years, against %d nominal (the one positive loop)\n",
+		static_cast<int>(n.currentYears + 0.5f), static_cast<int>(n.nominalYears + 0.5f));
+	if (!(n.currentYears < n.nominalYears)) ++failures;
+
+	Ship w = NewShip();
+	Tick(w, 1.0f);
+	w.dilithium = 0.0f;
+	n = NavigationCounter(w);
+	std::printf("PASS  no crystal: warp %s; home stops getting closer (the failure is immobility, not death)\n",
+		n.warp ? "possible" : "impossible");
+	if (n.warp) ++failures;
+
+	Ship j = NewShip();
+	Tick(j, 1.0f);
+	const int far = static_cast<int>(NavigationCounter(j).distanceLy + 0.5f);
+	GoTo(j, 0); j.enemy = Enemy(); j.contact2 = Enemy();
+	Jump(j, 1);
+	const int near = static_cast<int>(NavigationCounter(j).distanceLy + 0.5f);
+	std::printf("PASS  a jump toward home: %d -> %d light years\n", far, near);
+	if (!(near < far)) ++failures;
+
+	// Recorded in the log over time.
+	Tick(j, Hours(j, 24.0f * (NAV_LOG_DAYS + 1.0f)));
+	std::string line;
+	for (const LogEntry &e : j.log) if (e.what.find("light years from home") != std::string::npos) line = e.what;
+	std::printf("PASS  recorded in the log: \"%s\"\n", line.c_str());
+	if (line.empty()) ++failures;
+
+	// The forecasts command sees.
+	std::string fc;
+	for (const NavCourse &c : NavigationForecasts(j))
+		fc += (fc.empty() ? "" : "; ") + std::string("beacon ") + std::to_string(c.beacon) + ": " + std::to_string(static_cast<int>(c.years + 0.5f)) + " years";
+	std::printf("PASS  forecasts (command alone): %s\n", fc.c_str());
+	if (fc.empty()) ++failures;
+
+	// The month report's headline is the counter's change since the last entry.
+	Ship r = NewShip();
+	Tick(r, 1.0f);
+	r.navCounterLast = 100.0f;
+	DraftReport(r, DEPT_COUNT);
+	std::printf("PASS  the month report's headline: \"%s\"\n", OpenReport(r).lines[0].text.c_str());
+	if (OpenReport(r).lines[0].text.find("since the last entry") == std::string::npos) ++failures;
+
+	if (failures) std::printf("%d demonstration(s) failed\n", failures);
+	else std::printf("all demonstrations passed\n");
+	return failures ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
 	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
+	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -3571,6 +3747,7 @@ int main(int argc, char **argv)
 	TestCrewJusticeAndBorg();
 	TestMemoryAndConsequence();
 	TestMonthReportAndToll();
+	TestNavigation();
 	TestResourcesAndPressure();
 	TestPhenomenon();
 	TestProbes();

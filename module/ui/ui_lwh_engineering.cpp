@@ -338,6 +338,18 @@ void Draw( void )
 			colorTable[r.manned >= r.need ? CT_LTBLUE1 : CT_RED] );
 	}
 
+	// The navigation counter: the crew's shared fact, on every console (docs/navigation-counter.md).
+	// It reads from the ship and cannot lie. Drawn below the system list where the list leaves room;
+	// where it does not (Main Engineering shows all eighteen), the panel and `ship nav` carry it.
+	{
+		const int navY = 149 + screen.systems * 15 + 3;
+		if ( navY <= 372 )
+		{
+			ui.Cvar_VariableStringBuffer( "lwh_ship_nav", line, sizeof( line ) );
+			if ( line[0] ) UI_DrawProportionalString( 44, navY, line, UI_TINYFONT, colorTable[CT_LTBLUE1] );
+		}
+	}
+
 	// The instrument (the condition gap): the Operations console states the transporter's condition
 	// before the beam, so the operator has the risk before them. A read of state; it cannot lie.
 	if ( screen.station == 2 && screen.transporter[0] )
