@@ -540,6 +540,7 @@ struct Ship {
 	// the player
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
 	uint64_t wallSeconds = 0;    // wall-clock time when the ship was last saved (CLOCK_WALL catches up from it)
+	bool leftStanding = false;   // ever exited with a background process: the record's mark (see the two exits)
 	std::vector<LogEntry> log;   // the ship's own record of what happened, newest last
 	std::vector<LossEntry> losses; // what the ship has given up, and why (docs/damage-and-budgets.md)
 	std::vector<Job> jobs;       // the outstanding work, in the order it is worked (docs/crew-work.md)
@@ -924,6 +925,21 @@ bool SavesAllowed(const Config &cfg);
 const float MAX_CATCH_UP_DAYS = 30.0f;
 void CatchUp(Ship &s, double realSecondsAway);
 
+// ---- the three clocks and the two exits (docs/ship-model.md) --------------------------------------
+//
+// Exit with a background process and the ship is left standing: the world keeps its own time, the run
+// is marked as one that was left standing, and what happened while the player was away is continuous
+// in the record. Exit without one and the simulation stops: no time existed, and the record has a gap.
+// The guard is tied to the play mode already in the header -- holodeck may suspend the world, ironman
+// may not, because ironman means the ship keeps her own time.
+bool MaySuspend(const Config &cfg);
+bool Suspend(Ship &s);              // false, changing nothing, in ironman
+bool LeftStanding(const Ship &s);   // was this run ever left standing? (the record's mark)
+// The sleep state: the player skips time at the accelerated rate -- incrementally, or all at once --
+// and the ship advances as it would have. It is an act, not a rate, so it works whatever the
+// configured clock; long steps are cut up inside, so a sleep arrives where a played run would.
+void Sleep(Ship &s, double shipSeconds);
+
 // Clearance. A crew member operates the station their department works: Engineering for engineers,
 // Tactical for security, Operations and the Conn for command and sciences, Sickbay for medical. A
 // lieutenant commander or above may operate any. The alert is called by a department head or above
@@ -993,7 +1009,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 42;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement
+const uint16_t SAVE_VERSION = 43;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

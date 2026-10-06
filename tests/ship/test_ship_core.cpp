@@ -414,6 +414,32 @@ static void TestSave()
 	CHECK(Describe(untouched) == before);
 }
 
+// A3: saves must replay identically. A crew member's wounds, severity and recovery are distinct
+// saved fields, and the round trip must not move any of them. This is the observed discrepancy --
+// a record printed as wounds=0 severity=0.8 before a save and wounds=0.8 severity=0.8 after the
+// load -- pinned down as a test so it cannot come back silently.
+static void TestCrewWoundsRoundTrip()
+{
+	g_test = "a crew member's wounds, severity and recovery survive the save";
+	Ship s = NewShip();
+	const int who = 42;
+	s.crew[who].status = CREW_INJURED;
+	s.crew[who].wounds = 0.15f;    // taken in the fight
+	s.crew[who].severity = 0.80f;  // how badly it will go untreated
+	s.crew[who].recovery = 0.25f;  // progress so far
+	s.stores.medicalSupplies = 0.0f; // no treatment, so the untreated rule would apply on any tick
+	const std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	std::printf("  wounds %.2f -> %.2f, severity %.2f -> %.2f, recovery %.2f -> %.2f\n",
+		s.crew[who].wounds, back.crew[who].wounds, s.crew[who].severity, back.crew[who].severity,
+		s.crew[who].recovery, back.crew[who].recovery);
+	CHECK(back.crew[who].wounds == s.crew[who].wounds);
+	CHECK(back.crew[who].severity == s.crew[who].severity);
+	CHECK(back.crew[who].recovery == s.crew[who].recovery);
+	CHECK(Pack(back) == blob);
+}
+
 // S6. Nothing repairs itself: it takes engineers, time and parts.
 static void TestDamageControl()
 {
@@ -2736,6 +2762,87 @@ static void TestModesAndClocks()
 	CHECK(longAway.Day() == static_cast<int>(MAX_CATCH_UP_DAYS));
 }
 
+// The three clocks and the two exits (docs/ship-model.md). Sleeping skips time at the accelerated
+// rate and must land where a played run would; standing orders are what the ship does while the
+// player sleeps; and the record can tell a run that was left standing from one that was shut down.
+static void TestSleepAndExits()
+{
+	g_test = "the sleep state, and the two exits";
+
+	// Sleeping advances the ship by exactly the interval asked for, and a played real-time run over
+	// the same interval arrives in the same place. Both are shown, and compared.
+	Ship slept = NewShip(); // accelerated by default, but sleeping is an act, not a rate
+	Config real = Config();
+	real.clockMode = CLOCK_REAL_TIME;
+	Ship played = NewShip(real);
+	DamageSource(slept, SRC_WARP_CORE, 0.4f);
+	DamageSource(played, SRC_WARP_CORE, 0.4f);
+	const double interval = 6.0 * 3600.0; // six ship-hours, compressed into a sleep
+	Sleep(slept, interval);
+	Tick(played, static_cast<float>(interval)); // real time: a second is a second
+	std::printf("  slept %d h to day %d, deuterium %.3f; played the same interval: day %d, deuterium %.3f\n",
+		static_cast<int>(interval / 3600.0 + 0.5), slept.Day(), slept.stores.deuterium,
+		played.Day(), played.stores.deuterium);
+	CHECK(std::fabs(slept.clock - (8 * 3600.0 + interval)) < 1.0); // exactly the compressed interval
+	CHECK(std::fabs(slept.clock - played.clock) < 1.0);            // and the played run agrees
+	CHECK(std::fabs(slept.stores.deuterium - played.stores.deuterium) < 1e-4f);
+	for (size_t i = 0; i < slept.crew.size(); ++i)
+		CHECK(slept.crew[i].activity == played.crew[i].activity && slept.crew[i].deck == played.crew[i].deck);
+
+	// Incremental and one-jump sleeps converge: long steps are cut up, so both arrive together.
+	Ship oneJump = NewShip(), inSteps = NewShip();
+	Sleep(oneJump, interval);
+	for (int m = 0; m < 12; ++m) Sleep(inSteps, interval / 12.0);
+	CHECK(std::fabs(oneJump.clock - inSteps.clock) < 1e-6);
+	CHECK(Describe(oneJump) == Describe(inSteps));
+	CHECK(Pack(oneJump) == Pack(inSteps));
+
+	// Standing orders are what the ship does while the player sleeps: ordered to evacuate deck 11,
+	// she keeps it clear across the night, sees to a damaged system, and the night is in the log.
+	Ship ordered = NewShip();
+	SetRole(ordered, ROLE_IN_COMMAND);
+	DamageSystem(ordered, SYS_SENSORS, 0.6f); // the night's work, and something to log
+	CHECK(OrderEvacuate(ordered, 11));
+	const int logBefore = static_cast<int>(ordered.log.size());
+	Sleep(ordered, 6.0 * 3600.0);
+	CHECK(CrewOnDeck(ordered, 11).empty());                 // the order stood across the sleep
+	CHECK(ordered.systems[SYS_SENSORS].health > 0.6f);      // and the crew did the night's work
+	CHECK(static_cast<int>(ordered.log.size()) > logBefore); // with the night carried in the log
+
+	// The two exits. A run left standing carries the mark and continuous entries; a run shut down
+	// carries neither, and the time never passed aboard.
+	Config hol = Config();
+	hol.mode = MODE_HOLODECK;
+	hol.clockMode = CLOCK_WALL;
+	Ship stood = NewShip(hol), shut = NewShip(hol);
+	CHECK(MaySuspend(hol));
+	CHECK(Suspend(stood));
+	CHECK(LeftStanding(stood) && !LeftStanding(shut));
+	const int stoodLog = static_cast<int>(stood.log.size());
+	CatchUp(stood, 8.0 * 3600.0);
+	// The shut-down run is never caught up: its process stopped, so no time existed aboard.
+	CHECK(std::fabs(stood.clock - (8 * 3600.0 + 8 * 3600.0)) < 1.0); // she lived through the night
+	CHECK(shut.clock == 8 * 3600.0);                                  // the shut-down ship did not
+	CHECK(static_cast<int>(stood.log.size()) > stoodLog);
+	CHECK(Describe(stood).find("left standing") != std::string::npos);
+	CHECK(Describe(shut).find("left standing") == std::string::npos);
+	std::printf("  left standing: mark %d, day %d, %d log entries; shut down: mark %d, day %d\n",
+		LeftStanding(stood) ? 1 : 0, stood.Day(), static_cast<int>(stood.log.size()),
+		LeftStanding(shut) ? 1 : 0, shut.Day());
+
+	// The mark is in the save, so a load knows how the run was left.
+	const std::vector<uint8_t> blob = Pack(stood);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(LeftStanding(back) && Pack(back) == blob);
+
+	// The guard: holodeck may suspend the world; ironman may not, because ironman keeps its time.
+	Ship iron = NewShip(); // ironman is the default
+	CHECK(!MaySuspend(iron.cfg));
+	CHECK(!Suspend(iron));
+	CHECK(!LeftStanding(iron) && iron.clock == 8 * 3600.0);
+}
+
 static void TestRankAndRoles()
 {
 	g_test = "rank, clearance and the player";
@@ -3229,6 +3336,7 @@ int main(int argc, char **argv)
 	TestMoraleAndFatigue();
 	TestDeterminismAndStepSize();
 	TestSave();
+	TestCrewWoundsRoundTrip();
 	TestStations();
 	TestStationPurposes();
 	TestGapCompletions();
@@ -3276,6 +3384,7 @@ int main(int argc, char **argv)
 	TestJobQueue();
 	TestMaintenance();
 	TestModesAndClocks();
+	TestSleepAndExits();
 	TestRankAndRoles();
 	TestOrders();
 

@@ -983,6 +983,52 @@ void RunTest( void )
 		if ( step == 5 && level.time >= 7500 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
 		return;
 	}
+	if ( g_shipTest->integer == 51 )
+	{//the three clocks and the two exits (docs/ship-model.md): ironman refuses to suspend; a sleep
+	 //converges with a played interval; a standing order fires across a sleep; holodeck may suspend
+	 static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 )
+		{
+			gi.Printf( "SHIP: clock test: ironman may suspend %d (must be 0)\n", ship::MaySuspend( vessel.cfg ) ? 1 : 0 );
+			gi.SendConsoleCommand( "ship suspend\n" ); // refused in ironman
+			// Sleeping in one jump, in steps, and a played interval must all arrive together.
+			ship::Ship one = vessel, steps = vessel, played = vessel;
+			const double interval = 6.0 * 3600.0;
+			played.cfg.clockMode = ship::CLOCK_REAL_TIME; // a played second is a second
+			ship::Sleep( one, interval );
+			for ( int m = 0; m < 12; ++m ) ship::Sleep( steps, interval / 12.0 );
+			ship::Tick( played, static_cast<float>( interval ) );
+			const int same = ( std::fabs( one.clock - steps.clock ) < 1e-6 && std::fabs( one.clock - played.clock ) < 1.0 ) ? 1 : 0;
+			gi.Printf( "SHIP: clock test: sleep 6h -> day %d; twelve steps -> day %d; played -> day %d; identical %d\n",
+				one.Day(), steps.Day(), played.Day(), same );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3200 )
+		{//a standing order while the player sleeps, and something for the night's work to show
+			ship::SetRole( vessel, ship::ROLE_IN_COMMAND );
+			ship::DamageSystem( vessel, ship::SYS_SENSORS, 0.6f );
+			ship::OrderEvacuate( vessel, 11 );
+			gi.SendConsoleCommand( "ship sleep 6\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 6200 )
+		{
+			gi.Printf( "SHIP: clock test: after a 6h sleep, deck 11 crew %d (must be 0), sensors %.2f, log entries %d\n",
+				static_cast<int>( ship::CrewOnDeck( vessel, 11 ).size() ), vessel.systems[ship::SYS_SENSORS].health,
+				static_cast<int>( vessel.log.size() ) );
+			vessel.cfg.mode = ship::MODE_HOLODECK; // the guard is tied to the play mode
+			gi.SendConsoleCommand( "ship suspend\n" );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 7200 )
+		{
+			gi.Printf( "SHIP: clock test: holodeck suspend -> left standing %d (must be 1)\n", ship::LeftStanding( vessel ) ? 1 : 0 );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 4;
+		}
+		return;
+	}
 	if ( g_shipTest->integer == 14 )
 	{//the other station panels open the working console, and Sickbay shows the medical state
 		static const struct { int ms; const char *command; } STEPS[] = {
@@ -2550,6 +2596,31 @@ void Svcmd_Ship_f( void )
 			++printed;
 		}
 		if ( !printed ) gi.Printf( "SHIP: the log is empty\n" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "sleep" ) && a[0] )
+	{//the sleep state (docs/ship-model.md): skip time at the accelerated rate, in one jump or in steps
+		const double hours = atof( a );
+		if ( !( hours > 0.0 ) ) { gi.Printf( "SHIP: usage: ship sleep <hours>\n" ); return; }
+		const double before = vessel.clock;
+		ship::Sleep( vessel, hours * 3600.0 );
+		gi.Printf( "SHIP: slept %.1f h: day %d %02d:%02d, %.1f hours of ship time passed\n", hours,
+			vessel.Day(), vessel.SecondOfDay() / 3600, vessel.SecondOfDay() % 3600 / 60, ( vessel.clock - before ) / 3600.0 );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "suspend" ) )
+	{//one of the two exits: leave the ship standing. Ironman refuses it, and keeps her own time.
+		if ( ship::Suspend( vessel ) )
+			gi.Printf( "SHIP: the ship is left standing; the run is marked\n" );
+		else
+			gi.Printf( "SHIP: ironman will not suspend the world; the ship keeps her own time\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "leftstanding" ) )
+	{//the record's mark: was this run ever left standing?
+		gi.Printf( "SHIP: this run has %sbeen left standing\n", ship::LeftStanding( vessel ) ? "" : "not " );
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "losses" ) )

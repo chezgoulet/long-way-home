@@ -328,8 +328,10 @@ static void TreatCasualties(Ship &s, float shipSeconds)
 			++bed;
 			c.underCare = true;
 			c.deck = SICKBAY_DECK;
-		} else {
+		} else if (hours > 0.0f) {
 			// No bed, no output, or no supplies: the injury goes on getting worse, and can kill.
+			// Only with time passing: a zero-length tick is the derive-on-load (see Unpack), and it
+			// must not move a saved field, or a save would not replay identically.
 			c.severity = std::min(1.0f, c.severity + DETERIORATE_PER_HOUR * hours);
 			c.wounds = std::max(c.wounds, c.severity);
 			if (c.severity >= 1.0f) { c.status = CREW_DEAD; c.recovery = 0.0f; NoteDeath(s, i); LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "sickbay", c.name + " died of wounds before a bed freed"); }
@@ -1999,7 +2001,37 @@ static void UpdateCore(Ship &s, float shipSeconds);
 void CatchUp(Ship &s, double realSecondsAway)
 {
 	if (s.cfg.clockMode != CLOCK_WALL || !(realSecondsAway > 0.0)) return;
-	Advance(s, std::min(realSecondsAway, static_cast<double>(MAX_CATCH_UP_DAYS) * SECONDS_PER_DAY));
+	const double away = std::min(realSecondsAway, static_cast<double>(MAX_CATCH_UP_DAYS) * SECONDS_PER_DAY);
+	Advance(s, away);
+	// The log is the return surface: a run that was left standing has continuous entries through the
+	// absence, where a run that was shut down has a gap (docs/the-record-and-the-log.md).
+	if (s.leftStanding)
+		LogEvent(s, CommandingOfficer(s), "command", "the ship was left standing; " + std::to_string(static_cast<int>(away / 3600.0 + 0.5)) + " hours passed aboard");
+}
+
+// The two exits. Holodeck may suspend the world; ironman may not, because ironman means the ship
+// keeps her own time. This is the same guard as SavesAllowed, in the same place (S10).
+bool MaySuspend(const Config &cfg) { return cfg.mode == MODE_HOLODECK; }
+
+bool Suspend(Ship &s)
+{
+	if (!MaySuspend(s.cfg)) return false;
+	if (!s.leftStanding)
+	{
+		s.leftStanding = true;
+		LogEvent(s, CommandingOfficer(s), "command", "the ship is left standing; she keeps her own time");
+	}
+	return true;
+}
+
+bool LeftStanding(const Ship &s) { return s.leftStanding; }
+
+// The sleep state: skip time at the accelerated rate, in one jump or in steps. Advance cuts long
+// steps up, so both arrive where a played run would (the convergence the ruling requires).
+void Sleep(Ship &s, double shipSeconds)
+{
+	if (!(shipSeconds > 0.0)) return;
+	Advance(s, shipSeconds);
 }
 
 bool MayOperate(const CrewMember &who, Station st)
@@ -3393,6 +3425,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 		}
 	}
 	w.U32(s.riskRolls); // the anomaly draws taken: the deterministic counter behind UseSystem
+	w.U8(s.leftStanding ? 1 : 0); // the record's mark: was this run ever left standing?
 	return w.b;
 }
 
@@ -3608,6 +3641,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		s.losses.push_back(e);
 	}
 	s.riskRolls = r.U32(); // the anomaly draws taken (see Pack)
+	s.leftStanding = r.U8() != 0;
 	if (s.advanceDeck > DECKS || s.advanceAt > DECKS) return false;
 	if (!r.ok || r.left != 0) return false;
 
@@ -3674,6 +3708,7 @@ std::string Describe(const Ship &s)
 	std::snprintf(line, sizeof(line), "day %d %02d:%02d  %s watch  condition %s  crew fit %d of %d\n", s.Day(), sod / 3600,
 		sod % 3600 / 60, WATCH[s.Watch()], ALERTS[s.alert], s.CrewFit(), static_cast<int>(s.crew.size()));
 	out += line;
+	if (s.leftStanding) out += "left standing (the ship keeps her own time)\n";
 	std::snprintf(line, sizeof(line), "power %d supplied, %d allocated  deuterium %.1f%%  antimatter %.1f%%  batteries %.0f%%  torpedoes %d  parts %.0f  material %.0f  medical %.0f  rations %.0f\n",
 		s.PowerAvailable(), s.PowerAllocated(), s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes,
 		s.stores.spareParts, s.stores.materials, s.stores.medicalSupplies, s.stores.rations);
