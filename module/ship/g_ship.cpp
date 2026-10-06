@@ -85,6 +85,17 @@ int FindSource( const char *arg )
 	return -1;
 }
 
+// A loss kind by the start of its name ("seal", "strip", "uninhab", "written"). -1 if not one of
+// the four, so the caller can keep a default. (The names carry a space; the arg is one token.)
+int FindLossKind( const char *arg )
+{
+	static const char *const names[ship::LOSS_KIND_COUNT] = { "sealed", "stripped", "uninhabitable", "written" };
+	if ( !arg || !arg[0] ) return -1;
+	for ( int i = 0; i < ship::LOSS_KIND_COUNT; ++i )
+		if ( !Q_stricmpn( names[i], arg, strlen( arg ) ) ) return i;
+	return -1;
+}
+
 void PrintStatus( void )
 {
 	const std::string text = ship::Describe( vessel );
@@ -226,6 +237,24 @@ void Publish( void )
 			entries += Fmt( "D%d %02d:%02d|%s|%s|%s;", day, sod / 3600, sod % 3600 / 60, e.who.c_str(), e.scope.c_str(), e.what.c_str() );
 		}
 		gi.cvar_set( "lwh_ship_log", entries.c_str() );
+	}
+
+	// What the ship has given up (docs/damage-and-budgets.md), newest first, for the command console
+	// and the panel: when|kind|what|who, one per entry. The count is separate so a screen can show it.
+	{
+		std::string entries;
+		int n = 0;
+		const std::vector<ship::LossEntry> &losses = ship::WriteOffs( vessel );
+		for ( int i = static_cast<int>( losses.size() ) - 1; i >= 0 && n < 24; --i, ++n )
+		{
+			const ship::LossEntry &e = losses[i];
+			const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
+			const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
+			entries += Fmt( "D%d %02d:%02d|%s|%s|%s;", day, sod / 3600, sod % 3600 / 60,
+				ship::LossKindName( e.kind ), e.what.c_str(), e.who.c_str() );
+		}
+		gi.cvar_set( "lwh_ship_losses", entries.c_str() );
+		gi.cvar_set( "lwh_ship_loss_count", Fmt( "%d", static_cast<int>( losses.size() ) ).c_str() );
 	}
 
 	// The endurance clocks, for Engineering (the air-and-endurance gap): a countdown wherever the air
@@ -1115,6 +1144,34 @@ void RunTest( void )
 				const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
 				gi.Printf( "SHIP: day %d %02d:%02d [%s] %s: %s\n", day, sod / 3600, sod % 3600 / 60,
 					e.scope.c_str(), e.who.c_str(), e.what.c_str() );
+			}
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 5500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
+	if ( g_shipTest->integer == 48 )
+	{//the written-off list: give things up, then read it back the way a player would
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			ship::SetRole( vessel, ship::ROLE_IN_COMMAND );
+			ship::WriteOff( vessel, false, 9, ship::LOSS_SEALED );
+			ship::WriteOff( vessel, true, ship::SYS_PHASERS, ship::LOSS_STRIPPED );
+			ship::WriteOff( vessel, false, 5, ship::LOSS_UNINHABITABLE );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4500 )
+		{
+			gi.SendConsoleCommand( "ship losses\n" );
+			gi.Printf( "SHIP: --- what the ship has given up ---\n" );
+			for ( const ship::LossEntry &e : ship::WriteOffs( vessel ) )
+			{
+				const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
+				const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
+				gi.Printf( "SHIP: day %d %02d:%02d [%s] %s: decided by %s\n", day, sod / 3600, sod % 3600 / 60,
+					ship::LossKindName( e.kind ), e.what.c_str(), e.who.c_str() );
 			}
 			step = 2;
 		}
@@ -2420,6 +2477,40 @@ void Svcmd_Ship_f( void )
 		if ( !printed ) gi.Printf( "SHIP: the log is empty\n" );
 		return;
 	}
+	else if ( !Q_stricmp( cmd, "losses" ) )
+	{//the written-off list: what the ship has given up (docs/damage-and-budgets.md)
+		const int filterKind = FindLossKind( a );
+		const std::vector<ship::LossEntry> &losses = ship::WriteOffs( vessel );
+		int printed = 0;
+		for ( int i = static_cast<int>( losses.size() ) - 1; i >= 0; --i )
+		{
+			const ship::LossEntry &e = losses[i];
+			if ( a[0] && filterKind >= 0 && e.kind != filterKind ) continue;
+			const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
+			const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
+			gi.Printf( "SHIP: day %d %02d:%02d  [%s] %s  (decided by %s)\n", day, sod / 3600, sod % 3600 / 60,
+				ship::LossKindName( e.kind ), e.what.c_str(), e.who.c_str() );
+			++printed;
+		}
+		if ( !printed ) gi.Printf( "SHIP: nothing has been given up\n" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "writeoff" ) )
+	{//write off a compartment (a deck number) or a system (its name), and why it was given up
+		const int kindArg = FindLossKind( b );
+		const int kind = kindArg >= 0 ? kindArg : ship::LOSS_WRITTEN_OFF;
+		const int deck = a[0] ? atoi( a ) : 0;
+		bool ok;
+		if ( deck >= 1 && deck <= ship::DECKS ) ok = ship::WriteOff( vessel, false, deck, kind );
+		else if ( sys >= 0 ) ok = ship::WriteOff( vessel, true, sys, kind );
+		else ok = false;
+		if ( ok ) gi.Printf( "SHIP: written off: %s (%s)\n",
+			deck >= 1 && deck <= ship::DECKS ? va( "deck %d", deck ) : ship::Spec( static_cast<ship::SystemId>( sys ) ).name,
+			ship::LossKindName( kind ) );
+		else gi.Printf( "SHIP: nothing written off: already on the list, or not a deck or a system\n" );
+		Publish();
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "jobs" ) )
 	{//the outstanding work, in the order it is worked (docs/crew-work.md)
 		const std::vector<ship::Job> &jobs = ship::Jobs( vessel );
@@ -2452,6 +2543,7 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "       ship chart | jump <beacon> | fire | character <name> <department> <rank>\n" );
 		gi.Printf( "       ship order repair <system> | order security <deck> | order evacuate <deck> | order triage worst|rank\n" );
 		gi.Printf( "       ship log [count] [scope] | seal <deck> | field <deck> on|off\n" );
+		gi.Printf( "       ship losses [sealed|stripped|uninhabitable|written] | writeoff <deck|system> [kind]\n" );
 		gi.Printf( "       ship kit <tricorders> <phasers> <evsuits> <charge> | scan\n" );
 		return;
 	}

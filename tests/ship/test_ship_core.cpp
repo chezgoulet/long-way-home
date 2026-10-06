@@ -654,6 +654,59 @@ static void TestLog()
 	CHECK(!back.log.empty() && back.log.back().what == s.log.back().what);
 }
 
+// The written-off list (docs/damage-and-budgets.md): the ship records what she has given up -- when,
+// what, the kind of loss and who decided. It is bounded, evicting the oldest, and survives a save.
+static void TestWrittenOffList()
+{
+	g_test = "the ship carries a written list of what she has given up";
+	Ship s = NewShip();
+	const std::string decider = CommandingOfficer(s);
+
+	CHECK(WriteOff(s, false, 9, LOSS_SEALED));            // a compartment sealed and left
+	CHECK(WriteOff(s, true, SYS_SENSORS, LOSS_STRIPPED)); // a system stripped for parts
+	CHECK(WriteOff(s, false, 5, LOSS_UNINHABITABLE));     // a compartment marked uninhabitable
+	CHECK(!WriteOff(s, false, 9, LOSS_SEALED));           // a thing is on the list once
+	CHECK(!WriteOff(s, false, 99, LOSS_SEALED));          // not a deck
+	CHECK(!WriteOff(s, true, SYS_COUNT, LOSS_SEALED));    // not a system
+	CHECK(!WriteOff(s, false, 3, 99));                    // not a kind
+
+	const std::vector<LossEntry> &l = WriteOffs(s);
+	CHECK(l.size() == 3);
+	CHECK(!l[0].system && l[0].target == 9 && l[0].kind == LOSS_SEALED);
+	CHECK(l[1].system && l[1].target == SYS_SENSORS && l[1].kind == LOSS_STRIPPED);
+	CHECK(!l[2].system && l[2].target == 5 && l[2].kind == LOSS_UNINHABITABLE);
+	for (const LossEntry &e : l) {
+		CHECK(e.time == s.clock);
+		CHECK(!e.what.empty() && !e.who.empty());
+		CHECK(e.who == decider);
+	}
+
+	// The list survives a save and a load, in order.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(WriteOffs(back).size() == l.size());
+	CHECK(!WriteOffs(back).empty() && WriteOffs(back).back().what == l.back().what && WriteOffs(back).back().who == decider);
+
+	// The bound: every deck and every system is written off, and the oldest fall off the end.
+	Ship b = NewShip();
+	int written = 0;
+	for (int d = 1; d <= DECKS; ++d) { CHECK(WriteOff(b, false, d, LOSS_SEALED)); ++written; }
+	for (int i = 0; i < SYS_COUNT; ++i) { CHECK(WriteOff(b, true, i, LOSS_STRIPPED)); ++written; }
+	CHECK(written == DECKS + SYS_COUNT);
+	const std::vector<LossEntry> &bl = WriteOffs(b);
+	const int evicted = DECKS + SYS_COUNT - LOSS_MAX;
+	CHECK(evicted > 0);
+	CHECK(static_cast<int>(bl.size()) == LOSS_MAX);
+	CHECK(!bl.front().system && bl.front().target == evicted + 1);   // the oldest decks fall off first
+	CHECK(bl.back().system && bl.back().target == SYS_COUNT - 1);
+	for (int d = 1; d <= evicted; ++d) {
+		bool found = false;
+		for (const LossEntry &e : bl) if (!e.system && e.target == d) found = true;
+		CHECK(!found);
+	}
+}
+
 // The tricorder gap: a scan reveals; a weak charge misreads; a dead tricorder does nothing.
 static void TestAwayKit()
 {
@@ -2977,9 +3030,36 @@ static int PrintDay()
 	return 0;
 }
 
+// `test_ship_core --losses` prints the written-off list as evidence: write a few things off, read
+// the list back, and show that it survives a save and a reload (docs/evidence/abandonment-list.md).
+static int PrintLosses()
+{
+	Ship s = NewShip();
+	SetRole(s, ROLE_IN_COMMAND);
+	WriteOff(s, false, 9, LOSS_SEALED);
+	WriteOff(s, true, SYS_PHASERS, LOSS_STRIPPED);
+	WriteOff(s, false, 5, LOSS_UNINHABITABLE);
+	WriteOff(s, false, 12, LOSS_WRITTEN_OFF);
+	for (const LossEntry &e : WriteOffs(s)) {
+		const int day = static_cast<int>(e.time / SECONDS_PER_DAY);
+		const int sod = static_cast<int>(e.time) % SECONDS_PER_DAY;
+		std::printf("PASS  day %d %02d:%02d  [%-13s] %-12s  decided by %s\n",
+			day, sod / 3600, sod % 3600 / 60, LossKindName(e.kind), e.what.c_str(), e.who.c_str());
+	}
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	const bool restored = Unpack(blob.data(), blob.size(), back);
+	std::printf("PASS  %s: %d entries survive save and reload, newest %s (%s)\n",
+		restored ? "reloaded" : "RELOAD FAILED", static_cast<int>(WriteOffs(back).size()),
+		WriteOffs(back).empty() ? "-" : WriteOffs(back).back().what.c_str(),
+		WriteOffs(back).empty() ? "-" : WriteOffs(back).back().who.c_str());
+	return restored && WriteOffs(back).size() == 4 ? 0 : 1;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
+	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -3006,6 +3086,7 @@ int main(int argc, char **argv)
 	TestTriage();
 	TestAirAndEndurance();
 	TestLog();
+	TestWrittenOffList();
 	TestAwayKit();
 	TestBoarding();
 	TestBreachPuzzle();

@@ -2936,6 +2936,45 @@ void LogEvent(Ship &s, const std::string &who, const std::string &scope, const s
 	if (static_cast<int>(s.log.size()) > LOG_MAX) s.log.erase(s.log.begin());
 }
 
+// ---- what the ship has given up -----------------------------------------------------------------
+
+const char *LossKindName(uint8_t k)
+{
+	static const char *const NAMES[LOSS_KIND_COUNT] = { "sealed", "stripped", "uninhabitable", "written off" };
+	return k < LOSS_KIND_COUNT ? NAMES[k] : "lost";
+}
+
+bool WriteOff(Ship &s, bool system, int target, uint8_t kind)
+{
+	if (kind >= LOSS_KIND_COUNT) return false;
+	int16_t t;
+	std::string what;
+	if (system) {
+		if (target < 0 || target >= SYS_COUNT) return false;
+		t = static_cast<int16_t>(target);
+		what = SPECS[target].name;
+	} else {
+		if (target < 1 || target > DECKS) return false;
+		t = static_cast<int16_t>(target);
+		what = "deck " + std::to_string(target);
+	}
+	// A thing is on the list once: the first time it is given up is the moment that matters.
+	for (const LossEntry &e : s.losses)
+		if (e.system == system && e.target == t) return false;
+	LossEntry e;
+	e.time = s.clock;
+	e.kind = kind;
+	e.system = system;
+	e.target = t;
+	e.what = what;
+	e.who = CommandingOfficer(s);
+	s.losses.push_back(e);
+	if (static_cast<int>(s.losses.size()) > LOSS_MAX) s.losses.erase(s.losses.begin());
+	return true;
+}
+
+const std::vector<LossEntry> &WriteOffs(const Ship &s) { return s.losses; }
+
 // ---- the job queue ----------------------------------------------------------------------------
 
 const char *JobKindName(uint8_t k)
@@ -3136,6 +3175,21 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.F(s.coolant); w.F(s.coreTemp); w.F(s.containment); w.F(s.breachCountdown);
 	w.U8(s.coreShutdown ? 1 : 0); w.U8(s.coreEjected ? 1 : 0); w.U8(s.lost ? 1 : 0);
 	for (const System &sys : s.systems) w.U8(sys.fault); // the systems' last named failure states
+	// The written-off list: bounded, each entry a time, a kind, a thing and its author.
+	{
+		const int n = std::min(static_cast<int>(s.losses.size()), LOSS_MAX);
+		w.U16(static_cast<uint16_t>(n));
+		for (int i = 0; i < n; ++i) {
+			const LossEntry &e = s.losses[s.losses.size() - n + i];
+			w.U64(static_cast<uint64_t>(std::llround(e.time * 1000.0)));
+			w.U8(e.kind); w.U8(e.system ? 1 : 0); w.U16(static_cast<uint16_t>(e.target));
+			for (const std::string *str : { &e.what, &e.who }) {
+				const int m = std::min(static_cast<int>(str->size()), 63);
+				w.U8(static_cast<uint8_t>(m));
+				for (int k = 0; k < m; ++k) w.U8(static_cast<uint8_t>((*str)[k]));
+			}
+		}
+	}
 	return w.b;
 }
 
@@ -3322,6 +3376,22 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	s.coolant = r.Unit(); s.coreTemp = r.Unit(); s.containment = r.Unit(); s.breachCountdown = r.F();
 	s.coreShutdown = r.U8() != 0; s.coreEjected = r.U8() != 0; s.lost = r.U8() != 0;
 	for (System &sys : s.systems) sys.fault = r.U8();
+	s.losses.clear();
+	const int lossCount = r.U16();
+	if (lossCount > LOSS_MAX) return false;
+	for (int i = 0; i < lossCount && r.ok; ++i) {
+		LossEntry e;
+		e.time = static_cast<double>(r.U64()) / 1000.0;
+		e.kind = r.U8(); e.system = r.U8() != 0; e.target = static_cast<int16_t>(r.U16());
+		for (std::string *str : { &e.what, &e.who }) {
+			const int m = r.U8();
+			str->clear();
+			for (int k = 0; k < m && r.ok; ++k) *str += static_cast<char>(r.U8());
+		}
+		if (e.kind >= LOSS_KIND_COUNT) return false;
+		if (e.system ? (e.target < 0 || e.target >= SYS_COUNT) : (e.target < 1 || e.target > DECKS)) return false;
+		s.losses.push_back(e);
+	}
 	if (s.advanceDeck > DECKS || s.advanceAt > DECKS) return false;
 	if (!r.ok || r.left != 0) return false;
 

@@ -160,6 +160,13 @@ void Render( const ship::Ship *s )
 		Com_sprintf( line, sizeof( line ), "ALL SYSTEMS NOMINAL  TORP %d", s->stores.torpedoes );
 	Text( 6, 94, line, ( boarders || assimilated ) ? RED : GOLD );
 
+	// What the ship has given up (docs/damage-and-budgets.md): the count of the written-off list,
+	// painted on the panel, so it is visible without opening a screen.
+	const int lost = static_cast<int>( s->losses.size() );
+	if ( lost ) Com_sprintf( line, sizeof( line ), "GIVEN UP %d", lost );
+	else Com_sprintf( line, sizeof( line ), "NOTHING GIVEN UP" );
+	Text( 6, 104, line, lost ? YELLOW : DIM );
+
 	const int available = s->PowerAvailable() > 0 ? s->PowerAvailable() : 1;
 	int bar = s->PowerAllocated() * ( PANEL_W - 4 ) / available;
 	if ( bar > PANEL_W - 4 ) bar = PANEL_W - 4;

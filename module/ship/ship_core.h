@@ -333,6 +333,33 @@ struct LogEntry {
 const int LOG_MAX = 128;
 void LogEvent(Ship &s, const std::string &who, const std::string &scope, const std::string &what);
 
+// ---- what the ship has given up (docs/damage-and-budgets.md, docs/story-and-semantics.md) --------
+//
+// Because there is never enough crew to fix everything, the player chooses what to write off: a deck
+// sealed and left, a system stripped for parts, a compartment marked uninhabitable. Canon's Year of
+// Hell is exactly this -- seven decks uninhabitable and the ship kept flying. The ship therefore
+// carries a written list of what she has given up, so the player can walk past the sealed hatch and
+// remember why. Each entry is a time, a thing, the kind of loss, and the name of whoever decided.
+// The list is bounded and saved, and the oldest entry falls off.
+
+enum LossKind : uint8_t { LOSS_SEALED = 0, LOSS_STRIPPED, LOSS_UNINHABITABLE, LOSS_WRITTEN_OFF, LOSS_KIND_COUNT };
+const char *LossKindName(uint8_t k);
+const int LOSS_MAX = 24;
+struct LossEntry {
+	double time = 0.0;   // ship seconds since midnight of day 0
+	uint8_t kind = LOSS_WRITTEN_OFF;
+	bool system = false; // true = a system, false = a compartment (deck)
+	int16_t target = 0;  // the deck (1..DECKS) or the SystemId given up
+	std::string what;    // the thing given up, named
+	std::string who;     // who decided
+};
+// Write it off: the one moment the ship gives something up for good. The author is whoever commands
+// (docs/story-and-semantics.md: everyone aboard remembers who made the call). A thing already on the
+// list is not listed twice; past LOSS_MAX the oldest falls off. Returns false, changing nothing, if
+// the target is not a real compartment or system, or the kind is not one of the four.
+bool WriteOff(Ship &s, bool system, int target, uint8_t kind);
+const std::vector<LossEntry> &WriteOffs(const Ship &s);
+
 // ---- the job queue (docs/crew-work.md) ---------------------------------------------------------
 //
 // The ship's outstanding work as a queue with a face: one job per thing that needs doing -- a damaged
@@ -475,6 +502,7 @@ struct Ship {
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
 	uint64_t wallSeconds = 0;    // wall-clock time when the ship was last saved (CLOCK_WALL catches up from it)
 	std::vector<LogEntry> log;   // the ship's own record of what happened, newest last
+	std::vector<LossEntry> losses; // what the ship has given up, and why (docs/damage-and-budgets.md)
 	std::vector<Job> jobs;       // the outstanding work, in the order it is worked (docs/crew-work.md)
 
 	// the away mission and the course (S4): where a beamed party is, and where the conn is making for
@@ -905,7 +933,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 40;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state
+const uint16_t SAVE_VERSION = 41;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up)
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

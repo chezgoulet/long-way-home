@@ -84,6 +84,27 @@ void CommandDraw( void )
 	UI_DrawProportionalString( 460, 160, "DECK", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	UI_DrawProportionalString( 460, 176, va( "%d", command.deck ), UI_BIGFONT, colorTable[CT_WHITE] );
 
+	// What the ship has given up (docs/damage-and-budgets.md): the abandonment list, the one place
+	// the player's own hand is in the record. Newest first, from lwh_ship_losses; W writes off the
+	// deck the cursor is on.
+	UI_DrawProportionalString( 460, 210, "GIVEN UP", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	{
+		char losses[1024];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_losses", losses, sizeof( losses ) );
+		int rows = 0;
+		for ( char *tok = strtok( losses, ";" ); tok && rows < 12; tok = strtok( NULL, ";" ), ++rows )
+		{
+			char *when = tok;
+			char *kind = strchr( when, '|' ); if ( !kind ) break; *kind++ = 0;
+			char *what = strchr( kind, '|' ); if ( !what ) break; *what++ = 0;
+			char *who = strchr( what, '|' ); if ( !who ) break; *who++ = 0;
+			const int y = 224 + rows * 14;
+			UI_DrawProportionalString( 460, y, va( "%s  %s", when, kind ), UI_TINYFONT, colorTable[CT_LTGOLD1] );
+			UI_DrawProportionalString( 460, y + 7, va( "%s - %s", what, who ), UI_TINYFONT, colorTable[CT_LTBLUE1] );
+		}
+		if ( !rows ) UI_DrawProportionalString( 460, 224, "NOTHING YET", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+	}
+
 	// The player's character and their career: command can confirm a field promotion here.
 	ui.Cvar_VariableStringBuffer( "lwh_ship_player", line, sizeof( line ) );
 	UI_DrawProportionalString( 44, 320, va( "YOUR CHARACTER: %s", line[0] ? line : "NONE" ), UI_SMALLFONT, colorTable[CT_WHITE] );
@@ -94,7 +115,7 @@ void CommandDraw( void )
 
 	UI_DrawProportionalString( 44, 412, "UP/DOWN system   LEFT/RIGHT deck   R repair that system first   G guard to that deck   V evacuate that deck",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
-	UI_DrawProportionalString( 44, 426, "T sickbay triage worst/rank first   C clear all orders   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+	UI_DrawProportionalString( 44, 426, "T sickbay triage worst/rank first   W write off that deck   C clear all orders   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
 bool CommandAct( int key )
@@ -114,6 +135,9 @@ bool CommandAct( int key )
 		return true;
 	case 'g': case 'G': Order( va( "security %d", command.deck ) ); return true;
 	case 'v': case 'V': Order( va( "evacuate %d", command.deck ) ); return true;
+	case 'w': case 'W':
+		ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship writeoff %d\n", command.deck ) );
+		return true;
 	case 't': case 'T': Order( ui.Cvar_VariableValue( "lwh_ship_triage" ) > 0.5f ? "triage worst" : "triage rank" ); return true;
 	case 'c': case 'C': Order( "repair none" ); Order( "security 0" ); Order( "evacuate 0" ); return true;
 	case 'p': case 'P':
