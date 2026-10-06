@@ -25,21 +25,26 @@ DECKS="$ROOT/build/gdk/maps/eliteforce_virtualvoyager_maps"
 [ -d "$DECKS" ] || { echo "no deck sources at $DECKS -- run scripts/fetch-gdk.sh" >&2; exit 1; }
 mkdir -p "$ROOT/build/ship" "$OUT"
 
-# The decks nobody ever published get a generated placeholder each (tools/shipmap/gendeck.py).
-# Decks 12 and 13 are different: each is re-dressed from a published source, because its brief names
-# the room to copy -- tour/deck11, main engineering. Deck 13 is deck 12's pattern: dressdeck13.py is
-# its copy with deck 13's program (see docs/locations/deck13-life-support.brief.md and
+# The decks nobody ever published get a generated placeholder each (tools/shipmap/gendeck.py) until
+# their own brief is built. Decks 12, 13 and 14 are different: each is re-dressed from a published
+# source, because its brief names the room to copy -- tour/deck11, main engineering. Each is the
+# pattern before it: dressdeck13.py is dressdeck12.py's copy with deck 13's program, and
+# dressdeck14.py is deck 13's copy with deck 14's program (see the briefs under docs/locations/ and
 # docs/authoring-a-location.md).
-python3 "$ROOT/tools/shipmap/gendeck.py" --deck 6 --deck 7 --deck 14 --out "$ROOT/build/ship/generated"
+python3 "$ROOT/tools/shipmap/gendeck.py" --deck 6 --deck 7 --out "$ROOT/build/ship/generated"
 python3 "$ROOT/tools/shipmap/dressdeck12.py" --deck11 "$DECKS/deck11.map" --out "$ROOT/build/ship/generated" \
   --report "$ROOT/build/ship/deck12-dress.json" --census "$ROOT/build/ship/deck12-census.json"
 python3 "$ROOT/tools/shipmap/dressdeck13.py" --deck11 "$DECKS/deck11.map" --out "$ROOT/build/ship/generated" \
   --report "$ROOT/build/ship/deck13-dress.json" --census "$ROOT/build/ship/deck13-census.json"
+python3 "$ROOT/tools/shipmap/dressdeck14.py" --deck11 "$DECKS/deck11.map" --out "$ROOT/build/ship/generated" \
+  --report "$ROOT/build/ship/deck14-dress.json" --census "$ROOT/build/ship/deck14-census.json"
 # Every material a re-dress uses must already exist in the game (the brief's section 4: no new art).
 python3 "$ROOT/tools/shipmap/parts_census.py" --map "$ROOT/build/ship/generated/deck12.map" \
   --game "$ROOT/build/baseEF" --census "$ROOT/build/ship/deck12-census.json"
 python3 "$ROOT/tools/shipmap/parts_census.py" --map "$ROOT/build/ship/generated/deck13.map" \
   --game "$ROOT/build/baseEF" --census "$ROOT/build/ship/deck13-census.json"
+python3 "$ROOT/tools/shipmap/parts_census.py" --map "$ROOT/build/ship/generated/deck14.map" \
+  --game "$ROOT/build/baseEF" --census "$ROOT/build/ship/deck14-census.json"
 
 # What goes in the pak beside the map: the turbolift's deck list for fifteen decks. It is ours,
 # authored under tools/shipmap/data (the game's own list covers only the ten published decks), and
