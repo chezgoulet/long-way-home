@@ -13,23 +13,49 @@ the acceptance tests, and the standing rules.** Where they disagree, they win.
 
 ## What already exists, and must be built on rather than around
 
+**Corrected 2026-10-06: five claims in this section were wrong when the brief was written.** Every fact below
+was re-checked against the committed tree and the corrections are marked. The corrected facts are the ones to
+build from.
+
+**And read this part first: `module/`, `tests/`, `scenarios/` and `.github/` do not exist on `testing` at
+all.** Measured: the builder branch carries 17 files under `module/`, `testing` carries none. The module code,
+the test suite and the scenario manifests are all `feature/g3-reactive-crew` only, so this brief is a *target*,
+not a description of the branch it is sitting on — a builder working from `testing` alone has nothing to
+extend.
+
 Verified in the tree, not assumed:
 
-- **The save format is versioned with a changelog.** `module/ship/ship_core.h`: `SAVE_VERSION = 40`, whose comment
-  names what each increment added ("17: credentials, faction, the brig, Borg adaptation; 18: crew memories; ...
-  40: each system's named failure state"). Follow that style: bump, and say what the new number carries.
-- **Both halves persist.** `g_ship.cpp:1662` and `g_crew.cpp:1455` write their blobs through
-  `gi.AppendToSaveGame(SAVE_CHUNK, ...)`; the reader rejects a mismatched magic or version
-  (`ship_core.cpp:3146`).
+- **The save format is versioned with a changelog.** `module/ship/ship_core.h`: `SAVE_VERSION = 12`, whose comment
+  names what each increment added ("2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside;
+  6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log;
+  12: the away kit"). Follow that style: bump, and say what the new number carries.
+  *(Corrected: was cited as `= 40`, with a changelog running to "40: each system's named failure state".)*
+- **Both halves persist.** `module/ship/g_ship.cpp:803` and `module/crew/g_crew.cpp:1288` write their blobs
+  through `gi.AppendToSaveGame( SAVE_CHUNK, blob.data(), ... )`; the reader rejects a mismatched magic or
+  version at `module/ship/ship_core.cpp:1210` — `if (r.U32() != SAVE_MAGIC || r.U16() != SAVE_VERSION ...)`.
+  The chunk ids are `'SHIP'` and `'CREW'`.
+  *(Corrected: was cited as `g_ship.cpp:1662`, `g_crew.cpp:1455` and `ship_core.cpp:3146`. `g_ship.cpp` is
+  1,021 lines and `g_crew.cpp` is 1,327, so the first two cannot exist; `ship_core.cpp` is 1,356, so neither
+  can the third.)*
 - **The clock already has watches.** `CrewMember::watch` (0 alpha 0800–1600, 1 beta 1600–2400, 2 gamma
   0000–0800) and `ScheduledActivity(watch, secondOfDay)` — a meeting scheduled at a watch change needs no new
   calendar.
-- **The record already has memory and marks.** `struct Memory` (source, valence, salience) and `struct
-  CrewMember`, with bonds already folded from marks.
+- **The record does not yet have memory and marks.** `struct CrewMember` (`module/ship/ship_core.h:128`) carries
+  name, type, rank, department, watch, post, quarters, status, fatigue, morale, exposure, wounds, severity,
+  recovery, underCare, activity and deck. There is **no `struct Memory`, no valence, no salience, no bond and
+  no allegiance anywhere in `module/`**, and morale is a single 0-to-1 float rather than the three-component
+  record `docs/morale.md` specifies. **M1 therefore creates the memory and bond structures rather than
+  extending them**, and the design to build is `docs/the-record-and-the-log.md`.
+  *(Corrected: this brief previously asserted that the record already had memory and marks, naming a
+  `struct Memory` with source, valence and salience and bonds "already folded from marks". No such code exists
+  anywhere in the tree.)*
 - **The arbiter already decides.** `crew_core.h`: `Arbitrate(Signals)` over `LEVEL_SCRIPT 1 > LEVEL_COMBAT 2 >
   LEVEL_DIRECTOR 3 > LEVEL_DUTY 4 > LEVEL_IDLE 5`. **Its order is the charter's rule; deviations are bugs.**
 - **Sound is played from the module by path.** `G_Sound(&g_entities[0], G_SoundIndex("sound/ambience/voyager/
   redalert.mp3"))` (`g_ship.cpp:1635`, `:2378`) — this is how the game's own canonical cues are used.
+  *(Corrected: no `G_Sound` call appears anywhere in `module/`. The mechanism may still be right — the API is
+  the engine's — but the citation was not: treat this as unverified and confirm the pattern against the code
+  before relying on it.)*
 - **There is a UI and a console path.** `module/ui`, `module/cgame`, and the station-panel work: `scripts/
   s9-check.sh`, `scripts/s4-panel-check.sh`, `scripts/viewscreen-check.sh`. **Extend the existing panel path;
   do not write a new renderer** unless that path proves genuinely unable to draw the overlay.
