@@ -69,6 +69,7 @@ cvar_t *g_crewDebug;    // 1 = print every decision change
 cvar_t *g_crewFromShip; // 1 = the crew on this deck are whoever the ship simulation says is on it (S5)
 cvar_t *g_crewDeck;     // which deck this map is, for a map of one deck; 0 = work it out from g_shipDeckPitch
 cvar_t *g_env;          // 1 = the ship's environment is shown in the world (gravity, a breach, a field)
+cvar_t *g_player;       // 1 = the player's body in the world (Stage B): the causes reach the person
 
 struct CrewState {
 	bool active = false;
@@ -1022,6 +1023,108 @@ void Crew_EnvFrame( void )
 	SyncBreach();
 }
 
+// ---- the player in the world (Stage B) ----------------------------------------------------------
+//
+// The player is a crew record (vessel.player), so the causes the model already tracks -- a console
+// that lets go, a deck without air, fire -- reach them by the same tick as anyone else. What was
+// missing is the body in the world: this reads the record and drives the player's own health, and
+// reads the world's damage back into the record, so a boarder or a weapon lands on the same person
+// the ship treats in the ward. The same pattern as SyncDamage/SyncFire. Gated by g_player, off by
+// default, and it adds no save field (everything here is recomputed from world and record).
+
+bool playerFelled = false;      // the body has already been dropped for a closed record
+uint8_t trackedStatus = 255;    // the record's status last frame (for the announcements)
+float trackedSeverity = 0.0f;   // ... and its injury, so healing is told from taking a fresh hit
+
+// What the world did to the player's body, named from the state of the deck they are on, so the
+// record's line traces to the room and not to a bare number.
+std::string PlayerCause( const ship::Ship &s, int deck )
+{
+	if ( deck >= 1 && deck <= ship::DECKS )
+	{
+		const ship::Deck &d = s.decks[deck - 1];
+		if ( d.intruders > 0.0f ) return "boarders";
+		if ( d.fire > 0.05f ) return "fire";
+		if ( d.atmosphere < ship::AIRLESS ) return "no air";
+	}
+	return "a weapon";
+}
+
+void SyncPlayerBody( ship::Ship *s, gentity_t *p, int deck )
+{
+	const int me = s->player;
+	if ( me < 0 || me >= static_cast<int>( s->crew.size() ) ) return;
+	const int maxh = p->max_health > 0 ? p->max_health : 100;
+	const uint8_t st = s->crew[me].status;
+	const float sev = s->crew[me].severity;
+
+	// The record is closed. The body falls, once, through the game's own damage path; there is no
+	// reload (LWH_BlockRespawn), and the closed record is never restored.
+	if ( st == ship::CREW_DEAD || st == ship::CREW_ASSIMILATED )
+	{
+		if ( !playerFelled && p->health > 0 )
+		{
+			playerFelled = true;
+			gi.Printf( "PLAYER: %s is %s; the body falls where it stood\n", s->crew[me].name.c_str(),
+				st == ship::CREW_ASSIMILATED ? "lost to the Collective" : "dead" );
+			G_Damage( p, p, p, NULL, p->currentOrigin, 100000, 0, MOD_UNKNOWN );
+		}
+		trackedStatus = st; trackedSeverity = sev;
+		return;
+	}
+
+	// Recovered: the body is whole again.
+	if ( st == ship::CREW_FIT )
+	{
+		playerFelled = false;
+		if ( p->health < maxh ) p->health = maxh;
+		trackedStatus = st; trackedSeverity = sev;
+		return;
+	}
+
+	// Injured. The record and the body agree: where the model hurt the player (the console, the air,
+	// the fire) the body follows the record down; where the world hurt the body (a boarder, a weapon)
+	// the record follows the body down, into the same ward any casualty reaches.
+	if ( trackedStatus != st && trackedStatus != 255 )
+		gi.Printf( "PLAYER: %s is hurt; the ship treats them as any casualty\n", s->crew[me].name.c_str() );
+	const int want = ship::PlayerBodyHealth( *s, maxh );
+	if ( sev > trackedSeverity + 1e-4f )
+	{
+		if ( p->health > want ) p->health = want;         // the model worsened: the body follows
+	}
+	else if ( sev < trackedSeverity - 1e-4f )
+	{
+		if ( p->health < want ) p->health = want;         // treatment: the body recovers with the record
+	}
+	else if ( p->health < want )
+	{
+		// The body is below the record: something in the world hurt the player. Write it in.
+		ship::WoundPlayer( *s, ( want - p->health ) / static_cast<float>( maxh ), PlayerCause( *s, deck ) );
+		const int now = ship::PlayerBodyHealth( *s, maxh );
+		if ( p->health > now ) p->health = now;
+	}
+	else if ( p->health > want )
+	{
+		p->health = want;
+	}
+	trackedStatus = st; trackedSeverity = s->crew[me].severity;
+}
+
+void Crew_PlayerFrameImpl( void )
+{
+	if ( !g_player || !g_player->integer ) { trackedStatus = 255; playerFelled = false; return; }
+	ship::Ship *s = Ship_Get();
+	if ( !s ) return;
+	gentity_t *p = &g_entities[0];
+	if ( !p->inuse || !p->client ) return;
+
+	// Where the player's body is: the record must know, or the deck's air, fire and hazards never
+	// reach the person holding the controls.
+	const int deck = PlayersDeck();
+	ship::SetPlayerDeck( *s, deck );
+	SyncPlayerBody( s, p, deck );
+}
+
 // Declared crew with a type and a position are spawned through the map's own spawner, exactly as
 // an NPC_starfleet entity in the map would be: an existing character, its own model and voice.
 void SpawnDeclaredCrew( void )
@@ -1447,6 +1550,35 @@ int Crew_Floating( void )
 	return n;
 }
 
+// The player's body in the world (Stage B). The frame hook runs it; and the console's `ship operate`
+// reaches a system with the player as the operator, so a degraded console lets go at the person
+// holding the controls. False means the layer is off or no character is the player, so the caller can
+// fall back.
+void Crew_PlayerFrame( void ) { Crew_PlayerFrameImpl(); }
+
+bool Crew_PlayerUseSystem( int system )
+{
+	if ( !g_player || !g_player->integer ) return false;
+	ship::Ship *s = Ship_Get();
+	if ( !s || system < 0 || system >= ship::SYS_COUNT ) return false;
+	if ( s->player < 0 || s->player >= static_cast<int>( s->crew.size() ) ) return false;
+	ship::UseSystemBy( *s, static_cast<ship::SystemId>( system ), ship::StressNow( *s ), s->player );
+	return true;
+}
+
+// The dead are not reloaded: the engine's respawn hook calls this. True only when the extension is
+// on and the player is down -- then no reload, and the ship carries on under its own command.
+bool LWH_BlockRespawn( gentity_t *ent )
+{
+	if ( !ent || ent->s.number != 0 ) return false;
+	if ( !g_player || !g_player->integer ) return false;
+	ship::Ship *s = Ship_Get();
+	if ( !s ) return false;
+	if ( !ship::PlayerIncapacitated( *s ) ) return false;
+	gi.Printf( "PLAYER: no reload; %s's record is closed and the ship carries on\n", s->crew[s->player].name.c_str() );
+	return true;
+}
+
 // ---- entry points ---------------------------------------------------------------------------
 
 void Crew_RegisterCvars( void )
@@ -1458,6 +1590,7 @@ void Crew_RegisterCvars( void )
 	g_crewFromShip = gi.cvar( "g_crewFromShip", "0", 0 );
 	g_crewDeck = gi.cvar( "g_crewDeck", "0", 0 );
 	g_env = gi.cvar( "g_env", "0", 0 );
+	g_player = gi.cvar( "g_player", "0", 0 );
 }
 
 void Crew_Init( void )
@@ -1466,6 +1599,8 @@ void Crew_Init( void )
 	shipEmbodied.clear();
 	shipLeaving.clear();
 	intruderBodies.clear();
+	trackedStatus = 255;
+	playerFelled = false;
 	if ( !g_crew || !g_crew->integer )
 	{
 		cs.baseline = g_crewRun && g_crewRun->integer > 0;
@@ -1506,7 +1641,8 @@ static void BaselineFrame( void )
 
 void Crew_Frame( void )
 {
-	Crew_EnvFrame(); // the ship's environment in the world: gravity per person, a breach, a field
+	Crew_EnvFrame();   // the ship's environment in the world: gravity per person, a breach, a field
+	Crew_PlayerFrame(); // the player's body in the world: the causes reach the person (Stage B)
 	if ( cs.active || cs.baseline )
 	{//everything the game did this frame before the layer's own turn
 		const int64_t ns = std::chrono::duration_cast<std::chrono::nanoseconds>( std::chrono::steady_clock::now() - cs.frameBegan ).count();

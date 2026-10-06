@@ -19,4 +19,8 @@ void Svcmd_Ship_f(void);        // server command "ship"
 // The live ship, or NULL when the simulation is off. For the rest of the module (consoles, crew).
 ship::Ship *Ship_Get(void);
 
+// Put the player's character in the body their crew record and department say (S10). Re-applied by
+// the player-in-the-world layer when command passes to a successor (Stage B).
+void Ship_ApplyPlayerBody(void);
+
 #endif

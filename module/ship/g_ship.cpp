@@ -1767,6 +1767,111 @@ void RunTest( void )
 		if ( step == 6 && level.time >= 8300 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
 		return;
 	}
+	if ( g_shipTest->integer == 56 )
+	{//Stage B -- the player in the world. A console that lets go at the operator; being carried and
+	 //treated; the air of the room the player is actually in; and death, which is not a reload.
+	 //Run with g_player 1 and again with g_player 0 (the gate): off, none of it happens.
+		static int step = 0, me = -1;
+		if ( level.time < 1000 ) { step = 0; me = -1; }
+		if ( step == 0 && level.time >= 2500 )
+		{
+			me = ship::CreateCharacter( vessel, "Test Player", ship::DEPT_COMMAND, 2 );
+			if ( me >= 0 ) ApplyPlayerBody();
+			if ( !TeleportPlayerTo( "lwh_station_0", "player test" ) )
+				TeleportPlayerTo( "d12_arrival", "player test" );
+			// the degraded grid: life support damaged, and the ship at battle stations
+			ship::DamageSystem( vessel, ship::SYS_LIFE_SUPPORT, 0.6f );
+			ship::SetAlert( vessel, ship::ALERT_RED );
+			gi.Printf( "SHIP: player test: %s at the life support console, %d%% health, %d%% condition, red alert\n",
+				me >= 0 ? vessel.crew[me].name.c_str() : "no character",
+				static_cast<int>( vessel.systems[ship::SYS_LIFE_SUPPORT].health * 100.0f + 0.5f ),
+				static_cast<int>( ship::SystemCondition( vessel.systems[ship::SYS_LIFE_SUPPORT] ) * 100.0f + 0.5f ) );
+			gi.SendConsoleCommand( "ship operate life\n" ); // the path a hand at the panel sends
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3400 && me >= 0 )
+		{// keep working the degraded console until it lets go at the operator
+			int draws = 0;
+			while ( draws < 400 && vessel.crew[me].status == ship::CREW_FIT )
+			{
+				// the gated path the console command uses: with g_player off this refuses at once,
+				// so nothing here reaches the record (the gate holds)
+				if ( !Crew_PlayerUseSystem( static_cast<int>( ship::SYS_LIFE_SUPPORT ) ) ) break;
+				++draws;
+			}
+			gi.Printf( "SHIP: player test: the console let go after %d draws: status %d, severity %.2f\n",
+				draws, vessel.crew[me].status, vessel.crew[me].severity );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 4200 && me >= 0 )
+		{// the body follows the record (the record -> body direction), and the ship acts on it
+			bool letGo = false, attends = false;
+			for ( const ship::LogEntry &e : vessel.log )
+			{
+				if ( e.what.find( "console let go" ) != std::string::npos ) letGo = true;
+				if ( e.what.find( "attends" ) != std::string::npos ) attends = true;
+			}
+			for ( const ship::LogEntry &e : vessel.log )
+				if ( e.what.find( "console let go" ) != std::string::npos || e.what.find( "attends" ) != std::string::npos )
+					gi.Printf( "SHIP: player test: [%s] %s: %s\n", e.scope.c_str(), e.who.c_str(), e.what.c_str() );
+			gi.Printf( "SHIP: player test: hurt by the console %d, attended %d; body health %d of %d, incapacitated %d\n",
+				letGo ? 1 : 0, attends ? 1 : 0, g_entities[0].health, g_entities[0].max_health,
+				ship::PlayerIncapacitated( vessel ) ? 1 : 0 );
+			// treatment is the ordinary casualty path: supplies, a bed, and time
+			vessel.systems[ship::SYS_SICKBAY].health = 1.0f;
+			vessel.systems[ship::SYS_SICKBAY].output = 1.0f;
+			vessel.stores.medicalSupplies = 100.0f;
+			ship::Sleep( vessel, 24.0 * 3600.0 );
+			gi.Printf( "SHIP: player test: after a day in the ward: status %d\n", vessel.crew[me].status );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 5200 && me >= 0 )
+		{// recovered: the ward returned the record to fit, and the body is whole again
+			gi.Printf( "SHIP: player test: recovered: status %d, body health %d of %d\n",
+				vessel.crew[me].status, g_entities[0].health, g_entities[0].max_health );
+			// a breached, airless compartment: the person in it is affected. The ward is held back
+			// for a beat so the player is not carried before we can show they can still leave.
+			vessel.systems[ship::SYS_SICKBAY].output = 0.0f;
+			vessel.stores.medicalSupplies = 0.0f;
+			vessel.emhActive = false;
+			vessel.decks[11].hull = 0.0f;
+			vessel.decks[11].atmosphere = 0.0f;
+			ship::Sleep( vessel, ship::EXPOSURE_INJURES + 25.0f );
+			gi.Printf( "SHIP: player test: in the airless compartment: status %d, severity %.2f, deck %d, moving %d\n",
+				vessel.crew[me].status, vessel.crew[me].severity, vessel.crew[me].deck,
+				g_entities[0].client->ps.pm_type != PM_DEAD ? 1 : 0 );
+			gi.SendConsoleCommand( "use tour_turbo_04\n" ); // leave the deck: the way out
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 7200 && me >= 0 )
+		{// the player can leave: the body has gone to another deck, and the air there is not the hazard
+			gi.Printf( "SHIP: player test: left the deck: at %s, record deck %d, still moving %d, status %d\n",
+				vtos( g_entities[0].currentOrigin ), vessel.crew[me].deck,
+				g_entities[0].client->ps.pm_type != PM_DEAD ? 1 : 0, vessel.crew[me].status );
+			gi.SendConsoleCommand( "use tour_turbo_12\n" ); // back into the airless compartment, to die
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 9200 && me >= 0 )
+		{// death is reachable by a cause the model tracks, and it is not a reload: the record closes,
+		 // the body falls, the engine's respawn is refused, and command passes to the senior officer.
+			ship::Sleep( vessel, ship::EXPOSURE_KILLS + 40.0f );
+			gi.Printf( "SHIP: player test: in the airless compartment past the limit: status %d\n", vessel.crew[me].status );
+			step = 6;
+		}
+		if ( step == 6 && level.time >= 10500 && me >= 0 )
+		{
+			const bool dead = ship::PlayerDead( vessel );
+			for ( const ship::LogEntry &e : vessel.log )
+				if ( e.what.find( "dead, no air" ) != std::string::npos || e.what.find( "is dead" ) != std::string::npos )
+					gi.Printf( "SHIP: player test: [%s] %s: %s\n", e.scope.c_str(), e.who.c_str(), e.what.c_str() );
+			gi.Printf( "SHIP: player test: dead %d, body health %d, respawn blocked %d, command \"%s\"\n",
+				dead ? 1 : 0, g_entities[0].health, LWH_BlockRespawn( &g_entities[0] ) ? 1 : 0,
+				ship::CommandingOfficer( vessel ).c_str() );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 7;
+		}
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )
@@ -1918,6 +2023,9 @@ void ApplyPlayerBody( void )
 } // namespace
 
 ship::Ship *Ship_Get( void ) { return active ? &vessel : NULL; }
+
+// The player-in-the-world layer reapplies the body when command passes to a successor (Stage B).
+void Ship_ApplyPlayerBody( void ) { ApplyPlayerBody(); }
 
 void Ship_RegisterCvars( void )
 {
@@ -2170,6 +2278,15 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "priority" ) && sys >= 0 && b[0] ) ship::SetPriority( vessel, static_cast<ship::SystemId>( sys ), atoi( b ) );
 	else if ( !Q_stricmp( cmd, "damage" ) && sys >= 0 && b[0] ) ship::DamageSystem( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "repair" ) && sys >= 0 && b[0] ) ship::Repair( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
+	else if ( !Q_stricmp( cmd, "operate" ) && sys >= 0 )
+	{//the player works a console (Stage B): the odds are rolled with the player as the operator, so a
+	 //degraded system lets go at the person holding the controls. Needs the player-in-the-world layer.
+		if ( !Crew_PlayerUseSystem( sys ) )
+			gi.Printf( "SHIP: nothing to operate it: g_player is off, or no character is the player\n" );
+		else
+			gi.Printf( "SHIP: %s worked by %s\n", ship::Spec( static_cast<ship::SystemId>( sys ) ).name,
+				vessel.player >= 0 ? vessel.crew[vessel.player].name.c_str() : "the hand on duty" );
+	}
 	else if ( !Q_stricmp( cmd, "breach" ) && a[0] && b[0] ) ship::BreachDeck( vessel, atoi( a ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "seal" ) && a[0] ) ship::RepairDeck( vessel, atoi( a ), 1.0f );
 	else if ( !Q_stricmp( cmd, "ignite" ) && a[0] && b[0] ) ship::IgniteDeck( vessel, atoi( a ), atof( b ) );
