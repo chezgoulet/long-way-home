@@ -130,6 +130,9 @@ void Publish( void )
 	gi.cvar_set( "lwh_ship_stores", Fmt( "DEUTERIUM %.1f%%   ANTIMATTER %.1f%%   BATTERIES %.0f%%   TORPEDOES %d   CREW FIT %d OF %d",
 		vessel.stores.deuterium * 100, vessel.stores.antimatter * 100, vessel.stores.batteries * 100, vessel.stores.torpedoes,
 		vessel.CrewFit(), static_cast<int>( vessel.crew.size() ) ).c_str() );
+	gi.cvar_set( "lwh_ship_kit", Fmt( "AWAY KIT  TRICORDERS %d (%d%%)   PHASERS %d   EV SUITS %d",
+		vessel.stores.tricorders, static_cast<int>( vessel.stores.tricorderCharge * 100 + 0.5f ),
+		vessel.stores.phasers, vessel.stores.evSuits ).c_str() );
 	for ( int i = 0; i < ship::SRC_COUNT; ++i )
 	{
 		const ship::Source &src = vessel.sources[i];
@@ -901,6 +904,14 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "breach" ) && a[0] && b[0] ) ship::BreachDeck( vessel, atoi( a ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "seal" ) && a[0] ) ship::RepairDeck( vessel, atoi( a ), 1.0f );
 	else if ( !Q_stricmp( cmd, "field" ) && a[0] ) ship::SetForceField( vessel, atoi( a ), !Q_stricmp( b, "on" ) );
+	else if ( !Q_stricmp( cmd, "kit" ) && gi.argc() > first + 4 )
+		ship::LoadAwayKit( vessel, atoi( a ), atoi( b ), atoi( gi.argv( first + 3 ) ), atof( gi.argv( first + 4 ) ) );
+	else if ( !Q_stricmp( cmd, "scan" ) )
+	{
+		const int r = ship::Scan( vessel, vessel.beacon );
+		gi.Printf( "SHIP: scan of beacon %d: %s\n", vessel.beacon,
+			r == 1 ? "clean reading" : r == 2 ? "suspect reading" : "none" );
+	}
 	else if ( !Q_stricmp( cmd, "board" ) && a[0] && b[0] ) ship::Board( vessel, atoi( a ), atoi( b ) );
 	else if ( !Q_stricmp( cmd, "borg" ) && a[0] && b[0] ) ship::BoardBorg( vessel, atoi( a ), atoi( b ) );
 	else if ( !Q_stricmp( cmd, "order" ) && a[0] )
@@ -1001,6 +1012,7 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "       ship chart | jump <beacon> | fire | character <name> <department> <rank>\n" );
 		gi.Printf( "       ship order repair <system> | order security <deck> | order evacuate <deck> | order triage worst|rank\n" );
 		gi.Printf( "       ship log [count] [scope] | seal <deck> | field <deck> on|off\n" );
+		gi.Printf( "       ship kit <tricorders> <phasers> <evsuits> <charge> | scan\n" );
 		return;
 	}
 	ship::Tick( vessel, 0.0f );

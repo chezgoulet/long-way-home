@@ -284,10 +284,12 @@ void Draw( void )
 		UI_DrawProportionalString( 44, 384, line[0] ? line : "NO MEDICAL DATA", UI_SMALLFONT, colorTable[CT_LTBLUE1] );
 	}
 	if ( screen.station == 2 )
-	{// the endurance clocks: a countdown wherever the air is going, and time to dark (Operations)
+	{// the endurance clocks and the away kit (Operations)
 		ui.Cvar_VariableStringBuffer( "lwh_ship_clocks", line, sizeof( line ) );
 		if ( line[0] ) UI_DrawProportionalString( 44, 384, line, UI_TINYFONT,
 			colorTable[ui.Cvar_VariableValue( "lwh_ship_clocks_alarm" ) > 0.5f ? CT_RED : CT_LTBLUE1] );
+		ui.Cvar_VariableStringBuffer( "lwh_ship_kit", line, sizeof( line ) );
+		if ( line[0] ) UI_DrawProportionalString( 44, 398, line, UI_TINYFONT, colorTable[CT_LTGOLD1] );
 	}
 	char result[16];
 	ui.Cvar_VariableStringBuffer( "lwh_breach_result", result, sizeof( result ) );

@@ -633,6 +633,38 @@ static void TestLog()
 	CHECK(!back.log.empty() && back.log.back().what == s.log.back().what);
 }
 
+// The tricorder gap: a scan reveals; a weak charge misreads; a dead tricorder does nothing.
+static void TestAwayKit()
+{
+	g_test = "the tricorder reveals, misreads on a weak charge, and dies";
+	Ship s = NewShip();
+	s.sector[s.beacon].kind = BEACON_HOSTILE;   // something real to find, and to get wrong
+	s.sector[s.beacon].visited = false;
+	LoadAwayKit(s, 4, 6, 4, 1.0f);
+	CHECK(s.stores.tricorders == 4 && s.stores.phasers == 6 && s.stores.evSuits == 4);
+	CHECK(Scan(s, s.beacon) == 1);
+	CHECK(s.sector[s.beacon].visited);
+	CHECK(!s.log.empty() && s.log.back().what.find("a hostile ship") != std::string::npos);
+
+	// A weak charge reads the next thing along: the site is a hostile, the reading is not.
+	s.stores.tricorderCharge = 0.15f;
+	CHECK(Scan(s, s.beacon) == 2);
+	CHECK(s.log.back().what.find("a hostile ship") == std::string::npos);
+	CHECK(s.log.back().what.find("weak") != std::string::npos);
+
+	// A dead tricorder scans nothing, and says so.
+	s.stores.tricorderCharge = 0.0f;
+	const size_t before = s.log.size();
+	CHECK(Scan(s, s.beacon) == 0);
+	CHECK(s.log.size() == before + 1 && s.log.back().what.find("dead") != std::string::npos);
+
+	// The kit survives a save and a load.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.stores.tricorders == s.stores.tricorders && std::fabs(back.stores.tricorderCharge - s.stores.tricorderCharge) < 1e-4f);
+}
+
 // S7. Boarders take systems; the crew take them back.
 static void TestBoarding()
 {
@@ -1271,6 +1303,7 @@ int main(int argc, char **argv)
 	TestTriage();
 	TestAirAndEndurance();
 	TestLog();
+	TestAwayKit();
 	TestBoarding();
 	TestBreachPuzzle();
 	TestBorg();

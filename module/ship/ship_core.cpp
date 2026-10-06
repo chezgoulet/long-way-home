@@ -636,6 +636,35 @@ static void Arrive(Ship &s)
 
 bool InCombat(const Ship &s) { return s.enemy.present && s.enemy.hull > 0.0f; }
 
+void LoadAwayKit(Ship &s, int tricorders, int phasers, int evSuits, float charge)
+{
+	s.stores.tricorders = std::max(0, std::min(tricorders, 8));
+	s.stores.phasers = std::max(0, std::min(phasers, 12));
+	s.stores.evSuits = std::max(0, std::min(evSuits, 8));
+	s.stores.tricorderCharge = Clamp01(charge);
+	LogEvent(s, "the transporter room", "outside", "away kit: " + std::to_string(s.stores.tricorders) + " tricorders, "
+		+ std::to_string(s.stores.phasers) + " phasers, " + std::to_string(s.stores.evSuits) + " EV suits");
+}
+
+// A tricorder scan of a site. What it reports is the same kind of write the sensors make to the chart,
+// over a smaller radius -- and a weak charge reports it wrong, so the reading cannot be trusted.
+int Scan(Ship &s, int beacon)
+{
+	if (beacon < 0 || beacon >= static_cast<int>(s.sector.size())) return 0;
+	if (s.stores.tricorders <= 0 || s.stores.tricorderCharge <= 0.0f) {
+		LogEvent(s, "the away team", "outside", "the tricorder is dead: no scan");
+		return 0;
+	}
+	s.stores.tricorderCharge = std::max(0.0f, s.stores.tricorderCharge - 0.1f);
+	static const char *const KINDS[] = { "empty space", "a hostile ship", "a derelict", "Borg" };
+	const bool reliable = s.stores.tricorderCharge >= 0.2f;
+	int kind = s.sector[beacon].kind;
+	if (!reliable) kind = (kind + 1) % BEACON_KIND_COUNT; // a weak charge reads the next thing along
+	s.sector[beacon].visited = true;
+	LogEvent(s, "the away team", "outside", std::string("scan: ") + KINDS[kind] + (reliable ? "" : " (the tricorder is weak)"));
+	return reliable ? 1 : 2;
+}
+
 bool Jump(Ship &s, int toBeacon)
 {
 	if (s.sector.empty() || toBeacon < 0 || toBeacon >= static_cast<int>(s.sector.size())) return false;
@@ -1144,7 +1173,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); w.U8(d.forceField ? 1 : 0); }
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
-	w.F(s.stores.spareParts); w.F(s.stores.medicalSupplies);
+	w.F(s.stores.spareParts); w.F(s.stores.medicalSupplies); w.U8(static_cast<uint8_t>(s.stores.tricorders)); w.U8(static_cast<uint8_t>(s.stores.phasers)); w.U8(static_cast<uint8_t>(s.stores.evSuits)); w.F(s.stores.tricorderCharge);
 	// The sector's shape comes back from the seed; where the ship is in it, and what it has met, is stored.
 	w.F(s.shieldStrength);
 	w.U8(static_cast<uint8_t>(s.beacon));
@@ -1212,7 +1241,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	for (Deck &d : s.decks) { d.atmosphere = r.Unit(); d.hull = r.Unit(); d.intruders = r.F(); if (!(d.intruders >= 0.0f && d.intruders <= 10000.0f)) return false; d.borg = r.U8() != 0; d.assimilated = r.Unit(); d.forceField = r.U8() != 0; }
 	s.stores.deuterium = r.Unit(); s.stores.antimatter = r.Unit(); s.stores.batteries = r.Unit();
 	s.stores.torpedoes = r.U16();
-	s.stores.spareParts = r.F(); s.stores.medicalSupplies = r.F();
+	s.stores.spareParts = r.F(); s.stores.medicalSupplies = r.F(); s.stores.tricorders = r.U8(); s.stores.phasers = r.U8(); s.stores.evSuits = r.U8(); s.stores.tricorderCharge = r.Unit();
 	if (!(s.stores.spareParts >= 0.0f && s.stores.spareParts <= 100000.0f)) return false;
 	if (!(s.stores.medicalSupplies >= 0.0f && s.stores.medicalSupplies <= 100000.0f)) return false;
 	s.shieldStrength = r.Unit();

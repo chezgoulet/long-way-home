@@ -225,6 +225,16 @@ field. *Visible:* scan results at human scale -- the same writes to the chart, o
 *Failure:* a dead charge, lost kit, or a scan that reads wrong on a low battery. *Location:* transporter
 rooms, shuttlebay, every away site. *Acceptance:* an away mission can be solved by scanning rather than by
 shooting.
+**First slice 2026-10-07** (`docs/evidence/gap-tricorders-and-kit.md`, `tests/ship/test_ship_core.cpp`):
+the away kit on Stores (tricorders, phasers, EV suits, a shared charge; save format **version 12**),
+`LoadAwayKit`/`Scan` — a scan writes to the chart, misreads below a fifth charge, and dies at zero — the kit
+on the Operations console and every loadout/scan in the log. The away site itself, kit condition and loss,
+and the acceptance run remain.
+
+**All five gaps now have a first slice** (2026-10-07): morale and fatigue, triage and the sickbay queue,
+air and endurance clocks, the log as a browsable artifact, tricorders and away-team kit. Each is
+core-plus-console, tested, and honest about what is left; the next work is the deck build order in
+`docs/ship-master-map.md` (deck 12 environmental control and deck 13 life support first).
 
 ### Then, in rough order
 

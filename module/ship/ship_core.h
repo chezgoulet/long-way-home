@@ -112,6 +112,12 @@ struct Stores {
 	int torpedoes = 38;          // not replaceable
 	float spareParts = 100.0f;   // what repairs are made of; a system rebuilt from nothing costs PARTS_PER_SYSTEM
 	float medicalSupplies = 100.0f; // what treatment is made of; without it the injured only get worse
+
+	// The away-team kit (the tricorder gap): what leaves the ship, and what it needs.
+	int tricorders = 4;          // scanning, and a charge shared by the set
+	int phasers = 6;             // the other answer
+	int evSuits = 4;             // for the places that have no air
+	float tricorderCharge = 1.0f; // 0 = dead .. 1 = fresh; a weak charge reads wrong
 };
 
 // ---- crew -------------------------------------------------------------------------------------
@@ -364,6 +370,12 @@ float BreachScore(const Breach &b, const std::vector<int> &picks);
 // Jump to a linked beacon. Refused (false) if it is not one jump away, the warp drive is delivering
 // less than half its output, or there is no fuel -- and a ship cannot jump out of a fight it cannot
 // outrun: the same test, so running needs a working drive.
+// The away-team kit: load a party's kit out of the ship's stores, and scan a site with the tricorders.
+// Scan returns 0 if there is no tricorder or no charge (and says so in the log), 1 for a clean reading,
+// 2 for a reading a weak charge has made suspect.
+void LoadAwayKit(Ship &s, int tricorders, int phasers, int evSuits, float charge);
+int Scan(Ship &s, int beacon);
+
 bool Jump(Ship &s, int toBeacon);
 // One torpedo at the enemy. False if there is no enemy, none left, or the launchers are not delivering.
 bool FireTorpedo(Ship &s);
@@ -412,7 +424,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 11;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log
+const uint16_t SAVE_VERSION = 12;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.
