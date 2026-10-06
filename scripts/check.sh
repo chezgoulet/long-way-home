@@ -83,6 +83,28 @@ with ThreadPoolExecutor(max_workers=8) as ex:
 ok = sum(1 for k, _, _ in results if k == "ok")
 compile_err = [r for r in results if r[0] == "compile"]
 dump_err = [r for r in results if r[0] == "dump"]
+
+# The GDK's corpus contains eight files the official compiler rejects: the three scripts with named
+# causes in docs/evidence/g0-script-compiler.md (voy1/scene7.TXT, voy1/scene10.TXT, voy5/beamstart.TXT)
+# and five files that are not scripts at all (sound tables, configuration, a directory list and editor
+# backups). That state is known, documented and permanent, so it is written here as the expected set:
+# the exit is 0 when the failures are exactly these, and non-zero when anything else appears -- which
+# is what makes the exit status mean something. A file in the list that now compiles is also a change,
+# and is reported.
+EXPECTED_REJECTIONS = {
+    "borg6/setup.txt",
+    "dn1/start.txt",
+    "dn1/startbakup.txt",
+    "validdirs.txt",
+    "voy1/scene10.TXT",
+    "voy1/scene7.TXT",
+    "voy4/ordermunro.bak.txt",
+    "voy5/beamstart.TXT",
+}
+rejected = {os.path.relpath(r[1], corpus).replace(os.sep, "/") for r in compile_err}
+unexpected = sorted(rejected - EXPECTED_REJECTIONS)
+missing = sorted(EXPECTED_REJECTIONS - rejected)
+
 print(f"    {len(scripts)} files: {ok} compiled and read back, "
       f"{len(compile_err)} rejected by the compiler, {len(dump_err)} read-back failure(s)")
 for kind, path, msg in (compile_err + dump_err)[:20]:
@@ -90,7 +112,24 @@ for kind, path, msg in (compile_err + dump_err)[:20]:
     print(f"      {kind}: {rel}" + (f"  |  {msg}" if msg else "  |  (no diagnostic printed)"))
 if len(compile_err) + len(dump_err) > 20:
     print(f"      ... and {len(compile_err) + len(dump_err) - 20} more")
+
+bad = False
+if dump_err:
+    print(f"    {len(dump_err)} read-back failure(s): a compiled script the game's own reader cannot read")
+    bad = True
+if unexpected:
+    print("    unexpected rejection(s) -- a new fault, or the corpus has changed:")
+    for rel in unexpected:
+        print(f"      {rel}")
+    bad = True
+if missing:
+    print("    expected rejection(s) that now compile -- the known set has changed:")
+    for rel in missing:
+        print(f"      {rel}")
+    bad = True
+if not bad:
+    print(f"    the {len(EXPECTED_REJECTIONS)} rejections are exactly the known, documented set")
 import shutil
 shutil.rmtree(work, ignore_errors=True)
-sys.exit(1 if (compile_err or dump_err) else 0)
+sys.exit(1 if bad else 0)
 PY
