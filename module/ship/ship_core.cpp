@@ -97,6 +97,7 @@ static float Clamp01(float v) { return std::min(1.0f, std::max(0.0f, v)); }
 static void NoteDeath(Ship &s, int deadIndex);      // who was there to see it (memory and consequence)
 static void MemoryDecay(Ship &s, float shipSeconds); // salience fades unless reinforced
 static void UpdateJobs(Ship &s);                     // the queue of outstanding work (docs/crew-work.md)
+static uint32_t AnomalyRoll(uint32_t counter, uint32_t seed); // a deterministic draw (the ruling)
 
 static bool Critical(SystemId id) { return SPECS[id].priority <= SPECS[SYS_COMPUTER_CORE].priority; }
 
@@ -1102,7 +1103,93 @@ static std::string SiteName(const Ship &s)
 // The transporter (S4): a party beamed to the site, and back. The party are fit crew, and the captain
 // stays with the ship. A transporter cannot reach through our own shields, so the shields must be
 // down -- a real cost to beaming mid-fight.
-bool TransportAway(Ship &s, int party)
+//
+// The transporter is the system the ruling of 2026-10-06 was written about, so it is worked end to
+// end here: the pattern buffer is the condition, the load is the alert the beam is made under, and
+// the severity lands on the crew records. Everything below the general mechanism is the outcome
+// family of docs/failure-is-content.md -- misaligned beam, mangled arrival, copy, merge.
+std::string TransporterConditionLine(const Ship &s)
+{
+	const float condition = SystemCondition(s.systems[SYS_TRANSPORTERS]);
+	const int pct = static_cast<int>(condition * 100.0f + 0.5f);
+	const int advise = static_cast<int>(TRANSPORTER_ADVISE * 100.0f + 0.5f);
+	std::string line = "the pattern buffer is at " + std::to_string(pct) + "%";
+	if (condition >= NOMINAL_CONDITION) line += ", nominal: I would send anyone";
+	else line += ", and below " + std::to_string(advise) + " I would not send anyone";
+	return line;
+}
+
+// The beam's draw. The general mechanism decides whether this use is clean; the transporter's own
+// outcome family gives a bad draw its face.
+static uint8_t TransporterRisk(Ship &s)
+{
+	const std::string who = AuthorFor(s, DEPT_ENGINEERING, "the transporter room");
+	return UseSystem(s, SYS_TRANSPORTERS, StressNow(s), who);
+}
+
+// What a bad draw does to the person in the beam. A degraded beam hurts; an acute one mangles; a
+// catastrophic one gets the pattern wrong -- a copy, which is a new record and a legal question, or
+// a merge, which leaves one where there were two. Written to the log and the records.
+static std::string TransporterOutcome(Ship &s, bool away, uint8_t severity)
+{
+	if (severity == ANOMALY_NONE) return std::string();
+	int target = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT) continue;
+		if (away && !c.away) continue;
+		target = i; break; // first fit in roster order: deterministic
+	}
+	if (target < 0) return std::string();
+	CrewMember &c = s.crew[target];
+	if (severity == ANOMALY_DEGRADED) {
+		c.status = CREW_INJURED;
+		c.severity = std::max(c.severity, 0.3f);
+		LogEvent(s, "the transporter room", "sickbay", c.name + " arrived from a misaligned beam, hurt");
+		return c.name + " arrived from a misaligned beam, hurt";
+	}
+	if (severity == ANOMALY_ACUTE) {
+		c.status = CREW_INJURED;
+		c.severity = std::max(c.severity, 0.7f);
+		LogEvent(s, "the transporter room", "sickbay", c.name + " was mangled in transit: a sickbay problem");
+		return c.name + " was mangled in transit: a sickbay problem";
+	}
+	// Catastrophic: the pattern is not merely hurt, it is wrong, and which way is the draw's next half.
+	const bool copied = (AnomalyRoll(s.riskRolls++, s.cfg.seed) & 1u) == 0u;
+	if (copied && static_cast<int>(s.crew.size()) < COMPLEMENT + MAX_DUPLICATES) {
+		const std::string name = c.name; // before push_back can reallocate the vector
+		CrewMember dup = c;              // the same face, and every relationship they had now doubled
+		dup.memories.clear();            // a new person: no shared history
+		// A copy is not the person: the record is new, the legal status ambiguous, and command must decide.
+		LogEvent(s, "the transporter room", "crew", "a second " + name + " materialised: a copy, and not the person");
+		LogEvent(s, "the transporter room", "crew", name + "'s record is doubled: a legal question command must decide");
+		s.crew.push_back(dup);
+		return "a copy of " + name + " materialised";
+	}
+	// A merge: two become one, and the one who comes back is not either of them.
+	int other = -1;
+	for (int i = target + 1; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &o = s.crew[i];
+		if (o.status != CREW_FIT) continue;
+		if (away && !o.away) continue;
+		other = i; break;
+	}
+	if (other < 0) { // nobody to merge with: it is a mangling after all
+		c.status = CREW_INJURED;
+		c.severity = std::max(c.severity, 0.7f);
+		LogEvent(s, "the transporter room", "sickbay", c.name + " was mangled in transit: a sickbay problem");
+		return c.name + " was mangled in transit: a sickbay problem";
+	}
+	CrewMember &o = s.crew[other];
+	const std::string a = c.name, b = o.name;
+	o.status = CREW_DEAD;
+	LogEvent(s, "the transporter room", "crew",
+		a + " and " + b + " were merged into one: " + b + " is gone, and " + a + " is not either of them");
+	NoteDeath(s, other);
+	return a + " and " + b + " merged";
+}
+
+bool TransportAway(Ship &s, int party, std::string *outcome)
 {
 	if (party <= 0) return false;
 	if (s.awayBeacon >= 0) return false;                                  // a party is already down there
@@ -1120,12 +1207,17 @@ bool TransportAway(Ship &s, int party)
 	s.awayBeacon = s.beacon;
 	LogEvent(s, "the transporter room", "outside",
 		"away team of " + std::to_string(sent) + " beamed to " + SiteName(s));
+	// The mechanism: the pattern buffer sets the odds, and the alert the beam is made under sets the
+	// severity. A beam on a system in its top tenth is nominal and mangles no one.
+	const uint8_t severity = TransporterRisk(s);
+	const std::string account = TransporterOutcome(s, true, severity);
+	if (outcome) *outcome = account;
 	// The site itself can be the injury: a phenomenon's environment, or a belt's rock
 	// (docs/failure-is-content.md's "poisoned site").
 	const Beacon &b = s.sector[s.beacon];
 	if (b.phenomenon || b.kind == BEACON_BELT) {
 		for (CrewMember &c : s.crew) {
-			if (!c.away) continue;
+			if (!c.away || c.status != CREW_FIT) continue;
 			c.status = CREW_INJURED;
 			c.severity = std::max(c.severity, 0.4f);
 			LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "sickbay", c.name + " was hurt by the site");
@@ -1135,9 +1227,13 @@ bool TransportAway(Ship &s, int party)
 	return true;
 }
 
-bool TransportBack(Ship &s)
+bool TransportBack(Ship &s, std::string *outcome)
 {
 	if (s.awayBeacon < 0) return false;
+	// The beam back is a use too: the same mechanism, the same pattern buffer.
+	const uint8_t severity = TransporterRisk(s);
+	const std::string account = TransporterOutcome(s, true, severity);
+	if (outcome) *outcome = account;
 	int back = 0;
 	for (CrewMember &c : s.crew)
 		if (c.away) { c.away = false; ++back; }
@@ -2277,6 +2373,49 @@ void Tick(Ship &s, float seconds)
 	Advance(s, static_cast<double>(seconds) * ClockRate(s.cfg));
 }
 
+// The load the ship is under now. Battle stations is the worst: everything is run at once, at the
+// edge of the budget. Yellow is a ship with a problem. Green is a quiet watch.
+float StressNow(const Ship &s)
+{
+	return s.alert == ALERT_RED ? 1.0f : s.alert == ALERT_YELLOW ? 0.5f : 0.15f;
+}
+
+// Use a system under a load: the general mechanism. The odds come from the condition; the severity,
+// when the draw is bad, from the condition and the load. Every anomaly is written down with the
+// chain -- condition, load, what happened, who was at the console -- and at the severe end the
+// system lets go at the console the operator is holding (docs/failure-is-content.md).
+uint8_t UseSystem(Ship &s, SystemId id, float stress, const std::string &who)
+{
+	if (id >= SYS_COUNT) return ANOMALY_NONE;
+	System &sys = s.systems[id];
+	const float condition = SystemCondition(sys);
+	const uint8_t sev = RollAnomaly(condition, stress, AnomalyRoll(s.riskRolls++, s.cfg.seed));
+	if (sev == ANOMALY_NONE) return sev;
+
+	const std::string author = who.empty() ? std::string(AuthorFor(s, SPECS[id].dept, SPECS[id].station)) : who;
+	const int condPct = static_cast<int>(condition * 100.0f + 0.5f);
+	const int loadPct = static_cast<int>(Clamp01(stress) * 100.0f + 0.5f);
+	LogEvent(s, author, "engineering", std::string(SPECS[id].name) + ": " + AnomalyName(sev) + " anomaly at "
+		+ std::to_string(condPct) + "% condition under " + std::to_string(loadPct) + "% load");
+	// A scar at the least; a system that has just bitten is worse than it was.
+	sys.health = Clamp01(sys.health - (sev == ANOMALY_DEGRADED ? 0.05f : sev == ANOMALY_ACUTE ? 0.15f : 0.3f));
+	// The visible let-go: the console arcs at whoever is manning this system, the one place on the
+	// ship the operator is standing. This is canon's exploding console, and it is the mechanism, not
+	// a flourish.
+	if (sev >= ANOMALY_ACUTE) {
+		for (CrewMember &c : s.crew) {
+			if (c.status != CREW_FIT || c.brigged) continue;
+			if (c.post != id) continue;
+			c.status = CREW_INJURED;
+			c.severity = std::max(c.severity, sev == ANOMALY_ACUTE ? 0.5f : 0.8f);
+			LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "sickbay",
+				c.name + " was hurt when the " + std::string(SPECS[id].name) + " console let go");
+			break;
+		}
+	}
+	return sev;
+}
+
 const char *SystemStateName(uint8_t state)
 {
 	static const char *const NAMES[SYS_STATE_COUNT] = { "nominal", "degraded", "offline", "destroyed" };
@@ -2289,6 +2428,60 @@ uint8_t FailureStateOf(float health, bool enabled)
 	if (!enabled || health < 0.33f) return SYS_OFFLINE;
 	if (health < 0.66f) return SYS_DEGRADED;
 	return SYS_NOMINAL;
+}
+
+// ---- condition sets the odds, and stress sets the severity (docs/failure-is-content.md) ----------
+
+const char *AnomalyName(uint8_t severity)
+{
+	static const char *const NAMES[ANOMALY_SEVERITY_COUNT] = { "none", "degraded", "acute", "catastrophic" };
+	return severity < ANOMALY_SEVERITY_COUNT ? NAMES[severity] : "?";
+}
+
+float SystemCondition(const System &sys)
+{
+	// Health is maintenance and parts; output is the power actually reaching it. A system is only as
+	// good as the worse of the two -- an intact system with no power is not capable, and neither is a
+	// powered one falling apart.
+	return Clamp01(std::min(sys.health, sys.output));
+}
+
+float AnomalyOdds(float condition)
+{
+	if (condition >= NOMINAL_CONDITION) return 0.0f; // the top tenth: nominal, no consequence
+	const float d = (NOMINAL_CONDITION - condition) / NOMINAL_CONDITION; // 0 at the line, 1 at nothing
+	return ANOMALY_ODDS_MAX * d * d; // rising as the condition falls [inv]
+}
+
+uint8_t AnomalySeverityFor(float condition, float stress)
+{
+	const float c = Clamp01(condition);
+	const float s = Clamp01(stress);
+	// Both matter: how degraded the system is, and how hard it is being driven. A 40% system run
+	// light gives the low severity; the same system at battle stations the high one. The condition
+	// floor means a system at the end of its life lets go even on a quiet watch.
+	const float bad = (1.0f - c) * (0.35f + 0.65f * s);
+	if (bad < 0.33f) return ANOMALY_DEGRADED;
+	if (bad < 0.60f) return ANOMALY_ACUTE;
+	return ANOMALY_CATASTROPHIC;
+}
+
+uint8_t RollAnomaly(float condition, float stress, uint32_t roll)
+{
+	const float odds = AnomalyOdds(condition);
+	if (odds <= 0.0f) return ANOMALY_NONE;
+	const double u = static_cast<double>(roll) / 4294967296.0;
+	if (u >= static_cast<double>(odds)) return ANOMALY_NONE;
+	return AnomalySeverityFor(condition, stress);
+}
+
+// A deterministic draw for the next use: the counter and the seed, mixed so consecutive uses are
+// not correlated. The counter is saved, so a load resumes the same sequence.
+static uint32_t AnomalyRoll(uint32_t counter, uint32_t seed)
+{
+	uint32_t x = counter * 2654435761u + (seed ? seed : 1u);
+	x ^= x >> 16; x *= 2246822519u; x ^= x >> 13; x *= 3266489917u; x ^= x >> 16;
+	return x;
 }
 
 // Name every change of a system's failure state, so the log carries the risk and the consequence.
@@ -3136,7 +3329,16 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U16(static_cast<uint16_t>(s.refugees));
 	w.F(s.pylonHealth); w.U8(s.mobileEmitter ? 1 : 0); w.F(s.resentment); w.U8(s.airponics ? 1 : 0); w.F(s.borgAwareness);
 	// Names, types, departments and stations come back from the seed; only what changes is stored.
-	for (const CrewMember &c : s.crew) {
+	// A transporter copy is the exception: it is a new record beyond the complement, so its name and
+	// type have no seed to come back from and are stored.
+	for (size_t i = 0; i < s.crew.size(); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (i >= static_cast<size_t>(COMPLEMENT)) {
+			w.U8(static_cast<uint8_t>(std::min<int>(static_cast<int>(c.name.size()), 31)));
+			for (size_t k = 0; k < c.name.size() && k < 31; ++k) w.U8(static_cast<uint8_t>(c.name[k]));
+			w.U8(static_cast<uint8_t>(std::min<int>(static_cast<int>(c.type.size()), 31)));
+			for (size_t k = 0; k < c.type.size() && k < 31; ++k) w.U8(static_cast<uint8_t>(c.type[k]));
+		}
 		w.U8(c.status); w.F(c.fatigue); w.F(c.morale); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); w.F(c.assimScar); w.F(c.severity);
 		w.U8(c.away ? 1 : 0); w.U8(c.credentials); w.U8(c.faction); w.U8(c.brigged ? 1 : 0); w.F(c.quartersQuality); w.F(c.holoCompulsion); w.U8(c.quartersSealed ? 1 : 0);
 		const int mem = std::min(static_cast<int>(c.memories.size()), MEMORY_MAX);
@@ -3190,6 +3392,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 			}
 		}
 	}
+	w.U32(s.riskRolls); // the anomaly draws taken: the deterministic counter behind UseSystem
 	return w.b;
 }
 
@@ -3212,7 +3415,8 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	BuildRoster(s);
 	BuildShuttles(s);
 	BuildSector(s, 0);
-	if (count != s.crew.size()) return false;
+	// The complement, plus any transporter copies beyond it (bounded).
+	if (count < static_cast<size_t>(COMPLEMENT) || count > static_cast<size_t>(COMPLEMENT + MAX_DUPLICATES)) return false;
 	s.player = static_cast<int16_t>(r.U16());
 	s.orderRepairFirst = r.U8() - 1; s.orderSecurityTo = r.U8(); s.orderEvacuate = r.U8(); s.orderTriage = r.U8();
 	if (s.orderRepairFirst >= SYS_COUNT || s.orderSecurityTo > DECKS || s.orderEvacuate > DECKS || s.orderTriage > 1) return false;
@@ -3313,7 +3517,18 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	s.refugees = r.U16();
 	if (s.refugees > 100000) return false;
 	s.pylonHealth = r.Unit(); s.mobileEmitter = r.U8() != 0; s.resentment = r.Unit(); s.airponics = r.U8() != 0; s.borgAwareness = r.Unit();
-	for (CrewMember &c : s.crew) {
+	for (size_t i = 0; i < count; ++i) {
+		if (i >= s.crew.size()) {
+			// A transporter copy: its name and type came from no seed, so they are in the record.
+			CrewMember extra;
+			const uint8_t nl = r.U8();
+			for (int k = 0; k < nl && r.ok; ++k) extra.name.push_back(static_cast<char>(r.U8()));
+			const uint8_t tl = r.U8();
+			for (int k = 0; k < tl && r.ok; ++k) extra.type.push_back(static_cast<char>(r.U8()));
+			if (!r.ok) return false;
+			s.crew.push_back(extra);
+		}
+		CrewMember &c = s.crew[i];
 		c.status = r.U8();
 		c.fatigue = r.Unit();
 		c.morale = r.Unit();
@@ -3392,6 +3607,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		if (e.system ? (e.target < 0 || e.target >= SYS_COUNT) : (e.target < 1 || e.target > DECKS)) return false;
 		s.losses.push_back(e);
 	}
+	s.riskRolls = r.U32(); // the anomaly draws taken (see Pack)
 	if (s.advanceDeck > DECKS || s.advanceAt > DECKS) return false;
 	if (!r.ok || r.left != 0) return false;
 

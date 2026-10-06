@@ -152,3 +152,17 @@ one* -- is now mechanised (`FailureStateOf`, `SystemStateName`, `UpdateSystemSta
 (health below a third, or switched off) or **destroyed** (health zero), and every change is written
 to the log by name (`"<system> is degraded"`, `"<system> is restored"`) -- the risk visible before
 the wall, and the consequence traceable. The state is stored so a load does not re-narrate it.
+
+### Condition sets the odds, and stress sets the severity (2026-10-06)
+
+The ruling of this section is now mechanised, generally, in `module/ship/` (`SystemCondition`,
+`AnomalyOdds`, `AnomalySeverityFor`, `RollAnomaly`, `UseSystem`; save format 42;
+`TestConditionOdds`, `TestTransporterAnomaly`, `scripts/condition-check.sh`). A system's condition --
+its health capped by the power reaching it -- sets the chance of an anomaly, zero in the top tenth;
+the load at the moment of use sets the severity (degraded, acute, catastrophic); a bad use is written
+to the log with its condition, load and author, and at the severe end the console lets go at the
+operator. The transporter is worked end to end -- the pattern buffer states its condition before the
+act, a nominal beam mangles no one, and a degraded one yields a misaligned beam, a mangled arrival, a
+copy or a merge, each written to the records. Evidence: `docs/evidence/condition-sets-the-odds.md`.
+The measurement over twenty thousand draws is in that document; the same degraded condition is
+degraded-light and catastrophic-battle, as the ruling asks.

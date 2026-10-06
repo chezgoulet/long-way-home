@@ -40,6 +40,7 @@ struct Screen {
 	SourceRow src[MAX_SOURCES];
 	char header[128];
 	char stores[128];
+	char transporter[160]; // the instrument: the transporter's condition, stated before the act
 	int alert;
 
 	// the breach puzzle, while a counter-hack is in progress at this console
@@ -97,6 +98,7 @@ void Refresh( void )
 	}
 	ui.Cvar_VariableStringBuffer( "lwh_ship_header", screen.header, sizeof( screen.header ) );
 	ui.Cvar_VariableStringBuffer( "lwh_ship_stores", screen.stores, sizeof( screen.stores ) );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_transporter", screen.transporter, sizeof( screen.transporter ) );
 	screen.alert = static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_alert" ) );
 	if ( screen.cursor >= screen.systems ) screen.cursor = screen.systems ? screen.systems - 1 : 0;
 }
@@ -335,6 +337,12 @@ void Draw( void )
 		UI_DrawProportionalString( 584, y, va( "%d/%d", r.manned, r.need ), UI_TINYFONT,
 			colorTable[r.manned >= r.need ? CT_LTBLUE1 : CT_RED] );
 	}
+
+	// The instrument (the condition gap): the Operations console states the transporter's condition
+	// before the beam, so the operator has the risk before them. A read of state; it cannot lie.
+	if ( screen.station == 2 && screen.transporter[0] )
+		UI_DrawProportionalString( 44, 410, screen.transporter, UI_TINYFONT,
+			colorTable[screen.alert == 2 ? CT_RED : screen.alert == 1 ? CT_LTORANGE : CT_LTBLUE1] );
 
 	UI_DrawProportionalString( 44, 426, screen.station == 0
 		? "UP/DOWN select   ENTER on/off   LEFT/RIGHT priority   1 2 3 condition green/yellow/red   ESC leave"
