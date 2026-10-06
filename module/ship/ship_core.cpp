@@ -217,10 +217,21 @@ static int DutyDeck(const CrewMember &c)
 	return c.post < SYS_COUNT ? SPECS[c.post].deck : DEPT_DECK[c.dept];
 }
 
+// What a post-holder is worth this tick. A rested, willing person is exactly one hand, so an
+// ordinary watch is unchanged; only a spent crew member (past half-tired) or a flagging one (morale
+// below the halfway mark) costs anything, down to a quarter. That way a bad month bites and a good
+// one restores, while the other systems' exact accounting still holds on a fresh, rested crew.
+static float Effectiveness(const CrewMember &c)
+{
+	const float tired = std::max(0.0f, c.fatigue - 0.5f) / 0.5f;
+	const float down = std::max(0.0f, 0.5f - c.morale) / 0.5f;
+	return std::max(0.25f, 1.0f - 0.5f * std::min(1.0f, tired) - 0.5f * std::min(1.0f, down));
+}
+
 static void UpdateCrew(Ship &s, float shipSeconds)
 {
 	const int sod = s.SecondOfDay();
-	for (int id = 0; id < SYS_COUNT; ++id) s.systems[id].manned = s.systems[id].repairing = 0;
+	for (int id = 0; id < SYS_COUNT; ++id) s.systems[id].manned = 0, s.systems[id].staffing = 0.0f, s.systems[id].repairing = 0;
 
 	// Damage control: which systems want hands, most critical first.
 	int wantRepair[SYS_COUNT], nWant = 0;
@@ -240,6 +251,12 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		if (s.decks[d].intruders > 0.0f) hot[nHot++] = d;
 	std::stable_sort(hot, hot + nHot, [&](int a, int b) { return s.decks[a].intruders > s.decks[b].intruders; });
 	int posted = 0; // security sent to the deck the captain ordered held
+
+	// A standing grief: the fraction of the crew lost, as a drag on everyone's mood.
+	float lost = 0.0f;
+	for (const CrewMember &c : s.crew)
+		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) lost += 1.0f;
+	const float lossFactor = s.crew.empty() ? 0.0f : 0.5f * std::min(0.6f, lost / static_cast<float>(s.crew.size()));
 
 	for (CrewMember &c : s.crew) {
 		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) {
@@ -304,6 +321,20 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		else c.fatigue -= hours / 40.0f;
 		c.fatigue = std::min(1.0f, std::max(0.0f, c.fatigue));
 
+		// Morale moves toward what the day offers: rest, a meal (if the replicators run), recreation
+		// (if the holodeck does), a watch, and how many have been lost and are still missed. It eases
+		// toward that target over hours rather than snapping, so a bad afternoon is not a bad week.
+		float target = 0.5f;
+		if (a == ACT_SLEEP) target = 0.75f;
+		else if (a == ACT_MEAL) target = s.systems[SYS_REPLICATORS].output > 0.0f ? 0.8f : 0.5f;
+		else if (a == ACT_RECREATION) target = s.systems[SYS_HOLODECKS].output > 0.0f ? 0.9f : 0.65f;
+		else if (a == ACT_ON_DUTY) target = s.alert == ALERT_GREEN ? 0.7f : 0.55f;
+		if (s.alert == ALERT_RED) target -= 0.15f;
+		if (c.deck >= 1 && c.deck <= DECKS && s.decks[c.deck - 1].atmosphere < AIRLESS) target -= 0.2f;
+		target -= lossFactor;
+		c.morale += (target - c.morale) * std::min(1.0f, hours / 6.0f); // a few hours to shift the mood [inv]
+		c.morale = std::min(1.0f, std::max(0.0f, c.morale));
+
 
 		// Security on duty with no station answers a boarding: enough to outnumber each party, worst first.
 		if (a == ACT_ON_DUTY && c.post == SYS_COUNT && c.dept == DEPT_SECURITY) {
@@ -325,7 +356,7 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		}
 
 		placed:
-		if (a == ACT_ON_DUTY && c.post < SYS_COUNT) ++s.systems[c.post].manned;
+		if (a == ACT_ON_DUTY && c.post < SYS_COUNT) { ++s.systems[c.post].manned; s.systems[c.post].staffing += Effectiveness(c); }
 
 		// An engineer on duty with no station of their own joins the damage-control party.
 		if (a == ACT_ON_DUTY && c.post == SYS_COUNT && c.dept == DEPT_ENGINEERING) {
@@ -413,7 +444,7 @@ static void UpdatePower(Ship &s, float shipSeconds)
 		const float powered = demand[i] ? static_cast<float>(sys.allocated) / demand[i] : 0.0f;
 		const int need = SPECS[i].crewNeeded;
 		// An unattended station still runs, at half effect: automation, not expertise.
-		const float manning = need ? 0.5f + 0.5f * std::min(1.0f, static_cast<float>(sys.manned) / need) : 1.0f;
+		const float manning = need ? 0.5f + 0.5f * std::min(1.0f, sys.staffing / need) : 1.0f;
 		// A hijacked system still draws the ship's power; what it does with it is no longer ours.
 		sys.output = sys.control < HIJACKED ? 0.0f : sys.health * powered * manning;
 	}
@@ -520,7 +551,7 @@ static void UpdateIntruders(Ship &s, float shipSeconds)
 		if (deck.intruders - deck.defenders > 0.0f) continue;
 		if (deck.assimilated >= ASSIMILATED) continue; // not until the deck is stripped
 		const int need = SPECS[i].crewNeeded > 0 ? SPECS[i].crewNeeded : 1;
-		const float crewShare = std::min(1.0f, static_cast<float>(sys.manned) / need);
+		const float crewShare = std::min(1.0f, sys.staffing / need);
 		sys.control = std::min(1.0f, sys.control + crewShare * minutes / RETAKE_MINUTES);
 	}
 }
@@ -1000,7 +1031,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(s.enemy.present); w.U8(s.enemy.borg); w.F(s.enemy.hull); w.F(s.enemy.shields); w.F(s.enemy.firepower);
 	w.U8(static_cast<uint8_t>(s.enemy.boarders));
 	// Names, types, departments and stations come back from the seed; only what changes is stored.
-	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); }
+	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.F(c.morale); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); }
 	return w.b;
 }
 
@@ -1057,6 +1088,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	for (CrewMember &c : s.crew) {
 		c.status = r.U8();
 		c.fatigue = r.Unit();
+		c.morale = r.Unit();
 		c.watch = r.U8();
 		c.post = r.U8();
 		c.exposure = r.F();

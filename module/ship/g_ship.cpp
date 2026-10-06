@@ -165,17 +165,21 @@ void Publish( void )
 		gi.cvar_set( "lwh_ship_aboard", aboard.c_str() );
 	}
 
-	// The medical state, for the Sickbay console (S6's first readout).
+	// The medical state and the crew's condition, for the Sickbay console (S6 and the morale gap).
 	{
-		int injured = 0, treating = 0, lost = 0, assimilated = 0;
+		int injured = 0, treating = 0, lost = 0, assimilated = 0, fit = 0;
+		float morale = 0.0f, fatigue = 0.0f;
 		for ( const ship::CrewMember &c : vessel.crew )
 		{
 			if ( c.status == ship::CREW_INJURED ) { ++injured; if ( c.recovery > 0.0f ) ++treating; }
 			else if ( c.status == ship::CREW_ASSIMILATED ) ++assimilated;
 			else if ( c.status == ship::CREW_DEAD ) ++lost;
+			else { ++fit; morale += c.morale; fatigue += c.fatigue; }
 		}
-		gi.cvar_set( "lwh_ship_medical", Fmt( "INJURED %d   IN TREATMENT %d   SICKBAY OUTPUT %d%%   LOST %d   ASSIMILATED %d",
-			injured, treating, static_cast<int>( vessel.systems[ship::SYS_SICKBAY].output * 100 + 0.5f ), lost, assimilated ).c_str() );
+		if ( fit ) { morale /= fit; fatigue /= fit; }
+		gi.cvar_set( "lwh_ship_medical", Fmt( "INJURED %d   IN TREATMENT %d   SICKBAY OUTPUT %d%%   LOST %d   ASSIMILATED %d   MORALE %d%%   FATIGUE %d%%",
+			injured, treating, static_cast<int>( vessel.systems[ship::SYS_SICKBAY].output * 100 + 0.5f ), lost, assimilated,
+			static_cast<int>( morale * 100 + 0.5f ), static_cast<int>( fatigue * 100 + 0.5f ) ).c_str() );
 	}
 
 	// Standing orders and who the player is, for the command console and the personnel screen.

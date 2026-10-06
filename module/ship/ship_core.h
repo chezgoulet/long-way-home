@@ -76,6 +76,7 @@ struct System {
 	int priority = 0;       // current shedding order (consoles may change it)
 	int allocated = 0;      // EPS units granted this tick
 	int manned = 0;         // on-duty crew at the station this tick
+	float staffing = 0.0f;  // ... weighted by how rested and willing they are (morale, fatigue)
 	int repairing = 0;      // damage-control crew working on it this tick
 	float control = 1.0f;   // 1 = the crew's, 0 = the intruders'; below HIJACKED it answers to them, not to us
 	float output = 0.0f;    // 0..1: what the system is actually delivering
@@ -126,6 +127,7 @@ struct CrewMember {
 	uint8_t quartersDeck = 0;
 	uint8_t status = CREW_FIT;
 	float fatigue = 0.0f;    // 0 rested .. 1 exhausted
+	float morale = 1.0f;     // 0 broken, 0.5 going through the motions, 1 heart in it
 	float exposure = 0.0f;   // seconds spent on a deck without air; injures, then kills
 	float wounds = 0.0f;     // 0..1 taken fighting boarders; at 1 they are out of the fight, injured
 	float recovery = 0.0f;   // 0..1 progress of an injured crew member's treatment
@@ -377,7 +379,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 7;   // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders
+const uint16_t SAVE_VERSION = 8;   // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

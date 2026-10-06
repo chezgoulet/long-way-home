@@ -296,6 +296,44 @@ static void TestDamageAndRepair()
 	CHECK(s.systems[SYS_SENSORS].output == 0.0f);
 }
 
+static void TestMoraleAndFatigue()
+{
+	g_test = "a spent or disillusioned post is worse; rest restores it, and morale saves";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	CHECK(s.systems[SYS_SENSORS].output == 1.0f); // a fresh, rested watch is a whole hand
+
+	// The same hands, spent and gone through the motions, deliver much less.
+	for (CrewMember &c : s.crew)
+		if (c.post == SYS_SENSORS) { c.fatigue = 1.0f; c.morale = 0.2f; }
+	Tick(s, 0.0f);
+	const float spent = s.systems[SYS_SENSORS].output;
+	CHECK(spent < 1.0f);
+	CHECK(spent >= 0.24f);                         // tired and flagging is not the same as absent
+	CHECK(s.systems[SYS_SENSORS].manned >= Spec(SYS_SENSORS).crewNeeded); // the hands are there
+
+	// Rested and willing again: the post is a whole hand once more.
+	for (CrewMember &c : s.crew)
+		if (c.post == SYS_SENSORS) { c.fatigue = 0.0f; c.morale = 1.0f; }
+	Tick(s, 0.0f);
+	CHECK(s.systems[SYS_SENSORS].output == 1.0f);
+
+	// The drivers move: a watch raises fatigue, and green lifts the mood.
+	Ship t = NewShip();
+	t.crew[0].watch = 0; t.crew[0].post = SYS_SENSORS; t.crew[0].dept = DEPT_SCIENCES;
+	t.crew[0].fatigue = 0.0f; t.crew[0].morale = 0.5f;
+	Tick(t, Hours(t, 8.0f));                       // 0800 to 1600, alpha watch on duty throughout
+	CHECK(t.crew[0].fatigue > 0.0f);
+	CHECK(t.crew[0].morale > 0.5f);
+
+	// Morale survives a save and a load.
+	for (CrewMember &c : t.crew) c.morale = 0.42f;
+	std::vector<uint8_t> blob = Pack(t);
+	Ship u = NewShip();
+	CHECK(Unpack(blob.data(), blob.size(), u));
+	CHECK(std::fabs(u.crew[0].morale - 0.42f) < 1e-4f);
+}
+
 static void TestDeterminismAndStepSize()
 {
 	g_test = "deterministic, and independent of how time is sliced";
@@ -1101,6 +1139,7 @@ int main(int argc, char **argv)
 	TestADayAboard();
 	TestRedAlertAndCasualties();
 	TestDamageAndRepair();
+	TestMoraleAndFatigue();
 	TestDeterminismAndStepSize();
 	TestSave();
 	TestStations();

@@ -181,6 +181,10 @@ crew are told. *Visible:* performance at post (acknowledgement latency, error ra
 *Failure:* a crew member who stops caring, or one who breaks. *Location:* everywhere, because it is a property
 of people. *Acceptance:* a bad month measurably degrades posts, a good one measurably restores them, and the
 log can say why.
+**First slice 2026-10-07** (`docs/evidence/gap-morale-and-fatigue.md`, `tests/ship/test_ship_core.cpp`):
+morale on the crew record (save format **version 8**), eased by rest, food, recreation, alert and losses; a
+system's output is staffed by morale/fatigue-weighted hands; the Sickbay readout shows the averages. Manner,
+and the log's "why", remain.
 
 **2. Triage and the sickbay queue.** *State:* casualties with severity, beds (three standard, one surgical),
 the surgical bay's force field, medical supplies. *Control:* who is treated first, who waits, what is
