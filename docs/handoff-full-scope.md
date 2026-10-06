@@ -60,6 +60,63 @@ next gate's measurement honest:
   panel itself, not only on Operations; the log attributing events to people rather than to subsystems, and
   searchable; the rest likewise.
 
+### 1b. The community harvests -- two of them, in this order
+
+Found and verified on 2026-10-05. Full detail, including the verbatim licence and the class diff, is in
+`docs/community-inheritance-audit.md`.
+
+**The licence rule, which splits the opportunity.** RPG-X's legal notice permits **code** reuse provided
+UberGames is credited and it does not conflict with Raven's game-source terms -- and their game module carries
+Raven's own `STEF Game Source License.doc` in `game`, `cgame` and `ui`, the same licence our module rides.
+Their **assets are the opposite**: models, textures, sounds and maps may not be used without explicit permission
+from their creators. So: **adopt code, never assets.** Credit UberGames in `NOTICE` and in the file headers of
+anything ported. The embedded Lua layer is MIT; read it as prior art, **do not adopt it** -- we are committed to
+ICARUS and a second scripting story would fork the module.
+
+#### Harvest A -- Elite Reinforce's fixes (small, do it first)
+
+A third independent pass over the same single-player source, focused on bugfixes. Four fixes are verified absent
+from our tree -- no reference to borg1, forge3 or a holodeck save restriction exists in our module or upstream,
+and none of our fourteen patches covers them:
+
+1. **The borg1 freeze**, with a cvar to disable the fix. **borg1 is the map our own mission evidence plays on.**
+   Confirm whether we are exposed before assuming we are not.
+2. **A forge3 infinite loop** -- they needed two attempts, so read both commits rather than the first.
+3. **An occasional menu softlock** -- and we are actively working in the menus.
+4. **A command allowing saves on holodeck maps** -- directly relevant to the Virtual Voyager and holodeck save
+   work already in flight.
+
+Plus two authoring tools worth having: **showing NPC paths**, which we would otherwise build for the crew and
+post work, and **highlighting entities with death scripts**.
+
+**Method:** a three-way diff between their tree, our upstream and our module. Port as patches in our series, one
+concern each, cvar-gated where they offer one. Then prove it: the existing G1 mission evidence must still pass,
+and the holodeck-save command needs its own test that a save inside a holodeck map round-trips.
+
+#### Harvest B -- RPG-X's entity classes (the cheap path to functional controls)
+
+Measured: RPG-X defines 115 classes, our retail dictionary defines 214, and **51 exist only in RPG-X** -- and
+they are almost exactly the functional-controls gap and the holodeck's uses, already first-sliced. The ones that
+matter most:
+
+- **ship systems as placeable entities:** `target_turbolift`, `target_levelchange`, `target_warp`,
+  `target_gravity`, `target_shiphealth`, `target_selfdestruct`, `target_repair`, `target_doorlock`,
+  `target_holodeck`, `target_teleporter`, `target_zone`, `target_objective`, `target_evosuit`, `target_shake`;
+- **`target_shaderremap`** -- runtime shader switching, and a candidate mechanism for the Borg *visibly* taking
+  the ship, which `docs/evidence/s8-the-borg.md` lists as an engine capability that does not exist. If it needs
+  engine support, it is an engine extension and falls under the policy below, cvar-gated and off by default;
+- **`ui_msd`** -- a master systems display as an entity, where we were about to build panel surfaces by hand;
+- **`func_forcefield`, `func_mover`, `func_targetmover`, `func_door_rotating`, `func_lightchange`** -- the moving
+  parts a ship needs;
+- **`trigger_radiation`** -- a damage source our injury model lacks, and `trigger_transporter`.
+
+**Method:** port the class definitions **and** the game-code implementations, with a provenance note on each
+recording that it came from RPG-X and under what terms. Add their entity dictionary entries to our validator's
+dictionary so the validator covers them, and add a map fixture that exercises every adopted class -- the same
+"check what it affords" discipline we apply to spaces. Adding classes does not change retail maps, which do not
+use them, so the retail compatibility promise holds by construction; anything that changes *behaviour* rather
+than adding a class is an engine extension and follows the policy below.
+
 ### 2. The remaining approved gap backlog, in the ledger's order
 
 In `docs/gates.md` under *Then, in rough order*. The first item is the **tractor beam and salvage**, because
