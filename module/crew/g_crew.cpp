@@ -861,9 +861,10 @@ const char *const BREACH_PUSH = "lwh_breach_push";
 const char *const BREACH_HURT = "lwh_breach_hurt";
 const char *const BREACH_FIELD = "lwh_breach_field";
 
-// The emergency lighting state (the deck 12 brief): this is the room whose failure darkens other
-// decks, so the red state is authored as func_usable strips the module switches, and the normal
-// strips they replace. Names are prefixes: a room may have many strips.
+// The emergency lighting state (the life-support pair: the deck 12 and deck 13 briefs): these are the
+// rooms whose failure darkens other decks, so the red state is authored as func_usable strips the
+// module switches, and the normal strips they replace. Names are prefixes: a room may have many
+// strips, and both rooms' strips switch together.
 const char *const EMERGENCY_LIGHT = "lwh_light_emergency";
 const char *const NORMAL_LIGHT = "lwh_light_normal";
 
@@ -1008,11 +1009,14 @@ void SyncBreach( void )
 	}
 }
 
-// The emergency lighting state (the deck 12 brief). The authored strips are func_usable brushes; the
-// red ones are held off and the working ones on, and the module swaps them when the plant this room
-// watches is in trouble or the ship is at battle stations -- the failure that darkens other decks is
-// visible here first. Same pattern as the field brush: the game's own func_usable keeps the on/off
-// state in `count`, so the module calls its use function rather than re-implementing it.
+// The emergency lighting state (the life-support pair: the deck 12 brief and the deck 13 one). The
+// authored strips are func_usable brushes; the red ones are held off and the working ones on, and the
+// module swaps them when the plant these rooms watch is in trouble or the ship is at battle stations
+// -- the failure that darkens other decks is visible here first. Same pattern as the field brush: the
+// game's own func_usable keeps the on/off state in `count`, so the module calls its use function
+// rather than re-implementing it. Deck 13's strips carry a deck tag (`lwh_light_..._13_N`) so the two
+// rooms' names do not collide and the stitcher renames neither; the match is by prefix, so both
+// rooms' strips switch together.
 void SetPrefixedLights( const char *prefix, bool on, int *seen )
 {
 	int len = 0;

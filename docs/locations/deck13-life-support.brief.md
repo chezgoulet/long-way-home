@@ -60,5 +60,23 @@ No new art. Do not simulate the plant; it must read as plant.
 
 ## 10. Status (2026-10-07)
 
-**Blockout building** — a plant hall with a central machinery island and a raised catwalk, reachable on
-the merged ship, photographed for approval before detail (`scripts/deck13-check.sh`).
+**Re-dressed from `tour/deck11` and awaiting the owner's walkthrough.** Built the way
+`docs/authoring-a-location.md` requires and as deck 12 was: the room is **copied from the reuse
+target the brief names** (`tour/deck11`, main engineering) and changed to be this room — the vertical
+scale reduced (404 to 224), the warp core replaced by a central machinery island of atmosphere
+processors, a raised catwalk added along the north wall with a stair, a Jefferies tube mouth at the
+far end from the door, and the local plant panel on the catwalk. The room's own consoles, railings,
+lighting fixtures, wall panels, door hardware, props and "small untidiness" come along with the copy.
+The parts list is `docs/locations/deck13-parts-list.md`; the tool is `tools/shipmap/dressdeck13.py`,
+deck 12's pattern, called by `scripts/build-ship.sh`.
+
+Done: the copy and its changes; the life-support system node and the deck's wiring; the local plant
+panel and the `plantwatch` post; navigation baked; the **emergency lighting state**
+(`hall/hall_light_red`, switched by the module at red alert or a life-support failure), the second
+half of the pair. Evidence, with the commands: `docs/evidence/deck13-redress.md`.
+
+Open, and only the owner can close it: **does it read as the plant that keeps the ship breathing?**
+The compression is a hypothesis, the same class deck 12 named — a hall can be made low and read as
+machinery, or as squashed — and the room reads dark under the copied lighting. The plant, the catwalk
+and the post are placed by measurement, not by eye. Walk it; if the plant does not read or the light
+is wrong, that is the next pass.

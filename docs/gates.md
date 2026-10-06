@@ -268,6 +268,17 @@ measured (`docs/locations/deck12-parts-list.md`) and the emergency lighting stat
 `tools/shipmap/dressdeck12.py`, `scripts/deck12-check.sh`, `scripts/emergency-check.sh`. What closes it
 is the owner's walkthrough; the tool is the procedure the other four decks will follow.
 
+**Deck 13 is re-dressed from `tour/deck11`** (2026-10-07, `docs/evidence/deck13-redress.md`): the
+second of the absent decks, deck 12's pattern reused rather than re-invented -- `dressdeck13.py` is
+the copy of `dressdeck12.py` with deck 13's program, and the build calls both. One plant hall: the
+vertical scale reduced (404 to 224), the warp core replaced by a central machinery island of
+atmosphere processors, a raised catwalk along the north wall with a stair, a Jefferies tube mouth at
+the far end, and the local plant panel and its post on the catwalk. Parts list
+`docs/locations/deck13-parts-list.md`; the emergency lighting state in the world, alongside deck
+12's, in `scripts/emergency-check.sh` (`g_shipTest 59`) and `scripts/deck13-check.sh`
+(`g_shipTest 27`). What closes it is the owner's walkthrough: does it read as the plant that keeps
+the ship breathing?
+
 **The five gaps, to their full criteria (2026-10-07, later the same day).** The first slice's
 remaining items are now built and evidenced by `scripts/gaps-check.sh` and `TestGapCompletions`:
 morale's "the log can say why" (a periodic mood line naming the driver); the triage screen
