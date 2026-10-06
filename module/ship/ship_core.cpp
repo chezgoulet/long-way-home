@@ -2924,7 +2924,8 @@ std::string ReportDiff(const MonthReport &r)
 
 // Purge the published logs (docs/the-record-and-the-log.md). It defends against readers and never
 // against assimilation: the Collective takes the log from the mind. What it leaves is the marks
-// sourced read-it-in-the-log, still held, with their citation gone.
+// sourced read-it-in-the-log, still held, with their citation gone. It is the *published* log it
+// takes: the personal log is private, not published, and is left exactly as it was.
 bool PurgeLogs(Ship &s)
 {
 	if (s.log.empty()) return false;
@@ -3826,6 +3827,65 @@ void LogEvent(Ship &s, const std::string &who, const std::string &scope, const s
 	if (static_cast<int>(s.log.size()) > LOG_MAX) s.log.erase(s.log.begin());
 }
 
+// ---- the two logs (docs/the-record-and-the-log.md) ----------------------------------------------
+//
+// The official log is above; this is the personal one, and the law over both: the simulation writes
+// them and never reads either. Nothing here consults a log, and the month report is drafted from the
+// record's marks. The private read returns one person's entries and nobody else's.
+
+const char *LogVisibilityName(uint8_t v)
+{
+	static const char *const NAMES[LOG_VISIBILITY_COUNT] = { "official", "personal" };
+	return v < LOG_VISIBILITY_COUNT ? NAMES[v] : "unknown";
+}
+
+// Write a private entry, in its owner's name. A full log drops its oldest entry, like the official
+// one; a bad owner or empty text changes nothing. This is the player's own hand when `owner` is
+// `s.player`, and it is the only way an entry enters the store.
+bool WritePersonalLog(Ship &s, int owner, const std::string &what)
+{
+	if (owner < 0 || owner >= static_cast<int>(s.crew.size())) return false;
+	if (what.empty()) return false;
+	if (static_cast<int>(what.size()) > PERSONAL_LOG_TEXT_MAX) return false;
+	PersonalLogEntry e;
+	e.time = s.clock;
+	e.owner = owner;
+	e.who = s.crew[owner].name;
+	e.what = what;
+	e.visibility = LOG_PERSONAL;
+	s.personalLog.push_back(e);
+	if (static_cast<int>(s.personalLog.size()) > PERSONAL_LOG_MAX) s.personalLog.erase(s.personalLog.begin());
+	return true;
+}
+
+// The visibility rule, in one place: a personal entry is visible only to its owner. The official
+// log's scopes are the other half of the rule; a personal entry never appears in them.
+bool PersonalVisibleTo(const PersonalLogEntry &e, int reader) { return e.owner == reader; }
+
+// The private read: only this person's entries, newest last. It is a read of one store and returns
+// nothing of any other person's.
+std::vector<PersonalLogEntry> PersonalLog(const Ship &s, int owner)
+{
+	std::vector<PersonalLogEntry> out;
+	if (owner < 0 || owner >= static_cast<int>(s.crew.size())) return out;
+	for (const PersonalLogEntry &e : s.personalLog)
+		if (PersonalVisibleTo(e, owner)) out.push_back(e);
+	return out;
+}
+
+// The official read, factored out so the search is testable: the newest first, optionally filtered
+// to one scope. Personal entries are never returned here, whatever the scope asked for.
+std::vector<LogEntry> ReadOfficialLog(const Ship &s, int count, const std::string &scope)
+{
+	std::vector<LogEntry> out;
+	for (int i = static_cast<int>(s.log.size()) - 1; i >= 0 && static_cast<int>(out.size()) < count; --i) {
+		const LogEntry &e = s.log[i];
+		if (!scope.empty() && e.scope != scope) continue;
+		out.push_back(e);
+	}
+	return out;
+}
+
 // ---- what the ship has given up -----------------------------------------------------------------
 
 const char *LossKindName(uint8_t k)
@@ -3965,6 +4025,25 @@ std::string ReadStr(Reader &r)
 {
 	std::string s;
 	const int n = r.U8();
+	for (int i = 0; i < n && r.ok; ++i) s.push_back(static_cast<char>(r.U8()));
+	return s;
+}
+
+// The personal log carries a person's own words, so its `what` is allowed to be longer than the
+// official entry's 63: up to the entry's own cap, stated in docs/lore-ledger.md. The length is still
+// bounded, so one long private entry cannot bloat the save.
+void WriteStrCap(Writer &w, const std::string &s, int cap)
+{
+	const int n = std::min(static_cast<int>(s.size()), cap);
+	w.U8(static_cast<uint8_t>(n));
+	for (int i = 0; i < n; ++i) w.U8(static_cast<uint8_t>(s[i]));
+}
+
+std::string ReadStrCap(Reader &r, int cap)
+{
+	std::string s;
+	const int n = r.U8();
+	if (n > cap) { r.ok = false; return s; }
 	for (int i = 0; i < n && r.ok; ++i) s.push_back(static_cast<char>(r.U8()));
 	return s;
 }
@@ -4139,6 +4218,19 @@ std::vector<uint8_t> Pack(const Ship &s)
 		w.U64(static_cast<uint64_t>(std::llround(p.made * 1000.0)));
 		w.F(static_cast<float>(p.deadline));
 		WriteStr(w, p.what);
+	}
+	// The personal log (version 47): a distinct store from the official log, private per person.
+	{
+		const int n = std::min(static_cast<int>(s.personalLog.size()), PERSONAL_LOG_MAX);
+		w.U16(static_cast<uint16_t>(n));
+		for (int i = 0; i < n; ++i) {
+			const PersonalLogEntry &e = s.personalLog[s.personalLog.size() - n + i];
+			w.U16(static_cast<uint16_t>(e.owner + 1));
+			w.U64(static_cast<uint64_t>(std::llround(e.time * 1000.0)));
+			w.U8(e.visibility);
+			WriteStrCap(w, e.who, 63);
+			WriteStrCap(w, e.what, PERSONAL_LOG_TEXT_MAX);
+		}
 	}
 	return w.b;
 }
@@ -4403,6 +4495,21 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		if (p.beneficiary < 0 || p.beneficiary >= static_cast<int>(count)) return false;
 		if (p.promiser < -1 || p.promiser >= static_cast<int>(count)) return false;
 		s.promises.push_back(p);
+	}
+	// The personal log (version 47): a distinct store, read back beside the official one.
+	s.personalLog.clear();
+	const int personalCount = r.U16();
+	if (personalCount > PERSONAL_LOG_MAX) return false;
+	for (int i = 0; i < personalCount && r.ok; ++i) {
+		PersonalLogEntry e;
+		e.owner = static_cast<int16_t>(r.U16()) - 1;
+		e.time = static_cast<double>(r.U64()) / 1000.0;
+		e.visibility = r.U8();
+		e.who = ReadStrCap(r, 63);
+		e.what = ReadStrCap(r, PERSONAL_LOG_TEXT_MAX);
+		if (e.owner < 0 || e.owner >= static_cast<int>(count)) return false;
+		if (e.visibility >= LOG_VISIBILITY_COUNT) return false;
+		s.personalLog.push_back(e);
 	}
 	if (s.advanceDeck > DECKS || s.advanceAt > DECKS) return false;
 	if (!r.ok || r.left != 0) return false;

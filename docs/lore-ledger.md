@@ -349,6 +349,16 @@ year: 0.9696 × 0.98 × 0.98 × 1,000 c = 931 c, and 71,240 / 931 = 76 years.
 | Who commands when the player is lost | the senior fit officer, by rank, in roster order | design (roster promotes to fill the gap, `docs/failure-is-content.md`) |
 | Death is not a reload | the engine's respawn is refused while the extension is on and the record is closed | owner's rule, `docs/path-to-playtest.md` Stage B |
 
+## The two logs (`docs/the-record-and-the-log.md`)
+
+The official log's bounds are already recorded above. This is the private store, added 2026-10-06
+(`docs/evidence/the-two-logs.md`).
+
+| item | value | source |
+|---|---|---|
+| The personal log's bound | 128 entries per ship, oldest dropped | inv |
+| A personal entry's length cap | 200 characters | inv |
+
 ## Not yet modelled
 
 Bio-neural gel packs, the EMH's dependence on sickbay power and holo-emitters, the

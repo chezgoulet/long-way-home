@@ -1721,6 +1721,107 @@ static void TestMonthReportAndToll()
 	CHECK(Pack(back) == blob);
 }
 
+// The two logs (docs/the-record-and-the-log.md): the official log and the private one as distinct
+// stores. A personal entry is read by its owner and nobody else -- not a post's scope, not command --
+// and the simulation never reads either: the month report is drafted from the record and is unchanged
+// by anything written in a private log. A purge takes the published log and leaves the private one.
+static void TestTheTwoLogs()
+{
+	g_test = "the two logs: the official record and the private one";
+
+	const int player = 0;       // the captain, in this test
+	const int crewmember = 40;  // somebody else
+
+	// Separation: an official entry is not a personal one, and the private read is per person.
+	Ship s = NewShip();
+	LogEvent(s, "the bridge", "command", "the official account of the day");
+	CHECK(WritePersonalLog(s, player, "what I actually think of the day"));
+	CHECK(s.log.size() == 1 && s.personalLog.size() == 1);
+	CHECK(ReadOfficialLog(s, 10, "").size() == 1);
+	CHECK(ReadOfficialLog(s, 10, "command").size() == 1);
+	CHECK(PersonalLog(s, player).size() == 1);
+	CHECK(PersonalLog(s, crewmember).empty());            // nobody else's read
+	CHECK(PersonalLog(s, player).back().owner == player);
+	CHECK(PersonalLog(s, player).back().what.find("actually think") != std::string::npos);
+	CHECK(PersonalVisibleTo(s.personalLog[0], player));   // the visibility rule, in one place
+	CHECK(!PersonalVisibleTo(s.personalLog[0], crewmember));
+	CHECK(s.personalLog[0].visibility == LOG_PERSONAL);
+
+	// A bad write changes nothing: no such owner, or nothing to say.
+	CHECK(!WritePersonalLog(s, -1, "nobody's"));
+	CHECK(!WritePersonalLog(s, 9999, "nobody's"));
+	CHECK(!WritePersonalLog(s, player, ""));
+	CHECK(s.personalLog.size() == 1);
+
+	// Invisible to the official read and to every scope: the token appears in no official entry,
+	// whatever scope is asked for, and never in the unfiltered read.
+	const std::string secret = "actually think";
+	static const char *const SCOPES[] = { "bridge", "engineering", "sickbay", "hull", "command", "outside", "crew", "security", "captain" };
+	bool leaked = false;
+	for (const char *sc : SCOPES)
+		for (const LogEntry &e : ReadOfficialLog(s, 100, sc))
+			if (e.what.find(secret) != std::string::npos) leaked = true;
+	for (const LogEntry &e : ReadOfficialLog(s, 100, ""))
+		if (e.what.find(secret) != std::string::npos) leaked = true;
+	CHECK(!leaked);
+
+	// The report is drafted from the record, never from a log: a private entry that speaks to a
+	// death does not reach the draft, and the draft is identical with and without it.
+	Ship base = NewShip();
+	Remember(base, crewmember, MEM_DEATH, 5, MEM_SAW, -0.8f);
+	DraftReport(base, DEPT_COUNT);
+
+	Ship withPrivate = NewShip();
+	Remember(withPrivate, crewmember, MEM_DEATH, 5, MEM_SAW, -0.8f);
+	CHECK(WritePersonalLog(withPrivate, crewmember, "the death was my fault and I will not write it down"));
+	DraftReport(withPrivate, DEPT_COUNT);
+
+	const MonthReport &a = OpenReport(base);
+	const MonthReport &b = OpenReport(withPrivate);
+	CHECK(a.lines.size() == b.lines.size());
+	bool same = a.lines.size() == b.lines.size();
+	for (size_t i = 0; same && i < a.lines.size(); ++i)
+		same = a.lines[i].text == b.lines[i].text && a.lines[i].scope == b.lines[i].scope;
+	CHECK(same);
+	bool inReport = false;
+	for (const ReportLine &l : b.lines) if (l.text.find("my fault") != std::string::npos) inReport = true;
+	CHECK(!inReport);
+
+	// The purge removes the published log and orphans the MEM_LOG-sourced marks; it does not take
+	// the private log with it.
+	Ship g = NewShip();
+	Remember(g, 10, MEM_DEATH, 5, MEM_LOG, -0.6f);
+	LogEvent(g, "the bridge", "crew", "we lost someone");
+	CHECK(WritePersonalLog(g, player, "I will remember them"));
+	CHECK(PurgeLogs(g));
+	CHECK(g.log.empty() && LogsPurged(g));                // the hole where the official log was
+	CHECK(g.personalLog.size() == 1);                     // the private store is untouched
+	CHECK(PersonalLog(g, player).size() == 1);
+	bool orphaned = false;
+	for (const Memory &m : g.crew[10].memories)
+		if (m.source == MEM_LOG && m.orphaned) orphaned = true;
+	CHECK(orphaned);                                      // the citation is gone, the mark is not
+
+	// Both stores are separate in the save, and a reload restores both, byte-for-byte -- including
+	// a private entry longer than an official one is allowed to be.
+	Ship r = NewShip();
+	r.player = player;
+	LogEvent(r, "the bridge", "command", "the official account");
+	std::string longEntry;
+	while (longEntry.size() < 150) longEntry += "the truth, said at length. ";
+	CHECK(WritePersonalLog(r, player, longEntry));
+	CHECK(WritePersonalLog(r, crewmember, "somebody else's private one"));
+	std::vector<uint8_t> blob = Pack(r);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.log.size() == 1 && back.personalLog.size() == 2);
+	CHECK(back.personalLog[0].owner == player && back.personalLog[0].what == longEntry);
+	CHECK(back.personalLog[1].owner == crewmember);
+	CHECK(back.personalLog[0].visibility == LOG_PERSONAL);
+	CHECK(PersonalLog(back, player).size() == 1 && PersonalLog(back, crewmember).size() == 1);
+	CHECK(Pack(back) == blob);
+}
+
 // The navigation counter (docs/navigation-counter.md): distance home, the estimate nominal and at
 // current capability, the change since it was last written down, and the forecasts command sees.
 static void TestNavigation()
@@ -3859,6 +3960,93 @@ static void TestPlayerInTheWorld()
 	CHECK(passed);
 }
 
+// `test_ship_core --personal` prints the two logs as evidence (docs/the-record-and-the-log.md): the
+// stores are separate, a private entry is invisible to the official read and to every scope, the
+// player can write one and read it back, the month report's draft is unchanged by it, and a purge
+// takes the published log and leaves the private one. See docs/evidence/the-two-logs.md.
+static int PrintPersonal()
+{
+	const int player = 0, crewmember = 40;
+	int failures = 0;
+
+	{
+		Ship s = NewShip();
+		s.player = player;
+		LogEvent(s, "the bridge", "command", "the official account of the day");
+		WritePersonalLog(s, player, "the death was my fault, and I will not write it down");
+		std::printf("PASS  two stores: %d official entry, %d personal entry\n",
+			static_cast<int>(s.log.size()), static_cast<int>(s.personalLog.size()));
+		if (s.log.size() != 1 || s.personalLog.size() != 1) ++failures;
+
+		const std::string secret = "my fault";
+		int leaked = 0;
+		static const char *const SCOPES[] = { "bridge", "engineering", "sickbay", "hull", "command", "outside", "crew", "security", "captain" };
+		for (const char *sc : SCOPES)
+			for (const LogEntry &e : ReadOfficialLog(s, 100, sc))
+				if (e.what.find(secret) != std::string::npos) ++leaked;
+		std::printf("PASS  the private entry is invisible to the official read and to every scope: %d match(es) across %d scopes\n",
+			leaked, static_cast<int>(sizeof(SCOPES) / sizeof(SCOPES[0])));
+		if (leaked) ++failures;
+
+		std::printf("PASS  another person's read returns nothing: %d entries\n",
+			static_cast<int>(PersonalLog(s, crewmember).size()));
+		if (!PersonalLog(s, crewmember).empty()) ++failures;
+
+		std::printf("PASS  the player wrote it and reads it back: \"%s\"\n",
+			PersonalLog(s, player).back().what.c_str());
+		if (PersonalLog(s, player).size() != 1) ++failures;
+	}
+
+	// The report is drafted from the record, never from a log: a private entry does not touch it.
+	{
+		Ship base = NewShip();
+		Remember(base, crewmember, MEM_DEATH, 5, MEM_SAW, -0.8f);
+		DraftReport(base, DEPT_COUNT);
+		Ship withPrivate = NewShip();
+		Remember(withPrivate, crewmember, MEM_DEATH, 5, MEM_SAW, -0.8f);
+		WritePersonalLog(withPrivate, crewmember, "the death was my fault and I will not write it down");
+		DraftReport(withPrivate, DEPT_COUNT);
+		bool same = OpenReport(base).lines.size() == OpenReport(withPrivate).lines.size();
+		for (size_t i = 0; same && i < OpenReport(base).lines.size(); ++i)
+			same = OpenReport(base).lines[i].text == OpenReport(withPrivate).lines[i].text;
+		std::printf("PASS  the month report's draft is unchanged by a personal entry: %d line(s), %s\n",
+			static_cast<int>(OpenReport(withPrivate).lines.size()), same ? "identical" : "CHANGED");
+		if (!same) ++failures;
+	}
+
+	// The purge takes the published log and leaves the private one.
+	{
+		Ship s = NewShip();
+		Remember(s, 10, MEM_DEATH, 5, MEM_LOG, -0.6f);
+		LogEvent(s, "the bridge", "crew", "we lost someone");
+		WritePersonalLog(s, player, "I will remember them");
+		PurgeLogs(s);
+		bool orphaned = false;
+		for (const Memory &m : s.crew[10].memories) if (m.source == MEM_LOG && m.orphaned) orphaned = true;
+		std::printf("PASS  purge: published log %d entries, private log %d entries, orphaned mark %d\n",
+			static_cast<int>(s.log.size()), static_cast<int>(s.personalLog.size()), orphaned ? 1 : 0);
+		if (!s.log.empty() || s.personalLog.size() != 1 || !orphaned) ++failures;
+	}
+
+	// In the save, both stores, together.
+	{
+		Ship s = NewShip();
+		s.player = player;
+		LogEvent(s, "the bridge", "command", "the official account");
+		WritePersonalLog(s, player, "the private one");
+		std::vector<uint8_t> blob = Pack(s);
+		Ship back;
+		const bool ok = Unpack(blob.data(), blob.size(), back) && Pack(back) == blob;
+		std::printf("PASS  save and reload restore both stores byte-for-byte: official %d, personal %d\n",
+			static_cast<int>(back.log.size()), static_cast<int>(back.personalLog.size()));
+		if (!ok || back.log.size() != 1 || back.personalLog.size() != 1) ++failures;
+	}
+
+	if (failures) std::printf("%d demonstration(s) failed\n", failures);
+	else std::printf("all demonstrations passed\n");
+	return failures ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
@@ -3866,6 +4054,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
 	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
 	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
+	if (argc > 1 && !std::strcmp(argv[1], "--personal")) return PrintPersonal();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -3907,6 +4096,7 @@ int main(int argc, char **argv)
 	TestCrewJusticeAndBorg();
 	TestMemoryAndConsequence();
 	TestMonthReportAndToll();
+	TestTheTwoLogs();
 	TestNavigation();
 	TestResourcesAndPressure();
 	TestPhenomenon();
