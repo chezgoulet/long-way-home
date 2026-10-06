@@ -189,3 +189,49 @@ interpretation.
 - A novel answer plays a cue immediately, and resolves either inside the pause or as a deferral that lands later.
 - The same overlay serves the ship's computer, and an unrecognised command is refused in character rather than
   answered by invention.
+
+
+## Voice sources, provenance, and the licence
+
+The game ships its own voice assets and its own computer tones, and using them **inside the game** is
+straightforwardly permitted. The source release's own licence — the *STEF Game Source License*, a Limited Use
+Software License Agreement with Raven dated 11 January 2000 — grants at §3(a) the right to use the Software to
+create modifications ("the New Creations") **"for operation only with the full version of the software game"**.
+That is exactly our posture: we require the retail install, we ship no assets, and nothing is sold. The console
+chirps and the ship's computer voice sit in the same category as the textures and models already in use — assets
+the player owns, played by the game they own.
+
+**"We make no money" is not the constraint that governs synthesizing new lines, and it is worth being exact about
+which one does.** The licence addresses commerce at §2(e) and §3(b), but §3(b)'s permission to distribute New
+Creations free of charge is conditioned by its own words: *"so long as such distribution is not infringing against
+any third party right."* Raven's grant covers Raven's software. It cannot reach Paramount's characters and marks,
+and it cannot reach a performer's voice. **A line synthesized in a living actor's voice, that they never
+performed, is a new artifact with no clean chain of title — and that is true whether it is sold or given away.**
+Free removes the commercial problem; it does not remove the third-party-rights problem.
+
+Two further clauses are worth knowing rather than discovering later. §2(f) prohibits modifying the Software
+except as permitted by §3, and §2(j) prohibits preparing derivative works — while §3 grants modification and free
+non-commercial distribution of New Creations. That tension is resolved in practice by reading §3 as governing:
+every public project in this lineage (ioEF, cMod, lilium, the Android port) stands on that reading, and the
+multiplayer client's release was reported as having the approval of both rights-holders. §8 forbids sublicensing
+and the licence must accompany copies, which is why the repository carries it. This is a reading, not legal
+advice, and it should be re-checked before anything is distributed publicly.
+
+**The engineering answer is the one already chosen, which is the happy part: the licence-safe shape and the
+resource-safe shape are the same shape — generate locally, never ship.** Synthesized lines are produced on the
+player's own machine from the copy of the game they own, and live only in their cache beside the save. The
+repository carries the mechanism and never the output: no generated dialogue, no cloned voice, no actor's audio.
+What the repository *can* ship is voice we own — TTS voices for our own characters, for the anonymous crew, and
+any computer voice that is not the canonical one. Lore characters speak in-character on the owner's machine, or
+not at all.
+
+This fixes the provenance rule for the cache and the log as well: generated audio is player-local data, pruned
+with the save, never committed, and never attached to an issue or a pull request.
+
+## Acceptance, continued (voice)
+
+- The repository contains no game assets and no generated voice audio; a clean clone plus a retail install is the
+  entire requirement.
+- Generated lines are written to the player's cache, pruned with the save, and excluded from version control.
+- The computer's tones come from the game's own assets; any voice the repository ships is one we created.
+- The licence travels with the repository, and NOTICE states the asset position plainly.
