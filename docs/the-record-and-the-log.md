@@ -28,7 +28,9 @@ The rule that makes the rest work, and the one to cite when an argument about ho
 **Instruments are reads of state.** The navigation counter, the inventory of what still works, the
 damage-control board, the panel the player is standing at. These never lie, and
 `docs/navigation-counter.md`'s own rule — *the number must never lie* — is untouched. They are the simulation
-read out, so they cannot drift from it.
+read out, so they cannot drift from it. **One of those instruments is still only specified: the navigation
+counter had no implementation as of 2026-10-06** (see `docs/story-and-semantics.md`, conflict 7). The law says
+what an instrument *is*; it does not make one exist.
 
 **The log is not an instrument.** It is a document somebody wrote and somebody signed. It can be false by
 commission — a struck line, a softened number, an added claim — or by omission, which is the harder and more
