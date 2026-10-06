@@ -87,6 +87,10 @@ The log is a document, not an instrument, and it has its own document:
 inventory and the estimate — seventy-one years nominal, seventy-six at current capability, up 1.8 since the
 last entry (`docs/navigation-counter.md`). Nothing is on fire, and the number is honest. That is the register.
 
+**Those numbers are the design's, not a readout.** The counter is specified in full and, as of this writing,
+is not implemented — see conflict 7 below. Until it exists, that paragraph describes what the game is *for*,
+not what a console prints.
+
 **Procedure is the comfort.** The comfort is that there is a right way and it is written down. An ensign
 reports *"Chief, we've lost the starboard array; the coolant loop is holding at sixty-two percent,"* and the
 chief says *"Again — number first."* Form, held under pressure, by tired people: that is the emotional centre
@@ -152,6 +156,26 @@ time; `docs/damage-and-budgets.md` granted single-player a planning pause; the e
 `Ship_Frame` and a console that explicitly asks not to. **Resolved by the owner (2026-10-06):** the world's
 clock cannot be stopped — but the simulation can be shut down, and the player can sleep through time at the
 accelerated rate. See `docs/ship-model.md`, *The three clocks and the two exits*.
+
+**7. The counter is the design's emotional centre, and the code had a fuel gauge wearing its name.**
+`docs/navigation-counter.md` calls itself "the emotional centre of the whole design" and says it should be
+built early, because it costs nothing to compute and makes every other decision legible. It specifies three
+numbers: the distance to Earth; an estimate of the years home, **projected from the capability the ship can
+actually sustain** rather than divided out arithmetically; and the change since the last log entry — with the
+nominal and current-capability figures shown side by side, so the crew can see what the difference is made of.
+
+**Status at the time of writing (2026-10-06, builder branch `67b5790`): it did not exist.** What existed was
+`DilithiumRange` — `dilithium × crystalQuality × 3000 light years`, the progress the crystal can still buy —
+and a function literally named `NavigationCounter` that returned it. A fuel gauge under the name of a journey,
+which is worse than no name at all: a name that satisfies a search while returning a different quantity hides
+the gap. A session was put on building the real one — **check `NavigationCounter` in
+`module/ship/ship_core.cpp` and its evidence in `docs/evidence/` before relying on this entry.**
+
+What makes it cheap, and the reason the previous session's "this needs a new model" was wrong: the position
+model already exists and is saved. `Ship::sector` holds the beacons and the jumps between them, `Ship::beacon`
+is "where the ship is", and `SECTOR_BEACONS = 12` with `SECTORS_TO_CROSS = 3 // sectors crossed before the
+ship is home` give the distance remaining. The inputs to effective speed are saved too. **This is a new
+projection over an existing model, not a new model.**
 
 ## The laws
 
