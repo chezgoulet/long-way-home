@@ -861,6 +861,12 @@ const char *const BREACH_PUSH = "lwh_breach_push";
 const char *const BREACH_HURT = "lwh_breach_hurt";
 const char *const BREACH_FIELD = "lwh_breach_field";
 
+// The emergency lighting state (the deck 12 brief): this is the room whose failure darkens other
+// decks, so the red state is authored as func_usable strips the module switches, and the normal
+// strips they replace. Names are prefixes: a room may have many strips.
+const char *const EMERGENCY_LIGHT = "lwh_light_emergency";
+const char *const NORMAL_LIGHT = "lwh_light_normal";
+
 gentity_t *FindTargetname( const char *name )
 {
 	for ( int n = 1; n < globals.num_entities; ++n )
@@ -1002,6 +1008,45 @@ void SyncBreach( void )
 	}
 }
 
+// The emergency lighting state (the deck 12 brief). The authored strips are func_usable brushes; the
+// red ones are held off and the working ones on, and the module swaps them when the plant this room
+// watches is in trouble or the ship is at battle stations -- the failure that darkens other decks is
+// visible here first. Same pattern as the field brush: the game's own func_usable keeps the on/off
+// state in `count`, so the module calls its use function rather than re-implementing it.
+void SetPrefixedLights( const char *prefix, bool on, int *seen )
+{
+	int len = 0;
+	while ( prefix[len] ) ++len;
+	for ( int n = 1; n < globals.num_entities; ++n )
+	{
+		gentity_t *e = &g_entities[n];
+		if ( !e->inuse || !e->targetname ) continue;
+		if ( Q_stricmpn( e->targetname, prefix, len ) ) continue;
+		SetFieldBrush( e, on );
+		++*seen;
+	}
+}
+
+void SyncEmergencyLight( void )
+{
+	ship::Ship *vessel = Ship_Get();
+	if ( !vessel ) return;
+	const float life = ship::SystemCondition( vessel->systems[ship::SYS_LIFE_SUPPORT] );
+	const bool emergency = ( vessel->alert == ship::ALERT_RED ) || ( life < 0.6f );
+	int red = 0, working = 0;
+	SetPrefixedLights( EMERGENCY_LIGHT, emergency, &red );
+	SetPrefixedLights( NORMAL_LIGHT, !emergency, &working );
+	if ( !red && !working ) return; // this map has no authored emergency lighting
+	static int last = -1;
+	const int now = emergency ? 1 : 0;
+	if ( now != last )
+	{
+		last = now;
+		gi.Printf( "ENV: emergency lighting %s on deck %d (life support %d%%, %d red and %d working strips)\n",
+			emergency ? "on" : "off", PlayersDeck(), static_cast<int>( life * 100.0f + 0.5f ), red, working );
+	}
+}
+
 void Crew_EnvFrame( void )
 {
 	if ( !g_env || !g_env->integer )
@@ -1021,6 +1066,7 @@ void Crew_EnvFrame( void )
 	}
 	SyncGravity();
 	SyncBreach();
+	SyncEmergencyLight();
 }
 
 // ---- the player in the world (Stage B) ----------------------------------------------------------

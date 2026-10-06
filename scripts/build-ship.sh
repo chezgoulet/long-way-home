@@ -26,7 +26,15 @@ DECKS="$ROOT/build/gdk/maps/eliteforce_virtualvoyager_maps"
 mkdir -p "$ROOT/build/ship" "$OUT"
 
 # The five decks nobody ever published get a generated placeholder each (tools/shipmap/gendeck.py).
-python3 "$ROOT/tools/shipmap/gendeck.py" --deck 6 --deck 7 --deck 12 --deck 13 --deck 14 --out "$ROOT/build/ship/generated"
+# Deck 12 is different: it is re-dressed from a published source (tools/shipmap/dressdeck12.py),
+# because the brief names the room to copy -- tour/deck11, main engineering. See
+# docs/locations/deck12-environmental-control.brief.md and docs/authoring-a-location.md.
+python3 "$ROOT/tools/shipmap/gendeck.py" --deck 6 --deck 7 --deck 13 --deck 14 --out "$ROOT/build/ship/generated"
+python3 "$ROOT/tools/shipmap/dressdeck12.py" --deck11 "$DECKS/deck11.map" --out "$ROOT/build/ship/generated" \
+  --report "$ROOT/build/ship/deck12-dress.json" --census "$ROOT/build/ship/deck12-census.json"
+# Every material the re-dress uses must already exist in the game (the brief's section 4: no new art).
+python3 "$ROOT/tools/shipmap/parts_census.py" --map "$ROOT/build/ship/generated/deck12.map" \
+  --game "$ROOT/build/baseEF" --census "$ROOT/build/ship/deck12-census.json"
 
 # What goes in the pak beside the map: the turbolift's deck list for fifteen decks. It is ours,
 # authored under tools/shipmap/data (the game's own list covers only the ten published decks), and

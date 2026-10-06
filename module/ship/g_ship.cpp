@@ -1229,9 +1229,11 @@ void RunTest( void )
 				TeleportPlayer( &g_entities[0], at, angles, 0 );
 				VectorCopy( angles, glanceAngles );
 				haveGlanceAim = true;
-				gi.Printf( "SHIP: deck 12 blockout: standing at %s\n", vtos( at ) );
+				gi.Printf( "SHIP: deck 12 room: standing at %s\n", vtos( at ) );
+				angles[1] = 180;                 // face into the re-dressed room, toward the plant
+				VectorCopy( angles, glanceAngles );
 			}
-			else gi.Printf( "SHIP: deck 12 blockout: no d12_arrival on this map\n" );
+			else gi.Printf( "SHIP: deck 12 room: no d12_arrival on this map\n" );
 			step = 1;
 		}
 		if ( haveGlanceAim && g_entities[0].client )
@@ -1870,6 +1872,34 @@ void RunTest( void )
 			gi.SendConsoleCommand( "quit\n" );
 			step = 7;
 		}
+		return;
+	}
+	if ( g_shipTest->integer == 58 )
+	{//the emergency lighting state (docs/locations/deck12-environmental-control.brief.md): the room
+	 // whose failure darkens other decks goes red first. Stand at the life-support watch station,
+	 // put the ship at battle stations, photograph the red state, then stand down and photograph it
+	 // off. The strips are authored func_usable brushes; the module (g_env) swaps them.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			if ( !TeleportPlayerTo( "lwh_station_0", "emergency test" ) )
+				TeleportPlayerTo( "d12_arrival", "emergency test" );
+			vec3_t look = { -25, 90, 0 };  // look up along the room, at the light strips
+			VectorCopy( look, glanceAngles );
+			haveGlanceAim = true;
+			gi.Printf( "SHIP: emergency test: alert %d, life support %d%%\n",
+				static_cast<int>( vessel.alert ),
+				static_cast<int>( ship::SystemCondition( vessel.systems[ship::SYS_LIFE_SUPPORT] ) * 100.0f + 0.5f ) );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 3200 ) { ship::SetAlert( vessel, ship::ALERT_RED ); step = 2; }
+		if ( step == 2 && level.time >= 4300 ) { gi.SendConsoleCommand( "screenshot lwh_emergency\n" ); step = 3; }
+		if ( step == 3 && level.time >= 5600 ) { ship::SetAlert( vessel, ship::ALERT_GREEN ); step = 4; }
+		if ( step == 4 && level.time >= 6200 ) { gi.SendConsoleCommand( "screenshot lwh_emergency_off\n" ); step = 5; }
+		if ( step == 5 && level.time >= 7600 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
 		return;
 	}
 	if ( tested || level.time < 3000 ) return;
