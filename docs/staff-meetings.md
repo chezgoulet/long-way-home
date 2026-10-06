@@ -103,3 +103,89 @@ was said as well as what was decided — so the meeting can be read afterwards.
 - Every branch resolves to one of the enumerated outcomes, and the validator rejects a script that does not.
 - Same scenario, second run: the previously novel exchange is offered from the script without a model call.
 - Nothing the model produces can change ship state.
+
+
+## The dialogue overlay
+
+The meeting UI is the same shape as the tool the owner already uses to be interrogated for clarity: **a small set
+of pills, each with a short description of the option, and a last pill that takes free text.** That is not a
+coincidence — the pills *are* the enumerated outcomes and their intent descriptors, made visible. The UI is the
+branch selector.
+
+Constraints: minimal, LCARS, overlaying the scene without blocking it — bottom-anchored, roughly the lower
+quarter of the frame, one speaker block on the left carrying name, post, watch and mood, the line being answered,
+then the options, then the novel pill, which is visibly different because it is an entry field rather than an
+option. A `VOICE` affordance is drawn on that pill from the start, even before voice exists, so the final step is
+a substitution rather than a redesign.
+
+Because the pills carry the same intent descriptors that make novelty detection work, **the UI and the classifier
+are one structure**: a picked pill plays its branch; typed text is matched against the same descriptors; only a
+genuine miss reaches the model.
+
+Storyboard: `docs/art/lcars-meeting-overlay.png` (source `docs/art/lcars-meeting-overlay.html`) — the overlay over
+a dimmed briefing room, with the novel-input state and the filled pause drawn as detail insets.
+
+## Audio is generated with the script, not during it
+
+The async phase produces more than text: **every NPC line is rendered to audio ahead of time**. The meeting then
+plays with no inference whatsoever — it is content playback, like a cutscene assembled in advance. A local TTS is
+far cheaper than a local LLM, runs on CPU, and batches, and it is the half of this work that makes a room feel
+like a conversation rather than a text box.
+
+Two consequences worth having:
+
+- **Voices are cast once per character and held for the campaign**, so a player learns the crew by ear and
+  recognises a speaker before reading the name.
+- The rendered audio carries the **durations**, so pacing is data: the pills appear when the line finishes, and
+  the conversation goes by quickly because nothing is waiting on a machine.
+
+Budget: a meeting is tens of lines at a couple of hundred kilobytes each — a few megabytes, cached beside the save
+and pruned with it. The House already runs a local TTS with a known-good pipeline (piper, transcoded through
+ffmpeg on the build host).
+
+## The pause, and why latency becomes characterisation
+
+A novel answer is the one place a live call happens. That latency is not hidden; it is **filled**, with a human
+behaviour. Each character has a small set of pre-generated non-lexical cues — a breath, a chair shifting, a PADD
+tap, "Hmm.", "I have to think about that." — and one plays while the model works. This is the same turn-taking
+pattern already proven in the Vox work: you cannot remove the wait, so you give it a voice.
+
+Two outcomes, both good:
+
+- **Fast** — the answer arrives inside the pause and the character speaks as though they had considered it.
+- **Slow** — the character gives the **deferral** line, and the outcome moves to a later beat: the answer arrives
+  as a message, a log entry, or a conversation in the corridor. A slow model becomes a story beat rather than a
+  stall, which is the owner's own rule from the failure design — system and player fail states are canonical
+  content, embraced rather than hidden.
+
+Because the pause is a design element rather than a patch, it also absorbs the extra latency that speech
+recognition adds in voice mode.
+
+## Voice input, and the ship's computer
+
+Voice is **additive by construction**: the pill is the only input surface, and it emits text. How the text arrives
+is a detail. Speech-to-text produces a string that takes exactly the same path through the intent descriptors —
+pick a branch or become the novel case.
+
+One wrinkle to plan for: a local STT model is a third resident model, so the memory plan is that no two run at
+once. The embedding matcher for novelty (~100 MB) stays resident; TTS runs batched during generation; STT runs only
+in voice mode; the generator runs only during async generation.
+
+**The ship's computer is the same machinery**, which is the best argument that the abstraction is right: options
+as pills, free text, a pre-generated voice, the same branch model. One system serves staff meetings, conversations
+with crew, and computer interaction.
+
+The guardrail tightens for the computer, though: there, the enumerated set **is** the ship's API, and the model may
+never invent a command result. An unrecognised input gets a diegetic refusal — the canonical *"that function is not
+available"* — never a fabricated outcome. It is the same invariant as everywhere else, with less room for
+interpretation.
+
+## Acceptance, continued
+
+- The overlay occupies no more than about a quarter of the frame and the scene stays visible; the line being
+  answered and every option are legible.
+- A picked pill plays a pre-generated line and its audio with **no inference call**.
+- A meeting's audio prunes with the save that owns it, and a meeting remains playable when a voice is missing.
+- A novel answer plays a cue immediately, and resolves either inside the pause or as a deferral that lands later.
+- The same overlay serves the ship's computer, and an unrecognised command is refused in character rather than
+  answered by invention.
