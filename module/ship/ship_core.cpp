@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace ship {
@@ -96,6 +97,7 @@ static float Clamp01(float v) { return std::min(1.0f, std::max(0.0f, v)); }
 
 static void NoteDeath(Ship &s, int deadIndex);      // who was there to see it (memory and consequence)
 static void MemoryDecay(Ship &s, float shipSeconds); // salience fades unless reinforced
+static void MaturePromises(Ship &s);                 // a deadline that passes unresolved is broken
 static void UpdateJobs(Ship &s);                     // the queue of outstanding work (docs/crew-work.md)
 static uint32_t AnomalyRoll(uint32_t counter, uint32_t seed); // a deterministic draw (the ruling)
 
@@ -2234,6 +2236,14 @@ bool Promote(Ship &s, int crew)
 	const std::string from = RANKS[c.rank];
 	++c.rank;
 	LogEvent(s, CommandingOfficer(s), "crew", c.name + " is promoted from " + from + " to " + RANKS[c.rank]);
+	// A promise of promotion made in front of this crew member is now a promise kept.
+	for (int i = 0; i < static_cast<int>(s.promises.size()); ++i) {
+		const Promise &p = s.promises[i];
+		if (p.state == PROMISE_OPEN && p.kind == PROMISE_PROMOTION && p.beneficiary == crew) {
+			ResolvePromise(s, i, true);
+			break;
+		}
+	}
 	return true;
 }
 
@@ -2312,6 +2322,324 @@ float Trauma(const CrewMember &who)
 	for (const Memory &m : who.memories)
 		if (m.valence < 0.0f) t += (-m.valence) * m.salience;
 	return std::min(1.0f, t);
+}
+
+// ---- promises: a bond with a claim attached (docs/memory-and-consequence.md) -------------------
+
+const char *PromiseKindName(uint8_t k)
+{
+	static const char *const N[PROMISE_KIND_COUNT] = { "a repair", "a rescue", "a promotion", "a way home" };
+	return k < PROMISE_KIND_COUNT ? N[k] : "?";
+}
+
+int MakePromise(Ship &s, int officer, int crew, PromiseKind kind, const std::string &what, double deadline)
+{
+	if (officer < 0 || officer >= static_cast<int>(s.crew.size())) return -1;
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return -1;
+	if (kind >= PROMISE_KIND_COUNT) return -1;
+	if (s.crew[officer].status != CREW_FIT || s.crew[crew].status != CREW_FIT) return -1;
+	Promise p;
+	p.promiser = officer;
+	p.beneficiary = crew;
+	p.kind = kind;
+	p.what = what;
+	p.made = s.clock;
+	p.deadline = deadline;
+	// The mark is written where the promise was heard: it names the promiser, and it is positive
+	// and salient enough to survive until the thing is done or found undone.
+	Remember(s, crew, MEM_PROMISE, officer, MEM_SAW, 0.6f);
+	s.promises.push_back(p);
+	if (static_cast<int>(s.promises.size()) > PROMISE_MAX) s.promises.erase(s.promises.begin());
+	LogEvent(s, s.crew[officer].name, "crew", s.crew[officer].name + " promises " + s.crew[crew].name + ": " + what);
+	return static_cast<int>(s.promises.size()) - 1;
+}
+
+// The outcome moves the mark and the bond. Kept, the mark strengthens; broken, it turns negative.
+// Either way the log carries it in the crew member's own terms, not the ship's.
+bool ResolvePromise(Ship &s, int index, bool kept)
+{
+	if (index < 0 || index >= static_cast<int>(s.promises.size())) return false;
+	Promise &p = s.promises[index];
+	if (p.state != PROMISE_OPEN) return false;
+	if (p.beneficiary < 0 || p.beneficiary >= static_cast<int>(s.crew.size())) return false;
+	p.state = kept ? PROMISE_KEPT : PROMISE_BROKEN;
+	CrewMember &c = s.crew[p.beneficiary];
+	const std::string promiser = (p.promiser >= 0 && p.promiser < static_cast<int>(s.crew.size())) ? s.crew[p.promiser].name : std::string("command");
+	bool found = false;
+	for (Memory &m : c.memories)
+		if (m.event == MEM_PROMISE && m.person == p.promiser) {
+			m.valence = kept ? 1.0f : -0.9f;
+			m.salience = 1.0f;
+			found = true;
+			break;
+		}
+	if (!found) Remember(s, p.beneficiary, MEM_PROMISE, p.promiser, MEM_SAW, kept ? 0.6f : -0.9f);
+	LogEvent(s, c.name, "crew", c.name + ": " + promiser + " said " + p.what
+		+ (kept ? ". It was done." : ". It was not done."));
+	return true;
+}
+
+// A deadline that passes with nothing said is a promise broken (docs/memory-and-consequence.md).
+static void MaturePromises(Ship &s)
+{
+	for (int i = 0; i < static_cast<int>(s.promises.size()); ++i) {
+		const Promise &p = s.promises[i];
+		if (p.state != PROMISE_OPEN || p.deadline < 0.0) continue;
+		if (s.clock > p.deadline) ResolvePromise(s, i, false);
+	}
+}
+
+const std::vector<Promise> &Promises(const Ship &s) { return s.promises; }
+
+// ---- the month report (docs/the-record-and-the-log.md) -----------------------------------------
+
+// The navigation counter, read from the record: the scoreboard the corpus already carries
+// (`DilithiumRange`, itself called "the scoreboard" -- docs/exploration-and-science.md). There is
+// no second quantity: the report's headline is this counter's change since the last entry.
+int NavigationCounter(const Ship &s) { return DilithiumRange(s); }
+
+const char *ReportAudienceName(uint8_t a)
+{
+	static const char *const N[REPORT_AUDIENCE_COUNT] = { "the crew", "upward" };
+	return a < REPORT_AUDIENCE_COUNT ? N[a] : "?";
+}
+
+static std::string NameAt(const Ship &s, int person)
+{
+	if (person >= 0 && person < static_cast<int>(s.crew.size())) return s.crew[person].name;
+	return "someone";
+}
+
+// Did this character see the event this line speaks to? Only a mark sourced MEM_SAW is proof
+// against a signed report (docs/the-record-and-the-log.md).
+static bool HoldsSaw(const CrewMember &who, uint16_t event, int person)
+{
+	for (const Memory &m : who.memories)
+		if (m.event == event && m.person == person && m.source == MEM_SAW) return true;
+	return false;
+}
+
+// Do they know of it at all? A told or rumoured version is not overwritten by reading the log.
+static bool HoldsMark(const CrewMember &who, uint16_t event, int person)
+{
+	for (const Memory &m : who.memories)
+		if (m.event == event && m.person == person) return true;
+	return false;
+}
+
+// How a mark of this event would normally feel, for the crew who read of it rather than saw it.
+static float EventValence(uint16_t event)
+{
+	switch (event) {
+	case MEM_DEATH: return -0.6f;
+	case MEM_RESCUE: return 0.7f;
+	case MEM_VIOLATION: return -0.5f;
+	case MEM_ORDER: return 0.1f;
+	default: return 0.0f;
+	}
+}
+
+// The time the last signed report covered to; the draft covers everything since.
+static double LastReportTime(const Ship &s)
+{
+	return s.reports.empty() ? 0.0 : s.reports.back().time;
+}
+
+void DraftReport(Ship &s, int department)
+{
+	MonthReport r;
+	r.number = static_cast<int>(s.reports.size()) + 1;
+	r.time = s.clock;
+	r.department = (department >= 0 && department < DEPT_COUNT) ? department : DEPT_COUNT;
+	r.counter = static_cast<float>(NavigationCounter(s));
+	r.counterChange = r.counter - s.navCounterLast;
+
+	char buf[256];
+	// The headline: the counter's change since the last entry. The derivative is the story.
+	std::snprintf(buf, sizeof(buf), "the ship can still make %d light years, %+.0f since the last entry",
+		NavigationCounter(s), static_cast<double>(r.counterChange));
+	{ ReportLine h; h.scope = "bridge"; h.draft = buf; h.text = buf; r.lines.push_back(h); }
+
+	// The ship's condition, honestly, from the record.
+	int lost = 0, wounded = 0, assimilated = 0;
+	for (const CrewMember &c : s.crew) {
+		if (c.status == CREW_DEAD) ++lost;
+		else if (c.status == CREW_ASSIMILATED) ++assimilated;
+		else if (c.status == CREW_INJURED) ++wounded;
+	}
+	std::snprintf(buf, sizeof(buf), "the crew stands at %d of %d; %d wounded, %d lost, %d assimilated",
+		s.CrewFit(), static_cast<int>(s.crew.size()), wounded, lost, assimilated);
+	{ ReportLine l; l.scope = "crew"; l.draft = buf; l.text = buf; r.lines.push_back(l); }
+
+	// The period's witnessed events. These are the lines a signed report can be held against: each
+	// speaks to a mark whose source is MEM_SAW, and the same event seen by three people drafts once.
+	const double since = LastReportTime(s);
+	std::vector<uint32_t> seen;
+	for (const CrewMember &c : s.crew) {
+		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) continue;
+		for (const Memory &m : c.memories) {
+			if (m.source != MEM_SAW) continue;
+			if (m.time <= since) continue;
+			if (m.event == MEM_LIE || m.event == MEM_PROMISE) continue; // private, not the record's business
+			const uint32_t key = (static_cast<uint32_t>(m.event) << 16) | static_cast<uint16_t>(m.person + 1);
+			bool dup = false;
+			for (uint32_t k : seen) if (k == key) { dup = true; break; }
+			if (dup) continue;
+			ReportLine l;
+			l.event = m.event;
+			l.person = m.person;
+			switch (m.event) {
+			case MEM_DEATH: l.scope = "crew"; l.draft = "we lost " + NameAt(s, m.person); break;
+			case MEM_RESCUE: l.scope = "crew"; l.draft = "we brought back " + NameAt(s, m.person); break;
+			case MEM_VIOLATION: l.scope = "command"; l.draft = "the Prime Directive was set aside"; break;
+			case MEM_ORDER: l.scope = "command"; l.draft = "an order was given and carried out"; break;
+			default: continue;
+			}
+			l.text = l.draft;
+			seen.push_back(key);
+			r.lines.push_back(l);
+			if (static_cast<int>(r.lines.size()) >= REPORT_LINE_MAX) break;
+		}
+	}
+	s.report = r;
+}
+
+const MonthReport &OpenReport(const Ship &s) { return s.report; }
+const std::vector<MonthReport> &Reports(const Ship &s) { return s.reports; }
+bool LogsPurged(const Ship &s) { return s.logPurged; }
+
+bool StrikeReportLine(Ship &s, int line)
+{
+	if (!s.report.open || line < 0 || line >= static_cast<int>(s.report.lines.size())) return false;
+	s.report.lines[line].struck = true;
+	return true;
+}
+
+bool EditReportLine(Ship &s, int line, const std::string &text)
+{
+	if (!s.report.open || line < 0 || line >= static_cast<int>(s.report.lines.size())) return false;
+	if (text.empty() || text.size() > 96) return false;
+	s.report.lines[line].text = text;
+	s.report.lines[line].struck = false;
+	return true;
+}
+
+// Soften a number: the claim most often softened is the one with a figure in it. The first run of
+// digits in the line is scaled, and the record keeps the drafted number beside it.
+bool SoftenReportLine(Ship &s, int line, float factor)
+{
+	if (!s.report.open || line < 0 || line >= static_cast<int>(s.report.lines.size())) return false;
+	if (!(factor > 0.0f && factor < 1.0f)) return false;
+	ReportLine &l = s.report.lines[line];
+	std::string &t = l.text;
+	size_t i = 0;
+	while (i < t.size() && !(t[i] >= '0' && t[i] <= '9')) ++i;
+	if (i >= t.size()) return false;
+	size_t j = i;
+	while (j < t.size() && t[j] >= '0' && t[j] <= '9') ++j;
+	const long v = std::atol(t.substr(i, j - i).c_str());
+	const long nv = static_cast<long>(static_cast<double>(v) * factor);
+	t = t.substr(0, i) + std::to_string(nv) + t.substr(j);
+	l.struck = false;
+	return true;
+}
+
+bool AddReportLine(Ship &s, const std::string &scope, const std::string &text)
+{
+	if (!s.report.open || text.empty() || text.size() > 96) return false;
+	if (static_cast<int>(s.report.lines.size()) >= REPORT_LINE_MAX) return false;
+	ReportLine l;
+	l.scope = scope.empty() ? "bridge" : scope;
+	l.text = text;
+	l.added = true;
+	s.report.lines.push_back(l);
+	return true;
+}
+
+// Sign and publish. This is where the lie is made with the player's hands: a signed line that
+// contradicts a MEM_SAW mark puts a lie in the witness, and -- only where the witness is under the
+// signer and reads the report -- the witness's bond toward the signer falls. Lying up, or into a
+// report nobody below reads, costs nothing from below (docs/the-record-and-the-log.md).
+bool SignReport(Ship &s, int signer, uint8_t audience)
+{
+	if (!s.report.open || s.report.lines.empty()) return false;
+	if (signer < 0 || signer >= static_cast<int>(s.crew.size())) return false;
+	if (audience >= REPORT_AUDIENCE_COUNT) return false;
+	MonthReport &r = s.report;
+	r.audience = audience;
+	r.signer = s.crew[signer].name;
+	r.time = s.clock;
+
+	for (const ReportLine &l : r.lines)
+		if (!l.struck && !l.text.empty()) LogEvent(s, r.signer, l.scope, l.text);
+
+	const CrewMember &sig = s.crew[signer];
+	for (ReportLine &l : r.lines) {
+		if (l.event == 0 || l.person < 0) continue;
+		const bool contradicted = l.struck || l.text != l.draft;
+		if (!contradicted) continue;
+		if (audience != REPORT_TO_CREW) continue; // filed upward: nobody below reads it
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+			CrewMember &w = s.crew[i];
+			if (w.status == CREW_DEAD || w.status == CREW_ASSIMILATED) continue;
+			if (w.rank >= sig.rank) continue; // the toll is paid downward, only
+			if (!HoldsSaw(w, l.event, l.person)) continue;
+			// Divergent allegiance amplifies, alignment suppresses; a bad history amplifies too.
+			// The magnitudes are invented [inv]; the direction is the document's.
+			float factor = (w.faction != sig.faction) ? 1.6f : 0.5f;
+			if (Bond(s, i, signer) < 0.0f) factor *= 1.3f;
+			const float v = std::max(-1.0f, -0.6f * factor);
+			Remember(s, i, MEM_LIE, signer, MEM_SAW, v);
+			LogEvent(s, w.name, "crew", w.name + " saw " + l.draft + ", and heard it denied");
+		}
+	}
+
+	// The crew who did not see it read the published version and remember it as read (MEM_LOG):
+	// the crew can only ever see what was signed. A purge orphans this class of mark.
+	if (audience == REPORT_TO_CREW) {
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+			CrewMember &w = s.crew[i];
+			if (w.status == CREW_DEAD || w.status == CREW_ASSIMILATED) continue;
+			for (const ReportLine &l : r.lines) {
+				if (l.event == 0 || l.person < 0 || l.struck) continue;
+				if (HoldsMark(w, l.event, l.person)) continue; // they already know it, by some provenance
+				Remember(s, i, l.event, l.person, MEM_LOG, EventValence(l.event));
+			}
+		}
+	}
+
+	r.open = false;
+	r.signed_ = true;
+	s.navCounterLast = r.counter;
+	s.reports.push_back(r);
+	if (static_cast<int>(s.reports.size()) > REPORT_MAX) s.reports.erase(s.reports.begin());
+	s.report = MonthReport(); // a fresh, empty draft
+	return true;
+}
+
+std::string ReportDiff(const MonthReport &r)
+{
+	std::string out;
+	for (const ReportLine &l : r.lines) {
+		if (l.struck) { out += "- " + l.draft + "\n"; continue; }
+		if (l.added) { out += "+ " + l.text + "\n"; continue; }
+		if (l.text != l.draft) { out += "- " + l.draft + "\n+ " + l.text + "\n"; }
+	}
+	return out;
+}
+
+// Purge the published logs (docs/the-record-and-the-log.md). It defends against readers and never
+// against assimilation: the Collective takes the log from the mind. What it leaves is the marks
+// sourced read-it-in-the-log, still held, with their citation gone.
+bool PurgeLogs(Ship &s)
+{
+	if (s.log.empty()) return false;
+	s.log.clear(); // the hole where the log was; the record keeps only the diff
+	s.logPurged = true;
+	for (CrewMember &c : s.crew)
+		for (Memory &m : c.memories)
+			if (m.source == MEM_LOG) m.orphaned = true;
+	return true;
 }
 
 // The holodeck's uses. Recreation lifts the mood; training grants a credential; therapy fades the
@@ -2540,6 +2868,7 @@ static void Advance(Ship &s, double shipSecondsTotal)
 		s.remodulateCooldown = std::max(0.0f, s.remodulateCooldown - step);
 		s.adaptationSuppressed = std::max(0.0f, s.adaptationSuppressed - step);
 		UpdateCrew(s, step);
+		MaturePromises(s); // a deadline that passes with nothing said is a promise broken
 		UpdateSquad(s, step); // the squad's defenders are added before the fight is worked
 		UpdateIntruders(s, step);
 		UpdatePower(s, step);
@@ -3288,6 +3617,22 @@ struct Reader {
 	float Unit() { const float v = F(); if (!(v >= 0.0f && v <= 1.0f)) ok = false; return v; }
 };
 
+// A length-capped string, so one long fact or claim cannot bloat the save.
+void WriteStr(Writer &w, const std::string &s)
+{
+	const int n = std::min(static_cast<int>(s.size()), 63);
+	w.U8(static_cast<uint8_t>(n));
+	for (int i = 0; i < n; ++i) w.U8(static_cast<uint8_t>(s[i]));
+}
+
+std::string ReadStr(Reader &r)
+{
+	std::string s;
+	const int n = r.U8();
+	for (int i = 0; i < n && r.ok; ++i) s.push_back(static_cast<char>(r.U8()));
+	return s;
+}
+
 } // namespace
 
 std::vector<uint8_t> Pack(const Ship &s)
@@ -3378,7 +3723,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 		for (int k = 0; k < mem; ++k) {
 			const Memory &m = c.memories[k];
 			w.U16(m.event); w.U16(static_cast<uint16_t>(m.person + 1)); w.U8(m.source);
-			w.F(m.time); w.F(m.valence); w.F(m.salience);
+			w.F(m.time); w.F(m.valence); w.F(m.salience); w.U8(m.orphaned ? 1 : 0);
 		}
 	}
 	// The log: bounded, and each string length-capped so one long fact cannot bloat the save.
@@ -3426,6 +3771,39 @@ std::vector<uint8_t> Pack(const Ship &s)
 	}
 	w.U32(s.riskRolls); // the anomaly draws taken: the deterministic counter behind UseSystem
 	w.U8(s.leftStanding ? 1 : 0); // the record's mark: was this run ever left standing?
+	// The month report and its diff, the promises held, and the log's lifecycle (version 44).
+	w.F(s.navCounterLast);
+	w.U8(s.logPurged ? 1 : 0);
+	auto writeLine = [&w](const ReportLine &l) {
+		WriteStr(w, l.scope); WriteStr(w, l.text); WriteStr(w, l.draft);
+		w.U16(l.event); w.U16(static_cast<uint16_t>(l.person + 1));
+		w.U8(l.struck ? 1 : 0); w.U8(l.added ? 1 : 0);
+	};
+	auto writeReport = [&w, &writeLine](const MonthReport &rep) {
+		w.U16(static_cast<uint16_t>(rep.number));
+		w.U64(static_cast<uint64_t>(std::llround(rep.time * 1000.0)));
+		w.F(rep.counter); w.F(rep.counterChange);
+		WriteStr(w, rep.signer);
+		w.U8(static_cast<uint8_t>(rep.department)); w.U8(rep.audience);
+		w.U8(rep.open ? 1 : 0); w.U8(rep.signed_ ? 1 : 0);
+		const int n = std::min(static_cast<int>(rep.lines.size()), REPORT_LINE_MAX);
+		w.U8(static_cast<uint8_t>(n));
+		for (int i = 0; i < n; ++i) writeLine(rep.lines[i]);
+	};
+	writeReport(s.report); // the open draft, and its `open` flag
+	const int nReports = std::min(static_cast<int>(s.reports.size()), REPORT_MAX);
+	w.U8(static_cast<uint8_t>(nReports));
+	for (int i = 0; i < nReports; ++i) writeReport(s.reports[i]);
+	const int nPromises = std::min(static_cast<int>(s.promises.size()), PROMISE_MAX);
+	w.U8(static_cast<uint8_t>(nPromises));
+	for (int i = 0; i < nPromises; ++i) {
+		const Promise &p = s.promises[i];
+		w.U16(static_cast<uint16_t>(p.promiser + 1)); w.U16(static_cast<uint16_t>(p.beneficiary + 1));
+		w.U8(p.kind); w.U8(p.state);
+		w.U64(static_cast<uint64_t>(std::llround(p.made * 1000.0)));
+		w.F(static_cast<float>(p.deadline));
+		WriteStr(w, p.what);
+	}
 	return w.b;
 }
 
@@ -3591,6 +3969,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 			m.time = r.F();
 			m.valence = r.F();
 			m.salience = r.Unit();
+			m.orphaned = r.U8() != 0;
 			if (m.source >= MEM_SOURCE_COUNT || m.person < -1 || m.person >= static_cast<int16_t>(count)) return false;
 			c.memories.push_back(m);
 		}
@@ -3642,6 +4021,53 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	}
 	s.riskRolls = r.U32(); // the anomaly draws taken (see Pack)
 	s.leftStanding = r.U8() != 0;
+	// The month report and its diff, the promises held, and the log's lifecycle (version 44).
+	auto readLine = [&r]() {
+		ReportLine l;
+		l.scope = ReadStr(r); l.text = ReadStr(r); l.draft = ReadStr(r);
+		l.event = r.U16(); l.person = static_cast<int16_t>(r.U16()) - 1;
+		l.struck = r.U8() != 0; l.added = r.U8() != 0;
+		return l;
+	};
+	auto readReport = [&r, &readLine]() {
+		MonthReport rep;
+		rep.number = r.U16();
+		rep.time = static_cast<double>(r.U64()) / 1000.0;
+		rep.counter = r.F(); rep.counterChange = r.F();
+		rep.signer = ReadStr(r);
+		rep.department = r.U8(); rep.audience = r.U8();
+		rep.open = r.U8() != 0; rep.signed_ = r.U8() != 0;
+		const int n = r.U8();
+		for (int i = 0; i < n && r.ok; ++i) rep.lines.push_back(readLine());
+		return rep;
+	};
+	s.navCounterLast = r.F();
+	s.logPurged = r.U8() != 0;
+	s.report = readReport();
+	if (s.report.department > DEPT_COUNT || s.report.audience >= REPORT_AUDIENCE_COUNT) return false;
+	if (static_cast<int>(s.report.lines.size()) > REPORT_LINE_MAX) return false;
+	for (const ReportLine &l : s.report.lines) if (l.event != 0 && (l.person < -1 || l.person >= static_cast<int>(count))) return false;
+	const int nReports = r.U8();
+	if (nReports > REPORT_MAX) return false;
+	for (int i = 0; i < nReports && r.ok; ++i) {
+		s.reports.push_back(readReport());
+		if (s.reports.back().department > DEPT_COUNT || s.reports.back().audience >= REPORT_AUDIENCE_COUNT) return false;
+	}
+	const int nPromises = r.U8();
+	if (nPromises > PROMISE_MAX) return false;
+	for (int i = 0; i < nPromises && r.ok; ++i) {
+		Promise p;
+		p.promiser = static_cast<int16_t>(r.U16()) - 1;
+		p.beneficiary = static_cast<int16_t>(r.U16()) - 1;
+		p.kind = r.U8(); p.state = r.U8();
+		p.made = static_cast<double>(r.U64()) / 1000.0;
+		p.deadline = r.F();
+		p.what = ReadStr(r);
+		if (p.kind >= PROMISE_KIND_COUNT || p.state >= PROMISE_STATE_COUNT) return false;
+		if (p.beneficiary < 0 || p.beneficiary >= static_cast<int>(count)) return false;
+		if (p.promiser < -1 || p.promiser >= static_cast<int>(count)) return false;
+		s.promises.push_back(p);
+	}
 	if (s.advanceDeck > DECKS || s.advanceAt > DECKS) return false;
 	if (!r.ok || r.left != 0) return false;
 

@@ -1547,6 +1547,117 @@ static void TestMemoryAndConsequence()
 	CHECK(Pack(back) == blob);
 }
 
+// The month report, the promise and the lie, and the toll paid downward (docs/the-record-and-the-log.md,
+// docs/memory-and-consequence.md).
+static void TestMonthReportAndToll()
+{
+	g_test = "the month report, the promise, the lie, and the toll";
+
+	const int officer = 0;      // the captain
+	const int crewmember = 40;  // an ensign who stands below them
+
+	// A promise made in front of a crew member produces a mark naming the promiser, and its outcome
+	// moves the mark's valence and the bond.
+	Ship p = NewShip();
+	CHECK(MakePromise(p, officer, crewmember, PROMISE_REPAIR, "the sensors would be repaired") == 0);
+	CHECK(Promises(p).size() == 1 && Promises(p)[0].state == PROMISE_OPEN);
+	CHECK(Recall(p.crew[crewmember], MEM_PROMISE));
+	CHECK(RecallSource(p.crew[crewmember], MEM_PROMISE) == MEM_SAW);
+	const float promised = Bond(p, crewmember, officer);
+	CHECK(promised > 0.0f);
+	CHECK(ResolvePromise(p, 0, true)); // the thing is done
+	CHECK(Promises(p)[0].state == PROMISE_KEPT);
+	CHECK(Bond(p, crewmember, officer) > promised);
+
+	// Broken, the mark turns negative, the bond falls, and the reason is in the crew member's terms.
+	Ship q = NewShip();
+	CHECK(MakePromise(q, officer, crewmember, PROMISE_RESCUE, "they would be brought back") == 0);
+	const float qbefore = Bond(q, crewmember, officer);
+	CHECK(ResolvePromise(q, 0, false));
+	CHECK(Bond(q, crewmember, officer) < qbefore);
+	bool reason = false;
+	for (const LogEntry &e : q.log)
+		if (e.what.find(q.crew[crewmember].name) == 0 && e.what.find("not done") != std::string::npos) reason = true;
+	CHECK(reason && q.log.back().who == q.crew[crewmember].name); // the crew member's own voice
+
+	// A deadline that passes with nothing said is a promise broken.
+	Ship d = NewShip();
+	CHECK(MakePromise(d, officer, crewmember, PROMISE_WAY_HOME, "a way home", d.clock + Hours(d, 1.0f)) == 0);
+	CHECK(d.promises[0].state == PROMISE_OPEN);
+	Tick(d, Hours(d, 2.0f));
+	CHECK(d.promises[0].state == PROMISE_BROKEN);
+
+	// A signed report that contradicts a MEM_SAW mark produces a lie mark in the witness, naming
+	// the signer, and the witness's bond toward the signer falls.
+	Ship s = NewShip();
+	Remember(s, crewmember, MEM_DEATH, 5, MEM_SAW, -0.8f); // the witness saw a death
+	DraftReport(s, DEPT_COUNT);
+	int line = -1;
+	for (int i = 0; i < static_cast<int>(OpenReport(s).lines.size()); ++i)
+		if (OpenReport(s).lines[i].event == MEM_DEATH && OpenReport(s).lines[i].person == 5) line = i;
+	CHECK(line >= 0);                                  // the draft carries what was seen
+	CHECK(StrikeReportLine(s, line));                  // the player strikes it: the lie by hand
+	CHECK(!ReportDiff(OpenReport(s)).empty());         // the record keeps the diff
+	const float bondBefore = Bond(s, crewmember, officer);
+	CHECK(SignReport(s, officer, REPORT_TO_CREW));
+	CHECK(Recall(s.crew[crewmember], MEM_LIE));
+	CHECK(Bond(s, crewmember, officer) < bondBefore);
+	bool publishedDeath = false;                       // the death was struck from the signed report
+	for (const LogEntry &e : s.log)
+		if (e.who == s.crew[officer].name && e.what.find("we lost") != std::string::npos) publishedDeath = true;
+	CHECK(!publishedDeath);                            // the crew only see the published version
+
+	// The same falsehood signed into a report nobody below reads produces no such fall.
+	Ship u = NewShip();
+	Remember(u, crewmember, MEM_DEATH, 5, MEM_SAW, -0.8f);
+	DraftReport(u, DEPT_COUNT);
+	int uline = -1;
+	for (int i = 0; i < static_cast<int>(OpenReport(u).lines.size()); ++i)
+		if (OpenReport(u).lines[i].event == MEM_DEATH && OpenReport(u).lines[i].person == 5) uline = i;
+	CHECK(uline >= 0 && StrikeReportLine(u, uline));
+	const float ubefore = Bond(u, crewmember, officer);
+	CHECK(SignReport(u, officer, REPORT_UPWARD));
+	CHECK(!Recall(u.crew[crewmember], MEM_LIE));       // lying up costs nothing from below
+	CHECK(std::fabs(Bond(u, crewmember, officer) - ubefore) < 1e-4f);
+
+	// A purge removes the published report and leaves the MEM_LOG-sourced marks in place,
+	// unverifiable -- not erased.
+	Ship g = NewShip();
+	Remember(g, 10, MEM_DEATH, 5, MEM_LOG, -0.6f);
+	LogEvent(g, "the bridge", "crew", "we lost someone");
+	CHECK(PurgeLogs(g));
+	CHECK(g.log.empty() && LogsPurged(g));             // the hole where the log was
+	CHECK(Recall(g.crew[10], MEM_DEATH));              // the mark is still held
+	bool orphaned = false;
+	for (const Memory &m : g.crew[10].memories)
+		if (m.event == MEM_DEATH && m.source == MEM_LOG && m.orphaned) orphaned = true;
+	CHECK(orphaned);                                   // its citation is gone, the mark is not
+
+	// And the whole of it is in the save: the report with its diff, the promises, the orphaned mark.
+	Ship r = NewShip();
+	Remember(r, crewmember, MEM_DEATH, 5, MEM_SAW, -0.8f);
+	DraftReport(r, DEPT_COUNT);
+	CHECK(StrikeReportLine(r, 0));                     // strike the headline for a visible diff
+	CHECK(SignReport(r, officer, REPORT_TO_CREW));
+	CHECK(MakePromise(r, officer, crewmember, PROMISE_REPAIR, "the sensors would be repaired", r.clock + 3600.0) >= 0);
+	Remember(r, 10, MEM_DEATH, 5, MEM_LOG, -0.6f);
+	CHECK(PurgeLogs(r));
+	std::vector<uint8_t> blob = Pack(r);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.reports.size() == r.reports.size() && !back.reports.empty());
+	CHECK(back.reports.back().signed_ && back.reports.back().lines.size() == r.reports.back().lines.size());
+	CHECK(!ReportDiff(back.reports.back()).empty());
+	CHECK(back.promises.size() == r.promises.size());
+	CHECK(back.promises.size() == 1 && back.promises[0].kind == PROMISE_REPAIR);
+	CHECK(back.logPurged);
+	bool backOrphan = false;
+	for (const Memory &m : back.crew[10].memories)
+		if (m.source == MEM_LOG && m.orphaned) backOrphan = true;
+	CHECK(backOrphan);
+	CHECK(Pack(back) == blob);
+}
+
 // The backlog, continued: resource acquisition (mining a belt), population pressure (refugees), and
 // justice (a hearing).
 static void TestResourcesAndPressure()
@@ -3316,11 +3427,110 @@ static int PrintRisk()
 	return 0;
 }
 
+// `test_ship_core --month` prints the month report and the toll as evidence: a promise kept, one
+// broken and one lapsed, a lie that lands and one filed where nobody below reads, an editable
+// report with its diff, and a purge that orphans rather than erases. See
+// docs/evidence/the-month-report-and-the-toll.md.
+static int PrintMonth()
+{
+	const int officer = 0, crewmember = 40;
+	int failures = 0;
+
+	// A promise made in front of a crew member; kept, and broken.
+	{
+		Ship s = NewShip();
+		MakePromise(s, officer, crewmember, PROMISE_REPAIR, "the sensors would be repaired");
+		const float b0 = Bond(s, crewmember, officer);
+		ResolvePromise(s, 0, true);
+		std::printf("PASS  promise kept: mark %d valence %.2f, bond %.2f -> %.2f\n",
+			Recall(s.crew[crewmember], MEM_PROMISE) ? 1 : 0, s.crew[crewmember].memories[0].valence,
+			b0, Bond(s, crewmember, officer));
+		if (!(Bond(s, crewmember, officer) > b0)) ++failures;
+
+		Ship q = NewShip();
+		MakePromise(q, officer, crewmember, PROMISE_RESCUE, "they would be brought back");
+		const float q0 = Bond(q, crewmember, officer);
+		ResolvePromise(q, 0, false);
+		std::printf("PASS  promise broken: bond %.2f -> %.2f; the log, in the crew member's voice: %s\n",
+			q0, Bond(q, crewmember, officer), q.log.back().what.c_str());
+		if (!(Bond(q, crewmember, officer) < q0)) ++failures;
+
+		Ship d = NewShip();
+		MakePromise(d, officer, crewmember, PROMISE_WAY_HOME, "a way home", d.clock + Hours(d, 1.0f));
+		Tick(d, Hours(d, 2.0f));
+		std::printf("PASS  a deadline passed with nothing said: the promise is %s\n",
+			d.promises[0].state == PROMISE_BROKEN ? "broken" : "still open");
+		if (d.promises[0].state != PROMISE_BROKEN) ++failures;
+	}
+
+	// The lie is written by a signed report that contradicts a MEM_SAW mark; the toll is paid
+	// downward only, so the same falsehood filed upward costs nothing from below.
+	{
+		Ship s = NewShip();
+		Remember(s, crewmember, MEM_DEATH, 5, MEM_SAW, -0.8f);
+		DraftReport(s, DEPT_COUNT);
+		int line = -1;
+		for (int i = 0; i < static_cast<int>(OpenReport(s).lines.size()); ++i)
+			if (OpenReport(s).lines[i].event == MEM_DEATH && OpenReport(s).lines[i].person == 5) line = i;
+		StrikeReportLine(s, line);
+		const float b0 = Bond(s, crewmember, officer);
+		SignReport(s, officer, REPORT_TO_CREW);
+		std::printf("PASS  a struck death in a signed report: witness holds a lie mark = %d, bond toward the signer %.2f -> %.2f\n",
+			Recall(s.crew[crewmember], MEM_LIE) ? 1 : 0, b0, Bond(s, crewmember, officer));
+		if (!Recall(s.crew[crewmember], MEM_LIE) || !(Bond(s, crewmember, officer) < b0)) ++failures;
+
+		Ship u = NewShip();
+		Remember(u, crewmember, MEM_DEATH, 5, MEM_SAW, -0.8f);
+		DraftReport(u, DEPT_COUNT);
+		int ul = -1;
+		for (int i = 0; i < static_cast<int>(OpenReport(u).lines.size()); ++i)
+			if (OpenReport(u).lines[i].event == MEM_DEATH && OpenReport(u).lines[i].person == 5) ul = i;
+		StrikeReportLine(u, ul);
+		const float u0 = Bond(u, crewmember, officer);
+		SignReport(u, officer, REPORT_UPWARD);
+		std::printf("PASS  the same falsehood filed upward: lie mark = %d, bond change %+.4f\n",
+			Recall(u.crew[crewmember], MEM_LIE) ? 1 : 0, Bond(u, crewmember, officer) - u0);
+		if (Recall(u.crew[crewmember], MEM_LIE)) ++failures;
+	}
+
+	// The report is drafted from the record, edited, and the diff is recoverable.
+	{
+		Ship s = NewShip();
+		DraftReport(s, DEPT_COUNT);
+		const int lines = static_cast<int>(OpenReport(s).lines.size());
+		SoftenReportLine(s, 0, 0.5f);
+		AddReportLine(s, "command", "all is well");
+		const std::string diff = ReportDiff(OpenReport(s));
+		SignReport(s, officer, REPORT_TO_CREW);
+		std::printf("PASS  the report drafted %d lines, was edited, and the record kept:\n%s", lines, diff.c_str());
+		if (diff.empty() || s.reports.empty()) ++failures;
+	}
+
+	// A purge empties the published log and orphans the read marks; it does not erase them.
+	{
+		Ship s = NewShip();
+		Remember(s, 10, MEM_DEATH, 5, MEM_LOG, -0.6f);
+		LogEvent(s, "the bridge", "crew", "we lost someone");
+		PurgeLogs(s);
+		bool orphaned = false;
+		for (const Memory &m : s.crew[10].memories)
+			if (m.source == MEM_LOG && m.orphaned) orphaned = true;
+		std::printf("PASS  purge: log entries %d, the MEM_LOG mark still held = %d, orphaned = %d\n",
+			static_cast<int>(s.log.size()), Recall(s.crew[10], MEM_DEATH) ? 1 : 0, orphaned ? 1 : 0);
+		if (!s.log.empty() || !Recall(s.crew[10], MEM_DEATH) || !orphaned) ++failures;
+	}
+
+	if (failures) std::printf("%d demonstration(s) failed\n", failures);
+	else std::printf("all demonstrations passed\n");
+	return failures ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
+	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -3360,6 +3570,7 @@ int main(int argc, char **argv)
 	TestMaterialsAndTravel();
 	TestCrewJusticeAndBorg();
 	TestMemoryAndConsequence();
+	TestMonthReportAndToll();
 	TestResourcesAndPressure();
 	TestPhenomenon();
 	TestProbes();

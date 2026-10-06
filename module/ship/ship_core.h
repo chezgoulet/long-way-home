@@ -217,6 +217,61 @@ struct Memory {
 	float time = 0.0f;       // ship seconds when it happened
 	float valence = 0.0f;    // -1 grief/resentment .. +1 pride/relief
 	float salience = 0.0f;   // 1 fresh; decays unless reinforced
+	bool orphaned = false;   // its citation is gone: a MEM_LOG mark after the published logs were purged
+};
+
+// A promise is a bond with a claim attached (docs/memory-and-consequence.md). An officer commits to
+// something in front of a crew member: the crew member takes a mark naming the promiser, and the
+// claim is held so that it can mature. Kept, the mark strengthens and the bond rises; broken, or
+// with its deadline passed and nothing said, the mark turns negative and the log carries the reason
+// in the crew member's own terms -- not in the ship's.
+enum PromiseKind : uint8_t { PROMISE_REPAIR = 0, PROMISE_RESCUE, PROMISE_PROMOTION, PROMISE_WAY_HOME, PROMISE_KIND_COUNT };
+const char *PromiseKindName(uint8_t k);
+enum PromiseState : uint8_t { PROMISE_OPEN = 0, PROMISE_KEPT, PROMISE_BROKEN, PROMISE_STATE_COUNT };
+const int PROMISE_MAX = 16;      // a bounded set of outstanding claims [inv]
+struct Promise {
+	int promiser = -1;       // who committed
+	int beneficiary = -1;    // the crew member left holding the mark
+	uint8_t kind = PROMISE_REPAIR;
+	std::string what;        // what was promised, in words
+	double made = 0.0;       // ship seconds it was made
+	double deadline = -1.0;  // ship seconds by which it must be done; -1 = no deadline
+	uint8_t state = PROMISE_OPEN;
+};
+
+// The month report (docs/the-record-and-the-log.md): the periodic beat, drafted honestly by the
+// simulation from the record and edited by the player through the console path. The record keeps
+// the diff, so the player can always see what they actually did while the crew can only ever read
+// the published version. Its headline is the navigation counter's change since the last entry.
+const int REPORT_LINE_MAX = 24;  // [inv]
+const int REPORT_MAX = 8;        // signed reports kept, each with the diff [inv]
+
+struct ReportLine {
+	std::string scope;     // subject, for filtering (the log's own scopes)
+	std::string text;      // as published
+	std::string draft;     // as drafted: the record keeps the diff, the crew see only `text`
+	uint16_t event = 0;    // the mark this line speaks to, or 0 for a plain claim
+	int person = -1;       // ... and who it names
+	bool struck = false;   // struck from the published version
+	bool added = false;    // added by the player: it has no drafted original
+};
+
+// A report published to the crew is read by everyone under its signer; a report filed upward is
+// read by nobody below. That is the direction of the toll: lying up costs nothing from below.
+enum ReportAudience : uint8_t { REPORT_TO_CREW = 0, REPORT_UPWARD, REPORT_AUDIENCE_COUNT };
+const char *ReportAudienceName(uint8_t a);
+
+struct MonthReport {
+	int number = 0;
+	double time = 0.0;          // ship seconds it was drafted
+	float counter = 0.0f;       // the navigation counter at this entry, in light-years
+	float counterChange = 0.0f; // ... since the previous entry: the derivative, the headline
+	std::string signer;
+	int department = DEPT_COUNT; // the section it covers, or DEPT_COUNT for the captain's whole ship
+	uint8_t audience = REPORT_TO_CREW;
+	bool open = true;           // still a draft, being edited by the player
+	bool signed_ = false;       // signed and published
+	std::vector<ReportLine> lines;
 };
 
 struct CrewMember {
@@ -544,6 +599,16 @@ struct Ship {
 	std::vector<LogEntry> log;   // the ship's own record of what happened, newest last
 	std::vector<LossEntry> losses; // what the ship has given up, and why (docs/damage-and-budgets.md)
 	std::vector<Job> jobs;       // the outstanding work, in the order it is worked (docs/crew-work.md)
+
+	// The month report, the promises and the log's lifecycle (docs/the-record-and-the-log.md,
+	// docs/memory-and-consequence.md). The report is the open draft; `reports` is the record of
+	// signed reports, each keeping its diff; `promises` holds the claims so they can mature; and
+	// `logPurged` says the published logs have been emptied, which orphans the MEM_LOG marks.
+	MonthReport report;                // the open draft
+	std::vector<MonthReport> reports;  // signed reports, each keeping its diff
+	std::vector<Promise> promises;     // promises held, so they can mature
+	float navCounterLast = 0.0f;       // the counter at the last entry (the derivative's baseline)
+	bool logPurged = false;            // the published logs have been purged
 
 	// the away mission and the course (S4): where a beamed party is, and where the conn is making for
 	int awayBeacon = -1;         // the site an away team is on, or -1 if none is away
@@ -975,6 +1040,29 @@ float Bond(const Ship &s, int a, int b);
 // mood until therapy fades them. This is memory read by the simulation, not only by a query.
 float Trauma(const CrewMember &who);
 
+// A promise: an officer commits in front of a crew member; the mark is written naming the promiser,
+// and the claim is held. ResolvePromise moves that mark's valence and the bond; a deadline that
+// passes unresolved is broken. Returns the promise's index, or -1.
+int MakePromise(Ship &s, int officer, int crew, PromiseKind kind, const std::string &what, double deadline = -1.0);
+bool ResolvePromise(Ship &s, int index, bool kept);
+const std::vector<Promise> &Promises(const Ship &s);
+
+// The month report (docs/the-record-and-the-log.md). The simulation drafts it honestly from the
+// record; the player edits it; the record keeps the diff; a purge empties the published logs and
+// leaves the MEM_LOG-sourced marks orphaned, not erased.
+int NavigationCounter(const Ship &s);       // the scoreboard, read from the record (never lies)
+void DraftReport(Ship &s, int department);  // draft the month report from the record
+const MonthReport &OpenReport(const Ship &s);
+bool StrikeReportLine(Ship &s, int line);   // strike a line from the published version
+bool SoftenReportLine(Ship &s, int line, float factor = 0.5f); // scale a number down
+bool EditReportLine(Ship &s, int line, const std::string &text);
+bool AddReportLine(Ship &s, const std::string &scope, const std::string &text); // add a claim
+bool SignReport(Ship &s, int signer, uint8_t audience); // publish; the lie is made here
+std::string ReportDiff(const MonthReport &r);           // the diff, player-facing
+const std::vector<MonthReport> &Reports(const Ship &s);
+bool PurgeLogs(Ship &s);                    // defend against readers, never against assimilation
+bool LogsPurged(const Ship &s);
+
 // The holodeck's uses: recreation, training, therapy (fading trauma) and forensic reconstruction.
 // All need the holodeck delivering. Console `ship holo <recreation|training|therapy|forensic> <crew>`.
 enum HolodeckUse : uint8_t { HOLO_RECREATION = 0, HOLO_TRAINING, HOLO_THERAPY, HOLO_FORENSIC, HOLO_USE_COUNT };
@@ -1009,7 +1097,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 43;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark
+const uint16_t SAVE_VERSION = 44;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.
