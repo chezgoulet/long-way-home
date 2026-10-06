@@ -53,5 +53,25 @@ No new art. Do not script the dead-in-stasis scenario here.
 
 ## 10. Status (2026-10-07)
 
-**Blockout building** — stasis pods along a wall and a holodeck doorframe, reachable on the merged ship
-(`scripts/deck-check.sh 14`).
+**Re-dressed from `tour/deck11` and awaiting the owner's walkthrough.** Built the way
+`docs/authoring-a-location.md` requires and as decks 12 and 13 were: the room is **copied from the
+reuse target the brief names** (`tour/deck11`, main engineering) and changed to be this room — the
+vertical scale reduced (404 to 208), the raised core deck cleared so the room is the brief's one flat
+chamber, the warp core replaced by a row of the game's own stasis pods along the north wall, a
+holodeck doorframe at the far end (Holodeck 1, the decided placement) with its control panel and
+maintenance post, a Jefferies tube at the west end, and the room lit by function: cold over the pods,
+warm at the holodeck. The room's own consoles, railings, lighting fixtures, wall panels, door
+hardware, props and "small untidiness" come along with the copy. The parts list is
+`docs/locations/deck14-parts-list.md`; the tool is `tools/shipmap/dressdeck14.py`, deck 13's pattern,
+called by `scripts/build-ship.sh`.
+
+Done: the copy and its changes; the `SYS_HOLODECKS` station marker (`lwh_station_17`) and the
+`lwh_stasis_post`/`stasiswatch` maintenance post; the lift edge and the tube to deck 13; navigation
+baked; the **emergency lighting state** (`hall/hall_light_red`, tagged `_14`, switched by the module
+at red alert or a life-support failure). Evidence, with the commands: `docs/evidence/deck14-stasis.md`.
+
+Open, and only the owner can close it: **does the walk from the cold pods to the warm holodeck read
+as the contrast this brief intends?** The compression to 208 and the cleared core deck are
+hypotheses, and the copied engineering interior still dominates the room; the function lighting is
+authored, not yet judged. The pods, the holodeck and the post are placed by measurement, not by eye.
+Walk it; if the pods do not read as a ward or the light is wrong, that is the next pass.

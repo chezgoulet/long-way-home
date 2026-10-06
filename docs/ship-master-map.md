@@ -91,9 +91,14 @@ no turbolifts); the holodecks (warmth, and a safety interlock failure).
    `docs/locations/deck13-parts-list.md`; evidence `docs/evidence/deck13-redress.md`.
 3. **Deck 6, holodeck 2, armory and quarters** — **blockout built 2026-10-07**: a corridor with two
    holodeck doorframes and an armory locker; `scripts/deck-check.sh 6`, screenshot `lwh_deck06.tga`.
-4. **Deck 14, stasis and holodeck 1** — **blockout built 2026-10-07**: stasis pods along a wall and a
-   holodeck doorframe; `scripts/deck-check.sh 14`, screenshot `lwh_deck14.tga`. The contested holodeck
-   placement is decided: Holodeck 1 on deck 14, Holodeck 2 on deck 6.
+4. **Deck 14, stasis and holodeck 1** — **re-dressed from `tour/deck11` 2026-10-07** and awaiting
+   the owner's walkthrough: a row of the game's own stasis pods along the north wall, a holodeck
+   doorframe at the far end (Holodeck 1), the raised core deck cleared for one flat chamber, cold
+   light over the pods and warm at the holodeck. `scripts/deck14-check.sh`, screenshots
+   `lwh_deck14.tga` and `lwh_deck14_holodeck.tga`; the tool `tools/shipmap/dressdeck14.py` (deck 13's
+   pattern), the parts list `docs/locations/deck14-parts-list.md`, evidence
+   `docs/evidence/deck14-stasis.md`. The contested holodeck placement is decided: Holodeck 1 on deck
+   14, Holodeck 2 on deck 6.
 5. **Deck 7, auxiliary core, cargo and labs** — **blockout built 2026-10-07**: a central auxiliary
    core column and two cargo islands; `scripts/deck-check.sh 7`, screenshot `lwh_deck07.tga`.
 6. Decks 10, 8, 4 (published) and the amenity items — **station markers placed at the published maps'

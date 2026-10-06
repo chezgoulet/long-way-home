@@ -201,6 +201,11 @@ pair's eight red and eight working strips, and the state is ship-wide on red ale
 support falls below 60%. The screenshots (`lwh_emergency_13.tga` / `lwh_emergency_13_off.tga`) show
 the red present and absent.
 
+> Note (2026-10-07, after deck 14): deck 14's stasis chamber carries tagged strips too
+> (`lwh_light_emergency_14_*`), toggled by the same prefix, so a fresh run of this check now reads
+> "12 red and 12 working strips" — the three decks', not the pair's eight and eight. Deck 13's own
+> state is unchanged; see `docs/evidence/deck14-stasis.md` (A5).
+
 ## A6 — the parts census: no new art
 
 ```

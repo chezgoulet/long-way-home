@@ -1941,6 +1941,78 @@ void RunTest( void )
 		if ( step == 5 && level.time >= 7600 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
 		return;
 	}
+	if ( g_shipTest->integer == 60 )
+	{//the deck 14 re-dress (docs/locations/deck14-stasis.brief.md): stand at the turbolift arrival
+	 // facing in past the stasis pods, then at the holodeck end by the arch, and photograph both --
+	 // the cold pods and the warm holodeck are the brief's point, so both ends are seen.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			gentity_t *arrival = NULL;
+			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "d14_arrival" ) ) arrival = e;
+			}
+			if ( arrival )
+			{
+				vec3_t at, angles = { 0, 135, 0 };  // face in and north, along the stasis pod wall
+				VectorCopy( arrival->currentOrigin, at );
+				at[2] += 24.0f;
+				TeleportPlayer( &g_entities[0], at, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: deck 14 room: standing at %s\n", vtos( at ) );
+			}
+			else gi.Printf( "SHIP: deck 14 room: no d14_arrival on this map\n" );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 4000 ) { gi.SendConsoleCommand( "screenshot lwh_deck14\n" ); step = 2; }
+		if ( step == 2 && level.time >= 5000 )
+		{//the holodeck end: the stasis/holodeck maintenance post, looking at the arch
+			if ( TeleportPlayerTo( "lwh_stasis_post", "deck 14 room: at the holodeck" ) )
+			{
+				vec3_t look = { 0, 90, 0 };  // face the holodeck arch on the north wall
+				VectorCopy( look, glanceAngles );
+				haveGlanceAim = true;
+			}
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 6000 ) { gi.SendConsoleCommand( "screenshot lwh_deck14_holodeck\n" ); step = 4; }
+		if ( step == 4 && level.time >= 7400 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
+		return;
+	}
+	if ( g_shipTest->integer == 61 )
+	{//the deck 14 emergency lighting state (docs/locations/deck14-stasis.brief.md): the stasis deck
+	 // goes red with the ship. Stand at the holodeck end, go to battle stations, photograph the red
+	 // strips, then stand down and photograph them off. Same mechanism as the deck 12 and 13 tests,
+	 // the third deck to carry the state.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			if ( !TeleportPlayerTo( "lwh_stasis_post", "emergency test 14" ) )
+				TeleportPlayerTo( "d14_arrival", "emergency test 14" );
+			vec3_t look = { 0, 270, 0 };  // look south into the room, at the ceiling strips
+			VectorCopy( look, glanceAngles );
+			haveGlanceAim = true;
+			gi.Printf( "SHIP: emergency test 14: alert %d, life support %d%%\n",
+				static_cast<int>( vessel.alert ),
+				static_cast<int>( ship::SystemCondition( vessel.systems[ship::SYS_LIFE_SUPPORT] ) * 100.0f + 0.5f ) );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 3200 ) { ship::SetAlert( vessel, ship::ALERT_RED ); step = 2; }
+		if ( step == 2 && level.time >= 4300 ) { gi.SendConsoleCommand( "screenshot lwh_emergency_14\n" ); step = 3; }
+		if ( step == 3 && level.time >= 5600 ) { ship::SetAlert( vessel, ship::ALERT_GREEN ); step = 4; }
+		if ( step == 4 && level.time >= 6200 ) { gi.SendConsoleCommand( "screenshot lwh_emergency_14_off\n" ); step = 5; }
+		if ( step == 5 && level.time >= 7600 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )

@@ -31,7 +31,11 @@ WALL, FLOOR_TEX = "hall/hallcomp2", "hall/hallfloor1"
 
 # The system worked on this deck (ship_core's table): a crew member on duty at that system stands at
 # the marker named "lwh_station_<system>" (module/crew/g_crew.cpp). Decks with no system here have none.
-STATION_SYSTEM = {6: 17, 12: 0}   # holodecks on deck 6, life support on deck 12
+# Deck 6 no longer names the holodeck station (system 17): the decided placement is that Holodeck 1,
+# the holodecks system's named station, is on deck 14 (docs/locations/deck14-stasis.brief.md), and the
+# re-dressed deck 14 now places `lwh_station_17` itself. Two decks defining one name would make the
+# stitcher rename both, leaving StationFor nothing to find -- the same trap as the emergency lights.
+STATION_SYSTEM = {12: 0}   # life support on deck 12 (deck 12 is re-dressed, so unused here)
 
 
 def deck_map(n):
