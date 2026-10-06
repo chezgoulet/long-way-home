@@ -86,7 +86,7 @@ void CommandDraw( void )
 
 	UI_DrawProportionalString( 44, 412, "UP/DOWN system   LEFT/RIGHT deck   R repair that system first   G guard to that deck   V evacuate that deck",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
-	UI_DrawProportionalString( 44, 426, "C clear all orders   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+	UI_DrawProportionalString( 44, 426, "T sickbay triage worst/rank first   C clear all orders   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
 bool CommandAct( int key )
@@ -106,6 +106,7 @@ bool CommandAct( int key )
 		return true;
 	case 'g': case 'G': Order( va( "security %d", command.deck ) ); return true;
 	case 'v': case 'V': Order( va( "evacuate %d", command.deck ) ); return true;
+	case 't': case 'T': Order( ui.Cvar_VariableValue( "lwh_ship_triage" ) > 0.5f ? "triage worst" : "triage rank" ); return true;
 	case 'c': case 'C': Order( "repair none" ); Order( "security 0" ); Order( "evacuate 0" ); return true;
 	}
 	return false;

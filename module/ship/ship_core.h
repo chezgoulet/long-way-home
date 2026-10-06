@@ -110,6 +110,7 @@ struct Stores {
 	float batteries = 1.0f;      // fraction of emergency cell charge
 	int torpedoes = 38;          // not replaceable
 	float spareParts = 100.0f;   // what repairs are made of; a system rebuilt from nothing costs PARTS_PER_SYSTEM
+	float medicalSupplies = 100.0f; // what treatment is made of; without it the injured only get worse
 };
 
 // ---- crew -------------------------------------------------------------------------------------
@@ -130,7 +131,9 @@ struct CrewMember {
 	float morale = 1.0f;     // 0 broken, 0.5 going through the motions, 1 heart in it
 	float exposure = 0.0f;   // seconds spent on a deck without air; injures, then kills
 	float wounds = 0.0f;     // 0..1 taken fighting boarders; at 1 they are out of the fight, injured
+	float severity = 0.0f;   // 0 minor .. 1 critical: how badly an injury will go without treatment
 	float recovery = 0.0f;   // 0..1 progress of an injured crew member's treatment
+	bool underCare = false;  // derived each tick: has a sickbay bed now (not saved)
 
 	// derived each tick
 	uint8_t activity = ACT_SLEEP;
@@ -221,6 +224,7 @@ struct Ship {
 	int orderRepairFirst = -1;   // a system the damage-control party is to see to before any other
 	int orderSecurityTo = 0;     // a deck security is to go to, boarders or not
 	int orderEvacuate = 0;       // a deck everyone is to leave
+	int orderTriage = 0;         // sickbay: 0 worst first, 1 rank first (see docs/gates.md, the gap)
 
 	// the player
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
@@ -268,8 +272,10 @@ const float PARTS_PER_SYSTEM = 12.0f;        // spare parts to rebuild one from 
 const float EXPOSURE_INJURES = 60.0f;        // seconds without air [inv]
 const float EXPOSURE_KILLS = 300.0f;
 const float AIRLESS = 0.25f;                 // a deck's atmosphere below this cannot be breathed [inv]
-const int SICKBAY_BEDS = 6;                  // treated at once [inv]
+const int SICKBAY_BEDS = 4;                  // three standard and one surgical [lore]; the worst get them
 const float TREATMENT_HOURS = 12.0f;         // per patient, with sickbay at full output [inv]
+const float DETERIORATE_PER_HOUR = 0.03f;    // an untreated injury worsens; at severity 1 they die [inv]
+const float MEDICAL_PER_PATIENT_HOUR = 0.4f; // supplies spent treating one patient for an hour [inv]
 const int SICKBAY_DECK = 5;
 
 // ---- intruders and control of the ship's systems (S7) ----------------------------------------------
@@ -372,6 +378,7 @@ int CreateCharacter(Ship &s, const std::string &name, Department dept, int rank)
 bool OrderRepairFirst(Ship &s, int system);
 bool OrderSecurityTo(Ship &s, int deck);
 bool OrderEvacuate(Ship &s, int deck);
+bool OrderTriage(Ship &s, int policy);   // 0 worst first, 1 rank first
 
 // Sets the role; ROLE_MUNRO makes the player Alexander Munro.
 void SetRole(Ship &s, PlayerRole role);
@@ -379,7 +386,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 8;   // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale
+const uint16_t SAVE_VERSION = 9;   // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, medical supplies, triage
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

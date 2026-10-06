@@ -191,6 +191,11 @@ the surgical bay's force field, medical supplies. *Control:* who is treated firs
 replicated. *Visible:* who is on a bed, who is on the floor, who is dead. *Failure:* a casualty deteriorating
 because no bed freed up. *Location:* sickbay, deck 5. *Acceptance:* casualties exceeding beds produce a
 decision rather than a queue that resolves itself.
+**First slice 2026-10-07** (`docs/evidence/gap-triage-and-sickbay.md`, `tests/ship/test_ship_core.cpp`):
+severity and a derived under-care flag (save format **version 9**), four beds, medical supplies, and a
+triage standing order — worst first or rank first — with the untreated deteriorating and able to die; the
+Sickbay readout and the command console show it. A triage screen, replication as the restock, and the
+surgical force field / EMH remain.
 
 **3. Air and endurance clocks.** *State:* atmosphere per compartment, plus battery and auxiliary endurance for
 the ship. *Control:* sealing, force fields, rerouting, power allocation. *Visible:* a countdown wherever the

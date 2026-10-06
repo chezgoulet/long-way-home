@@ -167,19 +167,20 @@ void Publish( void )
 
 	// The medical state and the crew's condition, for the Sickbay console (S6 and the morale gap).
 	{
-		int injured = 0, treating = 0, lost = 0, assimilated = 0, fit = 0;
+		int injured = 0, beds = 0, lost = 0, assimilated = 0, fit = 0;
 		float morale = 0.0f, fatigue = 0.0f;
 		for ( const ship::CrewMember &c : vessel.crew )
 		{
-			if ( c.status == ship::CREW_INJURED ) { ++injured; if ( c.recovery > 0.0f ) ++treating; }
+			if ( c.status == ship::CREW_INJURED ) { ++injured; if ( c.underCare ) ++beds; }
 			else if ( c.status == ship::CREW_ASSIMILATED ) ++assimilated;
 			else if ( c.status == ship::CREW_DEAD ) ++lost;
 			else { ++fit; morale += c.morale; fatigue += c.fatigue; }
 		}
 		if ( fit ) { morale /= fit; fatigue /= fit; }
-		gi.cvar_set( "lwh_ship_medical", Fmt( "INJURED %d   IN TREATMENT %d   SICKBAY OUTPUT %d%%   LOST %d   ASSIMILATED %d   MORALE %d%%   FATIGUE %d%%",
-			injured, treating, static_cast<int>( vessel.systems[ship::SYS_SICKBAY].output * 100 + 0.5f ), lost, assimilated,
-			static_cast<int>( morale * 100 + 0.5f ), static_cast<int>( fatigue * 100 + 0.5f ) ).c_str() );
+		gi.cvar_set( "lwh_ship_medical", Fmt( "INJURED %d   BEDS %d   WAITING %d   LOST %d   ASSIMILATED %d   MORALE %d%%   FATIGUE %d%%   TRIAGE %s",
+			injured, beds, injured - beds, lost, assimilated,
+			static_cast<int>( morale * 100 + 0.5f ), static_cast<int>( fatigue * 100 + 0.5f ),
+			vessel.orderTriage == 1 ? "RANK FIRST" : "WORST FIRST" ).c_str() );
 	}
 
 	// Standing orders and who the player is, for the command console and the personnel screen.
@@ -187,8 +188,10 @@ void Publish( void )
 		std::string orders;
 		if ( vessel.orderRepairFirst >= 0 ) orders += Fmt( "SEE FIRST TO %s.   ", ship::Spec( static_cast<ship::SystemId>( vessel.orderRepairFirst ) ).name );
 		if ( vessel.orderSecurityTo ) orders += Fmt( "GUARD ON DECK %d.   ", vessel.orderSecurityTo );
-		if ( vessel.orderEvacuate ) orders += Fmt( "DECK %d EVACUATED.", vessel.orderEvacuate );
+		if ( vessel.orderEvacuate ) orders += Fmt( "DECK %d EVACUATED.   ", vessel.orderEvacuate );
+		orders += Fmt( "SICKBAY: %s.", vessel.orderTriage == 1 ? "RANK FIRST" : "WORST FIRST" );
 		gi.cvar_set( "lwh_ship_orders", orders.c_str() );
+		gi.cvar_set( "lwh_ship_triage", Fmt( "%d", vessel.orderTriage ).c_str() );
 		static const char *const RANKS[] = { "Crewman", "Ensign", "Lt. j.g.", "Lieutenant", "Lt. Commander", "Commander", "Captain" };
 		const bool chosen = vessel.player >= 0 && vessel.player < static_cast<int>( vessel.crew.size() );
 		gi.cvar_set( "lwh_ship_player", chosen ? Fmt( "%s %s", RANKS[vessel.crew[vessel.player].rank], vessel.crew[vessel.player].name.c_str() ).c_str() : "" );
@@ -861,6 +864,7 @@ void Svcmd_Ship_f( void )
 		if ( !Q_stricmp( a, "repair" ) ) ok = ship::OrderRepairFirst( vessel, FindSystem( b ) );
 		else if ( !Q_stricmp( a, "security" ) ) ok = ship::OrderSecurityTo( vessel, atoi( b ) );
 		else if ( !Q_stricmp( a, "evacuate" ) ) ok = ship::OrderEvacuate( vessel, atoi( b ) );
+		else if ( !Q_stricmp( a, "triage" ) ) ok = ship::OrderTriage( vessel, !Q_stricmpn( b, "rank", 4 ) ? 1 : 0 );
 		gi.cvar_set( "lwh_ship_order_refused", ok ? "" : "only whoever commands the ship gives orders" );
 		if ( !ok ) { gi.Printf( "SHIP: order refused: only whoever commands the ship gives orders\n" ); return; }
 		gi.Printf( "SHIP: standing orders: repair first %s, security to deck %d, evacuate deck %d\n",

@@ -228,6 +228,45 @@ static float Effectiveness(const CrewMember &c)
 	return std::max(0.25f, 1.0f - 0.5f * std::min(1.0f, tired) - 0.5f * std::min(1.0f, down));
 }
 
+// Sickbay: a fixed number of beds (three standard and one surgical), a triage order, and the
+// supplies treatment costs. The worst (or the most senior) cases get the beds; anyone left waiting
+// worsens, and a critical case nobody reaches dies. That is the decision the gap asks for: more
+// casualties than beds is a choice, not a queue that clears itself.
+static void TreatCasualties(Ship &s, float shipSeconds)
+{
+	const float hours = shipSeconds / 3600.0f;
+	std::vector<int> hurt;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		s.crew[i].underCare = false;
+		if (s.crew[i].status == CREW_INJURED) hurt.push_back(i);
+	}
+	if (hurt.empty()) return;
+	std::stable_sort(hurt.begin(), hurt.end(), [&](int a, int b) {
+		if (s.orderTriage == 1) return s.crew[a].rank > s.crew[b].rank; // rank first
+		return s.crew[a].severity > s.crew[b].severity;                 // worst first (default)
+	});
+	int bed = 0;
+	for (int i : hurt) {
+		CrewMember &c = s.crew[i];
+		if (bed < SICKBAY_BEDS && s.systems[SYS_SICKBAY].output > 0.0f && s.stores.medicalSupplies > 0.0f) {
+			++bed;
+			c.underCare = true;
+			c.deck = SICKBAY_DECK;
+			c.recovery += s.systems[SYS_SICKBAY].output * shipSeconds / (TREATMENT_HOURS * 3600.0f);
+			s.stores.medicalSupplies = std::max(0.0f, s.stores.medicalSupplies - MEDICAL_PER_PATIENT_HOUR * hours);
+			if (c.recovery >= 1.0f) {
+				c.status = CREW_FIT;
+				c.recovery = c.exposure = c.wounds = c.severity = 0.0f;
+			}
+		} else {
+			// No bed, no output, or no supplies: the injury goes on getting worse, and can kill.
+			c.severity = std::min(1.0f, c.severity + DETERIORATE_PER_HOUR * hours);
+			c.wounds = std::max(c.wounds, c.severity);
+			if (c.severity >= 1.0f) { c.status = CREW_DEAD; c.recovery = 0.0f; }
+		}
+	}
+}
+
 static void UpdateCrew(Ship &s, float shipSeconds)
 {
 	const int sod = s.SecondOfDay();
@@ -243,7 +282,6 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		if (fa != fb) return fa;
 		return s.systems[a].priority < s.systems[b].priority;
 	});
-	int treated = 0;
 	for (Deck &d : s.decks) d.defenders = d.stripping = 0;
 	// Where security is needed: the deck with the most boarders first.
 	int hot[DECKS], nHot = 0;
@@ -287,19 +325,6 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 			}
 		}
 
-		// The injured are in sickbay if there is a bed, and are treated there as fast as sickbay runs.
-		if (c.status == CREW_INJURED && treated < SICKBAY_BEDS) {
-			++treated;
-			c.deck = SICKBAY_DECK;
-			c.recovery += s.systems[SYS_SICKBAY].output * shipSeconds / (TREATMENT_HOURS * 3600.0f);
-			if (c.recovery >= 1.0f) {
-				c.status = CREW_FIT;
-				c.recovery = 0.0f;
-				c.exposure = 0.0f;
-				c.wounds = 0.0f;
-			}
-		}
-
 		// A deck without air.
 		if (c.deck >= 1 && c.deck <= DECKS && s.decks[c.deck - 1].atmosphere < AIRLESS) {
 			c.exposure += shipSeconds;
@@ -309,7 +334,11 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 				c.deck = 0;
 				continue;
 			}
-			if (c.exposure >= EXPOSURE_INJURES && c.status == CREW_FIT) c.status = CREW_INJURED;
+			if (c.exposure >= EXPOSURE_INJURES && c.status == CREW_FIT) {
+				c.status = CREW_INJURED;
+				c.severity = std::max(c.severity, std::min(1.0f,
+					0.3f + 0.7f * (c.exposure - EXPOSURE_INJURES) / (EXPOSURE_KILLS - EXPOSURE_INJURES)));
+			}
 		} else if (c.status == CREW_FIT) {
 			c.exposure = std::max(0.0f, c.exposure - shipSeconds); // catching their breath
 		}
@@ -390,6 +419,9 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		sys.health += gain;
 		s.stores.spareParts = std::max(0.0f, s.stores.spareParts - gain * PARTS_PER_SYSTEM);
 	}
+
+	// Sickbay last, so it sees the injuries the fight and the air have just caused.
+	TreatCasualties(s, shipSeconds);
 }
 
 // ---- power ------------------------------------------------------------------------------------
@@ -472,7 +504,7 @@ static void UpdateIntruders(Ship &s, float shipSeconds)
 				const float taken = std::min(hurt, 1.0f - c.wounds);
 				c.wounds += taken;
 				hurt -= taken;
-				if (c.wounds >= 1.0f) c.status = CREW_INJURED;
+				if (c.wounds >= 1.0f) { c.status = CREW_INJURED; c.severity = std::max(c.severity, 0.5f); }
 			}
 		}
 		// the last of a party that is being killed does not linger as a fraction
@@ -800,6 +832,13 @@ bool OrderEvacuate(Ship &s, int deck)
 	return true;
 }
 
+bool OrderTriage(Ship &s, int policy)
+{
+	if (!PlayerMayCommand(s)) return false;
+	s.orderTriage = policy == 1 ? 1 : 0;
+	return true;
+}
+
 void SetRole(Ship &s, PlayerRole role)
 {
 	s.cfg.role = role;
@@ -1004,7 +1043,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.F(s.cfg.dayScale);
 	w.U8(s.cfg.mode); w.U8(s.cfg.clockMode); w.U8(s.cfg.role);
 	w.U16(static_cast<uint16_t>(s.player));
-	w.U8(static_cast<uint8_t>(s.orderRepairFirst + 1)); w.U8(static_cast<uint8_t>(s.orderSecurityTo)); w.U8(static_cast<uint8_t>(s.orderEvacuate));
+	w.U8(static_cast<uint8_t>(s.orderRepairFirst + 1)); w.U8(static_cast<uint8_t>(s.orderSecurityTo)); w.U8(static_cast<uint8_t>(s.orderEvacuate)); w.U8(static_cast<uint8_t>(s.orderTriage));
 	w.U64(s.wallSeconds);
 	// A created character's name and rank are not in the seed.
 	const bool custom = s.player >= 0 && s.player < static_cast<int>(s.crew.size());
@@ -1019,7 +1058,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); }
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
-	w.F(s.stores.spareParts);
+	w.F(s.stores.spareParts); w.F(s.stores.medicalSupplies);
 	// The sector's shape comes back from the seed; where the ship is in it, and what it has met, is stored.
 	w.F(s.shieldStrength);
 	w.U8(static_cast<uint8_t>(s.beacon));
@@ -1031,7 +1070,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(s.enemy.present); w.U8(s.enemy.borg); w.F(s.enemy.hull); w.F(s.enemy.shields); w.F(s.enemy.firepower);
 	w.U8(static_cast<uint8_t>(s.enemy.boarders));
 	// Names, types, departments and stations come back from the seed; only what changes is stored.
-	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.F(c.morale); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); }
+	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.F(c.morale); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); w.F(c.severity); }
 	return w.b;
 }
 
@@ -1055,8 +1094,8 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	BuildSector(s);
 	if (count != s.crew.size()) return false;
 	s.player = static_cast<int16_t>(r.U16());
-	s.orderRepairFirst = r.U8() - 1; s.orderSecurityTo = r.U8(); s.orderEvacuate = r.U8();
-	if (s.orderRepairFirst >= SYS_COUNT || s.orderSecurityTo > DECKS || s.orderEvacuate > DECKS) return false;
+	s.orderRepairFirst = r.U8() - 1; s.orderSecurityTo = r.U8(); s.orderEvacuate = r.U8(); s.orderTriage = r.U8();
+	if (s.orderRepairFirst >= SYS_COUNT || s.orderSecurityTo > DECKS || s.orderEvacuate > DECKS || s.orderTriage > 1) return false;
 	s.wallSeconds = r.U64();
 	std::string name;
 	for (int n = r.U8(); n > 0 && r.ok; --n) name.push_back(static_cast<char>(r.U8()));
@@ -1073,8 +1112,9 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	for (Deck &d : s.decks) { d.atmosphere = r.Unit(); d.hull = r.Unit(); d.intruders = r.F(); if (!(d.intruders >= 0.0f && d.intruders <= 10000.0f)) return false; d.borg = r.U8() != 0; d.assimilated = r.Unit(); }
 	s.stores.deuterium = r.Unit(); s.stores.antimatter = r.Unit(); s.stores.batteries = r.Unit();
 	s.stores.torpedoes = r.U16();
-	s.stores.spareParts = r.F();
+	s.stores.spareParts = r.F(); s.stores.medicalSupplies = r.F();
 	if (!(s.stores.spareParts >= 0.0f && s.stores.spareParts <= 100000.0f)) return false;
+	if (!(s.stores.medicalSupplies >= 0.0f && s.stores.medicalSupplies <= 100000.0f)) return false;
 	s.shieldStrength = r.Unit();
 	s.beacon = r.U8();
 	if (s.beacon >= static_cast<int>(s.sector.size())) return false;
@@ -1094,6 +1134,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		c.exposure = r.F();
 		c.recovery = r.Unit();
 		c.wounds = r.Unit();
+		c.severity = r.Unit();
 		if (!(c.exposure >= 0.0f && c.exposure <= 1.0e6f)) return false;
 		if (c.status > CREW_ASSIMILATED || c.watch >= WATCHES || c.post > SYS_COUNT) return false;
 	}

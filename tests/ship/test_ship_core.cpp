@@ -3,6 +3,7 @@
 
 #include "ship_core.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -375,7 +376,7 @@ static void TestSave()
 	Tick(s, Hours(s, 5.5f));
 
 	const std::vector<uint8_t> blob = Pack(s);
-	CHECK(blob.size() < 4096); // the whole ship and its 141 crew
+	CHECK(blob.size() < 8192); // the whole ship and its 141 crew
 	Ship back;
 	CHECK(Unpack(blob.data(), blob.size(), back));
 	CHECK(Pack(back) == blob);
@@ -399,13 +400,13 @@ static void TestSave()
 	std::vector<uint8_t> bad = blob;
 	bad[0] ^= 0xff;
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[4] = 9; // a newer version
+	bad = blob; bad[4] = 200; // a newer version
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[6] = 7; // a different complement
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[42] = 5; // an alert condition that does not exist
+	bad = blob; bad[43] = 5; // an alert condition that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[46] = 0x7f; // a health that is not a fraction
+	bad = blob; bad[45] = 0x7f; // a health that is not a fraction
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[16] = 9; // a play mode that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
@@ -475,10 +476,10 @@ static void TestCasualties()
 	for (const CrewMember &c : s.crew)
 		if (c.status == CREW_FIT) CHECK(c.exposure == 0.0f || c.deck == 11);
 
-	// Sickbay takes six at a time.
+	// Sickbay takes three standard cases and one surgical at a time; the rest wait and worsen.
 	int inSickbay = 0;
 	for (const CrewMember &c : s.crew)
-		if (c.status == CREW_INJURED && c.recovery > 0.0f) ++inSickbay; // under treatment (some merely have quarters on deck 5)
+		if (c.status == CREW_INJURED && c.underCare) ++inSickbay;
 	CHECK(inSickbay == (injured < SICKBAY_BEDS ? injured : SICKBAY_BEDS));
 
 	// While the deck is open, mending people only sends them back to be hurt again.
@@ -509,6 +510,55 @@ static void TestCasualties()
 	Tick(held, Hours(held, 0.05f)); // six
 	CHECK(last.status == CREW_DEAD && last.deck == 0);
 	CHECK(CrewOnDeck(held, 1).size() < CrewOnDeck(NewShip(), 1).size() + 1);
+}
+
+// The triage gap: more casualties than beds is a decision, not a queue that clears itself.
+static void TestTriage()
+{
+	g_test = "more casualties than beds is a decision, not a queue";
+	Ship s = NewShip();
+	int made = 0;
+	for (CrewMember &c : s.crew) {
+		if (made >= 6) break;
+		if (c.status != CREW_FIT) continue;
+		c.status = CREW_INJURED;
+		c.severity = 0.2f + 0.1f * made;   // 0.2 .. 0.7
+		++made;
+	}
+	CHECK(made == 6);
+	Tick(s, 0.0f);
+	int care = 0;
+	for (const CrewMember &c : s.crew) if (c.underCare) ++care;
+	CHECK(care == SICKBAY_BEDS);           // exactly the beds, no more
+	// Default triage is worst first: the beds hold the graver cases, the rest wait.
+	float careMin = 1.0f, waitMax = 0.0f;
+	for (const CrewMember &c : s.crew) {
+		if (c.status != CREW_INJURED) continue;
+		if (c.underCare) careMin = std::min(careMin, c.severity);
+		else waitMax = std::max(waitMax, c.severity);
+	}
+	CHECK(careMin >= waitMax);
+
+	// Rank first is the other choice: the senior cases get the beds, however hurt.
+	s.orderTriage = 1;
+	Tick(s, 0.0f);
+	float careRank = 0.0f, waitRank = 999.0f;
+	for (const CrewMember &c : s.crew) {
+		if (c.status != CREW_INJURED) continue;
+		if (c.underCare) careRank = std::max(careRank, static_cast<float>(c.rank));
+		else waitRank = std::min(waitRank, static_cast<float>(c.rank));
+	}
+	CHECK(careRank >= waitRank);
+
+	// Waiting without treatment kills: no supplies means the ward only holds, so the untreated die.
+	Ship t = NewShip();
+	t.stores.medicalSupplies = 0.0f;
+	for (CrewMember &c : t.crew) { if (c.status != CREW_FIT) continue; c.status = CREW_INJURED; c.severity = 0.4f; }
+	Tick(t, Hours(t, 30.0f));
+	int dead = 0;
+	for (const CrewMember &c : t.crew) if (c.status == CREW_DEAD) ++dead;
+	CHECK(dead > 0);
+	CHECK(t.stores.medicalSupplies == 0.0f);
 }
 
 // S7. Boarders take systems; the crew take them back.
@@ -1146,6 +1196,7 @@ int main(int argc, char **argv)
 	TestCrewOnDeck();
 	TestDamageControl();
 	TestCasualties();
+	TestTriage();
 	TestBoarding();
 	TestBreachPuzzle();
 	TestBorg();
