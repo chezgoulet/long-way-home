@@ -260,6 +260,14 @@ air and endurance clocks, the log as a browsable artifact, tricorders and away-t
 core-plus-console, tested, and honest about what is left; the next work is the deck build order in
 `docs/ship-master-map.md` (deck 12 environmental control and deck 13 life support first).
 
+**Deck 12 is re-dressed from `tour/deck11`** (2026-10-06, `docs/evidence/deck12-redress.md`): the first
+of the five absent decks built against its brief, as a copy of the reuse target the brief names -- main
+engineering -- changed to be this room (reduced vertical scale, the warp core replaced by an atmosphere
+plant, a Jefferies tube exit to deck 11, the watch console at the entrance), with the parts list
+measured (`docs/locations/deck12-parts-list.md`) and the emergency lighting state in the world.
+`tools/shipmap/dressdeck12.py`, `scripts/deck12-check.sh`, `scripts/emergency-check.sh`. What closes it
+is the owner's walkthrough; the tool is the procedure the other four decks will follow.
+
 **The five gaps, to their full criteria (2026-10-07, later the same day).** The first slice's
 remaining items are now built and evidenced by `scripts/gaps-check.sh` and `TestGapCompletions`:
 morale's "the log can say why" (a periodic mood line naming the driver); the triage screen

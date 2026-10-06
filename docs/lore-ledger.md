@@ -28,7 +28,7 @@ chosen for play.
 | Main Engineering | deck 11 | on screen | recalled |
 | Computer core | deck 9 | the game's own turbolift menu (`sp_turbolift.dat`: "DECK9 Computer Core") | game |
 | Hazard Ops | deck 4 | the same file | game |
-| The five decks with no published source (6, 7, 12, 13, 14) | a sealed hall with a waypoint grid; each now has a blockout: deck 6 two holodeck doorframes and an armory locker, deck 7 an auxiliary core column and cargo islands, deck 12 two chambers with the plant on a raised deck, deck 13 a plant hall with a machinery island and catwalk, deck 14 stasis pods and a holodeck doorframe | nothing canonical exists; invented, and logged as such | invented |
+| The five decks with no published source (6, 7, 12, 13, 14) | a sealed hall with a waypoint grid; decks 6, 7, 13 and 14 have generated blockouts (deck 6 two holodeck doorframes and an armory locker, deck 7 an auxiliary core column and cargo islands, deck 13 a plant hall with a machinery island and catwalk, deck 14 stasis pods and a holodeck doorframe); **deck 12 is re-dressed from `tour/deck11`** (see below) | nothing canonical exists; invented, and logged as such | invented |
 | Astrometrics and the cargo bay | deck 8 | the same file | game |
 | Environmental control, torpedo bay, impulse engineering, deflector control | decks 12, 9, 10, 11 | — | invented placement |
 | Decks present as maps | 1, 2, 3, 4, 5, 8, 9, 10, 11, 15 | the expansion pack's `maps/tour/` | game |
@@ -58,6 +58,20 @@ Two calls made on deck 12 (`docs/locations/deck12-environmental-control.brief.md
   carrying a `mapname` (`tour/deck04`); the stitcher rewrites it to a teleporter to that deck's
   arrival and adds the reverse, so the new deck is reachable from the turbolift and the edge is in
   the map data rather than assumed.
+
+### Deck 12 re-dressed from `tour/deck11` (`docs/locations/deck12-environmental-control.brief.md`)
+
+| item | value | source | confidence |
+|---|---|---|---|
+| The room | main engineering's room from `tour/deck11`, copied and changed; the brief's reuse target | the brief, section 3; `docs/authoring-a-location.md` | design |
+| The room crop | x -4096..-2704, y -4032..-2784, taken from the source's own detail-brush cluster (centres x -4012..-2730, y -3972..-2814) | measured from the source | invented (the crop line) |
+| Vertical scale | compressed toward the floor by 0.78 (deck 11's ~404-unit room becomes 192) | the brief, "reduce the vertical scale" | design |
+| The core | dropped (the tall core-textured cluster) and an atmosphere plant raised in its place from the room's own chrome/glass/beam materials | the brief, "the warp core becomes an atmosphere plant" | design |
+| The tube | a low Jefferies tube on the west wall, opposite the main door, with a `target_level_change` to `tour/deck11` -- the route when the turbolifts are down | the brief, section 5 | invented (placement) |
+| The watch console | at the entrance, off the door, with the life-support station marker in front of it | the brief, "where the room can be entered" | invented (placement) |
+| The room's classes | deck 11's own lights, speakers, doors, panels, triggers, props and navigation survive the copy; its scripts, NPCs, pickup and turbolift network do not | this work | design |
+| The emergency lighting | authored strips: `hall/hall_light_red` held off, `engineering/elight1` working; the module swaps them at red alert or when life support is below 60% | the brief, section 6; the game's own shader | invented (the threshold) |
+| The parts list | `docs/locations/deck12-parts-list.md`; every texture and model resolves to existing game content | this work | measured |
 
 ## Crew
 
