@@ -592,6 +592,47 @@ static void TestAirAndEndurance()
 	CHECK(MinutesToDark(t) > battery);           // a reactor back on stretches endurance
 }
 
+// The log gap: a run can be reconstructed from the log alone.
+static void TestLog()
+{
+	g_test = "the log says what happened, when, and by whom";
+	Ship s = NewShip();
+	SetRole(s, ROLE_IN_COMMAND); // so orders may be given
+	SetAlert(s, ALERT_RED);
+	BreachDeck(s, 9, 1.0f);
+	DamageSystem(s, SYS_SENSORS, 0.4f);
+	OrderTriage(s, 1);
+	Board(s, 9, 3);
+	Tick(s, Hours(s, 0.1f));
+
+	CHECK(!s.log.empty());
+	double last = -1.0;
+	bool red = false, breach = false, dmg = false, triage = false, boarders = false;
+	for (const LogEntry &e : s.log) {
+		CHECK(e.time >= last);                 // written in time order
+		last = e.time;
+		CHECK(!e.who.empty() && !e.scope.empty() && !e.what.empty());
+		if (e.what.find("red") != std::string::npos) red = true;
+		if (e.what.find("breached") != std::string::npos) breach = true;
+		if (e.what.find("damaged") != std::string::npos) dmg = true;
+		if (e.what.find("triage") != std::string::npos) triage = true;
+		if (e.what.find("boarders") != std::string::npos) boarders = true;
+	}
+	CHECK(red && breach && dmg && triage && boarders);
+
+	// The scope is a filter: the hull entries are the damage-control ones.
+	int hull = 0;
+	for (const LogEntry &e : s.log) if (e.scope == "hull") ++hull;
+	CHECK(hull >= 2); // the breach and the boarding
+
+	// The log survives a save and a load, in order.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.log.size() == s.log.size());
+	CHECK(!back.log.empty() && back.log.back().what == s.log.back().what);
+}
+
 // S7. Boarders take systems; the crew take them back.
 static void TestBoarding()
 {
@@ -1229,6 +1270,7 @@ int main(int argc, char **argv)
 	TestCasualties();
 	TestTriage();
 	TestAirAndEndurance();
+	TestLog();
 	TestBoarding();
 	TestBreachPuzzle();
 	TestBorg();

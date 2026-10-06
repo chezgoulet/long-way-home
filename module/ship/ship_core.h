@@ -181,6 +181,22 @@ const float HIT_SYSTEM = 0.15f;          // what a minute's unopposed fire does 
 const float HIT_HULL = 0.10f;            // ... and to that deck's hull
 const float SALVAGE_PARTS = 25.0f;       // spare parts recovered from a derelict [inv]
 
+// ---- the log (the log-as-an-artifact gap) -------------------------------------------------------
+//
+// Every event that matters is written down as it happens: ship time, who is speaking, the subject
+// (for scoping and search) and the fact. Command sees all of it; a post sees its own scope; the
+// player can read or search it. It is bounded, and the oldest entries fall off.
+
+struct Ship;
+struct LogEntry {
+	double time = 0.0;   // ship seconds since midnight of day 0
+	std::string who;     // author
+	std::string scope;   // subject, for filtering: bridge, engineering, sickbay, hull, command, outside
+	std::string what;    // the fact
+};
+const int LOG_MAX = 128;
+void LogEvent(Ship &s, const std::string &who, const std::string &scope, const std::string &what);
+
 // ---- the ship ---------------------------------------------------------------------------------
 
 enum Alert : uint8_t { ALERT_GREEN = 0, ALERT_YELLOW, ALERT_RED };
@@ -230,6 +246,7 @@ struct Ship {
 	// the player
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
 	uint64_t wallSeconds = 0;    // wall-clock time when the ship was last saved (CLOCK_WALL catches up from it)
+	std::vector<LogEntry> log;   // the ship's own record of what happened, newest last
 
 	int Day() const { return static_cast<int>(clock / SECONDS_PER_DAY); }
 	int SecondOfDay() const { return static_cast<int>(clock) % SECONDS_PER_DAY; }
@@ -395,7 +412,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 10;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields
+const uint16_t SAVE_VERSION = 11;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

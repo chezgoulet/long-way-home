@@ -262,7 +262,7 @@ static void TreatCasualties(Ship &s, float shipSeconds)
 			// No bed, no output, or no supplies: the injury goes on getting worse, and can kill.
 			c.severity = std::min(1.0f, c.severity + DETERIORATE_PER_HOUR * hours);
 			c.wounds = std::max(c.wounds, c.severity);
-			if (c.severity >= 1.0f) { c.status = CREW_DEAD; c.recovery = 0.0f; }
+			if (c.severity >= 1.0f) { c.status = CREW_DEAD; c.recovery = 0.0f; LogEvent(s, c.name, "sickbay", "died of wounds before a bed freed"); }
 		}
 	}
 }
@@ -332,12 +332,14 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 				c.status = CREW_DEAD;
 				c.activity = ACT_SLEEP;
 				c.deck = 0;
+				LogEvent(s, c.name, "sickbay", "dead, no air");
 				continue;
 			}
 			if (c.exposure >= EXPOSURE_INJURES && c.status == CREW_FIT) {
 				c.status = CREW_INJURED;
 				c.severity = std::max(c.severity, std::min(1.0f,
 					0.3f + 0.7f * (c.exposure - EXPOSURE_INJURES) / (EXPOSURE_KILLS - EXPOSURE_INJURES)));
+				LogEvent(s, c.name, "sickbay", "injured without air on deck " + std::to_string(c.deck));
 			}
 		} else if (c.status == CREW_FIT) {
 			c.exposure = std::max(0.0f, c.exposure - shipSeconds); // catching their breath
@@ -504,7 +506,7 @@ static void UpdateIntruders(Ship &s, float shipSeconds)
 				const float taken = std::min(hurt, 1.0f - c.wounds);
 				c.wounds += taken;
 				hurt -= taken;
-				if (c.wounds >= 1.0f) { c.status = CREW_INJURED; c.severity = std::max(c.severity, 0.5f); }
+				if (c.wounds >= 1.0f) { c.status = CREW_INJURED; c.severity = std::max(c.severity, 0.5f); LogEvent(s, c.name, "sickbay", "wounded fighting boarders"); }
 			}
 		}
 		// the last of a party that is being killed does not linger as a fraction
@@ -558,6 +560,7 @@ static void UpdateIntruders(Ship &s, float shipSeconds)
 					c.status = CREW_ASSIMILATED; // one of ours is now one of theirs
 					c.deck = 0;
 					deck.intruders += 1.0f;
+					LogEvent(s, c.name, "sickbay", "taken by the Borg");
 				}
 			}
 		}
@@ -644,6 +647,7 @@ bool Jump(Ship &s, int toBeacon)
 	s.stores.antimatter -= JUMP_ANTIMATTER;
 	s.beacon = toBeacon;
 	Arrive(s);
+	LogEvent(s, "the conn", "outside", "jumped to beacon " + std::to_string(toBeacon));
 	return true;
 }
 
@@ -655,6 +659,7 @@ bool FireTorpedo(Ship &s)
 	const float absorbed = std::min(s.enemy.shields, TORPEDO_HULL);
 	s.enemy.shields -= absorbed;
 	s.enemy.hull = std::max(0.0f, s.enemy.hull - (TORPEDO_HULL - absorbed));
+	LogEvent(s, "tactical", "outside", std::string("fired a torpedo; enemy hull ") + (s.enemy.hull <= 0.0f ? "destroyed" : "holding"));
 	return true;
 }
 
@@ -816,6 +821,7 @@ bool OrderRepairFirst(Ship &s, int system)
 {
 	if (!PlayerMayCommand(s)) return false;
 	s.orderRepairFirst = system >= 0 && system < SYS_COUNT ? system : -1;
+	LogEvent(s, "command", "command", s.orderRepairFirst >= 0 ? std::string("damage control is to see first to ") + SPECS[s.orderRepairFirst].name : std::string("no priority repair order"));
 	return true;
 }
 
@@ -823,6 +829,7 @@ bool OrderSecurityTo(Ship &s, int deck)
 {
 	if (!PlayerMayCommand(s)) return false;
 	s.orderSecurityTo = deck >= 1 && deck <= DECKS ? deck : 0;
+	LogEvent(s, "command", "command", s.orderSecurityTo ? "security to deck " + std::to_string(s.orderSecurityTo) : std::string("security order cleared"));
 	return true;
 }
 
@@ -830,6 +837,7 @@ bool OrderEvacuate(Ship &s, int deck)
 {
 	if (!PlayerMayCommand(s)) return false;
 	s.orderEvacuate = deck >= 1 && deck <= DECKS ? deck : 0;
+	LogEvent(s, "command", "command", s.orderEvacuate ? "evacuate deck " + std::to_string(s.orderEvacuate) : std::string("evacuation order cleared"));
 	return true;
 }
 
@@ -837,6 +845,7 @@ bool OrderTriage(Ship &s, int policy)
 {
 	if (!PlayerMayCommand(s)) return false;
 	s.orderTriage = policy == 1 ? 1 : 0;
+	LogEvent(s, "command", "sickbay", s.orderTriage == 1 ? std::string("triage: rank first") : std::string("triage: worst first"));
 	return true;
 }
 
@@ -870,7 +879,13 @@ static void Advance(Ship &s, double shipSecondsTotal)
 	} while (shipSeconds > 0.0);
 }
 
-void SetAlert(Ship &s, Alert a) { s.alert = a; }
+void SetAlert(Ship &s, Alert a)
+{
+	if (s.alert == a) return;
+	s.alert = a;
+	static const char *const N[3] = { "green", "yellow", "red" };
+	LogEvent(s, "the bridge", "bridge", std::string("condition ") + N[a]);
+}
 
 // A hijacked system refuses its console. Power can still be cut at the source (SetSourceOnline),
 // and the system can still be shot (DamageSystem): both are ways of denying it to the boarders.
@@ -888,7 +903,10 @@ bool Hijacked(const Ship &s, SystemId id) { return id < SYS_COUNT && s.systems[i
 
 void Board(Ship &s, int deck, int boarders)
 {
-	if (deck >= 1 && deck <= DECKS && boarders > 0) s.decks[deck - 1].intruders += boarders;
+	if (deck >= 1 && deck <= DECKS && boarders > 0) {
+		s.decks[deck - 1].intruders += boarders;
+		LogEvent(s, "security", "hull", std::to_string(boarders) + " boarders on deck " + std::to_string(deck));
+	}
 }
 
 void BoardBorg(Ship &s, int deck, int drones)
@@ -984,7 +1002,10 @@ void SetSourceOnline(Ship &s, SourceId id, bool on)
 
 void DamageSystem(Ship &s, SystemId id, float amount)
 {
-	if (id < SYS_COUNT && amount > 0.0f) s.systems[id].health = Clamp01(s.systems[id].health - amount);
+	if (id < SYS_COUNT && amount > 0.0f) {
+		s.systems[id].health = Clamp01(s.systems[id].health - amount);
+		LogEvent(s, "damage control", "engineering", std::string(SPECS[id].name) + " damaged");
+	}
 }
 
 void DamageSource(Ship &s, SourceId id, float amount)
@@ -994,7 +1015,10 @@ void DamageSource(Ship &s, SourceId id, float amount)
 
 void BreachDeck(Ship &s, int deck, float amount)
 {
-	if (deck >= 1 && deck <= DECKS && amount > 0.0f) s.decks[deck - 1].hull = Clamp01(s.decks[deck - 1].hull - amount);
+	if (deck >= 1 && deck <= DECKS && amount > 0.0f) {
+		s.decks[deck - 1].hull = Clamp01(s.decks[deck - 1].hull - amount);
+		LogEvent(s, "damage control", "hull", "hull breached on deck " + std::to_string(deck));
+	}
 }
 
 void Repair(Ship &s, SystemId id, float amount)
@@ -1004,12 +1028,18 @@ void Repair(Ship &s, SystemId id, float amount)
 
 void RepairDeck(Ship &s, int deck, float amount)
 {
-	if (deck >= 1 && deck <= DECKS && amount > 0.0f) s.decks[deck - 1].hull = Clamp01(s.decks[deck - 1].hull + amount);
+	if (deck >= 1 && deck <= DECKS && amount > 0.0f) {
+		s.decks[deck - 1].hull = Clamp01(s.decks[deck - 1].hull + amount);
+		LogEvent(s, "damage control", "hull", "hull sealed on deck " + std::to_string(deck));
+	}
 }
 
 void SetForceField(Ship &s, int deck, bool on)
 {
-	if (deck >= 1 && deck <= DECKS) s.decks[deck - 1].forceField = on;
+	if (deck >= 1 && deck <= DECKS) {
+		s.decks[deck - 1].forceField = on;
+		LogEvent(s, "environmental control", "hull", std::string("force field ") + (on ? "raised" : "lowered") + " on deck " + std::to_string(deck));
+	}
 }
 
 // The air clock: how long this deck has before it cannot be breathed, at the rates UpdateDecks uses.
@@ -1049,6 +1079,17 @@ float MinutesToDark(const Ship &s)
 		if (minutes >= 0.0f && (best < 0.0f || minutes < best)) best = minutes;
 	}
 	return best;
+}
+
+void LogEvent(Ship &s, const std::string &who, const std::string &scope, const std::string &what)
+{
+	LogEntry e;
+	e.time = s.clock;
+	e.who = who;
+	e.scope = scope;
+	e.what = what;
+	s.log.push_back(e);
+	if (static_cast<int>(s.log.size()) > LOG_MAX) s.log.erase(s.log.begin());
 }
 
 // ---- persistence ------------------------------------------------------------------------------
@@ -1116,6 +1157,20 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(static_cast<uint8_t>(s.enemy.boarders));
 	// Names, types, departments and stations come back from the seed; only what changes is stored.
 	for (const CrewMember &c : s.crew) { w.U8(c.status); w.F(c.fatigue); w.F(c.morale); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); w.F(c.severity); }
+	// The log: bounded, and each string length-capped so one long fact cannot bloat the save.
+	{
+		const int n = std::min(static_cast<int>(s.log.size()), LOG_MAX);
+		w.U16(static_cast<uint16_t>(n));
+		for (int i = 0; i < n; ++i) {
+			const LogEntry &e = s.log[s.log.size() - n + i];
+			w.U64(static_cast<uint64_t>(std::llround(e.time * 1000.0)));
+			for (const std::string *str : { &e.who, &e.scope, &e.what }) {
+				const int m = std::min(static_cast<int>(str->size()), 63);
+				w.U8(static_cast<uint8_t>(m));
+				for (int k = 0; k < m; ++k) w.U8(static_cast<uint8_t>((*str)[k]));
+			}
+		}
+	}
 	return w.b;
 }
 
@@ -1182,6 +1237,18 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		c.severity = r.Unit();
 		if (!(c.exposure >= 0.0f && c.exposure <= 1.0e6f)) return false;
 		if (c.status > CREW_ASSIMILATED || c.watch >= WATCHES || c.post > SYS_COUNT) return false;
+	}
+	s.log.clear();
+	const int logCount = r.U16();
+	for (int i = 0; i < logCount && r.ok; ++i) {
+		LogEntry e;
+		e.time = static_cast<double>(r.U64()) / 1000.0;
+		for (std::string *str : { &e.who, &e.scope, &e.what }) {
+			const int m = r.U8();
+			str->clear();
+			for (int k = 0; k < m && r.ok; ++k) *str += static_cast<char>(r.U8());
+		}
+		s.log.push_back(e);
 	}
 	if (!r.ok || r.left != 0) return false;
 

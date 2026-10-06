@@ -213,6 +213,11 @@ each post reads its own scope, command sees all, the player can search. *Visible
 retires the standing assumption in nearly every other document that something "was recorded". *Location:*
 any console, the ready room, the captain's log. *Acceptance:* after a run, a player can reconstruct what
 happened and when from the log alone.
+**First slice 2026-10-07** (`docs/evidence/gap-the-log.md`, `tests/ship/test_ship_core.cpp`): a bounded,
+saved log of `{time, who, scope, what}` (save format **version 11**); the events that write (alerts, damage,
+breaches and seals, force fields, orders, casualties, boarding, jumps, fire); `ship log [count] [scope]`
+reads it newest-first with a scope filter, and `g_shipTest 16` reproduces a transcript. A scrollable screen,
+named authors, and the captain's log remain.
 
 **5. Tricorders and away-team kit.** *State:* kit as stores entries (tricorders, phasers, EV suits, medical
 kit) with charge and condition. *Control:* loadout at the transporter room or shuttlebay, scanning in the

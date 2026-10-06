@@ -566,6 +566,34 @@ void RunTest( void )
 		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
 		return;
 	}
+	if ( g_shipTest->integer == 16 )
+	{//the log: act, then read it back the way a player would
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			ship::SetRole( vessel, ship::ROLE_IN_COMMAND );
+			ship::SetAlert( vessel, ship::ALERT_RED );
+			ship::BreachDeck( vessel, 9, 1.0f );
+			ship::DamageSystem( vessel, ship::SYS_SENSORS, 0.4f );
+			ship::OrderTriage( vessel, 1 );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4500 )
+		{
+			gi.Printf( "SHIP: --- the log ---\n" );
+			for ( const ship::LogEntry &e : vessel.log )
+			{
+				const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
+				const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
+				gi.Printf( "SHIP: day %d %02d:%02d [%s] %s: %s\n", day, sod / 3600, sod % 3600 / 60,
+					e.scope.c_str(), e.who.c_str(), e.what.c_str() );
+			}
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 5500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
 	if ( g_shipTest->integer == 12 )
 	{//the turbolift's own menu: report the deck list it reads, then open it exactly as a panel does
 		// Opening the menu pauses the game, which stops Ship_Frame, so the screenshot and the quit
@@ -946,6 +974,22 @@ void Svcmd_Ship_f( void )
 		}
 		return;
 	}
+	else if ( !Q_stricmp( cmd, "log" ) )
+	{//the ship's record: ship log [count] [scope] -- newest first, a scope to filter
+		const int n = a[0] ? atoi( a ) : 15;
+		int printed = 0;
+		for ( int i = static_cast<int>( vessel.log.size() ) - 1; i >= 0 && printed < n; --i )
+		{
+			const ship::LogEntry &e = vessel.log[i];
+			if ( b[0] && Q_stricmp( b, e.scope.c_str() ) ) continue;
+			const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
+			const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
+			gi.Printf( "SHIP: day %d %02d:%02d  [%s] %s: %s\n", day, sod / 3600, sod % 3600 / 60, e.scope.c_str(), e.who.c_str(), e.what.c_str() );
+			++printed;
+		}
+		if ( !printed ) gi.Printf( "SHIP: the log is empty\n" );
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "counterhack" ) && sys >= 0 && b[0] ) ship::CounterHack( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "source" ) && FindSource( a ) >= 0 && b[0] )
 		ship::SetSourceOnline( vessel, static_cast<ship::SourceId>( FindSource( a ) ), !Q_stricmp( b, "on" ) );
@@ -955,7 +999,8 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "       ship damage|repair <system> <0..1> | breach <deck> <0..1> | source core|impulse|auxiliary|batteries on|off\n" );
 		gi.Printf( "       ship seal <deck> | board <deck> <boarders> | borg <deck> <drones> | counterhack <system> <0..1>\n" );
 		gi.Printf( "       ship chart | jump <beacon> | fire | character <name> <department> <rank>\n" );
-		gi.Printf( "       ship order repair <system> | order security <deck> | order evacuate <deck>\n" );
+		gi.Printf( "       ship order repair <system> | order security <deck> | order evacuate <deck> | order triage worst|rank\n" );
+		gi.Printf( "       ship log [count] [scope] | seal <deck> | field <deck> on|off\n" );
 		return;
 	}
 	ship::Tick( vessel, 0.0f );
