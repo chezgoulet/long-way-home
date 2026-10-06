@@ -66,6 +66,12 @@ def deck_map(n):
         parts.append(brush(((mx, cy + 96, z0), (mx + T, y1, z1)), wall))
         # a raised plant deck in the far chamber's back half, a low walkway in front of it
         parts.append(brush(((mx + T, Y0, z0), (x1, Y0 + D // 2, z0 + 48)), floor_tex))
+        # Section 42, next door and off-limits (docs/ship-master-map.md). It is closed with solid
+        # bulkheads on its open sides -- the deck's own west and north walls close the other two --
+        # so there is no way in and it is not a room we spend. The decision is recorded in
+        # docs/lore-ledger.md; the waypoints skip its inside below.
+        parts.append(brush(((X0, Y0 + 256 - T, z0), (X0 + 256, Y0 + 256, z1)), wall))
+        parts.append(brush(((X0 + 256 - T, Y0, z0), (X0 + 256, Y0 + 256, z1)), wall))
     if n == 13:
         # Deck 13's blockout (docs/locations/deck13-life-support.brief.md): a plant hall with a central
         # machinery island and a raised catwalk down one wall. Coarse massing only.
@@ -104,6 +110,12 @@ def deck_map(n):
     # falsename is the shader in game; truename replaces it, and a second use swaps back.
     out.append(entity([("classname", "target_shaderremap"), ("falsename", "textures/lwh/panel"),
                        ("truename", "textures/lwh/borg"), ("origin", "%d %d %d" % (X0 + 192, Y0 + D // 2, z0 + 24))]))
+    # The turbolift edge this deck itself declares (the brief: a new deck needs a target_level_change
+    # carrying a mapname, or it is unreachable). Placed inside the deck, pointing at the deck 4 hub;
+    # the stitcher rewrites it to a teleporter to d04_arrival, and adds the reverse so the new deck is
+    # reachable from every deck and every deck from it.
+    out.append(entity([("classname", "target_level_change"), ("targetname", "lwh_lift_d%02d" % n),
+                       ("mapname", "tour/deck04"), ("origin", "%d %d %d" % (X0 + 160, cy, z0 + 24))]))
     for lx in range(X0 + 256, x1, 512):
         out.append(entity([("classname", "light"), ("light", "350"), ("origin", "%d %d %d" % (lx, Y0 + D // 2, z1 - 32))]))
     if n in STATION_SYSTEM:
@@ -120,6 +132,8 @@ def deck_map(n):
                 if abs(wx - mx) <= T + 16 and (wy <= cy - 96 or wy >= cy + 96):
                     continue
                 if wx > mx and wy <= Y0 + D // 2 + 16:           # inside the raised plant deck
+                    continue
+                if wx < X0 + 256 + T and wy < Y0 + 256 + T:      # inside, or on, the sealed section 42
                     continue
             if n == 13:
                 ix0, ix1 = X0 + W // 3, X0 + 2 * W // 3

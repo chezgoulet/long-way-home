@@ -87,6 +87,8 @@ const float REPLICATE_SUPPLIES_PER_HOUR = 2.5f; // medical supplies the replicat
 const float ATMOSPHERE_REGEN_HOURS = 1.0f; // life support at full output refills a deck in this [inv]
 const float ATMOSPHERE_STALE_HOURS = 12.0f; // with no life support a sealed deck lasts this [inv]
 const float VENT_MINUTES = 5.0f;           // a deck fully open to space empties in this [inv]
+const float GRAVITY_FAIL_HOURS = 6.0f;     // with no life support the plating loses hold in this [inv]
+const float GRAVITY_REGEN_HOURS = 1.0f;    // ... and a supplied deck gets it back in this [inv]
 
 static const int DEPT_SIZE[DEPT_COUNT] = {20, 50, 25, 30, 16}; // sums to COMPLEMENT [inv split]
 static const int DEPT_DECK[DEPT_COUNT] = {1, 11, 4, 8, 5};     // where department duties are done
@@ -1946,6 +1948,11 @@ static void UpdateDecks(Ship &s, float shipSeconds)
 		const float regen = support * d.hull * hours / ATMOSPHERE_REGEN_HOURS;
 		const float stale = (1.0f - support) * hours / ATMOSPHERE_STALE_HOURS;
 		d.atmosphere = std::min(1.0f, std::max(0.0f, d.atmosphere + regen - stale - vent));
+		// Gravity plating is life support's too (docs/ship-systems.md, the master map's deck 12):
+		// with the plant down a deck loses hold, and a supplied one gets it back.
+		const float gfail = (1.0f - support) * hours / GRAVITY_FAIL_HOURS;
+		const float gregen = support * hours / GRAVITY_REGEN_HOURS;
+		d.gravity = std::min(1.0f, std::max(0.0f, d.gravity - gfail + gregen));
 	}
 }
 
@@ -2219,14 +2226,69 @@ bool Brig(Ship &s, int crew, bool on)
 bool HoldFuneral(Ship &s)
 {
 	if (!PlayerMayCommand(s)) return false;
-	int lifted = 0;
-	for (CrewMember &c : s.crew) {
+	// Whoever commands holds it and leads it: the crew come to stand with them, and that is the
+	// bond the funeral strengthens. CommandingOfficer names the body; find that record's index.
+	int officiant = s.player;
+	if (officiant < 0 || officiant >= static_cast<int>(s.crew.size())) {
+		officiant = -1;
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+			if (s.crew[i].status == CREW_FIT && s.crew[i].rank >= 5) { officiant = i; break; }
+	}
+	int lifted = 0, attended = 0;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		CrewMember &c = s.crew[i];
 		c.quartersSealed = false; // the funeral is held: the sealed quarters are opened again
 		if (c.status != CREW_FIT) continue;
+		++attended;
+		// Metabolism, not accumulation (docs/morale.md): the death marks soften toward shared memory.
+		for (Memory &m : c.memories)
+			if (m.event == MEM_DEATH) { m.valence = std::max(m.valence, -0.2f); m.salience = 1.0f; }
+		// And every person who stood together takes a positive mark toward the one who led them
+		// through it: a bond that was not there before, strengthened by standing in the same room.
+		Remember(s, i, MEM_FUNERAL, officiant == i ? -1 : officiant, MEM_SAW, 0.4f);
 		if (c.morale < 0.7f) { c.morale = std::min(1.0f, c.morale + 0.15f); ++lifted; }
 	}
-	LogEvent(s, CommandingOfficer(s), "crew", "a funeral is held for the lost; " + std::to_string(lifted) + " take heart");
+	LogEvent(s, CommandingOfficer(s), "crew", "a funeral is held for the lost; " + std::to_string(attended) + " stand together, " + std::to_string(lifted) + " take heart");
 	return true;
+}
+
+// A death by name and cause. The tick reaches the same end through exposure, fire and wounds; this is
+// the door a scenario (or a console) uses to close a record deliberately.
+bool KillCrew(Ship &s, int crew, const std::string &cause)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return false;
+	CrewMember &c = s.crew[crew];
+	if (c.status == CREW_DEAD) return false;
+	c.status = CREW_DEAD;
+	c.recovery = 0.0f;
+	LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "crew", c.name + " is dead: " + (cause.empty() ? std::string("unknown cause") : cause));
+	NoteDeath(s, crew);
+	return true;
+}
+
+// The wall of names (docs/morale.md, docs/gap-analysis.md): the crew the ship has buried, read from
+// the records in roster order. Nothing extra is stored -- the dead are the dead.
+std::vector<std::string> WallOfNames(const Ship &s)
+{
+	std::vector<std::string> names;
+	for (const CrewMember &c : s.crew)
+		if (c.status == CREW_DEAD) names.push_back(c.name);
+	return names;
+}
+
+// The quarters still shut: the dead whose door the crew have not yet opened at a funeral. The deck
+// is carried so a console can say which walk past means something.
+std::vector<SealedQuarter> SealedQuarters(const Ship &s)
+{
+	std::vector<SealedQuarter> sealed;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].status == CREW_DEAD && s.crew[i].quartersSealed) {
+			SealedQuarter q;
+			q.crew = i;
+			q.deck = s.crew[i].quartersDeck;
+			sealed.push_back(q);
+		}
+	return sealed;
 }
 
 bool Promote(Ship &s, int crew)
@@ -2531,6 +2593,7 @@ static float EventValence(uint16_t event)
 	case MEM_RESCUE: return 0.7f;
 	case MEM_VIOLATION: return -0.5f;
 	case MEM_ORDER: return 0.1f;
+	case MEM_FUNERAL: return 0.4f;
 	default: return 0.0f;
 	}
 }
@@ -2595,6 +2658,7 @@ void DraftReport(Ship &s, int department)
 			case MEM_RESCUE: l.scope = "crew"; l.draft = "we brought back " + NameAt(s, m.person); break;
 			case MEM_VIOLATION: l.scope = "command"; l.draft = "the Prime Directive was set aside"; break;
 			case MEM_ORDER: l.scope = "command"; l.draft = "an order was given and carried out"; break;
+			case MEM_FUNERAL: l.scope = "crew"; l.draft = "we buried the lost together and took heart"; break;
 			default: continue;
 			}
 			l.text = l.draft;
@@ -3766,7 +3830,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(s.alert);
 	for (const System &sys : s.systems) { w.F(sys.health); w.U8(sys.enabled); w.U16(static_cast<uint16_t>(sys.priority)); w.F(sys.control); }
 	for (const Source &src : s.sources) { w.F(src.health); w.U8(src.online); }
-	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); w.F(d.forceFieldLevel); w.F(d.fire); w.U8(d.boarderKind); w.U8(static_cast<uint8_t>(d.objective)); w.U8(d.compromised ? 1 : 0); w.F(d.dwell); w.U8(d.engaged ? 1 : 0); }
+	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.gravity); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); w.F(d.forceFieldLevel); w.F(d.fire); w.U8(d.boarderKind); w.U8(static_cast<uint8_t>(d.objective)); w.U8(d.compromised ? 1 : 0); w.F(d.dwell); w.U8(d.engaged ? 1 : 0); }
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
 	w.F(s.stores.spareParts); w.F(s.stores.medicalSupplies); w.F(s.stores.rations); w.F(s.stores.materials); w.U8(static_cast<uint8_t>(s.stores.probes)); w.U8(static_cast<uint8_t>(s.stores.tricorders)); w.U8(static_cast<uint8_t>(s.stores.phasers)); w.U8(static_cast<uint8_t>(s.stores.evSuits)); w.F(s.stores.tricorderCharge); w.F(s.stores.kitCondition);
@@ -3954,7 +4018,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	for (System &sys : s.systems) { sys.health = r.Unit(); sys.enabled = r.U8() != 0; sys.priority = static_cast<int16_t>(r.U16()); sys.control = r.Unit(); }
 	for (Source &src : s.sources) { src.health = r.Unit(); src.online = r.U8() != 0; }
 	for (Deck &d : s.decks) {
-		d.atmosphere = r.Unit(); d.hull = r.Unit(); d.intruders = r.F();
+		d.atmosphere = r.Unit(); d.gravity = r.Unit(); d.hull = r.Unit(); d.intruders = r.F();
 		if (!(d.intruders >= 0.0f && d.intruders <= 10000.0f)) return false;
 		d.borg = r.U8() != 0; d.assimilated = r.Unit(); d.forceFieldLevel = r.F(); d.forceField = d.forceFieldLevel > 0.0f; d.fire = r.Unit();
 		d.boarderKind = r.U8(); d.objective = r.U8();
@@ -4290,6 +4354,27 @@ std::string Describe(const Ship &s)
 		std::snprintf(line, sizeof(line), "  deck %d is burning: fire %.0f%%%s\n", d + 1, s.decks[d].fire * 100,
 			s.decks[d].firefighting ? ", being fought" : "");
 		out += line;
+	}
+	for (int d = 0; d < DECKS; ++d) {
+		if (s.decks[d].gravity >= 0.99f) continue; // only the decks that have lost hold are named
+		std::snprintf(line, sizeof(line), "  deck %d: gravity %.0f%%\n", d + 1, s.decks[d].gravity * 100);
+		out += line;
+	}
+	// Grief, made legible: the sealed quarters (what a closed door is) and the wall of names.
+	{
+		const std::vector<SealedQuarter> sealed = SealedQuarters(s);
+		if (!sealed.empty()) {
+			std::string names;
+			for (size_t i = 0; i < sealed.size(); ++i)
+				names += (i ? ", " : "") + s.crew[sealed[i].crew].name + " (deck " + std::to_string(sealed[i].deck) + ")";
+			out += "  quarters sealed: " + names + "\n";
+		}
+		const std::vector<std::string> wall = WallOfNames(s);
+		if (!wall.empty()) {
+			std::string names;
+			for (size_t i = 0; i < wall.size(); ++i) names += (i ? ", " : "") + wall[i];
+			out += "  the wall of names: " + names + "\n";
+		}
 	}
 	for (int i = 0; i < SRC_COUNT; ++i) {
 		std::snprintf(line, sizeof(line), "  source %-22s %4d of %4d  health %3.0f%%%s\n", SOURCES[i].name, s.sources[i].output,

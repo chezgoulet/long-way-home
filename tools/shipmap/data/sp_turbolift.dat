@@ -18,6 +18,6 @@ DECK9 "Computer Core"			""		"use tour_turbo_09"		"sound/voice/computer/tour/deck
 DECK10 "Shuttle Bay"			""		"use tour_turbo_10"		"sound/voice/computer/tour/deck10.mp3"
 DECK11 "Engineering"			""		"use tour_turbo_11"		"sound/voice/computer/tour/deck11.mp3"
 DECK12 "Environmental Control"	""		"use tour_turbo_12"		""
-DECK13 "Cargo and Stores"		""		"use tour_turbo_13"		""
+DECK13 "Life Support Plant"		""		"use tour_turbo_13"		""
 DECK14 "Engineering Support"		""		"use tour_turbo_14"		""
 DECK15 "Hazard Team Training"		""		"use tour_turbo_15"		""

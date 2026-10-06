@@ -155,6 +155,7 @@ const char *ControllerName(uint8_t c);
 
 struct Deck {
 	float atmosphere = 1.0f; // 0 vacuum .. 1 breathable
+	float gravity = 1.0f;    // 0 freefall .. 1 standard: the plating, on life support (deck 12)
 	float hull = 1.0f;       // 0 open to space .. 1 intact
 	float intruders = 0.0f;  // hostile boarders on this deck (fractional while a fight wears them down)
 	bool borg = false;       // the boarders here are Borg: they assimilate what they hold
@@ -208,7 +209,7 @@ enum CrewStatus : uint8_t { CREW_FIT = 0, CREW_INJURED, CREW_DEAD, CREW_ASSIMILA
 // person, repeated, is a bond: friendship or grudge. Salience decays unless reinforced, and the set
 // is bounded, evicting the least salient first.
 enum MemorySource : uint8_t { MEM_SAW = 0, MEM_TOLD, MEM_RUMOUR, MEM_LOG, MEM_SOURCE_COUNT };
-enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, MEM_RESCUE, MEM_VIOLATION };
+enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, MEM_RESCUE, MEM_VIOLATION, MEM_FUNERAL };
 const int MEMORY_MAX = 8;
 struct Memory {
 	uint16_t event = 0;
@@ -1021,7 +1022,19 @@ bool Qualified(const CrewMember &who, Station st);
 bool Brig(Ship &s, int crew, bool on);
 bool Brigged(const Ship &s, int crew);
 // Grief: a funeral, when there is time to hold one, lifts the crew who have been lost and are missed.
+// It also metabolises the loss: the death marks soften and every fit attendee takes a positive
+// MEM_FUNERAL mark toward whoever held it, so the crew stand together instead of carrying dread alone.
 bool HoldFuneral(Ship &s);
+// A death, by name and cause: the record is closed, command is notified, the quarters are sealed and
+// whoever is on the deck remembers it. A scenario or a console uses this; the causes in play are the
+// ship's own (exposure, fire, wounds), which the tick reaches by itself. False for a bad index.
+bool KillCrew(Ship &s, int crew, const std::string &cause);
+// The wall of names (docs/morale.md): the crew the ship has buried, in roster order. Recorded, never
+// stored: it is read from the records, the same way the dead are. SealedQuarters names the bereaved
+// quarters still shut (the dead's), with their deck, so the player can read what a closed door means.
+std::vector<std::string> WallOfNames(const Ship &s);
+struct SealedQuarter { int crew = -1; int deck = 0; };
+std::vector<SealedQuarter> SealedQuarters(const Ship &s);
 // The player's career: a promotion within the complement, given the trust and the rank.
 bool Promote(Ship &s, int crew);
 // The player's body: the state the player is in, as a crew record.
@@ -1141,7 +1154,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 45;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range
+const uint16_t SAVE_VERSION = 46;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.
