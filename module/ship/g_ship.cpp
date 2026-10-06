@@ -3019,19 +3019,45 @@ void Svcmd_Ship_f( void )
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "log" ) )
-	{//the ship's record: ship log [count] [scope] -- newest first, a scope to filter
+	{//the official log: ship log [count] [scope] -- the signed, published record, newest first.
+	 //The private log is a different store and is never returned here (ReadOfficialLog).
 		const int n = a[0] ? atoi( a ) : 15;
-		int printed = 0;
-		for ( int i = static_cast<int>( vessel.log.size() ) - 1; i >= 0 && printed < n; --i )
+		const std::vector<ship::LogEntry> entries = ship::ReadOfficialLog( vessel, n, b );
+		for ( const ship::LogEntry &e : entries )
 		{
-			const ship::LogEntry &e = vessel.log[i];
-			if ( b[0] && Q_stricmp( b, e.scope.c_str() ) ) continue;
 			const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
 			const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
 			gi.Printf( "SHIP: day %d %02d:%02d  [%s] %s: %s\n", day, sod / 3600, sod % 3600 / 60, e.scope.c_str(), e.who.c_str(), e.what.c_str() );
+		}
+		if ( entries.empty() ) gi.Printf( "SHIP: the log is empty\n" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "personal" ) )
+	{//the private log (docs/the-record-and-the-log.md): per person, and nobody else's read. The
+	 //truth goes here when it cannot go in the report. `ship personal write <text...>` writes it.
+		if ( vessel.player < 0 )
+		{ gi.Printf( "SHIP: no personal log: no character is the player\n" ); return; }
+		if ( !Q_stricmp( a, "write" ) )
+		{
+			std::string text;
+			for ( int i = first + 2; i < gi.argc(); ++i ) { if ( text.size() ) text += " "; text += gi.argv( i ); }
+			if ( !ship::WritePersonalLog( vessel, vessel.player, text ) ) gi.Printf( "SHIP: nothing written\n" );
+			else gi.Printf( "SHIP: %s's private log carries it; nobody else reads it\n", vessel.crew[vessel.player].name.c_str() );
+			Publish();
+			return;
+		}
+		const int n = a[0] ? atoi( a ) : 15;
+		const std::vector<ship::PersonalLogEntry> entries = ship::PersonalLog( vessel, vessel.player );
+		int printed = 0;
+		for ( int i = static_cast<int>( entries.size() ) - 1; i >= 0 && printed < n; --i )
+		{
+			const ship::PersonalLogEntry &e = entries[i];
+			const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
+			const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
+			gi.Printf( "SHIP: day %d %02d:%02d  %s: %s\n", day, sod / 3600, sod % 3600 / 60, e.who.c_str(), e.what.c_str() );
 			++printed;
 		}
-		if ( !printed ) gi.Printf( "SHIP: the log is empty\n" );
+		if ( !printed ) gi.Printf( "SHIP: %s's personal log is empty\n", vessel.crew[vessel.player].name.c_str() );
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "sleep" ) && a[0] )
@@ -3232,6 +3258,7 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "       ship chart | jump <beacon> | fire | character <name> <department> <rank>\n" );
 		gi.Printf( "       ship order repair <system> | order security <deck> | order evacuate <deck> | order triage worst|rank\n" );
 		gi.Printf( "       ship log [count] [scope] | seal <deck> | field <deck> on|off\n" );
+		gi.Printf( "       ship personal [count] | personal write <text...>   (the private log; nobody else reads it)\n" );
 		gi.Printf( "       ship losses [sealed|stripped|uninhabitable|written] | writeoff <deck|system> [kind]\n" );
 		gi.Printf( "       ship report [draft] | strike|edit <line> ... | soften <line> [f] | add <scope> <text> | sign|file [crew] | diff | purge\n" );
 		gi.Printf( "       ship nav | navigation   (how far home, how long, and the change since the last entry)\n" );

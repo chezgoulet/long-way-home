@@ -315,9 +315,33 @@ since version 18; this is its missing wiring, not a rebuild.
   them ✅
 - save and load carry the report, its diff, the promises and the orphaned mark byte-for-byte ✅
 
-Remaining (specified, not built): the official and personal logs as separate stores; the meeting brief
-built per participant from marks and log; assimilation taking the personal log **and** the access
-levels, with the Collective speaking in the assimilated person's voice.
+Remaining (specified, not built): the meeting brief built per participant from marks and log;
+assimilation taking the personal log **and** the access levels, with the Collective speaking in the
+assimilated person's voice. (The two logs as separate stores are now built — see *The two logs*,
+below.)
+
+### The two logs — the official record and the private one
+
+`docs/the-record-and-the-log.md`, implemented 2026-10-06 (`docs/evidence/the-two-logs.md`,
+`TestTheTwoLogs`, `test_ship_core --personal`). Save format **version 47**. The official log was
+already in; this is the **second store**, not a rebuild of it.
+
+- the **personal log** is a store distinct from the official log: per person, `time / who / what`
+  with a visibility of its own (`LOG_PERSONAL`) ✅
+- **nobody else reads it** — not a post's scope, not command: `PersonalVisibleTo` is the rule in one
+  place, `PersonalLog` returns one person's entries, and `ReadOfficialLog` never returns a personal
+  entry, whatever the scope ✅
+- the **player has one and writes into it** (`ship personal write <text…>`, `ship personal [count]`) ✅
+- **the simulation writes both logs and reads neither**: the month report's draft is identical with
+  and without a private entry, and no decision path consults either store ✅
+- a **purge** takes the published log and leaves the private one, the `MEM_LOG`-sourced marks
+  orphaned as before ✅
+- both stores survive save and load byte-for-byte ✅
+- a unit test, and `scripts/test.sh` and `scripts/check.sh` both exit 0 ✅
+
+Remaining (specified, not built): the meeting brief built per participant from marks and log;
+assimilation taking the personal log **and** the access levels, with the Collective speaking in the
+assimilated person's voice.
 
 ### The navigation counter
 

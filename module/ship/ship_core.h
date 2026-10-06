@@ -427,6 +427,46 @@ struct LogEntry {
 const int LOG_MAX = 128;
 void LogEvent(Ship &s, const std::string &who, const std::string &scope, const std::string &what);
 
+// ---- the two logs (docs/the-record-and-the-log.md) ----------------------------------------------
+//
+// The log is two documents, not one, and this is the second. The official log (`log`, above) is
+// signed, published and scoped: the month report lives there, a post reads its own scope, command
+// reads all. The personal log is the other half -- private, one per person, and where the truth goes
+// when it cannot go in the report. It carries the same time / who / what shape and a visibility of
+// its own: its owner's alone, not a post's scope and not command. The toll is the distance between
+// the two.
+//
+// The law over both: the simulation writes the logs and never reads either. No decision anywhere may
+// consult a log; the month report is drafted from the record's marks, never from a log. The official
+// read is ReadOfficialLog; the private read is PersonalLog, and it returns one person's entries and
+// nobody else's.
+
+enum LogVisibility : uint8_t { LOG_OFFICIAL = 0, LOG_PERSONAL, LOG_VISIBILITY_COUNT };
+const char *LogVisibilityName(uint8_t v);
+
+const int PERSONAL_LOG_MAX = 128; // bounded like the official log [inv]
+const int PERSONAL_LOG_TEXT_MAX = 200; // a private entry may be longer than an official one [inv]
+struct PersonalLogEntry {
+	double time = 0.0;                 // ship seconds since midnight of day 0
+	int owner = -1;                    // the crew member whose private log this is
+	std::string who;                   // the author's voice
+	std::string what;                  // the fact
+	uint8_t visibility = LOG_PERSONAL; // its own visibility: its owner's alone
+};
+
+// Write a private entry. `owner` must be a crew member and `what` non-empty; a full log drops its
+// oldest entry. Returns false, changing nothing, otherwise. The player's own hand is `s.player`.
+bool WritePersonalLog(Ship &s, int owner, const std::string &what);
+// The private read: this person's entries, newest last, and nobody else's -- not a scope, not
+// command, not a post's clearance. Every entry returned passes PersonalVisibleTo for this reader.
+std::vector<PersonalLogEntry> PersonalLog(const Ship &s, int owner);
+// The visibility rule, in one place: a personal entry is visible only to its owner. (The official
+// log's scopes are the other half; a personal entry never appears in them, whatever the scope.)
+bool PersonalVisibleTo(const PersonalLogEntry &e, int reader);
+// The official read, factored out so the search itself is testable: the newest `count` entries,
+// optionally filtered to one `scope` (empty = all of them). Personal entries are never returned here.
+std::vector<LogEntry> ReadOfficialLog(const Ship &s, int count, const std::string &scope);
+
 // ---- what the ship has given up (docs/damage-and-budgets.md, docs/story-and-semantics.md) --------
 //
 // Because there is never enough crew to fix everything, the player chooses what to write off: a deck
@@ -597,7 +637,8 @@ struct Ship {
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
 	uint64_t wallSeconds = 0;    // wall-clock time when the ship was last saved (CLOCK_WALL catches up from it)
 	bool leftStanding = false;   // ever exited with a background process: the record's mark (see the two exits)
-	std::vector<LogEntry> log;   // the ship's own record of what happened, newest last
+	std::vector<LogEntry> log;   // the official log: signed, published and scoped, newest last
+	std::vector<PersonalLogEntry> personalLog; // the private logs: per person, and nobody else's read
 	std::vector<LossEntry> losses; // what the ship has given up, and why (docs/damage-and-budgets.md)
 	std::vector<Job> jobs;       // the outstanding work, in the order it is worked (docs/crew-work.md)
 
@@ -1192,7 +1233,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 46;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds
+const uint16_t SAVE_VERSION = 47;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.
