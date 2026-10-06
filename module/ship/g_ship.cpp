@@ -2678,6 +2678,105 @@ void Svcmd_Ship_f( void )
 		Publish();
 		return;
 	}
+	else if ( !Q_stricmp( cmd, "report" ) )
+	{//the month report: drafted from the record, edited by the player, signed, and purged
+		const char *sub = a;
+		if ( !sub[0] || !Q_stricmp( sub, "read" ) || !Q_stricmp( sub, "draft" ) )
+		{
+			if ( ship::OpenReport( vessel ).lines.empty() ) ship::DraftReport( vessel, ship::DEPT_COUNT );
+			const ship::MonthReport &open = ship::OpenReport( vessel );
+			gi.Printf( "SHIP: --- the month report, entry %d (%s) ---\n", open.number, open.open ? "draft" : "signed" );
+			for ( size_t i = 0; i < open.lines.size(); ++i )
+				gi.Printf( "SHIP: %2d %s[%s] %s\n", static_cast<int>( i ), open.lines[i].struck ? "(struck) " : "",
+					open.lines[i].scope.c_str(), open.lines[i].text.c_str() );
+			gi.Printf( "SHIP: headline: the ship can still make %d light years, %+.0f since the last entry\n",
+				ship::NavigationCounter( vessel ), static_cast<double>( open.counterChange ) );
+			return;
+		}
+		if ( !Q_stricmp( sub, "edit" ) && b[0] )
+		{//report edit <line> <text...>: soften a number, or say something else
+			std::string text;
+			for ( int i = first + 3; i < gi.argc(); ++i ) { if ( text.size() ) text += " "; text += gi.argv( i ); }
+			if ( !ship::EditReportLine( vessel, atoi( b ), text ) ) gi.Printf( "SHIP: no such line\n" );
+			return;
+		}
+		if ( !Q_stricmp( sub, "strike" ) && b[0] )
+		{//strike a line from the published version
+			if ( !ship::StrikeReportLine( vessel, atoi( b ) ) ) gi.Printf( "SHIP: no such line\n" );
+			return;
+		}
+		if ( !Q_stricmp( sub, "soften" ) && b[0] )
+		{//soften <line> [factor]
+			const float factor = gi.argc() > first + 3 ? atof( gi.argv( first + 3 ) ) : 0.5f;
+			if ( !ship::SoftenReportLine( vessel, atoi( b ), factor ) ) gi.Printf( "SHIP: that line has no number to soften\n" );
+			return;
+		}
+		if ( !Q_stricmp( sub, "add" ) && b[0] )
+		{//add a claim: report add <scope> <text...>
+			std::string text;
+			for ( int i = first + 3; i < gi.argc(); ++i ) { if ( text.size() ) text += " "; text += gi.argv( i ); }
+			if ( !ship::AddReportLine( vessel, b, text ) ) gi.Printf( "SHIP: cannot add that claim\n" );
+			return;
+		}
+		if ( !Q_stricmp( sub, "sign" ) || !Q_stricmp( sub, "file" ) )
+		{//sign to the crew, or file upward where nobody below reads it
+			int signer = b[0] ? atoi( b ) : 0; // the captain signs the whole
+			const uint8_t aud = !Q_stricmp( sub, "file" ) ? ship::REPORT_UPWARD : ship::REPORT_TO_CREW;
+			if ( signer < 0 || signer >= static_cast<int>( vessel.crew.size() ) || !ship::SignReport( vessel, signer, aud ) )
+			{ gi.Printf( "SHIP: nothing to sign\n" ); return; }
+			gi.Printf( "SHIP: the report is signed by %s and published to %s\n", vessel.crew[signer].name.c_str(), ship::ReportAudienceName( aud ) );
+			Publish();
+			return;
+		}
+		if ( !Q_stricmp( sub, "diff" ) )
+		{//the record keeps the diff; the player can always see what they did
+			const std::vector<ship::MonthReport> &reps = ship::Reports( vessel );
+			if ( reps.empty() ) gi.Printf( "SHIP: no signed report\n" );
+			else gi.Printf( "SHIP: --- what the record kept ---\n%s", ship::ReportDiff( reps.back() ).c_str() );
+			return;
+		}
+		if ( !Q_stricmp( sub, "purge" ) )
+		{//purge the published logs; the crew's read marks are orphaned, not erased
+			if ( !ship::PurgeLogs( vessel ) ) gi.Printf( "SHIP: the logs are already empty\n" );
+			else gi.Printf( "SHIP: the published logs are purged; the marks sourced read-it-in-the-log are orphaned\n" );
+			Publish();
+			return;
+		}
+		gi.Printf( "SHIP: report [draft] | strike <line> | soften <line> [factor] | edit <line> <text> | add <scope> <text> | sign [crew] | file [crew] | diff | purge\n" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "promise" ) && a[0] && b[0] && gi.argc() > first + 4 )
+	{//ship promise <officer> <crew> <kind 0-3> <what...>
+		std::string what;
+		for ( int i = first + 5; i < gi.argc(); ++i ) { if ( what.size() ) what += " "; what += gi.argv( i ); }
+		const int idx = ship::MakePromise( vessel, atoi( a ), atoi( b ), static_cast<ship::PromiseKind>( atoi( gi.argv( first + 4 ) ) ), what );
+		if ( idx < 0 ) gi.Printf( "SHIP: no such promise (bad crew, or not fit)\n" );
+		else gi.Printf( "SHIP: promise %d held: %s\n", idx, what.c_str() );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "promises" ) )
+	{//the claims held, so they can mature
+		const std::vector<ship::Promise> &ps = ship::Promises( vessel );
+		static const char *const STATE[] = { "open", "kept", "broken" };
+		gi.Printf( "SHIP: %d promise(s) held\n", static_cast<int>( ps.size() ) );
+		for ( size_t i = 0; i < ps.size(); ++i )
+		{
+			const ship::Promise &p = ps[i];
+			gi.Printf( "SHIP:   %2d  %s -> %s  %s: %s\n", static_cast<int>( i ),
+				( p.promiser >= 0 && p.promiser < static_cast<int>( vessel.crew.size() ) ) ? vessel.crew[p.promiser].name.c_str() : "command",
+				( p.beneficiary >= 0 && p.beneficiary < static_cast<int>( vessel.crew.size() ) ) ? vessel.crew[p.beneficiary].name.c_str() : "?",
+				STATE[p.state], p.what.c_str() );
+		}
+		return;
+	}
+	else if ( ( !Q_stricmp( cmd, "keep" ) || !Q_stricmp( cmd, "break" ) ) && a[0] )
+	{//the thing is done, or it is not
+		const bool kept = !Q_stricmp( cmd, "keep" );
+		if ( !ship::ResolvePromise( vessel, atoi( a ), kept ) ) gi.Printf( "SHIP: no such open promise\n" );
+		else gi.Printf( "SHIP: promise %s %s\n", a, kept ? "kept" : "broken" );
+		Publish();
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "counterhack" ) && sys >= 0 && b[0] ) ship::CounterHack( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "source" ) && FindSource( a ) >= 0 && b[0] )
 		ship::SetSourceOnline( vessel, static_cast<ship::SourceId>( FindSource( a ) ), !Q_stricmp( b, "on" ) );
@@ -2690,6 +2789,8 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "       ship order repair <system> | order security <deck> | order evacuate <deck> | order triage worst|rank\n" );
 		gi.Printf( "       ship log [count] [scope] | seal <deck> | field <deck> on|off\n" );
 		gi.Printf( "       ship losses [sealed|stripped|uninhabitable|written] | writeoff <deck|system> [kind]\n" );
+		gi.Printf( "       ship report [draft] | strike|edit <line> ... | soften <line> [f] | add <scope> <text> | sign|file [crew] | diff | purge\n" );
+		gi.Printf( "       ship promise <officer> <crew> <kind> <what> | promises | keep|break <n>\n" );
 		gi.Printf( "       ship kit <tricorders> <phasers> <evsuits> <charge> | scan\n" );
 		return;
 	}

@@ -204,6 +204,20 @@ All invented; none of these figures is stated on screen or in the manuals. They 
 Borg strategic awareness beyond a single vessel's adaptation is named in the design and not yet
 modelled.
 
+## The month report, the promise and the lie (2026-10-06)
+
+The design is `docs/the-record-and-the-log.md` and `docs/memory-and-consequence.md`; these are the
+numbers it left to us, all invented. They are in `module/ship/ship_core.h`.
+
+| fact | value |
+|---|---|
+| Outstanding promises held | at most 16 |
+| A promise's starting mark | `MEM_PROMISE`, source saw-it, valence +0.6 |
+| A promise kept / broken | valence +1.0 / −0.9; a deadline passed unresolved is broken |
+| A lie mark's valence | −0.6, amplified ×1.6 across factions and ×1.3 over a negative existing bond, suppressed ×0.5 within one |
+| Report lines per report | at most 24 |
+| Signed reports kept with their diff | at most 8 |
+
 ## Dilithium, the constraint that forces exploration (`docs/exploration-and-science.md`)
 
 | item | value | source |

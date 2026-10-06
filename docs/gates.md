@@ -271,6 +271,32 @@ layer, session to judge), the EMH (the mobile-emitter backlog item), the environ
 countdown at deck 12 itself (the deck build), and a walkable away site (content; the acceptance run
 needs it and a session). The model says so in each evidence document.
 
+### The month report, the promise and the lie, and the toll
+
+`docs/memory-and-consequence.md` and `docs/the-record-and-the-log.md`, implemented 2026-10-06
+(`docs/evidence/the-month-report-and-the-toll.md`, `TestMonthReportAndToll`,
+`test_ship_core --month`). Save format **version 44**. The memory layer was already in the record
+since version 18; this is its missing wiring, not a rebuild.
+
+- the promise writes `MEM_PROMISE` with the claim **held** so it can mature — kept, broken, or lapsed
+  by deadline — moving the mark's valence and the bond, and logging the reason in the crew member's
+  voice ✅
+- a signed report that contradicts a `MEM_SAW` mark writes `MEM_LIE` **in the witness**, naming the
+  signer ✅
+- the toll is **paid downward**: only a witness under the signer, reading a report published to the
+  crew, loses trust; the same falsehood filed upward costs nothing from below. Divergent allegiance
+  amplifies, alignment suppresses ✅
+- the **month report** is drafted honestly from the record, edited by the player (strike, soften,
+  add), signed per scope; the record keeps the diff, the crew see the published version, and the
+  headline is the navigation counter's change since the last entry ✅
+- **purge** empties the published logs and **orphans** the `MEM_LOG`-sourced marks rather than erasing
+  them ✅
+- save and load carry the report, its diff, the promises and the orphaned mark byte-for-byte ✅
+
+Remaining (specified, not built): the official and personal logs as separate stores; the meeting brief
+built per participant from marks and log; assimilation taking the personal log **and** the access
+levels, with the Collective speaking in the assimilated person's voice.
+
 ### Then, in rough order
 
 **First batch done (2026-10-07)** — `docs/evidence/backlog-materials-and-crew.md`, `scripts/backlog-check.sh`,
