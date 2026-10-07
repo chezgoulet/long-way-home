@@ -52,6 +52,45 @@ static const SystemSpec SPECS[SYS_COUNT] = {
 
 const SystemSpec &Spec(SystemId id) { return SPECS[id < SYS_COUNT ? id : 0]; }
 
+// ---- the bands of the budget (docs/power-assignment.md, Task C) -------------------------------
+//
+// A delegation names one of these bands and a holder. The band is a function of the system, so the
+// console can say what a grant covers without a hand-written list.
+const char *BandName(uint8_t band)
+{
+	static const char *const NAMES[BAND_COUNT] = {
+		"the hull and the drive", "the tactical fit", "the science", "the ship's services", "the comforts"
+	};
+	return NAMES[band < BAND_COUNT ? band : 0];
+}
+
+BudgetBand BandOf(SystemId id)
+{
+	switch (id) {
+	case SYS_WARP_DRIVE: case SYS_IMPULSE_DRIVE: case SYS_NAV_DEFLECTOR: case SYS_INERTIAL_DAMPERS:
+	case SYS_STRUCTURAL_INTEGRITY:
+		return BAND_PROPULSION;
+	case SYS_SHIELDS: case SYS_PHASERS: case SYS_TORPEDO_LAUNCHERS: case SYS_TRACTOR_BEAM:
+		return BAND_TACTICAL;
+	case SYS_SENSORS: case SYS_ASTROMETRICS: case SYS_SCIENCE_LABS: case SYS_COMPUTER_CORE:
+		return BAND_SCIENCE;
+	case SYS_REPLICATORS: case SYS_HOLODECKS:
+		return BAND_COMFORT;
+	default:
+		return BAND_OPERATIONS; // life support, communications, transporters, sickbay, turbolifts, gravity, lighting, cargo
+	}
+}
+
+const char *AllocationByName(uint8_t by)
+{
+	static const char *const NAMES[ALLOC_BY_COUNT] = { "unset", "the player", "an officer", "automatic mode" };
+	return NAMES[by < ALLOC_BY_COUNT ? by : 0];
+}
+
+// A decision a person made -- as opposed to a default or the ladder -- is one the automatic mode
+// must never touch (docs/power-assignment.md: "Never apply the ladder when a person has decided").
+static bool PersonSet(uint8_t by) { return by == ALLOC_PLAYER || by == ALLOC_DELEGATE; }
+
 // The posts the ship must man: the systems' own needs summed. Canon's "The 37's" has her operable
 // with 100 crew; this is the number that has to fit under that. [inv]
 int PostsNeeded()
@@ -356,6 +395,23 @@ std::string CommandingOfficer(const Ship &s)
 	for (const CrewMember &c : s.crew)
 		if (c.status == CREW_FIT && c.rank >= 5) return c.name;
 	return "command";
+}
+
+// The senior fit officer of a department, preferring the one on duty: who a recommendation comes
+// from. The chief engineer is the head of engineering (docs/power-assignment.md, Task C).
+int DepartmentHead(const Ship &s, Department dept)
+{
+	int best = -1, bestRank = -1;
+	bool bestOnDuty = false;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT || c.dept != dept) continue;
+		const bool onDuty = c.activity == ACT_ON_DUTY;
+		if (best < 0 || (onDuty && !bestOnDuty) || (onDuty == bestOnDuty && c.rank > bestRank)) {
+			best = i; bestRank = c.rank; bestOnDuty = onDuty;
+		}
+	}
+	return best;
 }
 
 // The ward, in the order the triage standing order treats it. One row per casualty for the screen,
@@ -828,18 +884,23 @@ static void UpdatePower(Ship &s, float shipSeconds)
 	const float days = shipSeconds / SECONDS_PER_DAY;
 	const bool coreless = Coreless(s);
 
-	// What is asked for, in shedding order. Coreless, only the survival set asks: the rest of the
-	// ship cannot run on what is left, so it does not draw at all.
+	// What each system asks for. `full` is the power its full capability needs; `commit` is what its
+	// set share asks of the plant. A person's share is the mechanism (docs/power-assignment.md); the
+	// ladder is the policy of automatic mode alone, and never touches a system a person has set.
+	int full[SYS_COUNT];
+	int commit[SYS_COUNT];
 	int order[SYS_COUNT];
-	int demand[SYS_COUNT];
+	bool on[SYS_COUNT];
 	int wanted = 0;
 	for (int i = 0; i < SYS_COUNT; ++i) {
 		order[i] = i;
-		const System &sys = s.systems[i];
-		const bool on = sys.enabled && sys.health > 0.0f && !SuppressedByAlert(s.alert, static_cast<SystemId>(i))
-			&& (!coreless || CorelessVital(static_cast<SystemId>(i)));
-		demand[i] = on ? EffectiveDemand(s, static_cast<SystemId>(i)) : 0;
-		wanted += demand[i];
+		System &sys = s.systems[i];
+		const SystemId id = static_cast<SystemId>(i);
+		on[i] = sys.enabled && sys.health > 0.0f && !SuppressedByAlert(s.alert, id)
+			&& (!coreless || CorelessVital(id));
+		full[i] = on[i] ? EffectiveDemand(s, id) : 0;
+		commit[i] = on[i] ? static_cast<int>(full[i] * Clamp01(sys.share) + 0.5f) : 0;
+		wanted += commit[i];
 	}
 	std::stable_sort(order, order + SYS_COUNT, [&](int a, int b) { return s.systems[a].priority < s.systems[b].priority; });
 
@@ -865,14 +926,76 @@ static void UpdatePower(Ship &s, float shipSeconds)
 			s.stores.batteries = std::max(0.0f, s.stores.batteries - load * shipSeconds / (BATTERY_HOURS * 3600.0f));
 	}
 
-	// Distribute. A system takes its whole demand or what is left; nothing is created or lost.
-	int left = supply;
-	for (int k = 0; k < SYS_COUNT; ++k) {
-		const int i = order[k];
+	// A plant with no fuel at all is damage, not policy: it removes what the ship has, and every
+	// system on it goes dark (docs/power-assignment.md, the one exception). A plant that merely
+	// cannot cover the commitments is different: the commitments are honoured and reported.
+	const bool plantDead = supply <= 0 && wanted > 0;
+
+	// Distribute. In manual mode -- the default -- every commitment is honoured in full and nothing
+	// is shed: an over-committed plant is reported, never resolved (Task A: "Nothing sheds itself").
+	// In automatic mode the systems a person has set are honoured first, in full, and the ladder is
+	// then the policy for the rest -- and only for the rest.
+	for (int i = 0; i < SYS_COUNT; ++i) s.systems[i].allocated = 0;
+	if (plantDead) {
+		// nothing runs: the dark ship
+	} else if (!s.powerAuto) {
+		for (int i = 0; i < SYS_COUNT; ++i) s.systems[i].allocated = commit[i];
+	} else {
+		int left = supply;
+		for (int i = 0; i < SYS_COUNT; ++i) {
+			System &sys = s.systems[i];
+			if (commit[i] <= 0 || !PersonSet(sys.allocBy)) continue;
+			sys.allocated = commit[i]; // a person's decision: the ladder does not touch it
+			left -= sys.allocated;
+		}
+		for (int k = 0; k < SYS_COUNT; ++k) {
+			const int i = order[k];
+			System &sys = s.systems[i];
+			if (PersonSet(sys.allocBy)) continue;
+			sys.allocated = (full[i] > 0 && left > 0) ? std::min(full[i], left) : 0;
+			if (sys.allocated > 0) left -= sys.allocated;
+		}
+	}
+
+	// The one thing that overrides a person's allocation is damage, and it says so in the log: a
+	// destroyed system, a dead conduit, no fuel, or the survival set the coreless ship is left with.
+	for (int i = 0; i < SYS_COUNT; ++i) {
 		System &sys = s.systems[i];
-		sys.allocated = std::min(demand[i], left);
-		left -= sys.allocated;
-		const float powered = demand[i] ? static_cast<float>(sys.allocated) / demand[i] : 0.0f;
+		const SystemId id = static_cast<SystemId>(i);
+		const bool damaged = sys.health <= 0.0f || (coreless && !CorelessVital(id)) || plantDead;
+		if (PersonSet(sys.allocBy) && sys.share > 0.0f && damaged) {
+			if (!sys.allocDamagedOff) {
+				sys.allocDamagedOff = true;
+				LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "damage control"), "engineering",
+					std::string(SPECS[i].name) + " is dark: damage, not a decision");
+			}
+		} else if (on[i] && !plantDead) {
+			sys.allocDamagedOff = false;
+		}
+	}
+
+	// The commitments against the plant, reported as a number, and only when it appears or changes.
+	// In manual mode this is the player's own over-commitment; in automatic mode the ladder has
+	// already resolved the systems nobody set, so it appears only if a person's own asks exceed the
+	// plant on their own.
+	int granted = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) granted += s.systems[i].allocated;
+	const int shortfall = std::max(0, granted - supply);
+	if (shortfall != s.lastShortfall) {
+		if (shortfall > 0)
+			LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "the bridge"), "engineering",
+				"power commitments exceed the plant by " + std::to_string(shortfall) + " EPS; nothing is shed");
+		else if (s.lastShortfall > 0)
+			LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "the bridge"), "engineering",
+				"power commitments fit the plant again");
+		s.lastShortfall = shortfall;
+	}
+
+	// Output: what each system delivers, by the power reaching it against its full demand. A system
+	// at forty per cent delivers forty per cent: almost-on is a real state (docs/power-assignment.md).
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		System &sys = s.systems[i];
+		const float powered = full[i] ? static_cast<float>(sys.allocated) / full[i] : 0.0f;
 		const int need = SPECS[i].crewNeeded;
 		// An unattended station still runs, at half effect: automation, not expertise.
 		const float manning = need ? 0.5f + 0.5f * std::min(1.0f, sys.staffing / need) : 1.0f;
@@ -903,6 +1026,256 @@ static void UpdatePower(Ship &s, float shipSeconds)
 	if (s.systems[SYS_REPLICATORS].output > 0.0f)
 		s.stores.medicalSupplies = std::min(100.0f, s.stores.medicalSupplies + REPLICATE_SUPPLIES_PER_HOUR * shipSeconds / 3600.0f);
 }
+
+// ---- allocation: the player and the crew decide (docs/power-assignment.md) ---------------------
+
+// What a plant can give the commitments: the sources that are online and intact. It is the number
+// the console measures a new commitment against, so "the console refuses to accept more" is exact.
+static int PlantCapacity(const Ship &s)
+{
+	int n = 0;
+	for (int i = 0; i < SRC_COUNT; ++i)
+		if (s.sources[i].online && s.sources[i].health > 0.0f) n += SourceCapacity(s, static_cast<SourceId>(i));
+	return n;
+}
+
+// The commitment a share asks of the plant, and the full demand it is a fraction of.
+static int FullDemand(const Ship &s, SystemId id, bool &on)
+{
+	if (id >= SYS_COUNT) { on = false; return 0; }
+	const System &sys = s.systems[id];
+	const bool coreless = Coreless(s);
+	on = sys.enabled && sys.health > 0.0f && !SuppressedByAlert(s.alert, id) && (!coreless || CorelessVital(id));
+	return on ? EffectiveDemand(s, id) : 0;
+}
+
+static int CommitOf(const Ship &s, SystemId id)
+{
+	bool on = false;
+	const int full = FullDemand(s, id, on);
+	return on ? static_cast<int>(full * Clamp01(s.systems[id].share) + 0.5f) : 0;
+}
+
+int PowerCommitted(const Ship &s)
+{
+	int n = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) n += s.systems[i].allocated;
+	return n;
+}
+
+int PowerShortfall(const Ship &s)
+{
+	return std::max(0, PowerCommitted(s) - s.PowerAvailable());
+}
+
+void SetPowerAuto(Ship &s, bool on)
+{
+	if (s.powerAuto == on) return;
+	s.powerAuto = on;
+	if (on)
+		LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "the Chief Engineer"), "engineering",
+			"automatic power allocation is on: the ship's own ladder decides the systems nobody has set");
+	else
+		LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "the Chief Engineer"), "engineering",
+			"automatic power allocation is off: what the player and crew have set stands, in full");
+}
+
+bool PowerAuto(const Ship &s) { return s.powerAuto; }
+
+// Would committing `percent` to this system keep the whole commitment within the plant? A decrease
+// is always allowed; an increase that would not fit is refused so the console cannot be driven into
+// a deficit by a hand, though the plant may fall under an existing commitment on its own, which is
+// the shortfall the console reports (docs/power-assignment.md).
+static bool WouldFit(const Ship &s, SystemId id, int percent)
+{
+	int want = 0;
+	bool on = false;
+	const int full = FullDemand(s, id, on);
+	if (full) want = static_cast<int>(full * (percent / 100.0f) + 0.5f);
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		if (static_cast<SystemId>(i) == id) { want = on ? want : 0; continue; }
+		want += CommitOf(s, static_cast<SystemId>(i));
+	}
+	return want <= PlantCapacity(s);
+}
+
+bool SetAllocation(Ship &s, SystemId id, int percent)
+{
+	if (id >= SYS_COUNT || percent < 0 || percent > 100) return false;
+	bool on = false;
+	FullDemand(s, id, on);
+	if (!on) return false;                       // a dark system has no allocation to set
+	if (percent > AllocationPercent(s, id) && !WouldFit(s, id, percent)) return false; // refuses more
+	s.systems[id].share = percent / 100.0f;
+	s.systems[id].allocBy = ALLOC_PLAYER;
+	s.systems[id].allocCrew = s.player;
+	s.systems[id].allocDamagedOff = false;
+	Tick(s, 0.0f); // the console reads the result immediately
+	return true;
+}
+
+bool SetAllocationBy(Ship &s, SystemId id, int percent, int officer)
+{
+	if (id >= SYS_COUNT || percent < 0 || percent > 100) return false;
+	if (officer < 0 || officer >= static_cast<int>(s.crew.size())) return false;
+	bool granted = false;
+	for (const BandGrant &g : s.bandGrants)
+		if (g.grantee == officer && static_cast<BudgetBand>(g.band) == BandOf(id)) { granted = true; break; }
+	if (!granted) return false; // the authority to decide this band is not theirs
+	bool on = false;
+	FullDemand(s, id, on);
+	if (!on) return false;
+	if (percent > AllocationPercent(s, id) && !WouldFit(s, id, percent)) return false;
+	s.systems[id].share = percent / 100.0f;
+	s.systems[id].allocBy = ALLOC_DELEGATE;
+	s.systems[id].allocCrew = officer;
+	s.systems[id].allocDamagedOff = false;
+	Tick(s, 0.0f);
+	return true;
+}
+
+int AllocationPercent(const Ship &s, SystemId id)
+{
+	if (id >= SYS_COUNT) return 0;
+	return static_cast<int>(Clamp01(s.systems[id].share) * 100.0f + 0.5f);
+}
+
+uint8_t AllocationSource(const Ship &s, SystemId id)
+{
+	if (id >= SYS_COUNT) return ALLOC_UNSET;
+	const System &sys = s.systems[id];
+	if (PersonSet(sys.allocBy)) return sys.allocBy;
+	// Nobody has set it: the ladder fed it (automatic mode) or it stands at its default.
+	if (s.powerAuto && sys.allocated > 0) return ALLOC_AUTO;
+	return ALLOC_UNSET;
+}
+
+std::string AllocationProvenance(const Ship &s, SystemId id)
+{
+	const uint8_t by = AllocationSource(s, id);
+	if (by == ALLOC_DELEGATE) {
+		const System &sys = s.systems[id];
+		const std::string who = (sys.allocCrew >= 0 && sys.allocCrew < static_cast<int>(s.crew.size()))
+			? s.crew[sys.allocCrew].name : std::string("an officer");
+		return "an officer (" + who + ") under standing orders";
+	}
+	return AllocationByName(by);
+}
+
+Recommendation RecommendAllocation(Ship &s)
+{
+	Recommendation rec;
+	rec.by = DepartmentHead(s, DEPT_ENGINEERING);
+	rec.pending = true;
+	// The ladder's arithmetic at the plant we have: what it can give, spent in the order the chief
+	// keeps power in -- the cheapest first and the way home last (docs/budget-squaring.md).
+	bool on[SYS_COUNT];
+	int full[SYS_COUNT];
+	int order[SYS_COUNT];
+	int totalFull = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		order[i] = i;
+		full[i] = FullDemand(s, static_cast<SystemId>(i), on[i]);
+		totalFull += full[i];
+	}
+	int budget = PlantCapacity(s);
+	if (budget > totalFull) budget = totalFull;
+	std::stable_sort(order, order + SYS_COUNT, [&](int a, int b) { return s.systems[a].priority < s.systems[b].priority; });
+	int left = budget;
+	int shedCount = 0;
+	for (int k = 0; k < SYS_COUNT; ++k) {
+		const int i = order[k];
+		rec.percent[i] = 0;
+		if (full[i] <= 0) continue;
+		const int got = std::max(0, std::min(full[i], left));
+		left -= got;
+		rec.percent[i] = static_cast<int>(static_cast<float>(got) / full[i] * 100.0f + 0.5f);
+		if (got <= 0) ++shedCount;
+	}
+	const std::string who = rec.by >= 0 ? s.crew[rec.by].name : std::string("the Chief Engineer");
+	rec.reasoning = who + " recommends: the cheapest first and the way home last";
+	if (budget < totalFull)
+		rec.reasoning += " - " + std::to_string(totalFull - budget) + " EPS short, so "
+			+ std::to_string(shedCount) + " system(s) would go dark";
+	else
+		rec.reasoning += "; the plant covers every system whole";
+	return rec;
+}
+
+bool AcceptRecommendation(Ship &s)
+{
+	const Recommendation rec = RecommendAllocation(s);
+	if (rec.by < 0) return false;
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		s.systems[i].share = rec.percent[i] / 100.0f;
+		s.systems[i].allocBy = ALLOC_PLAYER;
+		s.systems[i].allocCrew = rec.by;
+		s.systems[i].allocDamagedOff = false;
+	}
+	LogEvent(s, s.crew[rec.by].name, "engineering",
+		"the Chief Engineer's allocation is adopted; the player sets it as the ship's");
+	Tick(s, 0.0f);
+	return true;
+}
+
+bool RefuseRecommendation(Ship &s)
+{
+	const int chief = RecommendAllocation(s).by;
+	if (chief < 0) return false;
+	// A refusal is recorded, and the officer remembers it (docs/the-record-and-the-log.md): a mark
+	// against whoever refused, so the bond carries it and the console can show it.
+	if (chief >= 0 && chief < static_cast<int>(s.crew.size())) {
+		Remember(s, chief, MEM_OVERRULED, s.player, MEM_SAW, -0.5f);
+		LogEvent(s, s.crew[chief].name, "engineering",
+			s.crew[chief].name + "'s allocation was refused; he notes who refused it and holds to his own");
+	} else {
+		LogEvent(s, "the Chief Engineer", "engineering",
+			"the Chief Engineer's allocation was refused; he notes it");
+	}
+	return true;
+}
+
+bool GrantBand(Ship &s, int grantor, int grantee, BudgetBand band)
+{
+	if (band >= BAND_COUNT) return false;
+	if (grantor < 0 || grantor >= static_cast<int>(s.crew.size())) return false;
+	if (grantee < 0 || grantee >= static_cast<int>(s.crew.size())) return false;
+	if (s.crew[grantee].status != CREW_FIT) return false;
+	for (const BandGrant &g : s.bandGrants)
+		if (g.grantee == grantee && static_cast<BudgetBand>(g.band) == band) return false; // already held
+	for (const BandGrant &g : s.bandGrants)
+		if (static_cast<BudgetBand>(g.band) == band) return false; // one holder per band
+	BandGrant g;
+	g.grantor = grantor; g.grantee = grantee; g.band = band; g.granted = s.clock;
+	s.bandGrants.push_back(g);
+	if (static_cast<int>(s.bandGrants.size()) > GRANT_MAX) s.bandGrants.erase(s.bandGrants.begin());
+	LogEvent(s, s.crew[grantor].name, "command",
+		s.crew[grantee].name + " holds standing authority over " + BandName(band) + " until it is revoked");
+	return true;
+}
+
+bool RevokeBand(Ship &s, int grantee, BudgetBand band)
+{
+	for (size_t i = 0; i < s.bandGrants.size(); ++i) {
+		if (s.bandGrants[i].grantee == grantee && static_cast<BudgetBand>(s.bandGrants[i].band) == band) {
+			const std::string who = s.crew[grantee].name;
+			s.bandGrants.erase(s.bandGrants.begin() + i);
+			// The revocation takes effect immediately: the authority ends this tick, and the log says so.
+			LogEvent(s, who, "command", who + "'s standing authority over " + BandName(band) + " is revoked, at once");
+			return true;
+		}
+	}
+	return false;
+}
+
+const BandGrant *BandHolder(const Ship &s, BudgetBand band)
+{
+	for (const BandGrant &g : s.bandGrants)
+		if (static_cast<BudgetBand>(g.band) == band) return &g;
+	return nullptr;
+}
+
+int BandGrantCount(const Ship &s) { return static_cast<int>(s.bandGrants.size()); }
 
 const char *ControllerName(uint8_t c)
 {
@@ -4747,6 +5120,23 @@ std::vector<uint8_t> Pack(const Ship &s)
 			w.U64(static_cast<uint64_t>(std::llround(l.time * 1000.0)));
 		}
 	}
+	// Power allocation (version 51, docs/power-assignment.md): each system's share and who set it,
+	// automatic mode, the pending recommendation, and the band delegations.
+	for (const System &sys : s.systems) {
+		w.F(sys.share); w.U8(sys.allocBy);
+		w.U16(static_cast<uint16_t>(sys.allocCrew + 1));
+		w.U8(sys.allocDamagedOff ? 1 : 0);
+	}
+	w.U8(s.powerAuto ? 1 : 0);
+	w.U16(static_cast<uint16_t>(s.lastShortfall));
+	const int nGrants = std::min(static_cast<int>(s.bandGrants.size()), GRANT_MAX);
+	w.U8(static_cast<uint8_t>(nGrants));
+	for (int i = 0; i < nGrants; ++i) {
+		const BandGrant &g = s.bandGrants[i];
+		w.U16(static_cast<uint16_t>(g.grantor + 1)); w.U16(static_cast<uint16_t>(g.grantee + 1));
+		w.U8(g.band);
+		w.U64(static_cast<uint64_t>(std::llround(g.granted * 1000.0)));
+	}
 	return w.b;
 }
 
@@ -5067,9 +5457,40 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		s.lockouts.push_back(l);
 	}
 	if (s.advanceDeck > DECKS || s.advanceAt > DECKS) return false;
+	// Power allocation (version 51): each system's share and who set it, automatic mode, the pending
+	// recommendation, and the band delegations.
+	for (System &sys : s.systems) {
+		sys.share = r.Unit();
+		sys.allocBy = r.U8();
+		if (sys.allocBy >= ALLOC_BY_COUNT) return false;
+		sys.allocCrew = static_cast<int16_t>(r.U16()) - 1;
+		if (sys.allocCrew < -1 || sys.allocCrew >= static_cast<int>(count)) return false;
+		sys.allocDamagedOff = r.U8() != 0;
+	}
+	s.powerAuto = r.U8() != 0;
+	s.lastShortfall = r.U16();
+	s.bandGrants.clear();
+	const int grantCount = r.U8();
+	if (grantCount > GRANT_MAX) return false;
+	for (int i = 0; i < grantCount && r.ok; ++i) {
+		BandGrant g;
+		g.grantor = static_cast<int16_t>(r.U16()) - 1;
+		g.grantee = static_cast<int16_t>(r.U16()) - 1;
+		g.band = r.U8();
+		g.granted = static_cast<double>(r.U64()) / 1000.0;
+		if (g.band >= BAND_COUNT) return false;
+		if (g.grantor < 0 || g.grantor >= static_cast<int>(count)) return false;
+		if (g.grantee < 0 || g.grantee >= static_cast<int>(count)) return false;
+		s.bandGrants.push_back(g);
+	}
 	if (!r.ok || r.left != 0) return false;
 
-	Tick(s, 0.0f); // derive allocation, manning and locations from the restored state
+	// Derive allocation and locations from the restored state. Power is derived first, so the crew's
+	// placement (a patient goes to sickbay only if sickbay is delivering) is a function of the
+	// restored power rather than of the zero the outputs start at -- otherwise a save would not
+	// replay identically (docs/gates.md, A3).
+	UpdatePower(s, 0.0f);
+	Tick(s, 0.0f); // derive manning and locations from the restored state
 	s.clock = static_cast<double>(std::llround(s.clock * 1000.0)) / 1000.0;
 	out = s;
 	return true;
@@ -5133,8 +5554,9 @@ std::string Describe(const Ship &s)
 		sod % 3600 / 60, WATCH[s.Watch()], ALERTS[s.alert], s.CrewFit(), static_cast<int>(s.crew.size()));
 	out += line;
 	if (s.leftStanding) out += "left standing (the ship keeps her own time)\n";
-	std::snprintf(line, sizeof(line), "power %d supplied, %d allocated  budget %d fresh, %d now%s  deuterium %.1f%%  antimatter %.1f%%  batteries %.0f%%  torpedoes %d  parts %.0f  material %.0f  medical %.0f  rations %.0f\n",
-		s.PowerAvailable(), s.PowerAllocated(), s.PowerCapacityFresh(), s.PowerCapacityNow(),
+	std::snprintf(line, sizeof(line), "power %d supplied, %d committed (short %d)  budget %d fresh, %d now  %s%s  deuterium %.1f%%  antimatter %.1f%%  batteries %.0f%%  torpedoes %d  parts %.0f  material %.0f  medical %.0f  rations %.0f\n",
+		s.PowerAvailable(), PowerCommitted(s), PowerShortfall(s), s.PowerCapacityFresh(), s.PowerCapacityNow(),
+		s.powerAuto ? "AUTOMATIC MODE" : "the player sets the allocation",
 		Coreless(s) ? "  (CORELESS: survival power only)" : "",
 		s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes,
 		s.stores.spareParts, s.stores.materials, s.stores.medicalSupplies, s.stores.rations);
@@ -5210,8 +5632,9 @@ std::string Describe(const Ship &s)
 	}
 	for (int i = 0; i < SYS_COUNT; ++i) {
 		const System &sys = s.systems[i];
-		std::snprintf(line, sizeof(line), "  %-24s deck %2d  power %3d/%3d  manned %d/%d  health %3.0f%%  output %3.0f%%%s%s\n", SPECS[i].name,
-			SPECS[i].deck, sys.allocated, SPECS[i].demand, sys.manned, SPECS[i].crewNeeded, sys.health * 100, sys.output * 100,
+		std::snprintf(line, sizeof(line), "  %-24s deck %2d  alloc %3d%%  power %3d/%3d  output %3.0f%%  manned %d/%d  health %3.0f%%  %s%s%s\n", SPECS[i].name,
+			SPECS[i].deck, AllocationPercent(s, static_cast<SystemId>(i)), sys.allocated, SPECS[i].demand, sys.output * 100,
+			sys.manned, SPECS[i].crewNeeded, sys.health * 100, AllocationProvenance(s, static_cast<SystemId>(i)).c_str(),
 			sys.enabled ? "" : "  OFF", sys.repairing ? "  UNDER REPAIR" : "");
 		if (sys.control < 1.0f) {
 			out.erase(out.size() - 1);

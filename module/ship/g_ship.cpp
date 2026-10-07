@@ -142,9 +142,34 @@ void Publish( void )
 	// The power budget twice (owner ruling, 2026-10-07): what the plant delivers fresh, and what it
 	// delivers now -- the power half of the navigation counter, and where the player watches it shrink
 	// as the dilithium ages. Costs a string.
-	gi.cvar_set( "lwh_ship_header", Fmt( "DAY %d  %02d:%02d  %s WATCH   CONDITION %s   POWER %d SUPPLIED  %d ALLOCATED   BUDGET %d FRESH  %d NOW", vessel.Day(),
-		sod / 3600, sod % 3600 / 60, WATCH[vessel.Watch()], ALERTS[vessel.alert], vessel.PowerAvailable(), vessel.PowerAllocated(),
-		vessel.PowerCapacityFresh(), vessel.PowerCapacityNow() ).c_str() );
+	// Committed against available, and the shortfall as a number: the FTL line the player works from
+	// (docs/power-assignment.md, Task B). Automatic mode says so, and names its author.
+	{
+		const int shortfall = ship::PowerShortfall( vessel );
+		// The FTL line (docs/power-assignment.md, Task B), kept short enough for one line at SMALLFONT:
+		// committed against available, the shortfall as a number, the budget, and who is deciding.
+		gi.cvar_set( "lwh_ship_header", Fmt( "DAY %d  %02d:%02d  %s  %s  COMMITTED %d OF %d%s  BUDGET %d/%d  %s",
+			vessel.Day(), sod / 3600, sod % 3600 / 60, WATCH[vessel.Watch()], ALERTS[vessel.alert],
+			ship::PowerCommitted( vessel ), vessel.PowerAvailable(),
+			shortfall > 0 ? Fmt( "  SHORT %d", shortfall ).c_str() : "",
+			vessel.PowerCapacityFresh(), vessel.PowerCapacityNow(),
+			ship::PowerAuto( vessel ) ? "AUTOMATIC MODE" : "MANUAL" ).c_str() );
+		gi.cvar_set( "lwh_ship_shortfall", Fmt( "%d", shortfall ).c_str() );
+	}
+	// The chief engineer's recommendation, with his reasoning, and the band delegations by name.
+	{
+		const ship::Recommendation rec = ship::RecommendAllocation( vessel );
+		gi.cvar_set( "lwh_ship_recommend", rec.by >= 0 ? rec.reasoning.c_str() : "" );
+		std::string grants;
+		for ( int b = 0; b < ship::BAND_COUNT; ++b ) {
+			const ship::BandGrant *g = ship::BandHolder( vessel, static_cast<ship::BudgetBand>( b ) );
+			if ( !g ) continue;
+			if ( !grants.empty() ) grants += "; ";
+			grants += std::string( ship::BandName( static_cast<ship::BudgetBand>( g->band ) ) ) + " held by "
+				+ vessel.crew[g->grantee].name;
+		}
+		gi.cvar_set( "lwh_ship_grants", grants.c_str() );
+	}
 	gi.cvar_set( "lwh_ship_stores", Fmt( "DEUTERIUM %.1f%%   ANTIMATTER %.1f%%   BATTERIES %.0f%%   TORPEDOES %d   CREW FIT %d OF %d",
 		vessel.stores.deuterium * 100, vessel.stores.antimatter * 100, vessel.stores.batteries * 100, vessel.stores.torpedoes,
 		vessel.CrewFit(), static_cast<int>( vessel.crew.size() ) ).c_str() );
@@ -551,11 +576,19 @@ void Publish( void )
 	{
 		const ship::System &sys = vessel.systems[order[k]];
 		const ship::SystemSpec &spec = ship::Spec( static_cast<ship::SystemId>( order[k] ) );
-		gi.cvar_set( Fmt( "lwh_ship_sys%d", k ).c_str(), Fmt( "%s|%d %d %d %d %d %d %d %d %d %d", spec.name, sys.allocated, spec.demand,
+		// The row carries, after the ten an older console reads: the share a person set (11) and the
+		// provenance of the commitment (12), so the console can show the FTL number beside the control
+		// and say who decided (docs/power-assignment.md, Task B).
+		gi.cvar_set( Fmt( "lwh_ship_sys%d", k ).c_str(), Fmt( "%s|%d %d %d %d %d %d %d %d %d %d %d %d %d", spec.name, sys.allocated, spec.demand,
 			static_cast<int>( sys.health * 100 + 0.5f ), static_cast<int>( sys.output * 100 + 0.5f ), sys.manned, spec.crewNeeded,
 			sys.enabled ? 1 : 0, sys.priority, ship::StationOf( static_cast<ship::SystemId>( order[k] ) ),
-			static_cast<int>( sys.control * 100 + 0.5f ) ).c_str() );
+			static_cast<int>( sys.control * 100 + 0.5f ),
+			ship::AllocationPercent( vessel, static_cast<ship::SystemId>( order[k] ) ),
+			static_cast<int>( ship::AllocationSource( vessel, static_cast<ship::SystemId>( order[k] ) ) ),
+			static_cast<int>( ship::BandOf( static_cast<ship::SystemId>( order[k] ) ) ) ).c_str() );
 	}
+	// Who the console would delegate a band to: the department head a recommendation comes from.
+	gi.cvar_set( "lwh_ship_chief", Fmt( "%d", ship::DepartmentHead( vessel, ship::DEPT_ENGINEERING ) ).c_str() );
 }
 
 // Reports the trigger whose centre is at g_shipTestWatch: a trigger that has fired is waiting
@@ -673,6 +706,33 @@ void RunTest( void )
 		gi.Printf( "SHIP: life support priority %d, structural integrity priority %d\n",
 			vessel.systems[ship::SYS_LIFE_SUPPORT].priority, vessel.systems[ship::SYS_STRUCTURAL_INTEGRITY].priority );
 		WriteReport( "ship/operated.txt" );
+		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 71 )
+	{//the allocation console (docs/power-assignment.md, Task B): set a share by key, turn automatic
+	 //mode on and off, and photograph the FTL surface. Everything is a key a hand would press.
+		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 3000, "ui_lwh_engineering\n" },
+			{ 3600, "lwh_eng_key -\n" },   // the selected system (life support, first in the order) to 90%
+			{ 3900, "lwh_eng_key -\n" },   // ... and to 80%
+			{ 4200, "lwh_eng_key e\n" },   // automatic mode on: the ladder is the policy
+			{ 4600, "screenshot lwh_power\n" },
+			{ 5600, "lwh_eng_key e\n" },   // ... and off again: what the player set stands
+		};
+		static size_t step = 0;
+		if ( level.time < 1000 ) step = 0;
+		while ( step < sizeof( STEPS ) / sizeof( STEPS[0] ) && level.time >= STEPS[step].ms )
+		{
+			gi.Printf( "SHIP: power console test t=%d: %s", level.time, STEPS[step].command );
+			gi.SendConsoleCommand( STEPS[step++].command );
+		}
+		if ( tested || level.time < 7000 ) return;
+		tested = true;
+		gi.Printf( "SHIP: allocation test: life support %d%%, automatic mode %d, committed %d of %d, short %d\n",
+			ship::AllocationPercent( vessel, ship::SYS_LIFE_SUPPORT ), ship::PowerAuto( vessel ) ? 1 : 0,
+			ship::PowerCommitted( vessel ), vessel.PowerAvailable(), ship::PowerShortfall( vessel ) );
+		WriteReport( "ship/power.txt" );
 		gi.SendConsoleCommand( "quit\n" );
 		return;
 	}
@@ -2969,6 +3029,10 @@ void Svcmd_Ship_f( void )
 		const bool isAlert = !Q_stricmp( cmd, "alert" );
 		const bool isSwitch = !Q_stricmp( cmd, "on" ) || !Q_stricmp( cmd, "off" );
 		const bool isPriority = !Q_stricmp( cmd, "priority" );
+		// The player's own allocation of power (docs/power-assignment.md): the FTL surface, and
+		// Engineering's to work, alongside the ladder the automatic mode uses.
+		const bool isAlloc = !Q_stricmp( cmd, "alloc" ) || !Q_stricmp( cmd, "auto" ) || !Q_stricmp( cmd, "recommend" )
+			|| !Q_stricmp( cmd, "accept" ) || !Q_stricmp( cmd, "refuse" ) || !Q_stricmp( cmd, "band" );
 		const bool isFire = !Q_stricmp( cmd, "fire" );
 		const bool isJump = !Q_stricmp( cmd, "jump" );
 		const bool isBreach = !Q_stricmp( cmd, "breach" ) || !Q_stricmp( cmd, "solve" );
@@ -2990,7 +3054,7 @@ void Svcmd_Ship_f( void )
 		const bool isEMH = !Q_stricmp( cmd, "emh" );
 		// until a character is chosen the player is nobody in particular, and is not held to a rank
 		const bool anyone = vessel.player < 0 && vessel.cfg.role != ship::ROLE_IN_COMMAND;
-		if ( !isAlert && !isSwitch && !isPriority && !isFire && !isJump && !isBreach && !isTransport && !isSurvey && !isCourse && !isPatients && !isField && !isSurgical && !isScanComp && !isTarget && !isYield && !isChoice && !isRun && !isTractor && !isFabricate && !isEMH )
+		if ( !isAlert && !isSwitch && !isPriority && !isAlloc && !isFire && !isJump && !isBreach && !isTransport && !isSurvey && !isCourse && !isPatients && !isField && !isSurgical && !isScanComp && !isTarget && !isYield && !isChoice && !isRun && !isTractor && !isFabricate && !isEMH )
 			why = "that is not a console's to do";
 		else if ( !anyone && !ship::PlayerMayOperate( vessel, st ) )
 		{
@@ -3003,6 +3067,7 @@ void Svcmd_Ship_f( void )
 		else if ( isAlert && !anyone && vessel.cfg.role != ship::ROLE_IN_COMMAND && !ship::MayCallAlert( vessel, vessel.player, st ) )
 			why = "calling the alert needs a lieutenant or above";
 		else if ( isPriority && st != ship::STN_ENGINEERING ) why = "the power order is Engineering's to set";
+		else if ( isAlloc && st != ship::STN_ENGINEERING ) why = "power allocation is Engineering's to set";
 		else if ( isFire && st != ship::STN_TACTICAL ) why = "weapons are fired from Tactical";
 		else if ( isJump && st != ship::STN_CONN ) why = "the ship is flown from the Conn";
 		else if ( isCourse && st != ship::STN_CONN ) why = "the course is laid in from the Conn";
@@ -3019,12 +3084,12 @@ void Svcmd_Ship_f( void )
 		else if ( isTractor && st != ship::STN_TACTICAL ) why = "the tractor beam is worked from Tactical";
 		else if ( isFabricate && st != ship::STN_ENGINEERING ) why = "fabrication is Engineering's";
 		else if ( isEMH && st != ship::STN_SICKBAY ) why = "the EMH is Sickbay's";
-		else if ( ( !Q_stricmp( cmd, "breach" ) || isSwitch || isPriority ) && sys < 0 )
+		else if ( ( !Q_stricmp( cmd, "breach" ) || isSwitch || isPriority || !Q_stricmp( cmd, "alloc" ) ) && sys < 0 )
 			why = "no such system";
-		else if ( ( !Q_stricmp( cmd, "breach" ) || isSwitch || isPriority )
+		else if ( ( !Q_stricmp( cmd, "breach" ) || isSwitch || isPriority || !Q_stricmp( cmd, "alloc" ) )
 			&& !ship::MayCallUp( vessel, vessel.player, st, static_cast<ship::SystemId>( sys ) ) )
 			why = ship::OperatedFromRefusal( static_cast<ship::SystemId>( sys ) );
-		else if ( ( isSwitch || isPriority ) && ship::Hijacked( vessel, static_cast<ship::SystemId>( sys ) ) )
+		else if ( ( isSwitch || isPriority || !Q_stricmp( cmd, "alloc" ) ) && ship::Hijacked( vessel, static_cast<ship::SystemId>( sys ) ) )
 			why = std::string( ship::Spec( static_cast<ship::SystemId>( sys ) ).name ) + " does not answer: it is not ours";
 		if ( !why.empty() )
 		{
@@ -3073,6 +3138,39 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "on" ) && sys >= 0 ) ship::SetEnabled( vessel, static_cast<ship::SystemId>( sys ), true );
 	else if ( !Q_stricmp( cmd, "off" ) && sys >= 0 ) ship::SetEnabled( vessel, static_cast<ship::SystemId>( sys ), false );
 	else if ( !Q_stricmp( cmd, "priority" ) && sys >= 0 && b[0] ) ship::SetPriority( vessel, static_cast<ship::SystemId>( sys ), atoi( b ) );
+	else if ( !Q_stricmp( cmd, "alloc" ) && sys >= 0 && b[0] )
+	{//the player sets the system's share of its demand: the mechanism (docs/power-assignment.md)
+		if ( !ship::SetAllocation( vessel, static_cast<ship::SystemId>( sys ), atoi( b ) ) )
+		{
+			gi.cvar_set( "lwh_ship_refusal", "refused: that would commit more power than the plant supplies" );
+			gi.Printf( "SHIP: allocation refused: it would oversubscribe the plant\n" );
+		}
+		Publish();
+	}
+	else if ( !Q_stricmp( cmd, "auto" ) )
+	{//automatic mode: the ladder is the policy, off by default
+		const bool on = !Q_stricmp( a, "on" ) ? true : !Q_stricmp( a, "off" ) ? false : !ship::PowerAuto( vessel );
+		ship::SetPowerAuto( vessel, on );
+		gi.Printf( "SHIP: automatic power allocation is %s\n", ship::PowerAuto( vessel ) ? "on" : "off" );
+		Publish();
+	}
+	else if ( !Q_stricmp( cmd, "recommend" ) )
+	{//the chief engineer's recommendation, with his reasoning
+		const ship::Recommendation rec = ship::RecommendAllocation( vessel );
+		gi.Printf( "SHIP: %s\n", rec.reasoning.c_str() );
+		Publish();
+	}
+	else if ( !Q_stricmp( cmd, "accept" ) ) { if ( ship::AcceptRecommendation( vessel ) ) gi.Printf( "SHIP: the chief's allocation is adopted\n" ); Publish(); }
+	else if ( !Q_stricmp( cmd, "refuse" ) ) { if ( ship::RefuseRecommendation( vessel ) ) gi.Printf( "SHIP: the chief's allocation is refused, and he notes it\n" ); Publish(); }
+	else if ( !Q_stricmp( cmd, "band" ) )
+	{//band grant|revoke <band> <officer> (docs/power-assignment.md, Task C)
+		const int band = atoi( b );
+		const int officer = gi.argc() > first + 3 ? atoi( gi.argv( first + 3 ) ) : -1;
+		const int grantor = vessel.player >= 0 ? vessel.player : 0;
+		if ( !Q_stricmp( a, "revoke" ) ) ship::RevokeBand( vessel, officer, static_cast<ship::BudgetBand>( band ) );
+		else ship::GrantBand( vessel, grantor, officer, static_cast<ship::BudgetBand>( band ) );
+		Publish();
+	}
 	else if ( !Q_stricmp( cmd, "damage" ) && sys >= 0 && b[0] ) ship::DamageSystem( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "repair" ) && sys >= 0 && b[0] ) ship::Repair( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "operate" ) && sys >= 0 )

@@ -20,6 +20,15 @@ without asking.
 
 **The ship does not decide. The player and the crew decide.** That is the design.
 
+**Implemented on `feat/power-assignment`, 2026-10-07.** The mechanism is in
+`module/ship/ship_core.{h,cpp}`: `System::share` (the allocation, a number) and `System::allocBy`
+(its provenance), `SetAllocation` / `SetAllocationBy`, `PowerCommitted` / `PowerShortfall`,
+`SetPowerAuto`, `RecommendAllocation` / `AcceptRecommendation` / `RefuseRecommendation`, and
+`GrantBand` / `RevokeBand`. The console is `module/ui/ui_lwh_engineering.cpp` (the FTL surface, and
+every item above is on it), the engine check is `scripts/power-check.sh`, and the evidence is
+`docs/evidence/power-assignment.md`. Save format **51**. The ladder's own tests now switch
+automatic mode **on**, because that is the only place the ladder runs.
+
 ## What the mechanic actually is
 
 **A reactive plant, and a set of commitments the player makes against it.**

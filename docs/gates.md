@@ -420,6 +420,37 @@ systems are added, so `SYS_COUNT` rises and older saves are invalid, as every bu
 Remaining: the owner's walkthrough (whether the budget feels tight rather than punishing), and the
 deck-by-deck air mechanism — a lane of its own.
 
+### The power assignment — the player decides
+
+`docs/power-assignment.md` (the owner's ruling of 2026-10-07), implemented 2026-10-07 on
+`feat/power-assignment` (`docs/evidence/power-assignment.md`, `TestThePlayerDecides`,
+`TestLadderOnlyInAutoMode`, `TestOversubscriptionReported`, `TestPartialAllocation`,
+`TestRecommendationAndDelegation`; `scripts/power-check.sh`). Save format **51**.
+
+The **correction** this lane is: `feat/the-budgets` implemented a shed order (`SPECS[].prio`) as the
+mechanism, which decides before the player arrives. That is the failure the owner named. What replaced it:
+
+- each system now carries a **share** a person sets (a number, not a tier) and a **provenance** (the player,
+  an officer under a standing delegation, automatic mode, or unset); operational capacity follows the share
+- **nothing sheds itself**: an over-committed plant is reported as a **shortfall** and the commitments are
+  honoured; the console refuses an increase that would not fit, until something is freed ✅
+- the **ladder is demoted** to the policy of **automatic mode only** (off by default), and is **never applied
+  to a system a person has set** — demonstrated by turning automatic mode off after setting an allocation ✅
+- **damage is not policy**: a destroyed system, a dead conduit and no fuel override a person's allocation, and
+  the log says "damage, not a decision" ✅
+- the console shows, per system, the **share set**, the **power getting**, **what it buys** and **who decided**,
+  beside the control; and committed against available with the shortfall as a number ✅
+- the chief engineer's **recommendation** appears with his reasoning; accepting adopts it, refusing is recorded
+  and he takes a `MEM_OVERRULED` mark ✅; a **band delegation** is grantable, held by a name, and revocable
+  immediately ✅
+- the **meeting is not built** (the brief reserves it): its seam is `SetAllocation`, `RecommendAllocation`,
+  `AcceptRecommendation`, `RefuseRecommendation`, `GrantBand`, `RevokeBand`, reading `PowerCommitted`,
+  `PowerAvailable` and `PowerShortfall` ✅
+- `scripts/test.sh`, `scripts/check.sh`, `scripts/s2-check.sh` and `scripts/power-check.sh` exit 0 ✅
+
+Remaining: the owner's walkthrough (whether choosing feels like command rather than bookkeeping), and the staff
+meeting as a scene, which the brief reserves for later.
+
 ### Then, in rough order
 
 **First batch done (2026-10-07)** — `docs/evidence/backlog-materials-and-crew.md`, `scripts/backlog-check.sh`,

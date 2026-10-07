@@ -9,9 +9,12 @@ dilithium crystal ages, and what the ship gives up first -- are set out in `docs
 
 ## Two budgets, and they are not the same thing
 
-- **Energy**: what the ship can *feed*. Allocated across systems through EPS; finite; already has a canonical
-  shape in this design -- the brownout ladder in `docs/ship-systems.md`, and the three independent sources
-  (life support, holodecks, shuttlecraft) that survive the main grid going down.
+- **Energy**: what the ship can *feed*. Allocated across systems through EPS; finite. **Who sets the
+  allocation is `docs/power-assignment.md`** (owner's ruling, 2026-10-07): the players and the crew decide each
+  system's online state and share, nothing sheds itself, and an over-committed plant is reported as a shortfall.
+  The brownout ladder in `docs/ship-systems.md` is the chief engineer's recommendation and automatic mode's
+  policy, not the mechanism. The three independent sources (life support, holodecks, shuttlecraft) that survive
+  the main grid going down remain a gap, as noted there.
 - **Functionality**: what the ship can *do*. Integrity per system per compartment: how many phaser arrays are
   still working, which doors open, whether the sensors can see, whether a deck still holds air.
 

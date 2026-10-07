@@ -53,8 +53,11 @@ topology: M/ARA core in main engineering (Deck 11), electro-plasma routed throug
 converting to electricity at each subsystem, plasma manifolds as the fragile middle layer. **[our call]**
 Canon never states a brownout order, so we define one, and the budget squaring sets its arithmetic
 (`docs/budget-squaring.md`, Part six): **the cheapest thing is shed first and the warp drive last of
-all, after even the comforts**, so the last thing she gives up is the way home. As implemented, the
-ladder the crew argue about is:
+all, after even the comforts**, so the last thing she gives up is the way home. **It is an opinion,
+not the mechanism** (owner's ruling, 2026-10-07; `docs/power-assignment.md`): the players and the
+crew set each system's allocation, nothing sheds itself, and the ladder is the policy of
+**automatic mode only**, off by default, and never applied to a system a person has set. As
+implemented, the recommendation the chief engineer gives is:
 
 1. shed first: cargo handling, non-essential lighting, the holodecks, the replicators
 2. then: gravity plating, the tractor beam, the turbolifts, sickbay, the science labs

@@ -123,10 +123,17 @@ uint8_t AnomalySeverityFor(float condition, float stress);
 // severity, exactly as the ruling says. Returns ANOMALY_NONE when the use was clean.
 uint8_t RollAnomaly(float condition, float stress, uint32_t roll);
 
+// Who set a system's allocation (docs/power-assignment.md): the player, an officer acting under a
+// standing delegation, automatic mode, or nobody (the default, full and online). This is the
+// provenance the console shows per commitment and the rule that keeps the ladder off a person's
+// decision: automatic mode never touches a system whose `allocBy` is not ALLOC_UNSET.
+enum AllocationBy : uint8_t { ALLOC_UNSET = 0, ALLOC_PLAYER, ALLOC_DELEGATE, ALLOC_AUTO, ALLOC_BY_COUNT };
+const char *AllocationByName(uint8_t by);
+
 struct System {
 	float health = 1.0f;    // 0 destroyed .. 1 intact; output can never exceed it
 	bool enabled = true;    // switched on at its console
-	int priority = 0;       // current shedding order (consoles may change it)
+	int priority = 0;       // the automatic mode's shedding order (consoles may still change it)
 	int allocated = 0;      // EPS units granted this tick
 	int manned = 0;         // on-duty crew at the station this tick
 	float staffing = 0.0f;  // ... weighted by how rested and willing they are (morale, fatigue)
@@ -135,6 +142,15 @@ struct System {
 	float output = 0.0f;    // 0..1: what the system is actually delivering
 	float wear = 0.0f;      // 0..1: deferred maintenance (derived each tick, not saved); at 1 it fails
 	uint8_t fault = 0;      // the last named failure state, to log the change (derived, but stored)
+	// The allocation a person sets: the fraction of its full demand the system is given (0..1).
+	// Operational capacity follows it -- at forty per cent the system underperforms at forty per
+	// cent rather than failing. `allocBy` names who set it; `allocCrew` names the officer (a
+	// delegation) or -1. `allocDamagedOff` is the last tick's answer to "was a person's allocation
+	// removed by damage rather than by a decision", so the change is logged once, as damage.
+	float share = 1.0f;
+	uint8_t allocBy = ALLOC_UNSET;
+	int allocCrew = -1;
+	bool allocDamagedOff = false;
 };
 
 // The capability a system still has, 0..1: its health, capped by what power is reaching it. This is
@@ -235,7 +251,8 @@ enum CrewStatus : uint8_t { CREW_FIT = 0, CREW_INJURED, CREW_DEAD, CREW_ASSIMILA
 // person, repeated, is a bond: friendship or grudge. Salience decays unless reinforced, and the set
 // is bounded, evicting the least salient first.
 enum MemorySource : uint8_t { MEM_SAW = 0, MEM_TOLD, MEM_RUMOUR, MEM_LOG, MEM_SOURCE_COUNT };
-enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, MEM_RESCUE, MEM_VIOLATION, MEM_FUNERAL, MEM_LOCKOUT };
+enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, MEM_RESCUE, MEM_VIOLATION, MEM_FUNERAL, MEM_LOCKOUT,
+	MEM_OVERRULED = 9 }; // an officer's recommendation was refused: he remembers it (docs/power-assignment.md, Task C)
 const int MEMORY_MAX = 8;
 struct Memory {
 	uint16_t event = 0;
@@ -603,6 +620,22 @@ struct Lockout {
 	double time = 0.0;
 };
 
+// A delegation of standing authority over a *band of the budget* (docs/power-assignment.md, Task C):
+// granted by command to a named officer, held until revoked, and the log says who holds it. While it
+// stands, that officer sets the allocation of any system in the band, and each commitment carries
+// their name as its provenance. Revocation takes effect immediately.
+enum BudgetBand : uint8_t { BAND_PROPULSION = 0, BAND_TACTICAL, BAND_SCIENCE, BAND_OPERATIONS, BAND_COMFORT, BAND_COUNT };
+const char *BandName(uint8_t band);
+BudgetBand BandOf(SystemId id);
+const int GRANT_MAX = 8; // a bounded set of standing grants [inv]
+
+struct BandGrant {
+	int grantor = -1;   // who granted it (the player/command)
+	int grantee = -1;   // the officer who holds it
+	uint8_t band = 0;
+	double granted = 0.0; // ship time it was granted
+};
+
 struct Config {
 	uint32_t seed = 2371;        // roster generation; the same seed is the same crew
 	float dayScale = 60.0f;      // ship seconds per simulated second: 60 = a day in 24 minutes
@@ -706,6 +739,15 @@ struct Ship {
 	Override emergencyOverride;
 	std::vector<Lockout> lockouts;
 
+	// Power allocation (docs/power-assignment.md). Automatic mode uses the priority ladder as its
+	// policy; it is off by default and never touches a system a person has set. The chief engineer's
+	// recommendation is computed on demand (RecommendAllocation) rather than stored: the console
+	// shows it, and the player accepts or refuses it. The grants are standing authority over a band,
+	// and the log says who holds each.
+	bool powerAuto = false;
+	std::vector<BandGrant> bandGrants;
+	int lastShortfall = 0;          // the shortfall last written to the log (derived; not saved)
+
 	// the player
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
 	uint64_t wallSeconds = 0;    // wall-clock time when the ship was last saved (CLOCK_WALL catches up from it)
@@ -789,7 +831,57 @@ uint8_t UseSystemBy(Ship &s, SystemId id, float stress, int operatorCrew);
 
 void SetAlert(Ship &s, Alert a);
 void SetEnabled(Ship &s, SystemId id, bool on);
-void SetPriority(Ship &s, SystemId id, int priority);
+void SetPriority(Ship &s, SystemId id, int priority); // the automatic mode's order; not the mechanism
+
+// ---- power allocation: the player and the crew decide (docs/power-assignment.md) ------------------
+//
+// The owner's ruling: the players and the crew define which systems are online and offline and how
+// much power each has at any given time. It must not become a predetermined cascade. So a system
+// carries a share a person sets, operational capacity follows the share, and nothing sheds itself:
+// when the commitments exceed the plant the shortfall is reported as a number and the ship waits.
+// The ladder is demoted to the policy of automatic mode, which is off by default and never applied
+// to a system a person has set.
+
+// The player sets a system's allocation, as a percentage of its demand (0..100). False if the
+// system does not exist, the percentage is out of range, the system is destroyed/offline, or the
+// increase would commit more than the plant can supply -- the console refuses more until something
+// is freed. A decrease is always allowed.
+bool SetAllocation(Ship &s, SystemId id, int percent);
+// The same, but set by a named officer acting under a standing delegation over that system's band.
+// False if the officer holds no grant for the band: the authority to decide is not theirs.
+bool SetAllocationBy(Ship &s, SystemId id, int percent, int officer);
+int AllocationPercent(const Ship &s, SystemId id);     // the share a person set, 0..100
+uint8_t AllocationSource(const Ship &s, SystemId id);  // ALLOC_PLAYER, ALLOC_DELEGATE, ALLOC_AUTO, ALLOC_UNSET
+// The provenance as the console says it: "the player", "an officer (Name)", "automatic mode", "unset".
+std::string AllocationProvenance(const Ship &s, SystemId id);
+
+// Committed against available (docs/power-assignment.md). `PowerCommitted` is what the commitments
+// ask the plant for; `PowerShortfall` is the number the console reports when they exceed it, and it
+// is never resolved by shedding.
+int PowerCommitted(const Ship &s);
+int PowerShortfall(const Ship &s);
+
+void SetPowerAuto(Ship &s, bool on);
+bool PowerAuto(const Ship &s);
+
+// The chief engineer's recommendation (docs/power-assignment.md, Task C). `RecommendedAllocation`
+// is the ladder's answer at the current plant, and the reasoning is his. The player accepts or
+// refuses; a refusal is recorded and the officer remembers it.
+struct Recommendation {
+	int by = -1;                  // the officer who recommends
+	int percent[SYS_COUNT];       // the allocation he would set, 0..100
+	bool pending = false;         // the player has not answered yet
+	std::string reasoning;        // his reasoning, in words, for the console
+};
+Recommendation RecommendAllocation(Ship &s);
+bool AcceptRecommendation(Ship &s); // the chief's allocation becomes the player's, in full
+bool RefuseRecommendation(Ship &s); // recorded, and the officer takes a mark against whoever refused
+
+// A band delegation (Task C): grantable, held by a name, and revocable immediately.
+bool GrantBand(Ship &s, int grantor, int grantee, BudgetBand band);
+bool RevokeBand(Ship &s, int grantee, BudgetBand band);
+const BandGrant *BandHolder(const Ship &s, BudgetBand band);
+int BandGrantCount(const Ship &s);
 void SetSourceOnline(Ship &s, SourceId id, bool on);
 void DamageSystem(Ship &s, SystemId id, float amount);
 void DamageSource(Ship &s, SourceId id, float amount);
@@ -1374,6 +1466,9 @@ bool ImproveQuarters(Ship &s);
 // The name that signs command's acts: the player's character if there is one, otherwise the captain
 // or first officer, otherwise "command". The captain's log is written under this name.
 std::string CommandingOfficer(const Ship &s);
+// The senior fit officer of a department (the chief engineer for DEPT_ENGINEERING), preferring the
+// one on duty, or -1 if the department has nobody fit. The person a recommendation comes from.
+int DepartmentHead(const Ship &s, Department dept);
 // The same questions for the player, whose role may widen or fix the answer.
 bool PlayerMayOperate(const Ship &s, Station st);
 bool PlayerMayCommand(const Ship &s);
@@ -1399,7 +1494,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 50;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
+const uint16_t SAVE_VERSION = 51;  // 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.
