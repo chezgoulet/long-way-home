@@ -145,9 +145,9 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 | **S1** ship core | ✅ done 2026-10-05 | `docs/evidence/s1-ship-core.md` |
 | **S2** Engineering console in game | 🔶 built and verified headless; awaiting the owner at the console | `docs/evidence/s2-engineering-console.md` |
 | **S3** whole-ship map | 🔶 one map, fifteen decks (five generated with blockouts), toured by turbolift 15 of 15 with the retail menu reading the ship's fifteen-deck list; game frame **2.6 ms average, 8.7 ms worst** on the latest run (the whole-ship frame time is measured within a 60 fps budget — see the evidence); awaiting a person walking it | `docs/evidence/s3-merged-map-measured.md`, `scripts/s3-check.sh` |
-| **S4** every station's console | 🔶 each station's purpose is in the core and on its console: Tactical fires, the transporter beams and recalls, astrometrics surveys, the Conn lays in a course, Sickbay reads its ward in triage order; the ship's live state is drawn at the panel and painted onto the panel's texture (`patches/0014`); the non-station panels (log, ready room, personnel, replicator) open the ship's own screens. A person at a panel remains | `docs/evidence/s4-station-consoles.md`, `scripts/s4-check.sh`, `scripts/s4-glance-check.sh`, `scripts/s4-panel-check.sh` |
+| **S4** every station's console | 🔶 each station's purpose is in the core and on its console: Tactical fires, the transporter beams and recalls, astrometrics surveys, the Conn lays in a course, Sickbay reads its ward in triage order; the ship's live state is drawn at the panel and painted onto the panel's texture (`patches/0014`); the non-station panels (log, ready room, personnel, replicator) open the ship's own screens; **the 2026-10-07 screen sweep is registered here** — the personal-log screen, the month-report editor, the job-queue board, the workable chart, the tricorder survey, the beacon keys and the phaser-setting ladder (`docs/evidence/every-screen.md`, save version 49). A person at a panel remains | `docs/evidence/s4-station-consoles.md`, `scripts/s4-check.sh`, `scripts/s4-glance-check.sh`, `scripts/s4-panel-check.sh` |
 | **S5** crew daily lives | 🔶 the crew embodied on the player's deck are whoever the routine has there, arriving and leaving with it; the **cap is raised to 24 and measured** (all 24 embodied follow the routine, all reach their place within the meal hour). Station markers sit at the generated decks' own fixtures; published-deck markers are blocked (a marker at their interface panels leaks — sky/trigger brushes) and need chosen open-space origins by a person | `docs/evidence/s5-stations.md`, `scripts/s5-check.sh` |
-| **S6** damage, repair, resources | 🔶 in the core: crewed system repair and hull sealing that cost parts, airless and burning decks and radiation from a failing core as casualty causes, fighting wounds, sickbay recovery and triage, rations; **a deterministic fourteen-day soak** with the invariants checked daily (`TestSoak`). The crew layer embodies the repair and firefighting parties, and **damage is visible in the world**: a damaged system sparks where it is worked (`SyncDamage`, `scripts/damage-check.sh`) and a burning deck is smoke and flame across it (`SyncFire`, `scripts/fire-check.sh`). **Injury causes** run from air, fire and fighting wounds to radiation, an exploding console and a poisoned site | `docs/evidence/s6-damage-and-casualties.md`, `scripts/damage-check.sh`, `scripts/fire-check.sh` |
+| **S6** damage, repair, resources | 🔶 in the core: crewed system repair and hull sealing that cost parts, airless and burning decks and radiation from a failing core as casualty causes, fighting wounds, sickbay recovery and triage, rations; **a deterministic fourteen-day soak** with the invariants checked daily (`TestSoak`). The crew layer embodies the repair and firefighting parties, and **damage is visible in the world**: a damaged system sparks where it is worked (`SyncDamage`, `scripts/damage-check.sh`) and a burning deck is smoke and flame across it (`SyncFire`, `scripts/fire-check.sh`). **Injury causes** run from air, fire and fighting wounds to radiation, an exploding console and a poisoned site. **The abandonment list is registered here**: `Ship::losses`, `WriteOff`, `ship losses`, the `GIVEN UP` column and the painted panel line (`docs/evidence/abandonment-list.md`, save version 41) | `docs/evidence/s6-damage-and-casualties.md`, `scripts/damage-check.sh`, `scripts/fire-check.sh` |
 | **S7** intruders and hacking | 🔶 in the core: boarders, contested control, hijacking, security response, the breach puzzle; boarders are hostile bodies on the player's deck and the ship's security are embodied as bodies too; **boarder kinds and objectives** (raider/Borg/hunter, sent for a deck). The puzzle played by hand needs a session | `docs/evidence/s7-intruders-and-control.md`, `scripts/s7-check.sh` |
 | **S8** the Borg | 🔶 rules in the core: drones convert decks and take crew, assimilated systems are lost outright, stripping costs hours and parts; drones are bodies on the player's deck. **Runtime asset replacement** (the first hard problem) is **built and verified on the merged ship's generated decks**: a deck the simulation assimilates turns Borg in the world **part by part** (four sections, turning in order as assimilation rises) and is stripped back (`BorgAssets`, `scripts/borg-deck-check.sh`); the published decks still need the stitcher pass or the engine section tag | `docs/evidence/s8-the-borg.md`, `scripts/s7-check.sh`, `scripts/borg-deck-check.sh` |
 | **S9** the outside | 🔶 in the core (2026-10-07): an opponent with targetable weapons, engines and a shield generator, and raider/warship/Borg kinds; choices at a beacon (hail, trade, answer a distress call, run); pursuit that stops the ship sitting still to repair; three sectors and an end to reach; jumps from the Conn and torpedoes/targeting from Tactical; more than one contact at a time (a raider's wingman). Engine-side feedback: the screen shakes on a hit, a live in-world viewscreen draws the contact's image beside the panel, and the alert klaxon plays (the viewscreen is a drawn schematic, not an engine render of the model) | `docs/evidence/s9-the-outside.md`, `scripts/s9-check.sh`, `scripts/viewscreen-check.sh` |
@@ -401,9 +401,9 @@ numbers per course.
 - the **navigational deflector**: a weak one lets dust through on a jump ✅
 - **inertial dampers**: an undamped jump shakes the crew ✅; **the EMH** (needs the computer core) ✅
 - **grief**: a death is notified and the quarters sealed, and a funeral opens them and lifts the crew ✅
-- **discipline and justice**: the brig ✅ (the hearing and Prime Directive consequences remain)
+- **discipline and justice**: the brig ✅; the hearing ✅ (below). What remains is the Prime Directive's *institutional* consequence — a live link to Starfleet, which changes what orders can be given — registered as the omissions audit's **O5**, not as a defect here
 - **training and qualification** as the source of credentials ✅
-- the **Maquis split**: the faction field ✅ (resentment and integration as an arc remain)
+- the **Maquis split**: the faction field ✅ (the arc is done below; the earlier parenthetical here was stale)
 - the **player's own body**: `PlayerIncapacitated` ✅ (the model in the world remains)
 - the **player's career**: promotion by whoever commands ✅
 - **Borg strategic awareness**: a Borg vessel adapts to our weapons ✅; a **persistent pursuer** ✅
@@ -413,7 +413,7 @@ numbers per course.
   from remembered valence, and the galley's food fabrication ✅
 - **Resource acquisition**: mining a resource belt for material and siphoning fuel ✅ (EVA remains)
 - **Population pressure**: survivors and refugees taken aboard eat, breathe and crowd ✅
-- **Justice**: a hearing (acquittal or conviction) ✅ (Prime Directive consequences remain)
+- **Justice**: a hearing (acquittal or conviction) ✅ (the Prime Directive's *institutional* consequence remains — the live link, **O5**)
 - **The holodeck's uses**: recreation, training, therapy, forensic reconstruction ✅; **memory read by
   the simulation** (trauma drags on morale) ✅
 - **Living conditions**: quarters quality colours the mood, and can be improved ✅ (bunking as a
@@ -516,3 +516,68 @@ Still to do, in order:
 - **126 script references the GDK corpus lacks** — the validator found them; most likely the
   expansion's scripts. Worth resolving before G2 content work.
 - **Retail PC saves are incompatible** with the port (upstream documents this). Start new campaigns.
+
+### From the omissions audit (2026-10-07) — `docs/omissions.md`
+
+A sweep of the whole design corpus against this ledger and `docs/path-to-playtest.md` for work the corpus
+commits us to that neither carried. The register is `docs/omissions.md`, with each item's evidence and a
+justified order. **O16 and O17 were built-but-unregistered and are now carried in S4 and S6 above; the
+`docs/gap-the-log` citation was corrected.** The rest, in the register's order:
+
+**Awaiting the owner's ruling first (they cannot be ordered until he decides):**
+
+- **O1/C1 — the power and supply model** of `docs/budget-squaring.md` is *"proposed, awaiting the owner's
+  ruling. Nothing here is implemented"*: five added systems (astrometrics, science labs, gravity plating,
+  non-essential lighting, cargo handling), the source rebalance, `crystalCeiling` bearing on the warp core's
+  **output**, the drive shed last, and the torpedo count of 38 with the canon moments at 11 and 6. It changes
+  `SYS_COUNT`, the allocation order, the console rows and `SAVE_VERSION`, so it is ordered before every other
+  power item. Its own Part three calls the missing independent sources *"the largest structural gap in the
+  ship's model."*
+- **C2 — allegiance drift** (`docs/story-and-semantics.md`, conflict 3 and *Open*): whether allegiance
+  strength is itself a fold over marks; needed before affinities are authored.
+- **C3 — Q-class encounters** (`docs/gap-analysis.md` §4): whether to model them at all.
+- **C4 — per-compartment or per-deck atmosphere**: `docs/ship-model.md` says per compartment, `docs/ship-systems.md`
+  says per deck, the code and both world evidence documents are per deck. One answer, recorded once.
+- **C5 — the player's succession after death** (`docs/evidence/player-in-the-world.md`, judgement call 1):
+  whether death ends the evening or hands the player the successor's body.
+- **C6 — Track D's four questions** (`docs/design-north-star.md` §8): the station model, the ship clock,
+  what persistent failure means, and whether ships interact.
+
+**Committed, not built, not otherwise carried (kind 1 unless marked):**
+
+- **O2 — the three independent power sources and the holodeck-matrix trap** (kind 6): `docs/ship-systems.md`,
+  `docs/damage-and-budgets.md`, `docs/budget-squaring.md` Finding two, `docs/handoff-lwh-persistent-ship.md`.
+- **O3 — canon named to model and never modelled** (kind 6): `docs/lore-ledger.md`'s closing list — bio-neural
+  gel packs, the EMH's dependence on sickbay power and holo-emitters, the variable-geometry nacelles, cargo
+  bays, replicator rations as a resource, and holodeck-power incompatibility.
+- **O4 — first contact, awareness and reputation**: `docs/exploration-and-science.md` item 5,
+  `docs/memory-and-consequence.md`, `docs/scenario-atlas.md`.
+- **O5 — discipline from home, the live link to Starfleet**: `docs/gap-analysis.md` §4, `docs/scenario-atlas.md`.
+- **O6 — the crew manifest's bills**: watch bill, battle stations, emergency bills, the damage-control
+  organisation, and the officer of the deck's authority (`docs/crew-manifest.md`).
+- **O7 — the Hazard Team as a standing unit**: two squads, a unit layer above departments
+  (`docs/crew-manifest.md`, `docs/crew-roster.md` §6).
+- **O8 — the character layer**: traits, drives, the conditions/buffs-debuffs layer and its derivation, and
+  species capabilities/needs/susceptibilities (`docs/character-attributes.md`, `docs/crew-roster.md`).
+- **O9 — the shuttle load-screen decision menu** (`docs/shuttles.md`; `docs/evidence/every-screen.md` row 18).
+- **O10 — the in-world control at the panel** (the "glance"), out of console scope and into world work
+  (`docs/evidence/every-screen.md` row 12).
+- **O11 — the outside's site archetypes and exterior dressing**, then the away-mission loop
+  (`docs/outside-the-ship.md`, *Order of work* 2–4).
+- **O12 — the phenomenon's two canon story models** (`docs/exploration-and-science.md`).
+- **O13 — the Borg security squad embodied as bodies moving deck by deck** (`docs/borg-incursion.md`,
+  *Still to come*).
+- **O14 — the wall-clock exit wired to the engine's quit path** (`docs/evidence/clocks-and-exits.md`).
+- **O15 — the nine-scenario first slate** and the rank-and-role authoring rule (`docs/scenario-atlas.md`).
+- **O18 — Track D / the multiplayer premise** (kind 2, deferred): `docs/multiplayer-premise.md`,
+  `docs/design-north-star.md` §8.
+
+**Withdrawn promise (kind 4), registered as a capability gap:**
+
+- **W1 — a dead officer's credentials are usable**: `docs/access-and-authority.md` withdrew the promise
+  rather than keep one the code cannot keep; `docs/evidence/access-and-authority.md` records it as an open
+  item belonging to the memory and consent layer.
+
+**Dangling reference (kind 5), corrected in `docs/the-record-and-the-log.md` and the month-report evidence:**
+
+- **O19 — `docs/gap-the-log.md`** was cited where the file is `docs/evidence/gap-the-log.md` (three sites).

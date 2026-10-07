@@ -140,7 +140,7 @@ Both exit **0**.
    survives, because it is the record, not the log.
 5. **`ReadsReport` is the audience, not the scope string.** Direction is modelled by
    `REPORT_TO_CREW` versus `REPORT_UPWARD`, which is exactly the brief's "a report nobody below
-   reads". Per-scope clearance filtering (`docs/gap-the-log.md`) is not re-implemented here.
+   reads". Per-scope clearance filtering (`docs/evidence/gap-the-log.md`) is not re-implemented here.
 
 ## Left unbuilt, and said so
 
