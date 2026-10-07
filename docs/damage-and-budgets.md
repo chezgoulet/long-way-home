@@ -4,6 +4,9 @@ The owner's addition, 2026-10-05: the ship takes damage and **stays damaged unti
 a matter of budgets -- an **energy budget** and a **functionality budget** -- and damage *escalates*, with an
 external threat able to do enough of it that the chain leading to a warp core breach forms on its own.
 
+The **sizes** of those budgets -- what the plant supplies, what each system demands, how the two meet as the
+dilithium crystal ages, and what the ship gives up first -- are set out in `docs/budget-squaring.md`.
+
 ## Two budgets, and they are not the same thing
 
 - **Energy**: what the ship can *feed*. Allocated across systems through EPS; finite; already has a canonical
