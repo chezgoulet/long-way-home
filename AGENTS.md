@@ -23,6 +23,7 @@ Home, our own single player and multiplayer, built on the released Raven game so
 **Every question has one document that answers it. Read that one.**
 
 - **what the game means, and how it should feel** — `docs/story-and-semantics.md`, `docs/design-creed.md`
+- **the meeting system, the voice mechanism, and their programme** — `docs/staff-meetings.md`, `docs/programme-meetings-and-voice.md`
 - **the ship as state: the save, the systems, the load adapter** — `docs/ship-model.md`
 - **one system: its state, control, visible effect, failure mode, location** — `docs/ship-systems.md`
 - **power, damage, the two budgets, cascades, abandonment** — `docs/damage-and-budgets.md`
