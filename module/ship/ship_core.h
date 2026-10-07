@@ -532,6 +532,10 @@ const std::vector<Job> &Jobs(const Ship &s);
 // Command orders a net-new thing built: the crew fabricate spare parts over crew-hours. Given by
 // whoever commands; false if it does not apply.
 bool OrderBuild(Ship &s, int parts);
+// Command sets a job's place in the order (docs/crew-work.md: "priority is where rank lives"). Lower
+// is worked sooner. False, changing nothing, if the player does not command or the index is not a job.
+// The board of the queue is where this is given; a job that persists keeps the priority set on it.
+bool SetJobPriority(Ship &s, int index, int priority);
 // The security squad (docs/borg-incursion.md): a fireteam command sends to retake a deck, advancing
 // a deck at a time and holding it while the crew restore it. The crew layer embodies them.
 const int SQUAD_MAX = 4;

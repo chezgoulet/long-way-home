@@ -444,6 +444,101 @@ void Publish( void )
 		gi.cvar_set( "lwh_ship_lockouts", lockouts.c_str() );
 		gi.cvar_set( "lwh_ship_delegations", delegations.c_str() );
 	}
+	// Whose acts these are (the person axis of the two-lock model): command's reports, orders and
+	// priorities are refused to everyone else, and the screens say so by name.
+	gi.cvar_set( "lwh_ship_may_command", ship::PlayerMayCommand( vessel ) ? "1" : "0" );
+
+	// The month report editor (row 20): the open draft's lines with their edit state, the headline,
+	// and the diff the record keeps. The screen sends its edits as `ship report ...` under the
+	// person's clearance, so the editor is the same path a hand on the console drives.
+	{
+		const ship::MonthReport &r = ship::OpenReport( vessel );
+		std::string lines;
+		for ( size_t i = 0; i < r.lines.size(); ++i )
+		{
+			const ship::ReportLine &l = r.lines[i];
+			const char status = l.struck ? 'S' : l.added ? '+' : ( l.text != l.draft ? 'E' : ' ' );
+			// rows are separated by the unit separator, not ';': a report line's own text carries
+			// semicolons (the headline is "home 75000 light years; 75 years nominal, ...").
+			lines += Fmt( "%d|%c|%s|%s\x1f", static_cast<int>( i ), status, l.scope.c_str(), l.text.c_str() );
+		}
+		gi.cvar_set( "lwh_ship_report", lines.c_str() );
+		gi.cvar_set( "lwh_ship_report_open", r.open ? "1" : "0" );
+		gi.cvar_set( "lwh_ship_report_number", Fmt( "%d", r.number ).c_str() );
+		// The diff, one line per change, newlines flattened for a cvar. The player's honesty instrument.
+		std::string diff = ship::ReportDiff( r );
+		for ( size_t i = 0; i < diff.size(); ++i ) if ( diff[i] == '\n' ) diff[i] = '\x1f';
+		gi.cvar_set( "lwh_ship_report_diff", diff.c_str() );
+	}
+
+	// The job-queue board (row 19): the outstanding work as its own face, one row per job with its
+	// kind, its target, how far and its place. Command sets the place, and the board is where it does.
+	{
+		const std::vector<ship::Job> &jobs = ship::Jobs( vessel );
+		std::string rows;
+		for ( size_t i = 0; i < jobs.size(); ++i )
+		{
+			const ship::Job &j = jobs[i];
+			std::string what;
+			if ( j.kind == ship::JOB_REPAIR ) what = ship::Spec( static_cast<ship::SystemId>( j.target ) ).name;
+			else if ( j.kind == ship::JOB_BUILD ) what = Fmt( "%d spare parts", j.target );
+			else what = Fmt( "deck %d", j.target );
+			rows += Fmt( "%d|%s|%s|%d|%d;", static_cast<int>( i ), ship::JobKindName( j.kind ), what.c_str(),
+				static_cast<int>( j.progress * 100.0f + 0.5f ), j.priority );
+		}
+		gi.cvar_set( "lwh_ship_jobs", rows.c_str() );
+		gi.cvar_set( "lwh_ship_job_count", Fmt( "%d", static_cast<int>( jobs.size() ) ).c_str() );
+	}
+
+	// The beacon-choice block (row 21): what the outside offers here, so Operations (which speaks and
+	// hails) can offer it by key rather than leaving it to a typed command. Empty in empty space with
+	// nothing to do but go on or run.
+	{
+		const ship::Beacon &here = vessel.sector[vessel.beacon];
+		std::string affords;
+		switch ( here.kind )
+		{
+		case ship::BEACON_TRADER: affords = "AT A TRADER   L hail   M trade"; break;
+		case ship::BEACON_DISTRESS: affords = "AT A DISTRESS CALL   A answer   L hail"; break;
+		case ship::BEACON_DERELICT: affords = "AT A DERELICT   L hail   M trade"; break;
+		case ship::BEACON_BELT: affords = "AT A RESOURCE BELT   L hail"; break;
+		case ship::BEACON_PREWARP: affords = "AT A PRE-WARP WORLD   L hail"; break;
+		case ship::BEACON_HOSTILE: affords = "A HOSTILE SHIP   L hail   (the Conn may run)"; break;
+		default: affords = "EMPTY SPACE   L hail   (the Conn may run)"; break;
+		}
+		gi.cvar_set( "lwh_ship_beacon", affords.c_str() );
+	}
+
+	// The survey (row 22): what a tricorder can be spent on here. The site the ship is at, and the
+	// ship's own compartments -- one shared charge, so choosing is the decision. The reading comes back
+	// in lwh_ship_survey_reading, set by the scan commands.
+	{
+		const ship::Beacon &here = vessel.sector[vessel.beacon];
+		std::string targets = Fmt( "SITE|THE SITE AT BEACON %d|%s;", vessel.beacon,
+			( here.visited || here.surveyed ) ? "already charted" : "unscanned" );
+		for ( int d = 0; d < ship::DECKS; ++d )
+		{
+			const ship::Deck &dk = vessel.decks[d];
+			const char *state = dk.atmosphere < ship::AIRLESS ? "NO AIR" : dk.fire > 0.0f ? "AFIRE"
+				: dk.hull < 1.0f ? "HULL BREACHED" : "nominal";
+			targets += Fmt( "DECK|DECK %d|%s;", d + 1, state );
+		}
+		gi.cvar_set( "lwh_ship_survey", targets.c_str() );
+	}
+
+	// The workable chart (row 23): every beacon in the sector, its kind if charted, and its links --
+	// the map command works from, with the forecast (lwh_ship_forecast) keyed by beacon.
+	{
+		std::string map;
+		for ( size_t i = 0; i < vessel.sector.size(); ++i )
+		{
+			const ship::Beacon &b = vessel.sector[i];
+			const char *kind = ( b.visited || b.surveyed ) ? ship::BeaconKindName( b.kind ) : "UNCHARTED";
+			map += Fmt( "%d|%d|%s|%s;", static_cast<int>( i ), static_cast<int>( i ) == vessel.beacon ? 1 : 0, kind,
+				( b.visited || b.surveyed ) ? "known" : "unknown" );
+		}
+		gi.cvar_set( "lwh_ship_sector_map", map.c_str() );
+	}
 
 	int order[ship::SYS_COUNT];
 	for ( int i = 0; i < ship::SYS_COUNT; ++i ) order[i] = i;
@@ -2422,6 +2517,139 @@ void RunTest( void )
 		if ( step == 6 && level.time >= 6200 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
 		return;
 	}
+	if ( g_shipTest->integer == 69 )
+	{//the month report editor and the job-queue board (rows 20 and 19, the two the inventory marked
+	 //missing), and the two-lock on both: a post officer -- a created character never commands -- is
+	 //refused, the refusal names whose the act is, and the state is unchanged; whoever commands
+	 //edits the report (the lie and its direction) and sets the queue's order. Photographed locked
+	 //and after. The screen's own cvars are read, not a model printf.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 1800 )
+		{
+			ship::DamageSystem( vessel, ship::SYS_SHIELDS, 0.5f ); // so the queue has a repair job
+			ship::BreachDeck( vessel, 9, 0.3f );                   // and a seal job
+			gi.SendConsoleCommand( "ship character Reyes 2 4\n" ); // a security lieutenant commander: a post, not command
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 2400 ) { gi.SendConsoleCommand( "ship report read\nui_lwh_report\n" ); step = 2; }
+		if ( step == 2 && level.time >= 3000 )
+		{
+			gi.Printf( "SHIP: report test: a post officer, may command %s\n", gi.cvar( "lwh_ship_may_command", "", 0 )->string );
+			gi.SendConsoleCommand( "lwh_report_key s\n" ); // strike a line: refused
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 3600 )
+		{
+			int struck = 0;
+			for ( const ship::ReportLine &l : ship::OpenReport( vessel ).lines ) if ( l.struck ) ++struck;
+			gi.Printf( "SHIP: report test: the post officer's strike was refused: \"%s\"; struck lines %d\n",
+				gi.cvar( "lwh_ship_report_refused", "", 0 )->string, struck );
+			gi.SendConsoleCommand( "screenshot lwh_report_locked\n" ); // the locked report, still open
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 4200 ) { gi.SendConsoleCommand( "ui_lwh_jobs\nlwh_jobs_key right\n" ); step = 5; } // reorder: refused
+		if ( step == 5 && level.time >= 4800 )
+		{
+			gi.Printf( "SHIP: jobs test: the post officer's reorder was refused: \"%s\"\n", gi.cvar( "lwh_ship_job_refused", "", 0 )->string );
+			gi.SendConsoleCommand( "screenshot lwh_jobs_locked\n" );
+			step = 6;
+		}
+		if ( step == 6 && level.time >= 5400 ) { gi.SendConsoleCommand( "set g_shipRole 1\nship role\nship report read\nui_lwh_report\n" ); step = 7; }
+		if ( step == 7 && level.time >= 6000 )
+		{
+			gi.Printf( "SHIP: report test: in command, may command %s\n", gi.cvar( "lwh_ship_may_command", "", 0 )->string );
+			gi.SendConsoleCommand( "lwh_report_key s\n" ); // strike the headline
+			step = 8;
+		}
+		if ( step == 8 && level.time >= 6600 ) { gi.SendConsoleCommand( "lwh_report_key down\nlwh_report_key f\n" ); step = 9; }
+		if ( step == 9 && level.time >= 7200 )
+		{
+			int struck = 0, softened = 0;
+			for ( const ship::ReportLine &l : ship::OpenReport( vessel ).lines ) { if ( l.struck ) ++struck; else if ( l.text != l.draft ) ++softened; }
+			gi.Printf( "SHIP: report test: in command, struck %d, softened %d; the diff is \"%s\"\n",
+				struck, softened, gi.cvar( "lwh_ship_report_diff", "", 0 )->string );
+			gi.SendConsoleCommand( "screenshot lwh_report\n" );
+			step = 10;
+		}
+		if ( step == 10 && level.time >= 7800 ) { gi.SendConsoleCommand( "lwh_report_key enter\n" ); step = 11; } // sign to the crew
+		if ( step == 11 && level.time >= 8400 )
+		{
+			const bool signedNow = !ship::Reports( vessel ).empty() && ship::Reports( vessel ).back().audience == ship::REPORT_TO_CREW;
+			gi.Printf( "SHIP: report test: signed to the crew %s; a fresh draft is open %s\n",
+				signedNow ? "yes" : "no", ship::OpenReport( vessel ).open ? "yes" : "no" );
+			gi.SendConsoleCommand( "ui_lwh_jobs\nlwh_jobs_key right\n" );
+			step = 12;
+		}
+		if ( step == 12 && level.time >= 9000 ) { gi.SendConsoleCommand( "lwh_jobs_key b\n" ); step = 13; } // order a build
+		if ( step == 13 && level.time >= 9600 )
+		{
+			int build = 0;
+			for ( const ship::Job &j : ship::Jobs( vessel ) ) if ( j.kind == ship::JOB_BUILD ) ++build;
+			gi.Printf( "SHIP: jobs test: in command, %d job(s), %d build; the queue reads \"%s\"\n",
+				static_cast<int>( ship::Jobs( vessel ).size() ), build, gi.cvar( "lwh_ship_jobs", "", 0 )->string );
+			gi.SendConsoleCommand( "screenshot lwh_jobs\n" );
+			step = 14;
+		}
+		if ( step == 14 && level.time >= 10200 ) { gi.SendConsoleCommand( "quit\n" ); step = 15; }
+		return;
+	}
+	if ( g_shipTest->integer == 70 )
+	{//the chart you can work (row 23), the tricorder survey (row 22) and the beacon's choices as
+	 //keys on Operations (row 21). The chart sets a course; the survey spends the shared tricorder
+	 //charge on the site or a compartment; the beacon block offers hail / trade / distress at
+	 //Operations, where the ship holds the hailing channels. Photographed from the screens' own state.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 1800 ) { gi.SendConsoleCommand( "set g_shipRole 1\nship role\n" ); step = 1; }
+		if ( step == 1 && level.time >= 2400 ) { gi.SendConsoleCommand( "ui_lwh_chart\n" ); step = 2; }
+		if ( step == 2 && level.time >= 3000 )
+		{
+			gi.Printf( "SHIP: chart test: the chart reads \"%s\"\n", gi.cvar( "lwh_ship_sector_map", "", 0 )->string );
+			gi.Printf( "SHIP: chart test: the forecast reads \"%s\"\n", gi.cvar( "lwh_ship_forecast", "", 0 )->string );
+			gi.SendConsoleCommand( "screenshot lwh_chart\n" );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 3600 ) { gi.SendConsoleCommand( "lwh_chart_key down\n" ); step = 4; }
+		if ( step == 4 && level.time >= 4200 ) { gi.SendConsoleCommand( "lwh_chart_key enter\n" ); step = 5; }
+		if ( step == 5 && level.time >= 4800 )
+		{
+			gi.Printf( "SHIP: chart test: setting the course by key left it at %s\n", gi.cvar( "lwh_ship_course", "", 0 )->string );
+			gi.SendConsoleCommand( "ui_lwh_survey\n" );
+			step = 6;
+		}
+		if ( step == 6 && level.time >= 5400 )
+		{
+			gi.Printf( "SHIP: survey test: the survey reads \"%s\"\n", gi.cvar( "lwh_ship_survey", "", 0 )->string );
+			gi.SendConsoleCommand( "lwh_survey_key enter\n" ); // scan the site
+			step = 7;
+		}
+		if ( step == 7 && level.time >= 6000 ) { gi.SendConsoleCommand( "lwh_survey_key down\nlwh_survey_key enter\n" ); step = 8; } // scan deck 1
+		if ( step == 8 && level.time >= 6600 )
+		{
+			gi.Printf( "SHIP: survey test: the last reading is \"%s\"; the charge is %d%%\n",
+				gi.cvar( "lwh_ship_survey_reading", "", 0 )->string,
+				static_cast<int>( vessel.stores.tricorderCharge * 100 + 0.5f ) );
+			gi.SendConsoleCommand( "screenshot lwh_survey\n" );
+			step = 9;
+		}
+		if ( step == 9 && level.time >= 7200 ) { gi.SendConsoleCommand( "ui_lwh_station 2\n" ); step = 10; }
+		if ( step == 10 && level.time >= 7800 )
+		{
+			gi.Printf( "SHIP: beacon test: at beacon %d the choices read \"%s\"\n", vessel.beacon, gi.cvar( "lwh_ship_beacon", "", 0 )->string );
+			gi.SendConsoleCommand( "screenshot lwh_ops_beacon\n" );
+			gi.SendConsoleCommand( "lwh_eng_key l\n" ); // hail, the first choice, by key at Operations
+			step = 11;
+		}
+		if ( step == 11 && level.time >= 8400 )
+		{
+			gi.Printf( "SHIP: beacon test: hail by key wrote to the log: %s\n",
+				gi.cvar( "lwh_ship_log", "", 0 )->string[0] ? "yes" : "no" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 12;
+		}
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )
@@ -2746,7 +2974,7 @@ void Svcmd_Ship_f( void )
 		const bool isPatients = !Q_stricmp( cmd, "patients" );
 		const bool isField = !Q_stricmp( cmd, "field" );
 		const bool isSurgical = !Q_stricmp( cmd, "surgical" );
-		const bool isScanComp = !Q_stricmp( cmd, "scancomp" );
+		const bool isScanComp = !Q_stricmp( cmd, "scancomp" ) || !Q_stricmp( cmd, "scan" );
 		const bool isTarget = !Q_stricmp( cmd, "target" );
 		const bool isYield = !Q_stricmp( cmd, "yield" );
 		const bool isChoice = !Q_stricmp( cmd, "hail" ) || !Q_stricmp( cmd, "trade" ) || !Q_stricmp( cmd, "distress" )
@@ -2877,6 +3105,7 @@ void Svcmd_Ship_f( void )
 	{
 		const std::string reading = ship::ScanCompartment( vessel, atoi( a ) );
 		gi.Printf( "SHIP: %s\n", reading.c_str() );
+		gi.cvar_set( "lwh_ship_survey_reading", reading.c_str() ); // the survey screen draws the last reading
 		Publish();
 		return;
 	}
@@ -2905,8 +3134,11 @@ void Svcmd_Ship_f( void )
 		const int r = ship::Scan( vessel, vessel.beacon );
 		gi.Printf( "SHIP: scan of beacon %d: %s\n", vessel.beacon,
 			r == 1 ? "clean reading" : r == 2 ? "suspect reading" : "none" );
+		gi.cvar_set( "lwh_ship_survey_reading", Fmt( "the site at beacon %d: %s", vessel.beacon,
+			r == 1 ? "clean reading" : r == 2 ? "suspect reading" : "the tricorder is dead" ).c_str() );
 		const int ph = ship::RevealPhenomenon( vessel ); // a scan resolves one attribute of a phenomenon
 		if ( ph > 0 ) gi.Printf( "SHIP: a phenomenon: %d of %d attributes resolved\n", ph, ship::PHENOM_ATTR_COUNT );
+		Publish();
 	}
 	else if ( !Q_stricmp( cmd, "transport" ) )
 	{//the transporter: beam a party to the site the ship is at. The instrument states the
@@ -3711,6 +3943,20 @@ void Svcmd_Ship_f( void )
 		}
 		return;
 	}
+	else if ( !Q_stricmp( cmd, "job" ) && a[0] )
+	{//the job-queue board's one command-side act (docs/crew-work.md): command sets the order
+		const int index = atoi( a );
+		const int priority = b[0] ? atoi( b ) : 0;
+		if ( !ship::SetJobPriority( vessel, index, priority ) )
+		{
+			gi.cvar_set( "lwh_ship_job_refused", "priority is command's to set" );
+			gi.Printf( "SHIP: job refused: priority is command's to set\n" );
+			return;
+		}
+		gi.cvar_set( "lwh_ship_job_refused", "" );
+		Publish();
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "build" ) && a[0] )
 	{//command orders spare parts built from the ship's material
 		if ( !ship::OrderBuild( vessel, atoi( a ) ) ) gi.Printf( "SHIP: only whoever commands builds, and it takes material\n" );
@@ -3719,8 +3965,21 @@ void Svcmd_Ship_f( void )
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "report" ) )
-	{//the month report: drafted from the record, edited by the player, signed, and purged
+	{//the month report: drafted from the record, edited by the player, signed, and purged. The report
+	 //is signed by the officer who commands, so writing it is command's alone (the person axis of the
+	 //two-lock model); reading the open draft and the diff is open to all. The editor screen drives
+	 //these same commands, so what a check drives is what a hand on the console drives.
 		const char *sub = a;
+		const bool mutating = sub[0] && ( !Q_stricmp( sub, "edit" ) || !Q_stricmp( sub, "strike" )
+			|| !Q_stricmp( sub, "soften" ) || !Q_stricmp( sub, "add" ) || !Q_stricmp( sub, "sign" )
+			|| !Q_stricmp( sub, "file" ) || !Q_stricmp( sub, "purge" ) );
+		if ( mutating && !ship::PlayerMayCommand( vessel ) )
+		{
+			gi.cvar_set( "lwh_ship_report_refused", "the report is the commanding officer's to write" );
+			gi.Printf( "SHIP: report refused: the report is the commanding officer's to write\n" );
+			return;
+		}
+		gi.cvar_set( "lwh_ship_report_refused", "" );
 		if ( !sub[0] || !Q_stricmp( sub, "read" ) || !Q_stricmp( sub, "draft" ) )
 		{
 			if ( ship::OpenReport( vessel ).lines.empty() ) ship::DraftReport( vessel, ship::DEPT_COUNT );

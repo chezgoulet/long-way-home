@@ -2455,6 +2455,20 @@ bool OrderBuild(Ship &s, int parts)
 	return true;
 }
 
+// The job-queue board's one command-side act (docs/crew-work.md): command sets the order, so the
+// same queue reads differently by post. Priority is carried on the job and preserved across ticks by
+// UpdateJobs' lookup, so a thing left undone is still worked in the order command set tomorrow.
+bool SetJobPriority(Ship &s, int index, int priority)
+{
+	if (!PlayerMayCommand(s)) return false;
+	if (index < 0 || index >= static_cast<int>(s.jobs.size())) return false;
+	Job &j = s.jobs[index];
+	if (j.priority == priority) return true;
+	j.priority = static_cast<int16_t>(priority);
+	LogEvent(s, CommandingOfficer(s), "command", std::string("damage control is to see to the ") + JobKindName(j.kind) + " job in this order");
+	return true;
+}
+
 // The security squad: a fireteam command sends to retake a deck (docs/borg-incursion.md). It musters
 // at the security deck (9) and advances a deck at a time; in position it holds the deck while the
 // crew restore it, then stands down. The crew layer embodies them.
