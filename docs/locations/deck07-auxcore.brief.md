@@ -52,5 +52,24 @@ No new art.
 
 ## 10. Status (2026-10-07)
 
-**Blockout building** — a central auxiliary core column and two cargo islands, reachable on the merged
-ship (`scripts/deck-check.sh 7`).
+**Re-dressed from `tour/deck11` and awaiting the owner's walkthrough.** Built the way
+`docs/authoring-a-location.md` requires and as decks 12, 13 and 14 were: the room is **copied from
+the reuse target the brief names** (`tour/deck11`, main engineering) and changed to be this room —
+the vertical scale reduced (404 to 240), the raised core deck cleared for one chamber, the warp core
+replaced by an **auxiliary core column** at the centre with the core panel at its base, **two cargo
+islands** of the game's own crates added to the sides, an **overhead escape-pod hatch** on a short
+walkable platform, and a Jefferies tube mouth at the far end routing to the main computer core
+(`tour/deck10`). The room's own consoles, railings, lighting fixtures, wall panels, door hardware and
+props come along with the copy. The parts list is `docs/locations/deck07-parts-list.md`; the tool is
+`tools/shipmap/dressdeck07.py`, deck 14's pattern, called by `scripts/build-ship.sh`.
+
+Done: the copy and its changes; the computer-core system node and the deck's wiring; the core panel
+and the `corewatch` post; navigation baked; the **emergency lighting state** (`hall/hall_light_red`,
+tagged `_07`, switched by the module at red alert or a life-support failure). The copied interior is
+**detail** geometry, because a fourth full re-dress passes q3map2's vis-cluster ceiling otherwise.
+Evidence, with the commands: `docs/evidence/deck07-auxcore.md`.
+
+Open, and only the owner can close it: **does the depth deck read as the core the ship falls back
+to?** The compression is a hypothesis (404 to 240), and the copied interior is now detail geometry —
+invisible at runtime, but it means the room's structure is the shell only. Walk it; if the core does
+not read or the light is wrong, that is the next pass.

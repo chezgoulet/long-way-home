@@ -205,6 +205,10 @@ the red present and absent.
 > (`lwh_light_emergency_14_*`), toggled by the same prefix, so a fresh run of this check now reads
 > "12 red and 12 working strips" — the three decks', not the pair's eight and eight. Deck 13's own
 > state is unchanged; see `docs/evidence/deck14-stasis.md` (A5).
+>
+> Note (2026-10-07, after deck 7): deck 7's core deck carries tagged strips too
+> (`lwh_light_emergency_07_*`), so a fresh run reads "16 red and 16 working strips" — the four decks'
+> and deck 7's sessions were added to the check; see `docs/evidence/deck07-auxcore.md` (A5).
 
 ## A6 — the parts census: no new art
 

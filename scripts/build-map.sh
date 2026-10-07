@@ -28,7 +28,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC=""; NAME=""; OUT="$ROOT/build/home/baseEF"; Q3MAP2=""; LIGHT=0; ALLOW_MISSING=0; EXTRA_ENTS=""; EXTRA_FILES=""
+SRC=""; NAME=""; OUT="$ROOT/build/home/baseEF"; Q3MAP2=""; LIGHT=0; ALLOW_MISSING=0; EXTRA_ENTS=""; EXTRA_FILES=""; Q3GAME=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --name)   NAME="$2"; shift 2 ;;
@@ -38,6 +38,7 @@ while [ $# -gt 0 ]; do
     --allow-missing-shaders) ALLOW_MISSING=1; shift ;;
     --entities) EXTRA_ENTS="$2"; shift 2 ;;
     --files) EXTRA_FILES="$2"; shift 2 ;;
+    --q3game) Q3GAME="$2"; shift 2 ;;
     -*)       echo "unknown argument: $1" >&2; exit 2 ;;
     *)        SRC="$1"; shift ;;
   esac
@@ -59,6 +60,12 @@ mkdir -p "$WORK/maps"
 cp "$SRC" "$WORK/maps/$NAME.map"
 LOG="$WORK/q3map2.log"
 COMMON=(-fs_basepath "$ROOT/build" -fs_game baseEF -game quake3)
+# An extra game dir for shaders the compiler must resolve (deck 7's generated detail aliases): the
+# map's own shaders live in the pak for the engine, but q3map2 needs them on disk to compile with
+# them -- see scripts/build-ship.sh and tools/shipmap/dressdeck07.py.
+if [ -n "$Q3GAME" ]; then
+  COMMON+=(-fs_game "$Q3GAME")
+fi
 
 compile() {
   echo "==> q3map2 $1"

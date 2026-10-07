@@ -185,6 +185,29 @@ def is_interface_name(keys, key):
     return key == "script_targetname" and keys.get("classname") == "target_interface"
 
 
+def brush_has_bad_normal(b):
+    """A face whose three points are (nearly) collinear has no normal. q3map2's CreateNewFloatPlane
+    returns -1 for it, and its bevel pass then indexes mapplanes[-1] -- undefined behaviour that
+    crashes on a large merged ship (a re-dress's crop can clamp a corridor brush's points until two
+    coincide). Such a brush is junk; drop it here, where every deck is treated the same."""
+    if b.is_patch:
+        return False
+    for line in b.lines:
+        if not line.startswith("("):
+            continue
+        pts = [(float(m.group(1)), float(m.group(2)), float(m.group(3))) for m in POINT.finditer(line)]
+        if len(pts) < 3:
+            continue
+        u = (pts[1][0] - pts[0][0], pts[1][1] - pts[0][1], pts[1][2] - pts[0][2])
+        v = (pts[2][0] - pts[0][0], pts[2][1] - pts[0][1], pts[2][2] - pts[0][2])
+        cx = u[1] * v[2] - u[2] * v[1]
+        cy = u[2] * v[0] - u[0] * v[2]
+        cz = u[0] * v[1] - u[1] * v[0]
+        if cx * cx + cy * cy + cz * cz < 0.5 * 0.5:
+            return True
+    return False
+
+
 def shift_origin(value, dz):
     try:
         x, y, z = (float(v) for v in value.split())
@@ -213,7 +236,7 @@ def stitch(deck_files, pitch):
     world_keys = collections.OrderedDict(decks[first][0][0])
     world, out, late = [], [], []
     report = {"decks": {}, "pitch": pitch, "renamed": sorted(shared), "models": collections.Counter(), "station_markers": 0,
-              "dropped_stray_brushes": 0, "folded": collections.Counter(), "turbolift_links": 0, "turbolift_links_added": 0, "triggers_boxed": 0,
+              "dropped_stray_brushes": 0, "dropped_degenerate_brushes": 0, "folded": collections.Counter(), "turbolift_links": 0, "turbolift_links_added": 0, "triggers_boxed": 0,
               "level_changes_left": []}
 
     for n, ents in decks.items():
@@ -226,6 +249,9 @@ def stitch(deck_files, pitch):
             for b in brushes:
                 if b.zmin > STRAY_Z:
                     report["dropped_stray_brushes"] += 1
+                    continue
+                if brush_has_bad_normal(b):
+                    report["dropped_degenerate_brushes"] += 1
                     continue
                 keep.append(b)
                 zs += [b.zmin + dz, b.zmax + dz]
@@ -373,7 +399,7 @@ def main(argv=None):
 
     print(f"{len(files)} decks -> {a.out}")
     print(f"  world brushes {report['world_brushes']}, entities {report['entities']}, "
-          f"stray brushes dropped {report['dropped_stray_brushes']}, folded into the world {report['folded']}")
+          f"stray brushes dropped {report['dropped_stray_brushes']}, degenerate brushes dropped {report['dropped_degenerate_brushes']}, folded into the world {report['folded']}")
     print(f"  brush models {report['brush_models']} (engine limit {MODEL_LIMIT}): {report['models']}")
     print(f"  triggers turned from brush models into boxes: {report['triggers_boxed']}")
     print("  station markers on the published decks: none (their panels are sky/trigger brushes and a marker there leaks; see the note in stitch.py)")

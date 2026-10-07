@@ -26,18 +26,27 @@ DECKS="$ROOT/build/gdk/maps/eliteforce_virtualvoyager_maps"
 mkdir -p "$ROOT/build/ship" "$OUT"
 
 # The decks nobody ever published get a generated placeholder each (tools/shipmap/gendeck.py) until
-# their own brief is built. Decks 12, 13 and 14 are different: each is re-dressed from a published
+# their own brief is built. Decks 7, 12, 13 and 14 are different: each is re-dressed from a published
 # source, because its brief names the room to copy -- tour/deck11, main engineering. Each is the
-# pattern before it: dressdeck13.py is dressdeck12.py's copy with deck 13's program, and
-# dressdeck14.py is deck 13's copy with deck 14's program (see the briefs under docs/locations/ and
-# docs/authoring-a-location.md).
-python3 "$ROOT/tools/shipmap/gendeck.py" --deck 6 --deck 7 --out "$ROOT/build/ship/generated"
+# pattern before it: dressdeck13.py is dressdeck12.py's copy with deck 13's program, dressdeck14.py is
+# deck 13's copy with deck 14's program, and dressdeck07.py is deck 14's copy with deck 7's program
+# (see the briefs under docs/locations/ and docs/authoring-a-location.md).
+python3 "$ROOT/tools/shipmap/gendeck.py" --deck 6 --out "$ROOT/build/ship/generated"
 python3 "$ROOT/tools/shipmap/dressdeck12.py" --deck11 "$DECKS/deck11.map" --out "$ROOT/build/ship/generated" \
   --report "$ROOT/build/ship/deck12-dress.json" --census "$ROOT/build/ship/deck12-census.json"
 python3 "$ROOT/tools/shipmap/dressdeck13.py" --deck11 "$DECKS/deck11.map" --out "$ROOT/build/ship/generated" \
   --report "$ROOT/build/ship/deck13-dress.json" --census "$ROOT/build/ship/deck13-census.json"
 python3 "$ROOT/tools/shipmap/dressdeck14.py" --deck11 "$DECKS/deck11.map" --out "$ROOT/build/ship/generated" \
   --report "$ROOT/build/ship/deck14-dress.json" --census "$ROOT/build/ship/deck14-census.json"
+# Deck 7's copied furniture is detail geometry (it must not add vis clusters: the ship is at q3map2's
+# MAX_MAP_VISCLUSTERS ceiling), which needs per-material shader aliases. They are written for the pak
+# (the engine renders them) and mirrored into a compiler-only game dir (q3map2 must see them to set
+# the detail flag; build-map's --q3game).
+mkdir -p "$ROOT/build/ship/files/scripts" "$ROOT/build/lwhshaders/scripts"
+python3 "$ROOT/tools/shipmap/dressdeck07.py" --deck11 "$DECKS/deck11.map" --out "$ROOT/build/ship/generated" \
+  --report "$ROOT/build/ship/deck07-dress.json" --census "$ROOT/build/ship/deck07-census.json" \
+  --detail-shader "$ROOT/build/ship/files/scripts/lwh_detail07.shader"
+cp "$ROOT/build/ship/files/scripts/lwh_detail07.shader" "$ROOT/build/lwhshaders/scripts/"
 # Every material a re-dress uses must already exist in the game (the brief's section 4: no new art).
 python3 "$ROOT/tools/shipmap/parts_census.py" --map "$ROOT/build/ship/generated/deck12.map" \
   --game "$ROOT/build/baseEF" --census "$ROOT/build/ship/deck12-census.json"
@@ -45,6 +54,9 @@ python3 "$ROOT/tools/shipmap/parts_census.py" --map "$ROOT/build/ship/generated/
   --game "$ROOT/build/baseEF" --census "$ROOT/build/ship/deck13-census.json"
 python3 "$ROOT/tools/shipmap/parts_census.py" --map "$ROOT/build/ship/generated/deck14.map" \
   --game "$ROOT/build/baseEF" --census "$ROOT/build/ship/deck14-census.json"
+python3 "$ROOT/tools/shipmap/parts_census.py" --map "$ROOT/build/ship/generated/deck07.map" \
+  --game "$ROOT/build/baseEF" --census "$ROOT/build/ship/deck07-census.json" \
+  --shader "$ROOT/build/ship/files/scripts/lwh_detail07.shader"
 
 # What goes in the pak beside the map: the turbolift's deck list for fifteen decks. It is ours,
 # authored under tools/shipmap/data (the game's own list covers only the ten published decks), and
@@ -62,5 +74,5 @@ python3 "$ROOT/tools/shipmap/stitch.py" --decks "$DECKS" --decks "$ROOT/build/sh
   --report "$ROOT/build/ship/stitch-report.json"
 # Visibility and lighting take about three minutes for the whole ship; --fast skips them.
 "$ROOT/scripts/build-map.sh" "$ROOT/build/ship/voyager.map" --name voyager --out "$OUT" --allow-missing-shaders \
-  --entities "$ROOT/build/ship/voyager.ents" --files "$ROOT/build/ship/files" "${PASSES[@]}"
+  --entities "$ROOT/build/ship/voyager.ents" --files "$ROOT/build/ship/files" --q3game lwhshaders "${PASSES[@]}"
 echo "load it with:  +set g_shipDeckPitch 3072 +map voyager   (the pitch tells scripts which deck they are on)"
