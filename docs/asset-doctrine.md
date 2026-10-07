@@ -22,12 +22,25 @@ need.** Where a limit appeared to be licence-blocked, the answer is composition 
 
 ## The boundary, which is sharp
 
-**We may own and ship what we make for our own characters and the anonymous crew. We may not ship likenesses
-of named characters.** This is the same line the voice work already drew, and for the same reason: Raven's
-source grant reaches Raven's software, and it does not reach Paramount's characters and marks. A mesh
-generated to look like a specific named crew member is a new artifact with no clean chain of title, whether it
-is sold or given away. So: an original face for an original ensign is ours; a generated likeness of a lore
-character is not, and lore characters use the shipped assets they already have.
+**We may own and ship what we make for our own characters and the anonymous crew. We do not re-author named
+characters at all.** This is the same line the voice work already drew, and for the same reason: Raven's source
+grant reaches Raven's software, and it does not reach Paramount's characters and marks. A mesh generated to
+look like a specific named crew member is a new artifact with no clean chain of title, whether it is sold or
+given away. So: an original face for an original ensign is ours; a generated likeness of a lore character is
+not, and lore characters use the shipped assets they already have.
+
+**But the boundary is on what we author, never on what the simulation does to them.** The owner's framing,
+2026-10-07: *"we'll leave lore characters alone outside of the consequences of what can happen to them within
+our gameplay. Janeway would die, or get assimilated, which would suck."* So a named character is a crew record
+like any other — they hold a post, they accumulate marks, and they can be wounded, spent, written off,
+assimilated or lost, with the run carrying it. **They are not protected by authored content and they are not
+re-authored.** That pairing is the doctrine: the cast is fully simulated and never restaged.
+
+**And novel voice is code we ship, never audio.** Any new line a named character speaks is produced by the
+mechanism in this repository acting on assets the player already owns, generated on the player's own machine,
+and it lives in their cache beside the save. The repository carries the mechanism and never the output — the
+shape `docs/staff-meetings.md` already settled on for voice, for the same two reasons, licence and resources
+alike.
 
 ## And what never changes
 
