@@ -160,11 +160,21 @@ Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere con
 - **rank and permission model → Track D** as the starting design for ship authority
 - **embedded SQLite persistence → Track D and G3** as the storage pattern
 - **emote / interaction vocabulary → capstone and G4**
-- **content headroom → Track B, before capstone content work**: `MAX_CONFIGSTRINGS` 1024 against their
-  4096, `MAX_GENTITIES` 1024 against 2048, `MAX_MODELS` 256 against 512 — with the two constraints the
-  source states (models and sounds ride the network as 8 bits; configstrings and
+- **content headroom → Track B, before capstone content work**: `MAX_CONFIGSTRINGS` 1024 against
+  their 4096, `MAX_GENTITIES` 1024 against 2048, `MAX_MODELS` 256 against 512 — with the two
+  constraints the source states (models and sounds ride the network as 8 bits; configstrings and
   `MAX_GAMESTATE_CHARS` must move together). First task: measure configstring usage on a loaded
   campaign map, so we know how much of the budget retail already spends.
+  **Closed 2026-10-07** (`docs/evidence/engine-content-headroom.md`, `patches/0017`). Measured on the
+  loaded maps: retail `borg1` spends 104 of 1024 configstrings, 46 of 256 models, 53 of 256 sounds;
+  the merged ship spends 213 of 4096 configstrings, 141 of 256 models, 67 of 256 sounds, **3896 of
+  4096 gentities (95%)** and **15355 of 16384 vis-clusters (94%)**. The limits are raised:
+  `MAX_CONFIGSTRINGS` 4096 and `MAX_GAMESTATE_CHARS` 64000 (moved together, patch `0004`),
+  `MAX_GENTITIES` 4096 by `GENTITYNUM_BITS` 10→12 (derived, patches `0004`/`0008`). **`MAX_MODELS`
+  is left at 256**: the model index rides the network as 8 bits (`NETF(modelindex)`, `msg.c`), so
+  widening it is a protocol change, and there is no measured pressure. The binding limit is entities,
+  not configstrings; the fifth re-dress (deck 6) is projected to cross 4096 gentities. A save
+  round-trips and both `scripts/test.sh` and `scripts/check.sh` exit 0.
 
 ## G5 — capstone scenario ⏳ pending
 

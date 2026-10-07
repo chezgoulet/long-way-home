@@ -1,0 +1,54 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 17/17] measure the content limits a level spends
+
+Task A of the engine-content-headroom brief (docs/gates.md, the RPG-X headroom item): the
+configstring budget was raised to 4096 in patch 0004 without measuring what retail or the stitched
+ship actually spend. This adds the missing instrument, which is logging only and silent unless
+`developer` is set -- so with it unset (the default) the bridge behaves and saves exactly as before.
+
+At every SP spawn it prints the loaded level's own content registration, read from the bridge's
+own configstring table after the game has spawned its entities:
+
+  EFSP: SP_SpawnServer: content: 104 configstrings of 4096 (bridge table CS_MAX 1024):
+        46 models of 256, 53 sounds of 256; gentities 564 of 4096
+
+The bridge table is sized by the literal CS_MAX (1024), while MAX_CONFIGSTRINGS (what the gamestate
+and the save format are sized against) is 4096; both are stated because SP content capacity is
+bounded by the table and by MAX_MODELS + MAX_SOUNDS, not by MAX_CONFIGSTRINGS alone.
+---
+diff --git a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+--- a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
++++ b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+@@ -8,6 +8,7 @@
+ 
+ #include "q_shared.h"
+ #include "g_public.h"
++#include "bg_public.h"           // CS_MODELS / CS_SOUNDS / CS_PLAYERS (the content configstring blocks)
+ #include "tr_types.h"             // glconfig_t, refEntity_t, refdef_t
+ #include "../cgame/cg_public.h"   // cgameImport_t (CG_*), snapshot_t
+ #include "../client/vmachine.h"   // cgameExport_t (CG_INIT, CG_DRAW_ACTIVE_FRAME)
+@@ -658,6 +659,24 @@
+     ge->Init( mapname, "", checksum, entstring, g_levelTime, Sys_Milliseconds(), Sys_Milliseconds(),
+               (SavedGameJustLoaded_e)0, qfalse );
+     blog("SP_SpawnServer: ge->Init done. num_entities=%d linked=%d\n", ge->num_entities, g_numLinked);
++    // Content-limit instrument (docs/prior-art-rpg-x.md, the headroom item): how much of the
++    // configstring budget THIS level spends, so authored content is measured against the ceiling
++    // instead of assumed. The bridge's own table is sized CS_MAX (models + sounds + players), but
++    // MAX_CONFIGSTRINGS is what the gamestate and the save format are sized against, so both are
++    // stated. Logging only, and only with `developer` set, so retail behaviour and saves are
++    // untouched with it unset (the default).
++    if ( Cvar_VariableIntegerValue( "developer" ) ) {
++        int csTotal = 0, csModels = 0, csSounds = 0, ci;
++        for ( ci = 0; ci < CS_MAX; ci++ ) {
++            if ( !g_configstrings[ci][0] ) continue;
++            csTotal++;
++            if ( ci >= CS_MODELS && ci < CS_SOUNDS ) csModels++;
++            else if ( ci >= CS_SOUNDS && ci < CS_PLAYERS ) csSounds++;
++        }
++        blog("SP_SpawnServer: content: %d configstrings of %d (bridge table CS_MAX %d): %d models of %d, %d sounds of %d; gentities %d of %d\n",
++             csTotal, MAX_CONFIGSTRINGS, CS_MAX, csModels, MAX_MODELS, csSounds, MAX_SOUNDS,
++             ge->num_entities, MAX_GENTITIES);
++    }
+     // C1 (reclaim path only): bring the renderer we tore down above back up BEFORE SP_StartClient's CG_INIT
+     // loads the new world. Mirrors SP_FinishTransition's SP_FillGlConfig()+SPR_InitRenderer() ordering. On the
+     // first spawn the boot renderer is already up, so skip (CG_INIT loads the world as before).
