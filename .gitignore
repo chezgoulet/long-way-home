@@ -32,3 +32,6 @@ dist/
 __pycache__/
 *.pyc
 .validate-build/
+
+# the voice spike scratch: generated audio and references live here and never ship
+voice-scratch/
