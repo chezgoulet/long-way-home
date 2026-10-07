@@ -2083,6 +2083,62 @@ void RunTest( void )
 		if ( step == 5 && level.time >= 7600 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
 		return;
 	}
+	if ( g_shipTest->integer == 63 )
+	{//the deck 6 composition (docs/locations/deck06-holodecks.brief.md): the deck carries three
+	 // functions on one corridor -- a holodeck with two arches, an armory with a security post, and
+	 // the crew quarters. Stand at the turbolift arrival facing in, then at the holodeck arch, then
+	 // at the armory, and photograph all three; the walk between them is the brief's point.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			gentity_t *arrival = NULL;
+			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "d06_arrival" ) ) arrival = e;
+			}
+			if ( arrival )
+			{
+				vec3_t at, angles = { 0, 180, 0 };  // face west, down the corridor
+				VectorCopy( arrival->currentOrigin, at );
+				at[2] += 24.0f;
+				TeleportPlayer( &g_entities[0], at, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: deck 6 room: standing at %s\n", vtos( at ) );
+			}
+			else gi.Printf( "SHIP: deck 6 room: no d06_arrival on this map\n" );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 4000 ) { gi.SendConsoleCommand( "screenshot lwh_deck06\n" ); step = 2; }
+		if ( step == 2 && level.time >= 5000 )
+		{//the holodeck end: the arch, facing it across the corridor
+			if ( TeleportPlayerTo( "lwh_holo_post", "deck 6 room: at the holodeck" ) )
+			{
+				vec3_t look = { 0, 180, 0 };  // face south, at the two holodeck arches
+				VectorCopy( look, glanceAngles );
+				haveGlanceAim = true;
+			}
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 6000 ) { gi.SendConsoleCommand( "screenshot lwh_deck06_holodeck\n" ); step = 4; }
+		if ( step == 4 && level.time >= 7000 )
+		{//the armory: the security post by the lockers
+			if ( TeleportPlayerTo( "lwh_armory_post", "deck 6 room: at the armory" ) )
+			{
+				vec3_t look = { 0, 90, 0 };  // face north, out of the armory alcove
+				VectorCopy( look, glanceAngles );
+				haveGlanceAim = true;
+			}
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 8000 ) { gi.SendConsoleCommand( "screenshot lwh_deck06_armory\n" ); step = 6; }
+		if ( step == 6 && level.time >= 9400 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )

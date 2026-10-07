@@ -315,3 +315,13 @@ re-dresses in order.
 > deck 6. The behaviour is unchanged (crew still walk to deck 6); whether to model the nearer
 > holodeck is still the owner's decision. `scripts/emergency-check.sh` now runs eight sessions, and
 > the count is the four decks' 16 red and 16 working strips.
+
+> Note (2026-10-07, after deck 6): this deck's judgement call 6 is now answered the other way for the
+> station marker. `SYS_HOLODECKS`'s `ship_core` `SystemSpec` names the system's station "Holodeck 2"
+> on deck 6, and two decks cannot both define `lwh_station_17` (the stitcher would prefix both and
+> `StationFor` would find neither), so when deck 6 was composed its brief's section 8 required the
+> station to be marked there. `tools/shipmap/dressdeck14.py` no longer emits `lwh_station_17`; this
+> deck keeps the holodeck frame, its control panel and the maintenance post `lwh_stasis_post`/
+> `stasiswatch` (A4's `lwh_station_17` count is still 1 in the merged map -- now on deck 6). The
+> merged-map check for this deck (`scripts/deck14-check.sh`) still passes. See
+> `docs/evidence/deck06-composition.md`, judgement call 4, and the ledger.
