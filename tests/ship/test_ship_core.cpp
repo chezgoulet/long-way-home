@@ -57,7 +57,7 @@ static void TestPowerIsConserved()
 		Tick(s, 1.0f);
 		CHECK(s.PowerAllocated() <= s.PowerAvailable());
 		for (int i = 0; i < SYS_COUNT; ++i) {
-			CHECK(s.systems[i].allocated >= 0 && s.systems[i].allocated <= Spec(static_cast<SystemId>(i)).demand);
+			CHECK(s.systems[i].allocated >= 0 && s.systems[i].allocated <= EffectiveDemand(s, static_cast<SystemId>(i)));
 			CHECK(s.systems[i].output >= 0.0f && s.systems[i].output <= s.systems[i].health);
 		}
 		for (int i = 0; i < SRC_COUNT; ++i) CHECK(s.sources[i].output >= 0);
@@ -4175,6 +4175,72 @@ static int PrintPersonal()
 	return failures ? 1 : 0;
 }
 
+// The phaser bank's setting (Task C) and reading-vs-operating (owner ruling, 2026-10-07). Plain model
+// checks, no game header: the setting's ladder, its round-trip, and that a read is not a control.
+static void TestPhaserYieldAndReading()
+{
+	g_test = "the phaser setting and reading vs operating";
+	// A system has exactly one operating station, and no other station (Engineering's ship-wide power
+	// distribution aside) may operate it. Comms is Operations', and Tactical reads the traffic but
+	// cannot change it.
+	for (int i = 0; i < SYS_COUNT; ++i)
+	{
+		const SystemId id = static_cast<SystemId>(i);
+		for (int st = 0; st < STN_COUNT; ++st)
+		{
+			const Station s = static_cast<Station>(st);
+			if (s == STN_ENGINEERING || s == StationOf(id)) continue;
+			CHECK(!OperatedFrom(id, s));
+		}
+	}
+	CHECK(StationOf(SYS_COMMUNICATIONS) == STN_OPS);
+	CHECK(StationReads(STN_TACTICAL, SYS_SENSORS));          // the sensor picture, Operations' to operate
+	CHECK(StationReads(STN_TACTICAL, SYS_COMMUNICATIONS));   // the comms traffic; Operations speaks
+	CHECK(!OperatedFrom(SYS_COMMUNICATIONS, STN_TACTICAL));  // ... and Tactical cannot change it
+	CHECK(!StationReads(STN_TACTICAL, SYS_WARP_DRIVE));      // not everything is a portfolio
+
+	// The bank's setting: default kill (150% of the bank's nominal), a higher setting asks more power,
+	// a lower one less, and a bad setting changes nothing.
+	Ship s = NewShip();
+	const int nominal = Spec(SYS_PHASERS).demand;
+	CHECK(PhaserYieldOf(s) == YIELD_KILL);
+	CHECK(EffectiveDemand(s, SYS_PHASERS) == nominal * 150 / 100);
+	CHECK(!SetPhaserYield(s, 9) && PhaserYieldOf(s) == YIELD_KILL);
+	SetPhaserYield(s, YIELD_STUN);
+	const int stun = EffectiveDemand(s, SYS_PHASERS);
+	SetPhaserYield(s, YIELD_VAPORIZE);
+	const int vap = EffectiveDemand(s, SYS_PHASERS);
+	CHECK(stun == nominal && nominal < vap);
+	CHECK(EffectiveDemand(s, SYS_SHIELDS) == Spec(SYS_SHIELDS).demand); // every other system is unchanged
+
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(PhaserYieldOf(back) == YIELD_VAPORIZE);
+	CHECK(Pack(back) == blob);
+
+	// The setting changes what the bank does: a vaporize hit takes more of a hull than a stun one.
+	// At red alert, so the bank is not suppressed the way a green watch suppresses it.
+	auto hullAfter = [](uint8_t yield) {
+		Ship c = NewShip();
+		c.cfg.clockMode = CLOCK_REAL_TIME; // one simulated second is one ship second: the arithmetic is exact
+		SetAlert(c, ALERT_RED);
+		c.enemy.present = true; c.enemy.kind = ENEMY_RAIDER; c.enemy.hull = 1.0f; c.enemy.shields = 0.0f;
+		c.enemy.firepower = 0.0f; c.enemy.weapons = 0.0f; c.enemy.boarders = 0;
+		for (int i = 0; i < SYS_COUNT; ++i) c.systems[i].enabled = (i == SYS_PHASERS);
+		SetPhaserYield(c, yield);
+		Tick(c, 60.0f);
+		return c.enemy.hull;
+	};
+	CHECK(hullAfter(YIELD_VAPORIZE) < hullAfter(YIELD_KILL));
+	CHECK(hullAfter(YIELD_KILL) < hullAfter(YIELD_STUN));
+
+	std::printf("      hull after a minute: vaporize %.3f, kill %.3f, stun %.3f\n",
+		hullAfter(YIELD_VAPORIZE), hullAfter(YIELD_KILL), hullAfter(YIELD_STUN));
+
+	std::printf("PASS  the phaser setting asks 100/125/150/175%% and vaporize hits harder than stun; comms is Operations' and Tactical reads it\n");
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
@@ -4255,6 +4321,7 @@ int main(int argc, char **argv)
 	TestAccessAndAuthority();
 	TestOrders();
 	TestPlayerInTheWorld();
+	TestPhaserYieldAndReading();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

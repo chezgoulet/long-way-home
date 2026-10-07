@@ -70,6 +70,11 @@ const SystemSpec &Spec(SystemId id);
 Station StationOf(SystemId id);        // the station that operates it (never STN_ENGINEERING: that one sees all)
 const char *StationName(Station s);
 bool OperatedFrom(SystemId id, Station s);   // may this station see and switch this system?
+// Reading and operating are different privileges (owner ruling, 2026-10-07). A station may READ a
+// system another station operates -- the sensor picture on Tactical, the comms traffic on Tactical
+// while Operations speaks -- and cannot change it. This is the information portfolio, wider than
+// OperatedFrom; the console draws an operated system as a control and one of these as a readout.
+bool StationReads(Station s, SystemId id);
 
 // Every modelled system has three failure states designed, not just one (docs/failure-is-content.md):
 // degraded, offline and destroyed, each named in the log and on the console as it is reached.
@@ -177,6 +182,13 @@ struct Deck {
 	bool engaged = false;     // intruders are (or were) here since the last clean sweep
 };
 
+// The phaser array's setting (docs/ship-systems.md, tier 2: "a power setting from stun to vaporize").
+// It is Tactical's standing decision and it is the decision that exists when there is no contact: a
+// higher setting draws more EPS from the same bank and does more to a hull, and the low settings are
+// for repelling boarders without killing the people you are trying to save. [our call] on the ladder.
+enum PhaserYield : uint8_t { YIELD_STUN = 0, YIELD_HEAVY_STUN, YIELD_KILL, YIELD_VAPORIZE, YIELD_COUNT };
+const char *PhaserYieldName(uint8_t y);
+
 struct Stores {
 	float deuterium = 1.0f;      // fraction of tankage; the fusion reactors and the warp core burn it
 	float antimatter = 1.0f;     // fraction of pods; the warp core burns it
@@ -194,6 +206,10 @@ struct Stores {
 	int evSuits = 4;             // for the places that have no air
 	float tricorderCharge = 1.0f; // 0 = dead .. 1 = fresh; a weak charge reads wrong
 	float kitCondition = 1.0f;   // 0 = battered .. 1 = serviceable; rough use and losses wear it
+
+	// The phaser bank's setting (Tactical's standing decision, and the one that exists with no
+	// contact): YIELD_STUN..YIELD_VAPORIZE. A higher setting asks for more power and hits harder.
+	uint8_t phaserYield = YIELD_KILL;
 };
 
 // ---- crew -------------------------------------------------------------------------------------
@@ -1014,6 +1030,16 @@ EnemySubsystem Target(const Ship &s);
 const char *EnemySubsystemName(EnemySubsystem t);
 const char *EnemyKindName(EnemyKind k);
 
+// The phaser bank's setting (Tactical's standing decision, and the one that has an effect with no
+// contact: it changes what the bank asks of the power budget and what it does to a hull). False,
+// changing nothing, if the setting is not one of the four.
+bool SetPhaserYield(Ship &s, int y);
+uint8_t PhaserYieldOf(const Ship &s);
+// The demand a system asks of the power budget this tick, before distribution. For the phasers it
+// includes the setting: a vaporize setting asks more of the same bank than a stun one. Every other
+// system's demand is its spec's, unchanged.
+int EffectiveDemand(const Ship &s, SystemId id);
+
 // Choices at a beacon (S9): hail, trade, answer a distress call, or run. Each returns false, changing
 // nothing, if it does not apply here.
 bool Hail(Ship &s);
@@ -1326,7 +1352,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 48;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md)
+const uint16_t SAVE_VERSION = 49;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact)
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

@@ -24,6 +24,7 @@ const int MAX_SOURCES = 8;
 struct SystemRow {
 	char name[32];
 	int allocated, demand, health, output, manned, need, enabled, priority, station, control;
+	int read; // 1 = the station reads it but does not operate it: a readout, not a control
 };
 
 struct SourceRow {
@@ -87,15 +88,41 @@ void Refresh( void )
 		r.output = v[0]; r.capacity = v[1]; r.health = v[2]; r.online = v[3];
 		++screen.sources;
 	}
-	for ( int i = 0; i < MAX_SYSTEMS; ++i )
+	// The systems this station may READ but not operate (owner ruling, 2026-10-07). They are shown
+	// below its own systems, and drawn as readouts; the operating station is still the only one that
+	// may change them (the ship refuses the command, as s4-check proves). Controls first, so the
+	// operating station's list is exactly what it was; the reads are appended after it.
 	{
-		SystemRow &r = screen.sys[screen.systems];
-		int v[10];
-		if ( !ReadRow( va( "lwh_ship_sys%d", i ), r.name, sizeof( r.name ), v, 10 ) ) break;
-		r.allocated = v[0]; r.demand = v[1]; r.health = v[2]; r.output = v[3];
-		r.manned = v[4]; r.need = v[5]; r.enabled = v[6]; r.priority = v[7]; r.station = v[8]; r.control = v[9];
-		// a station shows the systems it operates; Engineering distributes power to all of them
-		if ( screen.station == 0 || r.station == screen.station ) ++screen.systems;
+		char reads[512];
+		ui.Cvar_VariableStringBuffer( va( "lwh_ship_reads%d", screen.station ), reads, sizeof( reads ) );
+		char readNames[16][32];
+		int nReads = 0;
+		for ( char *tok = strtok( reads, "|" ); tok && nReads < 16; tok = strtok( NULL, "|" ) )
+			Q_strncpyz( readNames[nReads++], tok, sizeof( readNames[0] ) );
+		auto isRead = [&]( const char *n ) { for ( int k = 0; k < nReads; ++k ) if ( !Q_stricmp( readNames[k], n ) ) return true; return false; };
+
+		SystemRow all[MAX_SYSTEMS];
+		int nAll = 0;
+		for ( int i = 0; i < MAX_SYSTEMS; ++i )
+		{
+			SystemRow &r = all[nAll];
+			int v[10];
+			if ( !ReadRow( va( "lwh_ship_sys%d", i ), r.name, sizeof( r.name ), v, 10 ) ) break;
+			r.allocated = v[0]; r.demand = v[1]; r.health = v[2]; r.output = v[3];
+			r.manned = v[4]; r.need = v[5]; r.enabled = v[6]; r.priority = v[7]; r.station = v[8]; r.control = v[9];
+			r.read = 0;
+			++nAll;
+		}
+		for ( int pass = 0; pass < 2; ++pass )
+			for ( int i = 0; i < nAll; ++i )
+			{
+				// A station's own systems are controls; Engineering distributes power to all of them;
+				// the rest of its portfolio are reads. Anything else is not this console's business.
+				const bool control = screen.station == 0 || all[i].station == screen.station;
+				if ( pass == 0 ? !control : ( control || !isRead( all[i].name ) ) ) continue;
+				all[i].read = pass == 1 ? 1 : 0;
+				screen.sys[screen.systems++] = all[i];
+			}
 	}
 	ui.Cvar_VariableStringBuffer( "lwh_ship_header", screen.header, sizeof( screen.header ) );
 	ui.Cvar_VariableStringBuffer( "lwh_ship_stores", screen.stores, sizeof( screen.stores ) );
@@ -280,6 +307,10 @@ void Draw( void )
 	if ( line[0] ) UI_DrawProportionalString( 44, 72, line, UI_TINYFONT, colorTable[CT_RED] );
 	if ( screen.station == 1 )
 	{
+		// The phaser bank's setting: Tactical's standing decision, and the one the console carries
+		// when there is no contact to shoot at (the Task C finding). V cycles it.
+		ui.Cvar_VariableStringBuffer( "lwh_ship_yield", line, sizeof( line ) );
+		if ( line[0] ) UI_DrawProportionalString( 44, 366, line, UI_TINYFONT, colorTable[CT_LTGOLD1] );
 		ui.Cvar_VariableStringBuffer( "lwh_ship_enemy", line, sizeof( line ) );
 		UI_DrawProportionalString( 44, 384, line[0] ? line : "NO CONTACTS", UI_SMALLFONT, colorTable[line[0] ? CT_RED : CT_LTBLUE2] );
 		UI_DrawProportionalString( 44, 398, va( "OUR SHIELDS %d%%", static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_shields" ) ) ),
@@ -340,20 +371,32 @@ void Draw( void )
 			UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 	}
 
+	// The post's information portfolio (docs/scenario-atlas.md, "what you can see"; owner addition
+	// 2026-10-07): the console shows what the JOB is expected to see, which is wider than the systems
+	// the station operates. The module publishes it in lwh_ship_port<N>, one line per station; the
+	// names are the retail Virtual Voyager station menus, sourced per portfolio in docs/lore-ledger.md.
+	{
+		char portfolio[256];
+		ui.Cvar_VariableStringBuffer( va( "lwh_ship_port%d", screen.station ), portfolio, sizeof( portfolio ) );
+		if ( portfolio[0] ) UI_DrawProportionalString( 44, 128, va( "READS  %s", portfolio ), UI_TINYFONT, colorTable[CT_LTBLUE2] );
+	}
+
 	// Distribution: one line per system, in the order power is given out.
-	UI_DrawProportionalString( 44, 136, "PRI  SYSTEM", UI_TINYFONT, colorTable[CT_LTORANGE] );
-	UI_DrawProportionalString( 252, 136, "POWER", UI_TINYFONT, colorTable[CT_LTORANGE] );
-	UI_DrawProportionalString( 400, 136, "OUTPUT", UI_TINYFONT, colorTable[CT_LTORANGE] );
-	UI_DrawProportionalString( 520, 136, "CONDITION  CREW", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 44, 142, "PRI  SYSTEM", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 252, 142, "POWER", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 400, 142, "OUTPUT", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 520, 142, "CONDITION  CREW", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	for ( int i = 0; i < screen.systems; ++i )
 	{
 		const SystemRow &r = screen.sys[i];
-		const int y = 149 + i * 15;
+		const int y = 155 + i * 15;
 		const bool selected = i == screen.cursor;
 		if ( selected ) UI_FillRect( 38, y - 1, 582, 14, colorTable[CT_DKPURPLE2] );
-		const int text = !r.enabled ? CT_DKGREY : selected ? CT_WHITE : CT_LTGOLD1;
-		UI_DrawProportionalString( 44, y, va( "%3d", r.priority ), UI_TINYFONT, colorTable[text] );
-		UI_DrawProportionalString( 76, y, r.name, UI_TINYFONT, colorTable[text] );
+		// A read is not a control: a row this station may read but not operate is tagged RD and drawn
+		// in the read colour, so the difference is visible (owner ruling, 2026-10-07).
+		const int text = r.read ? CT_LTBLUE2 : ( !r.enabled ? CT_DKGREY : selected ? CT_WHITE : CT_LTGOLD1 );
+		UI_DrawProportionalString( 44, y, r.read ? "RD" : va( "%3d", r.priority ), UI_TINYFONT, colorTable[text] );
+		UI_DrawProportionalString( 76, y, r.read ? va( "%s  (read)", r.name ) : r.name, UI_TINYFONT, colorTable[text] );
 		Bar( 252, y + 2, 100, 8, r.demand ? r.allocated * 100 / r.demand : 0, CT_LTBLUE2 );
 		UI_DrawProportionalString( 358, y, r.enabled ? va( "%d/%d", r.allocated, r.demand ) : "OFF", UI_TINYFONT, colorTable[text] );
 		Bar( 400, y + 2, 100, 8, r.output, HealthColour( r.health ) );
@@ -367,7 +410,7 @@ void Draw( void )
 	// It reads from the ship and cannot lie. Drawn below the system list where the list leaves room;
 	// where it does not (Main Engineering shows all eighteen), the panel and `ship nav` carry it.
 	{
-		const int navY = 149 + screen.systems * 15 + 3;
+		const int navY = 155 + screen.systems * 15 + 3;
 		if ( navY <= 372 )
 		{
 			ui.Cvar_VariableStringBuffer( "lwh_ship_nav", line, sizeof( line ) );
@@ -383,7 +426,7 @@ void Draw( void )
 
 	UI_DrawProportionalString( 44, 426, screen.station == 0
 		? "UP/DOWN select   ENTER on/off   LEFT/RIGHT priority   1 2 3 condition   Y override   ESC leave"
-		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   1 2 3 condition   F fire torpedo   H countermeasures   Y override   ESC leave"
+		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   V phaser setting   1 2 3 condition   F fire torpedo   H countermeasures   Y override   ESC leave"
 		: screen.station == 2 ? "UP/DOWN select   ENTER on/off   T beam   R recall   U survey   O force field   H countermeasures   Y override   ESC leave"
 		: screen.station == 3 ? "UP/DOWN select   ENTER on/off   J K L jump   C course   H countermeasures   Y override   ESC leave"
 		: screen.station == 4 ? "UP/DOWN select   ENTER on/off   B surgical field   H countermeasures   Y override   ESC leave"
@@ -408,9 +451,11 @@ bool Act( int key )
 		return true;
 	case K_ENTER:
 	case K_KP_ENTER:
+		if ( r.read ) return true; // a read is not a control (owner ruling, 2026-10-07)
 		Send( va( "ship %s \"%s\"", r.enabled ? "off" : "on", r.name ) );
 		return true;
 	case K_LEFTARROW: // earlier in the list: fed sooner. Just ahead of the system above it.
+		if ( r.read ) return true;
 		if ( screen.cursor > 0 )
 		{
 			Send( va( "ship priority \"%s\" %d", r.name, screen.sys[screen.cursor - 1].priority - 1 ) );
@@ -418,6 +463,7 @@ bool Act( int key )
 		}
 		return true;
 	case K_RIGHTARROW:
+		if ( r.read ) return true;
 		if ( screen.cursor + 1 < screen.systems )
 		{
 			Send( va( "ship priority \"%s\" %d", r.name, screen.sys[screen.cursor + 1].priority + 1 ) );
@@ -452,6 +498,10 @@ bool Act( int key )
 	case 'b': case 'B': // the surgical bay's force field (Sickbay)
 		if ( screen.station != 4 ) return false;
 		Send( "ship surgical" );
+		return true;
+	case 'v': case 'V': // the phaser bank's setting: Tactical's standing decision, there with no contact
+		if ( screen.station != 1 ) return false;
+		Send( va( "ship yield %d", ( static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_yield_idx" ) ) + 1 ) % 4 ) );
 		return true;
 	case 'h': case 'H': // countermeasures on the selected system: ask the ship for a puzzle, then present it
 		Send( va( "ship breach \"%s\"", r.name ) );
@@ -571,17 +621,49 @@ void ReportTurboliftDecks( void )
 // ---- the triage screen (S4 / the triage gap) ---------------------------------------------------
 //
 // The ward, one row per casualty, in the order the triage standing order treats them -- read straight
-// from the ship (lwh_ship_ward), as the station consoles read their cvars. The order itself is given
-// at the command console; this screen only shows who is on a bed and who is waiting.
+// from the ship (lwh_ship_ward), as the station consoles read their cvars. It began as a read that
+// could not act (the Task C finding). It now acts, and the actions are Sickbay's own: raise the
+// surgical field, call the EMH, recover a crew member the Borg have begun to take. The triage ORDER
+// is offered too, but it is command's -- the board sends it and the ship refuses anyone who does not
+// command, which is the two-lock model rather than a special case (docs/access-and-authority.md).
 
 struct {
 	menuframework_s menu;
+	int cursor;      // the casualty the cursor is on
+	int captives;    // how many are in the Borg recovery window (the rows after the ward proper)
 } triage;
+
+bool TriageAct( int key )
+{
+	char ward[1024];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_ward", ward, sizeof( ward ) );
+	int count = 0;
+	for ( char *tok = strtok( ward, ";" ); tok; tok = strtok( NULL, ";" ), ++count ) {}
+	switch ( key )
+	{
+	case K_UPARROW: if ( count ) triage.cursor = ( triage.cursor + count - 1 ) % count; return true;
+	case K_DOWNARROW: if ( count ) triage.cursor = ( triage.cursor + 1 ) % count; return true;
+	case 'b': case 'B': ui.Cmd_ExecuteText( EXEC_APPEND, "ship surgical\n" ); return true;
+	case 'e': case 'E': ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship emh %s\n", ui.Cvar_VariableValue( "lwh_ship_emh" ) > 0.5f ? "off" : "on" ) ); return true;
+	case 't': case 'T': ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship order triage %s\n", ui.Cvar_VariableValue( "lwh_ship_triage" ) > 0.5f ? "worst" : "rank" ) ); return true;
+	case 'r': case 'R':
+	{//de-assimilation: the first crew member still in the window is brought back, at a cost in
+	 //supplies. Sickbay's most loaded decision, and the board was where it could not be made.
+		char caps[512];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_captives", caps, sizeof( caps ) );
+		char *tok = strtok( caps, ";" );
+		if ( tok ) { char *bar = strchr( tok, '|' ); if ( bar ) ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship recover %s\n", bar + 1 ) ); }
+		return true;
+	}
+	}
+	return false;
+}
 
 void TriageDraw( void )
 {
-	char medical[256], ward[1024];
+	char medical[256], ward[1024], caps[512];
 	ui.Cvar_VariableStringBuffer( "lwh_ship_medical", medical, sizeof( medical ) );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_captives", caps, sizeof( caps ) );
 	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
 	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTBLUE2] );
 	UI_FillRect( 20, 42, 14, 396, colorTable[CT_DKPURPLE1] );
@@ -593,7 +675,7 @@ void TriageDraw( void )
 	UI_DrawProportionalString( 440, 70, "STATUS", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	ui.Cvar_VariableStringBuffer( "lwh_ship_ward", ward, sizeof( ward ) );
 	int row = 0;
-	for ( char *tok = strtok( ward, ";" ); tok && row < 20; tok = strtok( NULL, ";" ), ++row )
+	for ( char *tok = strtok( ward, ";" ); tok && row < 16; tok = strtok( NULL, ";" ), ++row )
 	{
 		char *bar1 = strchr( tok, '|' );
 		if ( !bar1 ) continue;
@@ -602,17 +684,44 @@ void TriageDraw( void )
 		if ( !bar2 ) continue;
 		const int sev = atoi( bar1 + 1 ), care = atoi( bar2 + 1 );
 		const int y = 88 + row * 16;
+		if ( row == triage.cursor ) UI_FillRect( 38, y - 1, 582, 14, colorTable[CT_DKPURPLE2] );
 		UI_DrawProportionalString( 44, y, tok, UI_SMALLFONT, colorTable[CT_WHITE] );
 		Bar( 300, y + 2, 120, 10, sev, sev >= 70 ? CT_RED : sev >= 40 ? CT_LTORANGE : CT_LTBLUE2 );
 		UI_DrawProportionalString( 300, y + 14, va( "%d%%", sev ), UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 		UI_DrawProportionalString( 440, y, care ? "ON A BED" : "WAITING", UI_SMALLFONT, colorTable[care ? CT_LTBLUE2 : CT_RED] );
 	}
 	if ( !row ) UI_DrawProportionalString( 44, 88, "THE WARD IS EMPTY", UI_SMALLFONT, colorTable[CT_LTBLUE2] );
-	UI_DrawProportionalString( 44, 426, "One row per casualty; the triage order is given at the command console.   ESC leave",
+
+	// The recovery window (docs/borg-incursion.md): the crew the Borg have begun to take and who can
+	// still be brought back. The board acts on these by name -- the one decision a ward read cannot.
+	int capRow = 0;
+	{
+		char copy[512];
+		Q_strncpyz( copy, caps, sizeof( copy ) );
+		const int capY = 88 + ( row > 0 ? row : 1 ) * 16 + 16;
+		UI_DrawProportionalString( 44, capY, "RECOVERY WINDOW", UI_TINYFONT, colorTable[CT_LTORANGE] );
+		for ( char *tok = strtok( copy, ";" ); tok; tok = strtok( NULL, ";" ), ++capRow )
+		{
+			char *bar = strchr( tok, '|' );
+			if ( !bar ) continue;
+			*bar = 0;
+			UI_DrawProportionalString( 44, capY + 14 + capRow * 14, va( "%s  (taken %s%%)", tok, bar + 1 ),
+				UI_TINYFONT, colorTable[CT_RED] );
+		}
+		if ( !capRow ) UI_DrawProportionalString( 44, capY + 14, "nobody in the window", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+	}
+
+	UI_DrawProportionalString( 44, 412, ui.Cvar_VariableValue( "lwh_ship_emh" ) > 0.5f ? "THE DOCTOR IS ON" : "THE DOCTOR IS OFF",
+		UI_TINYFONT, colorTable[ui.Cvar_VariableValue( "lwh_ship_emh" ) > 0.5f ? CT_LTBLUE2 : CT_LTPURPLE1] );
+	UI_DrawProportionalString( 44, 426, "UP/DOWN the ward   B surgical field   E the Doctor   R recover a captive   T triage order (command's)   ESC leave",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
-sfxHandle_t TriageKey( int key ) { return Menu_DefaultKey( &triage.menu, key ); }
+sfxHandle_t TriageKey( int key )
+{
+	if ( TriageAct( key ) ) return menu_null_sound;
+	return Menu_DefaultKey( &triage.menu, key );
+}
 
 // ---- the log, as a browsable artifact (the log gap) -------------------------------------------
 //
@@ -663,7 +772,63 @@ sfxHandle_t LogKey( int key )
 {
 	if ( key == K_UPARROW ) { if ( logscreen.scroll > 0 ) --logscreen.scroll; return menu_null_sound; }
 	if ( key == K_DOWNARROW ) { ++logscreen.scroll; return menu_null_sound; }
+	if ( key == 'p' || key == 'P' ) { ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_personal\n" ); return menu_null_sound; }
 	return Menu_DefaultKey( &logscreen.menu, key );
+}
+
+// ---- the personal log (docs/the-record-and-the-log.md, Task B) ----------------------------------
+//
+// The private half of the record, and the screen that was the one outright absence in the set: the
+// store exists (WritePersonalLog), the rule is implemented and tested, and there was nowhere to read
+// it. It is the place the truth goes when it cannot go in the report. What it shows is what the
+// model published for the player, and the model returns one person's entries and nobody else's
+// (PersonalLog), so the privacy is in the store, not a claim this screen makes. Reached from the
+// ship's log terminal (P), where a console reaches the others.
+
+struct {
+	menuframework_s menu;
+	int scroll;
+} personal;
+
+void PersonalDraw( void )
+{
+	char raw[4096], who[64];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_personal", raw, sizeof( raw ) );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_personal_who", who, sizeof( who ) );
+	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
+	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTBLUE2] );
+	UI_FillRect( 20, 42, 14, 396, colorTable[CT_DKPURPLE1] );
+	UI_FillRect( 20, 442, 600, 10, colorTable[CT_DKPURPLE1] );
+	UI_DrawProportionalString( 44, 19, "PERSONAL LOG  -  PRIVATE", UI_SMALLFONT, colorTable[CT_BLACK] );
+	UI_DrawProportionalString( 44, 48, who[0] ? va( "%s's private log. Nobody else reads it.", who ) : "No character: nobody's private log is open.",
+		UI_TINYFONT, colorTable[CT_LTGOLD1] );
+	UI_DrawProportionalString( 44, 62, "WHEN", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 150, 62, "WHAT", UI_TINYFONT, colorTable[CT_LTORANGE] );
+
+	char *tok = strtok( raw, ";" );
+	for ( int i = 0; tok && i < personal.scroll; ++i ) tok = strtok( NULL, ";" );
+	int row = 0;
+	for ( ; tok && row < 21; tok = strtok( NULL, ";" ), ++row )
+	{
+		char *when = tok;
+		char *what = strchr( when, '|' );
+		if ( !what ) continue;
+		*what++ = 0;
+		const int y = 80 + row * 17;
+		UI_DrawProportionalString( 44, y, when, UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+		UI_DrawProportionalString( 150, y, what, UI_TINYFONT, colorTable[CT_WHITE] );
+	}
+	if ( !row ) UI_DrawProportionalString( 44, 80, "The personal log is empty. The official log is L.", UI_SMALLFONT, colorTable[CT_LTBLUE2] );
+	UI_DrawProportionalString( 44, 426, "UP/DOWN scroll   L the ship's log (published)   only its owner reads this   ESC leave",
+		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+}
+
+sfxHandle_t PersonalKey( int key )
+{
+	if ( key == K_UPARROW ) { if ( personal.scroll > 0 ) --personal.scroll; return menu_null_sound; }
+	if ( key == K_DOWNARROW ) { ++personal.scroll; return menu_null_sound; }
+	if ( key == 'l' || key == 'L' ) { ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_log\n" ); return menu_null_sound; }
+	return Menu_DefaultKey( &personal.menu, key );
 }
 
 } // namespace
@@ -694,6 +859,27 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 		logscreen.menu.initialized = qtrue;
 		UI_PushMenu( &logscreen.menu );
 		ui.Cvar_Set( "ui_liveMenu", "1" );
+		return qtrue;
+	}
+	if ( !Q_stricmp( cmd, "ui_lwh_personal" ) )
+	{//the private half of the log (docs/the-record-and-the-log.md, Task B). Only the owner's entries
+	 //are ever published for it, so the screen reads what the model returns and nothing else.
+		personal.scroll = 0;
+		memset( &personal.menu, 0, sizeof( personal.menu ) );
+		personal.menu.draw = PersonalDraw;
+		personal.menu.key = PersonalKey;
+		personal.menu.fullscreen = qfalse;
+		personal.menu.wrapAround = qtrue;
+		personal.menu.initialized = qtrue;
+		UI_PushMenu( &personal.menu );
+		ui.Cvar_Set( "ui_liveMenu", "1" );
+		return qtrue;
+	}
+	if ( !Q_stricmp( cmd, "lwh_triage_key" ) )
+	{//what a test presses is what a hand presses: drive the triage board by name
+		char arg[32];
+		ui.Argv( 1, arg, sizeof( arg ) );
+		TriageAct( KeyByName( arg ) );
 		return qtrue;
 	}
 	if ( !Q_stricmp( cmd, "lwh_ui_turbolift" ) ) { ReportTurboliftDecks(); return qtrue; }
