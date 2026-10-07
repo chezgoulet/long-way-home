@@ -425,7 +425,45 @@ The official log's bounds are already recorded above. This is the private store,
 | The personal log's bound | 128 entries per ship, oldest dropped | inv |
 | A personal entry's length cap | 200 characters | inv |
 
-## Not yet modelled
+## The stations' information portfolios (owner ruling, 2026-10-07)
+
+The names are the retail **Virtual Voyager** station menus the game already ships -- Library,
+Astrometrics, Personal Log, Medical Log, Recipes, Social Calendar, Disease Library, Shooting Range,
+Weapon Library, Cargo, Engineering Library (`docs/program-proposal-v2.md` section 4; `docs/gates.md`
+G2, where they are reported opening). Sourcing is **per portfolio**, not once for all of them, and
+the manual is not a source: no Star Trek technical manual is held, and a technical-manual console
+layout would be invented. Two consoles carry a portfolio, because their posts need a second content
+type (owner ruling); the others carry one and are marked so.
+
+**Tactical** -- the sensor picture and the comms traffic (`STN_TACTICAL` reads `SYS_SENSORS`,
+`SYS_COMMUNICATIONS`, `SYS_COMPUTER_CORE`).
+
+| item | source | confidence |
+|---|---|---|
+| Sensors, external (the chart) | the game's `Astrometrics` menu, and the ship's own chart model | game |
+| Sensors, internal (intruders, fire, per deck) | internal sensors used to locate boarders on screen | recalled (episode) |
+| Comms access (hail / trade / distress) | hailing and answering on screen; the ship's own beacon choices | recalled (episode) |
+
+**Sickbay** -- the medical record and what the Doctor is running (`STN_SICKBAY` reads
+`SYS_LIFE_SUPPORT`, `SYS_COMPUTER_CORE`).
+
+| item | source | confidence |
+|---|---|---|
+| Medical Log | the game's `Medical Log` menu | game |
+| Disease Library | the game's `Disease Library` menu | game |
+| Visit roster (who is due a check) | nothing canonical; chosen for play | invented |
+| Research (the Doctor's, while the EMH is up) | the Doctor's own research on screen | recalled (episode) |
+
+**Single-type consoles** (owner ruling): Engineering, Operations and the Conn carry one content type
+each and publish no read layer. Engineering is the ship-wide power distributor and already holds every
+system as a control; the others operate their own systems and read no one else's.
+
+| item | value | source |
+|---|---|---|
+| The phaser setting ladder | stun / heavy stun / kill / vaporize; the bank's nominal demand is a stun shot, and each setting asks 100 / 125 / 150 / 175 per cent of it, and does 0.4 / 0.7 / 1.0 / 1.35 times the damage | invented (`docs/ship-systems.md` tier 2 names "a power setting from stun to vaporize"; the ladder is ours) |
+| Which station reads which system | Tactical: sensors, comms, computer core; Sickbay: life support, computer core; Engineering: all | invented, from the owner's named examples |
+
+
 
 Bio-neural gel packs, the EMH's dependence on sickbay power and holo-emitters, the
 variable-geometry nacelles, cargo bays, replicator rations as a resource, and holodeck power being

@@ -189,6 +189,49 @@ void Publish( void )
 	gi.cvar_set( "lwh_ship_pursued", vessel.pursued ? Fmt( "%d", vessel.pursuitJumps ).c_str() : "" );
 	gi.cvar_set( "lwh_ship_sector", Fmt( "SECTOR %d OF %d%s", vessel.sectorNumber + 1, ship::SECTORS_TO_CROSS, vessel.won ? "   HOME" : "" ).c_str() );
 	gi.cvar_set( "lwh_ship_shields", Fmt( "%d", static_cast<int>( vessel.shieldStrength * 100 + 0.5f ) ).c_str() );
+	// The phaser bank's setting (Tactical's standing decision, and the one that exists with no
+	// contact): the setting, and what it asks of the power budget over its nominal demand.
+	{
+		const int base = ship::Spec( ship::SYS_PHASERS ).demand;
+		const int pct = base ? ship::EffectiveDemand( vessel, ship::SYS_PHASERS ) * 100 / base : 100;
+		gi.cvar_set( "lwh_ship_yield", Fmt( "PHASER BANK %s   POWER %d%%",
+			ship::PhaserYieldName( ship::PhaserYieldOf( vessel ) ), pct ).c_str() );
+		gi.cvar_set( "lwh_ship_yield_idx", Fmt( "%d", static_cast<int>( ship::PhaserYieldOf( vessel ) ) ).c_str() );
+	}
+
+	// Each station's information portfolio: what the post is expected to see, which is wider than the
+	// systems the station operates (docs/scenario-atlas.md, "what you can see"; owner ruling,
+	// 2026-10-07). Multi-content is EARNED by the job: only Tactical (the sensor picture and the comms
+	// traffic) and Sickbay (the medical record and what the Doctor is running) carry a portfolio. The
+	// other consoles carry one content type, well, and publish none. The names are the retail Virtual
+	// Voyager station menus the game ships (docs/program-proposal-v2.md section 4, docs/gates.md G2);
+	// the contents are this ship's own state. Sourced per portfolio in docs/lore-ledger.md.
+	{
+		const int charted = [&] { int n = 0; for ( const ship::Beacon &b : vessel.sector ) if ( b.visited || b.surveyed ) ++n; return n; }();
+		int fires = 0, medlog = 0;
+		for ( int d = 0; d < ship::DECKS; ++d ) if ( vessel.decks[d].fire > 0.0f ) ++fires;
+		for ( const ship::LogEntry &e : vessel.log ) if ( e.scope == "sickbay" ) ++medlog;
+		int dueVisit = 0;
+		for ( const ship::CrewMember &c : vessel.crew ) if ( c.status == ship::CREW_FIT && c.fatigue > 0.7f ) ++dueVisit;
+		gi.cvar_set( "lwh_ship_port1", Fmt( "SENSORS EXTERNAL: %d of %d beacons charted   INTERNAL: %d intruder(s), %d deck(s) afire   COMMS: hail / trade / distress",
+			charted, static_cast<int>( vessel.sector.size() ), ship::Intruders( vessel ), fires ).c_str() );
+		gi.cvar_set( "lwh_ship_port4", Fmt( "MEDICAL LOG: %d entry(ies)   DISEASE LIBRARY: the Doctor's references   VISIT ROSTER: %d due a check   RESEARCH: %s",
+			medlog, dueVisit, ship::EMHActive( vessel ) ? "the Doctor's research running" : "none" ).c_str() );
+		gi.cvar_set( "lwh_ship_port0", "" ); gi.cvar_set( "lwh_ship_port2", "" ); gi.cvar_set( "lwh_ship_port3", "" );
+		// What each station may READ but not operate (owner ruling, 2026-10-07): the systems another
+		// station operates that this one is cleared to see. The console draws them as readouts, and
+		// its own as controls, so a read is never mistaken for a control. Empty where the post has no
+		// read layer, which is most of them.
+		for ( int st = 0; st < ship::STN_COUNT; ++st )
+		{
+			std::string reads;
+			for ( int i = 0; i < ship::SYS_COUNT; ++i )
+				if ( ship::StationReads( static_cast<ship::Station>( st ), static_cast<ship::SystemId>( i ) )
+					&& ship::StationOf( static_cast<ship::SystemId>( i ) ) != st )
+					reads += Fmt( "%s%s", reads.empty() ? "" : "|", ship::Spec( static_cast<ship::SystemId>( i ) ).name );
+			gi.cvar_set( Fmt( "lwh_ship_reads%d", st ).c_str(), reads.c_str() );
+		}
+	}
 	{
 		static const char *const KINDS[] = { "EMPTY SPACE", "HOSTILE", "DERELICT", "BORG", "TRADER", "DISTRESS", "RESOURCE BELT", "PRE-WARP", "THE END" };
 		std::string chart = Fmt( "SECTOR %d   AT BEACON %d OF %d.   JUMPS:", vessel.sectorNumber + 1, vessel.beacon, static_cast<int>( vessel.sector.size() ) - 1 );
@@ -241,9 +284,22 @@ void Publish( void )
 		for ( int i : rows )
 		{
 			const ship::CrewMember &c = vessel.crew[i];
-			ward += Fmt( "%s|%d|%d;", c.name.c_str(), static_cast<int>( c.severity * 100 + 0.5f ), c.underCare ? 1 : 0 );
+			ward += Fmt( "%s|%d|%d|%d;", c.name.c_str(), static_cast<int>( c.severity * 100 + 0.5f ), c.underCare ? 1 : 0, i );
 		}
 		gi.cvar_set( "lwh_ship_ward", ward.c_str() );
+		// The recovery window (docs/borg-incursion.md): the crew the Borg have begun to take, and
+		// who can still be brought back. Sickbay's board acts on these by name.
+		std::string captives;
+		for ( int i = 0; i < static_cast<int>( vessel.crew.size() ); ++i )
+		{
+			const ship::CrewMember &c = vessel.crew[i];
+			if ( c.status == ship::CREW_DEAD || c.status == ship::CREW_ASSIMILATED ) continue;
+			if ( c.wounds > 0.0f && c.wounds < ship::RECOVERY_LIMIT )
+				captives += Fmt( "%s|%d|%d;", c.name.c_str(), i, static_cast<int>( c.wounds * 100 + 0.5f ) );
+		}
+		gi.cvar_set( "lwh_ship_captives", captives.c_str() );
+		gi.cvar_set( "lwh_ship_emh", vessel.emhActive ? "1" : "0" );
+		gi.cvar_set( "lwh_ship_surgical", vessel.surgicalForceField ? "1" : "0" );
 	}
 
 	// The away mission and the course, for the Operations and Conn consoles.
@@ -266,6 +322,27 @@ void Publish( void )
 			entries += Fmt( "D%d %02d:%02d|%s|%s|%s;", day, sod / 3600, sod % 3600 / 60, e.who.c_str(), e.scope.c_str(), e.what.c_str() );
 		}
 		gi.cvar_set( "lwh_ship_log", entries.c_str() );
+	}
+
+	// The personal log (docs/the-record-and-the-log.md): the player's own private store, and only
+	// the player's. The model returns one person's entries and nobody else's (PersonalLog), so a
+	// screen reading this cvar can only ever show what its owner wrote. Newest first, when|what.
+	{
+		std::string entries;
+		if ( vessel.player >= 0 )
+		{
+			const std::vector<ship::PersonalLogEntry> own = ship::PersonalLog( vessel, vessel.player );
+			int n = 0;
+			for ( int i = static_cast<int>( own.size() ) - 1; i >= 0 && n < 24; --i, ++n )
+			{
+				const ship::PersonalLogEntry &e = own[i];
+				const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
+				const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
+				entries += Fmt( "D%d %02d:%02d|%s;", day, sod / 3600, sod % 3600 / 60, e.what.c_str() );
+			}
+		}
+		gi.cvar_set( "lwh_ship_personal", entries.c_str() );
+		gi.cvar_set( "lwh_ship_personal_who", vessel.player >= 0 ? vessel.crew[vessel.player].name.c_str() : "" );
 	}
 
 	// What the ship has given up (docs/damage-and-budgets.md), newest first, for the command console
@@ -2216,6 +2293,135 @@ void RunTest( void )
 		if ( step == 13 && level.time >= 8900 ) { gi.SendConsoleCommand( "quit\n" ); step = 14; }
 		return;
 	}
+	if ( g_shipTest->integer == 65 )
+	{//the personal log (docs/the-record-and-the-log.md, Task B): the player writes a private entry,
+	 //the screen reads it, the official read of every scope does not, and another person's read is
+	 //empty. The store and the rule are the model's; this proves the screen reaches the owner's only.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 ) { gi.SendConsoleCommand( "ship character Reyes 0 4\n" ); step = 1; }
+		if ( step == 1 && level.time >= 2600 ) { gi.SendConsoleCommand( "ship personal write I did not put this in the report\n" ); step = 2; }
+		if ( step == 2 && level.time >= 3200 ) { gi.SendConsoleCommand( "ui_lwh_log\n" ); step = 3; }
+		if ( step == 3 && level.time >= 3800 ) { gi.SendConsoleCommand( "screenshot lwh_log\n" ); gi.SendConsoleCommand( "ui_lwh_personal\n" ); step = 4; }
+		if ( step == 4 && level.time >= 4600 )
+		{
+			const int me = vessel.player;
+			const int mine = me >= 0 ? static_cast<int>( ship::PersonalLog( vessel, me ).size() ) : 0;
+			const int other = me >= 0 ? ( me + 1 ) % static_cast<int>( vessel.crew.size() ) : -1;
+			const int theirs = other >= 0 ? static_cast<int>( ship::PersonalLog( vessel, other ).size() ) : 0;
+			bool inOfficial = false;
+			for ( const ship::LogEntry &e : ship::ReadOfficialLog( vessel, 200, "" ) )
+				if ( e.what.find( "did not put this in the report" ) != std::string::npos ) inOfficial = true;
+			gi.Printf( "SHIP: personal test: %s wrote a private entry; the owner's read has %d\n", me >= 0 ? vessel.crew[me].name.c_str() : "nobody", mine );
+			gi.Printf( "SHIP: personal test: official read (all scopes) contains it: %s\n", inOfficial ? "yes" : "no" );
+			gi.Printf( "SHIP: personal test: another person's read has %d\n", theirs );
+			gi.Printf( "SHIP: personal test: the private screen reads \"%s\" for %s\n",
+				gi.cvar( "lwh_ship_personal", "", 0 )->string, gi.cvar( "lwh_ship_personal_who", "", 0 )->string );
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 5200 ) { gi.SendConsoleCommand( "screenshot lwh_personal\n" ); step = 6; }
+		if ( step == 6 && level.time >= 6000 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
+		return;
+	}
+	if ( g_shipTest->integer == 66 )
+	{//Tactical's phaser setting (Task C): the decision the console carries when there is no contact.
+	 //Open the Tactical console, cycle the setting by key, and show it changes what the bank asks of
+	 //the power budget. Photographed before and after.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 ) { gi.SendConsoleCommand( "ui_lwh_station 1\n" ); step = 1; }
+		if ( step == 1 && level.time >= 3200 ) { gi.SendConsoleCommand( "screenshot lwh_tactical_before\n" ); step = 2; }
+		if ( step == 2 && level.time >= 3600 ) { gi.SendConsoleCommand( "lwh_eng_key v\n" ); step = 3; }
+		if ( step == 3 && level.time >= 4400 )
+		{
+			const int base = ship::Spec( ship::SYS_PHASERS ).demand;
+			const int now = ship::EffectiveDemand( vessel, ship::SYS_PHASERS );
+			gi.Printf( "SHIP: tactical test: phaser bank %s, demand %d of %d (%d%%)\n",
+				ship::PhaserYieldName( ship::PhaserYieldOf( vessel ) ), now, base, base ? now * 100 / base : 100 );
+			ship::SetPhaserYield( vessel, ship::YIELD_STUN );
+			const int low = ship::EffectiveDemand( vessel, ship::SYS_PHASERS );
+			ship::SetPhaserYield( vessel, ship::YIELD_VAPORIZE );
+			const int high = ship::EffectiveDemand( vessel, ship::SYS_PHASERS );
+			gi.Printf( "SHIP: tactical test: stun asks %d, vaporize asks %d; vaporize asks %d more\n", low, high, high - low );
+			Publish();
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 5200 ) { gi.SendConsoleCommand( "screenshot lwh_tactical_after\n" ); step = 5; }
+		if ( step == 5 && level.time >= 6000 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
+		return;
+	}
+	if ( g_shipTest->integer == 67 )
+	{//the triage board acts (Task C): it reported and could not act. Now it orders the treatment --
+	 //the surgical field, the EMH, a captive's recovery -- and offers the triage order, which is
+	 //command's: the board offers and the ship judges. Photographed before and after.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 1800 ) { gi.SendConsoleCommand( "ship character Reyes 0 4\n" ); step = 1; }
+		if ( step == 1 && level.time >= 2200 )
+		{
+			vessel.crew[3].status = ship::CREW_INJURED; vessel.crew[3].severity = 0.8f;
+			vessel.crew[4].status = ship::CREW_INJURED; vessel.crew[4].severity = 0.4f;
+			vessel.crew[5].status = ship::CREW_INJURED; vessel.crew[5].severity = 0.2f;
+			vessel.crew[6].wounds = 0.5f; // in the Borg recovery window, not yet injured
+			gi.SendConsoleCommand( "ui_lwh_triage\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 3200 ) { gi.SendConsoleCommand( "screenshot lwh_triage_before\n" ); step = 3; }
+		if ( step == 3 && level.time >= 3600 ) { gi.SendConsoleCommand( "lwh_triage_key b\n" ); step = 4; }
+		if ( step == 4 && level.time >= 4000 ) { gi.SendConsoleCommand( "lwh_triage_key e\n" ); step = 5; }
+		if ( step == 5 && level.time >= 4400 ) { gi.SendConsoleCommand( "lwh_triage_key r\n" ); step = 6; }
+		if ( step == 6 && level.time >= 4800 ) { gi.SendConsoleCommand( "set g_shipRole 1\nship role\n" ); step = 7; }
+		if ( step == 7 && level.time >= 5100 ) { gi.SendConsoleCommand( "lwh_triage_key t\n" ); step = 8; }
+		if ( step == 8 && level.time >= 5400 )
+		{
+			int cap = 0;
+			for ( const ship::CrewMember &c : vessel.crew )
+				if ( c.status != ship::CREW_DEAD && c.status != ship::CREW_ASSIMILATED && c.wounds > 0.0f && c.wounds < ship::RECOVERY_LIMIT ) ++cap;
+			gi.Printf( "SHIP: triage test: surgical field %d, EMH %d, triage order %d, ward %d, recovery window %d\n",
+				ship::SurgicalField( vessel ) ? 1 : 0, ship::EMHActive( vessel ) ? 1 : 0, vessel.orderTriage,
+				static_cast<int>( ship::Patients( vessel ).size() ), cap );
+			step = 9;
+		}
+		if ( step == 9 && level.time >= 5800 ) { gi.SendConsoleCommand( "screenshot lwh_triage_after\n" ); step = 10; }
+		if ( step == 10 && level.time >= 6600 ) { gi.SendConsoleCommand( "quit\n" ); step = 11; }
+		return;
+	}
+	if ( g_shipTest->integer == 68 )
+	{//two axes (owner rulings, 2026-10-07): the STATION decides how many content types a console
+	 //carries (earned by the job), and the PERSON decides what they can reach (the permission
+	 //boundary, here the remote call-up). Tactical carries a read layer; Operations does not. From
+	 //the single-type Conn console a commander still reaches a system stationed elsewhere; an
+	 //uncleared ensign does not.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 ) { gi.SendConsoleCommand( "set g_shipRole 1\nship role\n" ); step = 1; }
+		if ( step == 1 && level.time >= 2800 )
+		{
+			gi.Printf( "SHIP: axes test: reads for Tactical \"%s\", Ops \"%s\", Sickbay \"%s\"; Operations' portfolio \"%s\"\n",
+				gi.cvar( "lwh_ship_reads1", "", 0 )->string, gi.cvar( "lwh_ship_reads2", "", 0 )->string,
+				gi.cvar( "lwh_ship_reads4", "", 0 )->string, gi.cvar( "lwh_ship_port2", "", 0 )->string );
+			gi.SendConsoleCommand( "ship as 3 on sensors\n" ); // Conn (single-type) reaches sensors, Operations'
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 3400 )
+		{
+			gi.Printf( "SHIP: axes test: Conn reaches sensors: %s (refusal \"%s\")\n",
+				vessel.systems[ship::SYS_SENSORS].enabled ? "yes, operated" : "no",
+				gi.cvar( "lwh_ship_refusal", "", 0 )->string );
+			gi.SendConsoleCommand( "set g_shipRole 0\nship role\nship character Okoro 2 1\n" );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 4000 ) { gi.SendConsoleCommand( "ship as 3 on sensors\n" ); step = 4; }
+		if ( step == 4 && level.time >= 4600 )
+		{
+			gi.Printf( "SHIP: axes test: an uncleared ensign at Conn: \"%s\"\n", gi.cvar( "lwh_ship_refusal", "", 0 )->string );
+			gi.SendConsoleCommand( "ui_lwh_station 3\n" );
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 5400 ) { gi.SendConsoleCommand( "screenshot lwh_conn_single\n" ); step = 6; }
+		if ( step == 6 && level.time >= 6200 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )
@@ -2542,6 +2748,7 @@ void Svcmd_Ship_f( void )
 		const bool isSurgical = !Q_stricmp( cmd, "surgical" );
 		const bool isScanComp = !Q_stricmp( cmd, "scancomp" );
 		const bool isTarget = !Q_stricmp( cmd, "target" );
+		const bool isYield = !Q_stricmp( cmd, "yield" );
 		const bool isChoice = !Q_stricmp( cmd, "hail" ) || !Q_stricmp( cmd, "trade" ) || !Q_stricmp( cmd, "distress" )
 			|| !Q_stricmp( cmd, "mine" ) || !Q_stricmp( cmd, "survivors" ) || !Q_stricmp( cmd, "holo" )
 			|| !Q_stricmp( cmd, "eva" ) || !Q_stricmp( cmd, "observe" ) || !Q_stricmp( cmd, "interfere" );
@@ -2551,7 +2758,7 @@ void Svcmd_Ship_f( void )
 		const bool isEMH = !Q_stricmp( cmd, "emh" );
 		// until a character is chosen the player is nobody in particular, and is not held to a rank
 		const bool anyone = vessel.player < 0 && vessel.cfg.role != ship::ROLE_IN_COMMAND;
-		if ( !isAlert && !isSwitch && !isPriority && !isFire && !isJump && !isBreach && !isTransport && !isSurvey && !isCourse && !isPatients && !isField && !isSurgical && !isScanComp && !isTarget && !isChoice && !isRun && !isTractor && !isFabricate && !isEMH )
+		if ( !isAlert && !isSwitch && !isPriority && !isFire && !isJump && !isBreach && !isTransport && !isSurvey && !isCourse && !isPatients && !isField && !isSurgical && !isScanComp && !isTarget && !isYield && !isChoice && !isRun && !isTractor && !isFabricate && !isEMH )
 			why = "that is not a console's to do";
 		else if ( !anyone && !ship::PlayerMayOperate( vessel, st ) )
 		{
@@ -2574,6 +2781,7 @@ void Svcmd_Ship_f( void )
 		else if ( isSurgical && st != ship::STN_SICKBAY ) why = "the surgical bay is Sickbay's";
 		else if ( isScanComp && st != ship::STN_OPS ) why = "the tricorder is read from Operations";
 		else if ( isTarget && st != ship::STN_TACTICAL ) why = "targets are picked at Tactical";
+		else if ( isYield && st != ship::STN_TACTICAL ) why = "the phaser setting is Tactical's";
 		else if ( isChoice && st != ship::STN_OPS ) why = "the hailing and trade channels are Operations'";
 		else if ( isRun && st != ship::STN_CONN ) why = "the ship is flown from the Conn";
 		else if ( isTractor && st != ship::STN_TACTICAL ) why = "the tractor beam is worked from Tactical";
@@ -2914,6 +3122,20 @@ void Svcmd_Ship_f( void )
 		else if ( !Q_stricmpn( a, "shie", 4 ) ) t = ship::TARGET_SHIELD_GEN;
 		if ( t < 0 ) { gi.Printf( "SHIP: target hull | weapons | engines | shields\n" ); return; }
 		ship::SetTarget( vessel, static_cast<ship::EnemySubsystem>( t ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "yield" ) )
+	{//the phaser bank's setting: Tactical's standing decision, and the one that has an effect with
+	 //no contact. 0/1/2/3 or the name. A higher setting asks the bank for more power.
+		int y = -1;
+		if ( a[0] >= '0' && a[0] <= '9' && !a[1] ) y = a[0] - '0';
+		else if ( !Q_stricmpn( a, "stun", 4 ) ) y = ship::YIELD_STUN;
+		else if ( !Q_stricmpn( a, "heavy", 5 ) ) y = ship::YIELD_HEAVY_STUN;
+		else if ( !Q_stricmpn( a, "kill", 4 ) ) y = ship::YIELD_KILL;
+		else if ( !Q_stricmpn( a, "vap", 3 ) ) y = ship::YIELD_VAPORIZE;
+		if ( !ship::SetPhaserYield( vessel, y ) ) { gi.Printf( "SHIP: phaser yield stun | heavy | kill | vaporize\n" ); return; }
+		gi.Printf( "SHIP: phaser bank set to %s\n", ship::PhaserYieldName( ship::PhaserYieldOf( vessel ) ) );
 		Publish();
 		return;
 	}

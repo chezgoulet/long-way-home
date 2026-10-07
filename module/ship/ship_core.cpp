@@ -68,6 +68,30 @@ bool OperatedFrom(SystemId id, Station s)
 	return s == STN_ENGINEERING || StationOf(id) == s;
 }
 
+// Reading and operating are different privileges (owner ruling, 2026-10-07). A system is operated from
+// exactly one station -- the S4 invariant above -- and a station may READ a system another station
+// operates without being able to change it. This is the station's information portfolio, and it is
+// wider than OperatedFrom. The console draws its own systems as controls and these as readouts.
+//
+// Only where the POST needs a second content type (owner ruling, 2026-10-07): Tactical needs the
+// sensor picture and the comms traffic; Sickbay needs the medical record and what the Doctor is
+// running. The other consoles carry one type, well, and get no read layer -- a junction panel with
+// one readout stays a panel with one readout. Engineering is the ship-wide power distributor and
+// already holds every system as a control, so it adds no read layer either.
+bool StationReads(Station s, SystemId id)
+{
+	if (s == STN_ENGINEERING) return true;              // Engineering reads everything it distributes to
+	if (StationOf(id) == s) return true;                // a station reads what it operates
+	switch (s) {
+	case STN_TACTICAL:                                  // the sensor picture, internal and external, and comms traffic
+		return id == SYS_SENSORS || id == SYS_COMMUNICATIONS || id == SYS_COMPUTER_CORE;
+	case STN_SICKBAY:                                   // life support, and the computer the Doctor runs on
+		return id == SYS_LIFE_SUPPORT || id == SYS_COMPUTER_CORE;
+	default:
+		return false;
+	}
+}
+
 struct SourceSpec {
 	const char *name;
 	int capacity;          // EPS units at full health [inv]
@@ -738,7 +762,7 @@ static void UpdatePower(Ship &s, float shipSeconds)
 		order[i] = i;
 		const System &sys = s.systems[i];
 		const bool on = sys.enabled && sys.health > 0.0f && !SuppressedByAlert(s.alert, static_cast<SystemId>(i));
-		demand[i] = on ? SPECS[i].demand : 0;
+		demand[i] = on ? EffectiveDemand(s, static_cast<SystemId>(i)) : 0;
 		wanted += demand[i];
 		if (Critical(static_cast<SystemId>(i))) critical += demand[i];
 	}
@@ -1082,6 +1106,46 @@ bool InCombat(const Ship &s) { return s.enemy.present && s.enemy.hull > 0.0f; }
 
 void SetTarget(Ship &s, EnemySubsystem t) { if (t < TARGET_COUNT) s.target = t; }
 EnemySubsystem Target(const Ship &s) { return s.target; }
+
+// The phaser bank's setting: Tactical's standing decision, and the one the console carries when
+// there is no contact to shoot at. A higher setting asks the same bank for more power and does more
+// to what it hits; a lower one is for repelling boarders without killing the people aboard.
+const char *PhaserYieldName(uint8_t y)
+{
+	static const char *const NAMES[YIELD_COUNT] = { "STUN", "HEAVY STUN", "KILL", "VAPORIZE" };
+	return y < YIELD_COUNT ? NAMES[y] : "KILL";
+}
+bool SetPhaserYield(Ship &s, int y)
+{
+	if (y < 0 || y >= YIELD_COUNT) return false;
+	if (s.stores.phaserYield == static_cast<uint8_t>(y)) return true;
+	s.stores.phaserYield = static_cast<uint8_t>(y);
+	LogEvent(s, AuthorFor(s, DEPT_SECURITY, "tactical"), "tactical", "the phaser bank is set to " + std::string(PhaserYieldName(s.stores.phaserYield)));
+	return true;
+}
+uint8_t PhaserYieldOf(const Ship &s) { return s.stores.phaserYield < YIELD_COUNT ? s.stores.phaserYield : static_cast<uint8_t>(YIELD_KILL); }
+
+// What the phaser setting costs in power, as a percentage of the bank's nominal demand: a stun shot
+// is cheap, a vaporize shot is not. [our call] the ladder.
+static int PhaserYieldPowerPercent(uint8_t y)
+{
+	static const int PCT[YIELD_COUNT] = { 100, 125, 150, 175 };
+	return y < YIELD_COUNT ? PCT[y] : PCT[YIELD_KILL];
+}
+// What the phaser setting does to what it hits, as a multiplier on the bank's output. [our call].
+static float PhaserYieldFactor(uint8_t y)
+{
+	static const float FACTOR[YIELD_COUNT] = { 0.4f, 0.7f, 1.0f, 1.35f };
+	return y < YIELD_COUNT ? FACTOR[y] : FACTOR[YIELD_KILL];
+}
+
+int EffectiveDemand(const Ship &s, SystemId id)
+{
+	if (id >= SYS_COUNT) return 0;
+	const int base = SPECS[id].demand;
+	if (id == SYS_PHASERS) return base * PhaserYieldPowerPercent(PhaserYieldOf(s)) / 100;
+	return base;
+}
 
 const char *EnemySubsystemName(EnemySubsystem t)
 {
@@ -1860,7 +1924,7 @@ static void UpdateOutside(Ship &s, float shipSeconds)
 	// Our phasers: their shields first; once their shields are down, the subsystem Tactical has
 	// targeted -- or the hull. A subsystem broken changes what the enemy can do. The Borg adapt: the
 	// more we hit them, the less each hit does.
-	float ours = s.systems[SYS_PHASERS].output * minutes / PHASER_MINUTES;
+	float ours = s.systems[SYS_PHASERS].output * minutes / PHASER_MINUTES * PhaserYieldFactor(PhaserYieldOf(s));
 	if (s.enemy.kind == ENEMY_BORG_VESSEL) {
 		ours *= (1.0f - s.enemy.adaptation);
 		// A live vinculum lets them adapt; destroyed (adaptationSuppressed), they cannot for a while.
@@ -4362,7 +4426,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.gravity); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); w.F(d.forceFieldLevel); w.F(d.fire); w.U8(d.boarderKind); w.U8(static_cast<uint8_t>(d.objective)); w.U8(d.compromised ? 1 : 0); w.F(d.dwell); w.U8(d.engaged ? 1 : 0); }
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
-	w.F(s.stores.spareParts); w.F(s.stores.medicalSupplies); w.F(s.stores.rations); w.F(s.stores.materials); w.U8(static_cast<uint8_t>(s.stores.probes)); w.U8(static_cast<uint8_t>(s.stores.tricorders)); w.U8(static_cast<uint8_t>(s.stores.phasers)); w.U8(static_cast<uint8_t>(s.stores.evSuits)); w.F(s.stores.tricorderCharge); w.F(s.stores.kitCondition);
+	w.F(s.stores.spareParts); w.F(s.stores.medicalSupplies); w.F(s.stores.rations); w.F(s.stores.materials); w.U8(static_cast<uint8_t>(s.stores.probes)); w.U8(static_cast<uint8_t>(s.stores.tricorders)); w.U8(static_cast<uint8_t>(s.stores.phasers)); w.U8(static_cast<uint8_t>(s.stores.evSuits)); w.F(s.stores.tricorderCharge); w.F(s.stores.kitCondition); w.U8(PhaserYieldOf(s));
 	w.F(s.dilithium); w.F(s.crystalCeiling); w.F(s.crystalQuality); w.U16(static_cast<uint16_t>(s.crystalReplacements));
 	// The shuttles: where each is, and what an away one carried (docs/shuttles.md).
 	w.U8(static_cast<uint8_t>(s.shuttles.size()));
@@ -4594,7 +4658,8 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	}
 	s.stores.deuterium = r.Unit(); s.stores.antimatter = r.Unit(); s.stores.batteries = r.Unit();
 	s.stores.torpedoes = r.U16();
-	s.stores.spareParts = r.F(); s.stores.medicalSupplies = r.F(); s.stores.rations = r.F(); s.stores.materials = r.F(); s.stores.probes = r.U8(); s.stores.tricorders = r.U8(); s.stores.phasers = r.U8(); s.stores.evSuits = r.U8(); s.stores.tricorderCharge = r.Unit(); s.stores.kitCondition = r.Unit();
+	s.stores.spareParts = r.F(); s.stores.medicalSupplies = r.F(); s.stores.rations = r.F(); s.stores.materials = r.F(); s.stores.probes = r.U8(); s.stores.tricorders = r.U8(); s.stores.phasers = r.U8(); s.stores.evSuits = r.U8(); s.stores.tricorderCharge = r.Unit(); s.stores.kitCondition = r.Unit(); s.stores.phaserYield = r.U8();
+	if (s.stores.phaserYield >= YIELD_COUNT) return false;
 	s.dilithium = r.Unit(); s.crystalCeiling = r.Unit(); s.crystalQuality = r.F(); s.crystalReplacements = r.U16();
 	s.shuttles.clear();
 	const uint8_t nShuttles = r.U8();
