@@ -13,6 +13,21 @@ console's two power figures (fresh and now); and the torpedo complement at 38. `
 `scripts/check.sh` and the engine checks are green, and the evidence is
 `docs/evidence/the-budgets.md`. Save format 50 (the five systems raise `SYS_COUNT`).
 
+---
+
+**CORRECTION — owner's ruling, 2026-10-07. It overrides this document's shed order.**
+
+Everything below about a **shed order**, and about where the drive sits in it, describes **a default and an
+opinion — not the mechanism.** The owner has ruled that **the players and the crew define which systems are
+online and offline and how much power and operational capacity each has at any given time**, and that this
+**must not become a predetermined cascade or hierarchy of which systems go offline.** That is the FTL side of
+the playthrough, and it is the players'.
+
+**Who decides is `docs/power-assignment.md`, which owns it.** Read every shed order in this document as *what
+the chief engineer recommends, and what automatic mode does when nobody has decided* — never as what the ship
+does to a player who has decided. The ladder survives as a policy with an author and a name on it; it stops
+being law.
+
 Read this with `docs/damage-and-budgets.md`, which owns the two budgets, and `docs/ship-systems.md`, which
 owns the systems. Every figure below was computed rather than recalled, and the canon it rests on is in
 `docs/lore-ledger.md`.
