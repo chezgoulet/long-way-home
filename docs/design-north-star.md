@@ -169,8 +169,19 @@ discussion: a persistent community needs people who can join **without buying an
 
 ### The crew model, settled: a canonical complement, players first, NPCs filling the deficit
 
-Final direction from the owner: **the crew complement is a canonical number, the server supports up to
-the full complement in played characters, and any deficit is filled by NPCs.**
+Final direction from the owner: **the crew complement is a canonical number, and any deficit is filled
+by NPCs.**
+
+**Amended 2026-10-07, owner:** the ceiling is **64 played characters** — the engine's `MAX_CLIENTS` —
+and NPCs fill the rest, rather than raising the client ceiling to the complement. The reasons, in order:
+64 requires no engine change, where roughly 150 requires raising `MAX_CLIENTS` **and** the memory pool,
+the reliable-command buffer and the snapshot limits with it — a count no shipped id Tech 3 project has
+been found at; and the deficit-filling machinery is already a first-class requirement, so the design
+does not change, only the number does. **The remaining risk moves rather than disappears** — onto many
+NPCs and many players on one server, which is already a named question with a spike assigned to it. A
+side effect worth having: with 64 players the majority of the complement is the ship's own AI, so
+*which posts are held by people and which by the ship's own AI* becomes the normal condition rather
+than an edge case.
 
 This is the strongest of the positions considered, because it does away with the ghost-ship problem
 without giving up what makes the multiplayer experience Star Trek: a ship is always fully crewed, and
@@ -191,8 +202,8 @@ Design consequences, now the record:
   loss, whoever was wearing the uniform — which is the whole point.
 - **Track C serves both experiences**, and was never decorative: single-player gets a full NPC crew,
   multiplayer gets the deficit filler.
-- **The engine ceiling binds on the player side only.** "Up to the complement in played characters" is
-  the requirement; past that, a server refuses entry rather than degrading.
+- **The engine ceiling binds on the player side only.** "Up to 64 played characters" is the requirement;
+  past that, a server refuses entry rather than degrading.
 - **New performance question for the spike:** many NPCs *and* many players on one server. Server CPU with
   a full NPC crew plus a full player complement is untested territory.
 
