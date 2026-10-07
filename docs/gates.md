@@ -556,13 +556,15 @@ justified order. **O16 and O17 were built-but-unregistered and are now carried i
 
 **Awaiting the owner's ruling first (they cannot be ordered until he decides):**
 
-- **O1/C1 — the power and supply model** of `docs/budget-squaring.md` is *"proposed, awaiting the owner's
-  ruling. Nothing here is implemented"*: five added systems (astrometrics, science labs, gravity plating,
-  non-essential lighting, cargo handling), the source rebalance, `crystalCeiling` bearing on the warp core's
-  **output**, the drive shed last, and the torpedo count of 38 with the canon moments at 11 and 6. It changes
-  `SYS_COUNT`, the allocation order, the console rows and `SAVE_VERSION`, so it is ordered before every other
-  power item. Its own Part three calls the missing independent sources *"the largest structural gap in the
-  ship's model."*
+*Closed entries are retained here and corrected in place rather than deleted — the finding is the sweep's
+evidence and the closing is this ledger's business. The same rule is stated in `docs/omissions.md`.*
+
+- **O1/C1 — the power and supply model — CLOSED 2026-10-07, PR #53.** The sweep recorded it as *"proposed,
+  awaiting the owner's ruling. Nothing here is implemented"*, which was true when the sweep ran and false
+  within the hour: the owner's ruling was the **headroom curve**, and the implementation landed with its own
+  evidence and tests — see *The ship's budgets squared* above. **What remains is the canon torpedo moments at
+  eleven and six as content**, not the mechanism. This entry is left in place, corrected, as the register's
+  rule requires.
 - **C2 — allegiance drift** (`docs/story-and-semantics.md`, conflict 3 and *Open*): whether allegiance
   strength is itself a fold over marks; needed before affinities are authored.
 - **C3 — Q-class encounters** (`docs/gap-analysis.md` §4): whether to model them at all.
