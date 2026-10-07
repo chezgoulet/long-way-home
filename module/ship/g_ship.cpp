@@ -341,6 +341,33 @@ void Publish( void )
 		gi.cvar_set( "lwh_ship_player_next", chosen && vessel.crew[vessel.player].rank < 6 ? RANKS[vessel.crew[vessel.player].rank + 1] : "" );
 	}
 
+	// Access (docs/access-and-authority.md): the override in progress, the lock-outs a senior officer
+	// has imposed, and the grants for a shift. The lock-out names both hands, so the console that has
+	// stopped answering can tell the person locked out by name.
+	{
+		const ship::Override &ov = ship::OverrideState( vessel );
+		if ( ov.station < 0 )
+			gi.cvar_set( "lwh_ship_override", "" );
+		else if ( ov.active )
+			gi.cvar_set( "lwh_ship_override", Fmt( "EMERGENCY OVERRIDE ACTIVE AT %s FOR %d MINUTES%s",
+				ship::StationName( static_cast<ship::Station>( ov.station ) ),
+				static_cast<int>( ( ov.expires - vessel.clock ) / 60.0 + 0.999 ),
+				ov.solo ? " (ONE HAND)" : "" ).c_str() );
+		else
+			gi.cvar_set( "lwh_ship_override", Fmt( "OVERRIDE PENDING AT %s - TAKES IN %d MIN",
+				ship::StationName( static_cast<ship::Station>( ov.station ) ),
+				static_cast<int>( ( ov.readyAt - vessel.clock ) / 60.0 + 0.999 ) ).c_str() );
+		std::string lockouts, delegations;
+		for ( const ship::Lockout &l : ship::Lockouts( vessel ) )
+			lockouts += Fmt( "%s|%s|%s;", ship::StationName( static_cast<ship::Station>( l.station ) ),
+				vessel.crew[l.lockedBy].name.c_str(), vessel.crew[l.locked].name.c_str() );
+		for ( const ship::Delegation &d : ship::Delegations( vessel ) )
+			delegations += Fmt( "%s|%s|%s;", ship::StationName( static_cast<ship::Station>( d.station ) ),
+				vessel.crew[d.grantor].name.c_str(), vessel.crew[d.grantee].name.c_str() );
+		gi.cvar_set( "lwh_ship_lockouts", lockouts.c_str() );
+		gi.cvar_set( "lwh_ship_delegations", delegations.c_str() );
+	}
+
 	int order[ship::SYS_COUNT];
 	for ( int i = 0; i < ship::SYS_COUNT; ++i ) order[i] = i;
 	std::stable_sort( order, order + ship::SYS_COUNT, []( int a, int b ) { return vessel.systems[a].priority < vessel.systems[b].priority; } );
@@ -2139,6 +2166,56 @@ void RunTest( void )
 		if ( step == 6 && level.time >= 9400 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
 		return;
 	}
+	if ( g_shipTest->integer == 64 )
+	{//access and authority at the console (docs/access-and-authority.md, owner decision 2026-10-07):
+	 //the named refusal, a delegation for a shift and its revocation, the lock-out that names both
+	 //hands, and the emergency override begun. What a hand presses is what the test sends.
+		static int step = 0;
+		static char playerIdx[16] = "";
+		if ( level.time < 1000 ) { step = 0; playerIdx[0] = 0; }
+		if ( step == 0 && level.time >= 2000 ) { gi.SendConsoleCommand( "ship character Reyes 2 1\n" ); step = 1; }
+		if ( step == 1 && level.time >= 2800 ) { gi.SendConsoleCommand( "ship as 0 off sensors\n" ); step = 2; }
+		if ( step == 2 && level.time >= 3300 )
+		{
+			gi.Printf( "SHIP: clearance 1 (not cleared): \"%s\"\n", gi.cvar( "lwh_ship_refusal", "", 0 )->string );
+			gi.Cvar_VariableStringBuffer( "lwh_ship_player_index", playerIdx, sizeof( playerIdx ) );
+			if ( playerIdx[0] ) gi.SendConsoleCommand( va( "ship delegate 5 %s 0\n", playerIdx ) );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 3800 ) { gi.SendConsoleCommand( "ship as 0 off sensors\n" ); step = 4; }
+		if ( step == 4 && level.time >= 4300 )
+		{
+			gi.Printf( "SHIP: clearance 2 (delegated for the shift): sensors %s\n", vessel.systems[ship::SYS_SENSORS].enabled ? "on" : "off" );
+			if ( playerIdx[0] ) gi.SendConsoleCommand( va( "ship revoke 5 %s 0\n", playerIdx ) );
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 4800 ) { gi.SendConsoleCommand( "ship as 0 off communications\n" ); step = 6; }
+		if ( step == 6 && level.time >= 5300 )
+		{
+			gi.Printf( "SHIP: clearance 3 (revoked): \"%s\"\n", gi.cvar( "lwh_ship_refusal", "", 0 )->string );
+			if ( playerIdx[0] ) gi.SendConsoleCommand( va( "ship lockout 5 %s 0\n", playerIdx ) );
+			step = 7;
+		}
+		if ( step == 7 && level.time >= 5800 ) { gi.SendConsoleCommand( "ship as 0 off sensors\n" ); step = 8; }
+		if ( step == 8 && level.time >= 6300 )
+		{
+			gi.Printf( "SHIP: clearance 4 (locked out): \"%s\"\n", gi.cvar( "lwh_ship_refusal", "", 0 )->string );
+			gi.Printf( "SHIP: clearance 4: the lock-out is \"%s\"\n", gi.cvar( "lwh_ship_lockouts", "", 0 )->string );
+			if ( playerIdx[0] ) gi.SendConsoleCommand( va( "ship unlock 5 %s 0\n", playerIdx ) );
+			step = 9;
+		}
+		if ( step == 9 && level.time >= 6800 ) { gi.SendConsoleCommand( "ship override begin 0\n" ); step = 10; }
+		if ( step == 10 && level.time >= 7300 ) { gi.SendConsoleCommand( "ship override confirm 0\n" ); step = 11; }
+		if ( step == 11 && level.time >= 7600 ) { gi.SendConsoleCommand( "ui_lwh_command\n" ); step = 12; }
+		if ( step == 12 && level.time >= 8100 )
+		{
+			gi.Printf( "SHIP: clearance 5 (override): \"%s\"\n", gi.cvar( "lwh_ship_override", "", 0 )->string );
+			gi.SendConsoleCommand( "screenshot lwh_access\n" );
+			step = 13;
+		}
+		if ( step == 13 && level.time >= 8900 ) { gi.SendConsoleCommand( "quit\n" ); step = 14; }
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )
@@ -2450,7 +2527,7 @@ void Svcmd_Ship_f( void )
 	if ( station >= 0 )
 	{
 		const ship::Station st = static_cast<ship::Station>( station );
-		const char *why = NULL;
+		std::string why;
 		const bool isAlert = !Q_stricmp( cmd, "alert" );
 		const bool isSwitch = !Q_stricmp( cmd, "on" ) || !Q_stricmp( cmd, "off" );
 		const bool isPriority = !Q_stricmp( cmd, "priority" );
@@ -2476,9 +2553,15 @@ void Svcmd_Ship_f( void )
 		const bool anyone = vessel.player < 0 && vessel.cfg.role != ship::ROLE_IN_COMMAND;
 		if ( !isAlert && !isSwitch && !isPriority && !isFire && !isJump && !isBreach && !isTransport && !isSurvey && !isCourse && !isPatients && !isField && !isSurgical && !isScanComp && !isTarget && !isChoice && !isRun && !isTractor && !isFabricate && !isEMH )
 			why = "that is not a console's to do";
-		else if ( !anyone && !ship::PlayerMayOperate( vessel, st ) ) why = "you are not cleared for this station";
+		else if ( !anyone && !ship::PlayerMayOperate( vessel, st ) )
+		{
+			// The console that has stopped answering names the person locked out, and a locked control
+			// names who can open it (docs/access-and-authority.md).
+			const std::string lock = ship::LockoutNotice( vessel, vessel.player, st );
+			why = lock.empty() ? ship::AccessRefusal( vessel, st ) : std::string( "LOCKED OUT: " ) + lock;
+		}
 		else if ( isAlert && !( st == ship::STN_ENGINEERING || st == ship::STN_TACTICAL ) ) why = "the alert is not called from this station";
-		else if ( isAlert && !anyone && vessel.cfg.role != ship::ROLE_IN_COMMAND && !ship::MayCallAlert( vessel.crew[vessel.player], st ) )
+		else if ( isAlert && !anyone && vessel.cfg.role != ship::ROLE_IN_COMMAND && !ship::MayCallAlert( vessel, vessel.player, st ) )
 			why = "calling the alert needs a lieutenant or above";
 		else if ( isPriority && st != ship::STN_ENGINEERING ) why = "the power order is Engineering's to set";
 		else if ( isFire && st != ship::STN_TACTICAL ) why = "weapons are fired from Tactical";
@@ -2496,18 +2579,25 @@ void Svcmd_Ship_f( void )
 		else if ( isTractor && st != ship::STN_TACTICAL ) why = "the tractor beam is worked from Tactical";
 		else if ( isFabricate && st != ship::STN_ENGINEERING ) why = "fabrication is Engineering's";
 		else if ( isEMH && st != ship::STN_SICKBAY ) why = "the EMH is Sickbay's";
-		else if ( !Q_stricmp( cmd, "breach" ) && ( sys < 0 || !ship::OperatedFrom( static_cast<ship::SystemId>( sys ), st ) ) )
-			why = "that system is not operated from this station";
-		else if ( ( isSwitch || isPriority ) && ( sys < 0 || !ship::OperatedFrom( static_cast<ship::SystemId>( sys ), st ) ) )
-			why = "that system is not operated from this station";
+		else if ( ( !Q_stricmp( cmd, "breach" ) || isSwitch || isPriority ) && sys < 0 )
+			why = "no such system";
+		else if ( ( !Q_stricmp( cmd, "breach" ) || isSwitch || isPriority )
+			&& !ship::MayCallUp( vessel, vessel.player, st, static_cast<ship::SystemId>( sys ) ) )
+			why = ship::OperatedFromRefusal( static_cast<ship::SystemId>( sys ) );
 		else if ( ( isSwitch || isPriority ) && ship::Hijacked( vessel, static_cast<ship::SystemId>( sys ) ) )
-			why = "the system does not answer: it is not ours";
-		if ( why )
+			why = std::string( ship::Spec( static_cast<ship::SystemId>( sys ) ).name ) + " does not answer: it is not ours";
+		if ( !why.empty() )
 		{
-			gi.Printf( "SHIP: %s refused at %s: %s\n", cmd, ship::StationName( st ), why );
-			gi.cvar_set( "lwh_ship_refusal", why );
+			gi.Printf( "SHIP: %s refused at %s: %s\n", cmd, ship::StationName( st ), why.c_str() );
+			gi.cvar_set( "lwh_ship_refusal", why.c_str() );
 			return;
 		}
+		// A remote call-up: command travels to a console away from the system, and the record says so.
+		// The work itself does not travel: a repair, a seal or a valve still needs a hand there.
+		if ( ( !Q_stricmp( cmd, "breach" ) || isSwitch || isPriority ) && sys >= 0 && !anyone
+			&& !ship::OperatedFrom( static_cast<ship::SystemId>( sys ), st ) )
+			gi.Printf( "SHIP: remote call-up: %s operated from %s\n",
+				ship::Spec( static_cast<ship::SystemId>( sys ) ).name, ship::StationName( st ) );
 		gi.cvar_set( "lwh_ship_refusal", "" );
 	}
 
@@ -2696,6 +2786,74 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "SHIP: standing orders: repair first %s, security to deck %d, evacuate deck %d\n",
 			vessel.orderRepairFirst >= 0 ? ship::Spec( static_cast<ship::SystemId>( vessel.orderRepairFirst ) ).name : "nothing in particular",
 			vessel.orderSecurityTo, vessel.orderEvacuate );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "delegate" ) && a[0] && b[0] && gi.argc() > first + 3 )
+	{//ship delegate <grantor> <grantee> <station>: a department head grants a shift's access
+		const int grantor = atoi( a ), grantee = atoi( b ), stn = atoi( gi.argv( first + 3 ) );
+		if ( !ship::Delegate( vessel, grantor, grantee, static_cast<ship::Station>( stn ) ) )
+			gi.Printf( "SHIP: no delegation (bad hands, below a department head, or a bad station 0-4)\n" );
+		else gi.Printf( "SHIP: delegation recorded\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "revoke" ) && a[0] && b[0] && gi.argc() > first + 3 )
+	{//ship revoke <revoker> <grantee> <station>
+		const int revoker = atoi( a ), grantee = atoi( b ), stn = atoi( gi.argv( first + 3 ) );
+		if ( !ship::RevokeDelegation( vessel, revoker, grantee, static_cast<ship::Station>( stn ) ) )
+			gi.Printf( "SHIP: nothing to revoke (no live grant, or below a department head)\n" );
+		else gi.Printf( "SHIP: delegation revoked\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "credrevoke" ) && a[0] && b[0] && gi.argc() > first + 3 )
+	{//ship credrevoke <revoker> <holder> <station>: the crew can take back a qualification
+		const int revoker = atoi( a ), holder = atoi( b ), stn = atoi( gi.argv( first + 3 ) );
+		if ( !ship::RevokeCredential( vessel, revoker, holder, static_cast<ship::Station>( stn ) ) )
+			gi.Printf( "SHIP: nothing to revoke (no such qualification, or below a department head)\n" );
+		else gi.Printf( "SHIP: qualification revoked\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "lockout" ) && a[0] && b[0] && gi.argc() > first + 3 )
+	{//ship lockout <officer> <locked> <station>: a senior officer shuts a post-holder out
+		const int officer = atoi( a ), locked = atoi( b ), stn = atoi( gi.argv( first + 3 ) );
+		if ( !ship::LockOut( vessel, officer, static_cast<ship::Station>( stn ), locked ) )
+			gi.Printf( "SHIP: no lock-out (must be above the post-holder, at their station)\n" );
+		else gi.Printf( "SHIP: lock-out recorded\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "unlock" ) && a[0] && b[0] && gi.argc() > first + 3 )
+	{//ship unlock <officer> <locked> <station>
+		const int officer = atoi( a ), locked = atoi( b ), stn = atoi( gi.argv( first + 3 ) );
+		if ( !ship::ClearLockout( vessel, officer, static_cast<ship::Station>( stn ), locked ) )
+			gi.Printf( "SHIP: no such lock-out\n" );
+		else gi.Printf( "SHIP: lock-out cleared\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "override" ) && a[0] && b[0] )
+	{//ship override begin|confirm <station>: the emergency override, slow and logged
+		const ship::Station stn = static_cast<ship::Station>( atoi( b ) );
+		const bool chosen = vessel.player >= 0 && vessel.player < static_cast<int>( vessel.crew.size() );
+		if ( !Q_stricmp( a, "begin" ) )
+		{
+			if ( !chosen ) { gi.Printf( "SHIP: no character is the player\n" ); return; }
+			if ( !ship::BeginOverride( vessel, vessel.player, stn ) ) gi.Printf( "SHIP: the override cannot begin\n" );
+			else gi.Printf( "SHIP: override begun; a second officer must agree, or one hand may force it\n" );
+		}
+		else if ( !Q_stricmp( a, "confirm" ) )
+		{
+			// The second hand: the senior fit officer who is not the one who began it. [inv]
+			int second = -1;
+			for ( int i = 0; i < static_cast<int>( vessel.crew.size() ); ++i )
+				if ( vessel.crew[i].status == ship::CREW_FIT && !vessel.crew[i].brigged && i != ship::OverrideState( vessel ).first
+					&& ( second < 0 || vessel.crew[i].rank > vessel.crew[second].rank ) ) second = i;
+			if ( second < 0 || !ship::ConfirmOverride( vessel, second, stn ) ) gi.Printf( "SHIP: no second officer can agree\n" );
+			else gi.Printf( "SHIP: the override is agreed; it will take shortly\n" );
+		}
 		Publish();
 		return;
 	}

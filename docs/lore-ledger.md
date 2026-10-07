@@ -26,11 +26,11 @@ chosen for play.
 | Astrometrics | deck 8 | on screen | recalled |
 | Shuttlebay | deck 10 | on screen | recalled |
 | Main Engineering | deck 11 | on screen | recalled |
-| Computer core | deck 9 | the game's own turbolift menu (`sp_turbolift.dat`: "DECK9 Computer Core") | game |
+| Computer core | **deck 10** (main), deck 7 (auxiliary) | the game's own turbolift menu says "DECK9 Computer Core" (`sp_turbolift.dat`), but canon places the main core on deck 10 and the auxiliary core on deck 7 (`docs/ship-master-map.md`, `docs/research/voyager-interior-systems.md`). **Our call, 2026-10-07:** we follow the master map; the simulation's system table moves the computer core from deck 9 to deck 10. | game / our call |
 | Hazard Ops | deck 4 | the same file | game |
 | The five decks with no published source (6, 7, 12, 13, 14) | a sealed hall with a waypoint grid to start; **decks 7, 12, 13 and 14 are re-dressed from `tour/deck11`, and deck 6 is composed from three maps** (see below) | nothing canonical exists; invented, and logged as such | invented |
 | Astrometrics and the cargo bay | deck 8 | the same file | game |
-| Environmental control, torpedo bay, impulse engineering, deflector control | decks 12, 9, 10, 11 | — | invented placement |
+| Environmental control, torpedo bay, impulse engineering, deflector control | decks 12, **10** (torpedo bay, fore; aft tubes deck 4, `docs/ship-master-map.md`), 10, 11 | — | invented placement / master map |
 | Decks present as maps | 1, 2, 3, 4, 5, 8, 9, 10, 11, 15 | the expansion pack's `maps/tour/` | game |
 
 ### Decks with no published map (generated placeholders)

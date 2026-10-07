@@ -98,7 +98,7 @@ void LWH_CG_DrawPanelGlance( void )
 
 	// The live state, three short lines and an alarm when there is one.
 	static const char *const ALERTS[3] = { "GREEN", "YELLOW", "RED" };
-	static const int ALERT_COLOR[3] = { CT_LTBLUE1, CT_YELLOW, CT_RED };
+	static const int ALERT_COLOR[3] = { CT_LTBLUE2, CT_YELLOW, CT_RED };
 	const int alert = s->alert >= 0 && s->alert < 3 ? s->alert : 0;
 	const int sod = s->SecondOfDay();
 	char l1[64], l2[80], l3[80], l4[80];
@@ -138,8 +138,8 @@ void LWH_CG_DrawPanelGlance( void )
 	CG_FillRect( bx, by, w, 3.0f, colorTable[ALERT_COLOR[alert]] );
 	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 4, l1, CG_SMALLFONT, colorTable[ALERT_COLOR[alert]] );
 	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 17, l2, CG_SMALLFONT, colorTable[CT_LTGOLD1] );
-	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 30, l3, CG_SMALLFONT, colorTable[CT_LTBLUE1] );
-	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 43, l4, CG_SMALLFONT, colorTable[CT_LTBLUE1] );
+	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 30, l3, CG_SMALLFONT, colorTable[CT_LTBLUE2] );
+	CG_DrawProportionalString( static_cast<int>( bx ) + 5, static_cast<int>( by ) + 43, l4, CG_SMALLFONT, colorTable[CT_LTBLUE2] );
 	// The viewscreen, when there is a contact: a live image of it beside the panel, redrawn each
 	// frame from the same state the Tactical console reads -- a schematic of the ship scaled and
 	// coloured by its hull, wrapped in a shield bubble that fades as its shields fall. Bars below
@@ -166,7 +166,7 @@ void LWH_CG_DrawPanelGlance( void )
 		// The shield bubble: an ellipse whose colour dims with the shields, drawn row by row.
 		if ( s->enemy.shields > 0.02f )
 		{
-			const int sc = s->enemy.shields > 0.5f ? CT_LTBLUE1 : CT_LTPURPLE1;
+			const int sc = s->enemy.shields > 0.5f ? CT_LTBLUE2 : CT_LTPURPLE1;
 			for ( int dy = -12; dy <= 12; ++dy )
 			{
 				const float t = static_cast<float>( dy ) / 12.0f;
@@ -179,7 +179,7 @@ void LWH_CG_DrawPanelGlance( void )
 		CG_FillRect( vx + 6.0f, vy + 52.0f, bw, 4.0f, colorTable[CT_DKPURPLE3] );
 		CG_FillRect( vx + 6.0f, vy + 52.0f, bw * s->enemy.hull, 4.0f, colorTable[CT_LTGOLD1] );
 		CG_FillRect( vx + 6.0f, vy + 58.0f, bw, 4.0f, colorTable[CT_DKPURPLE3] );
-		CG_FillRect( vx + 6.0f, vy + 58.0f, bw * s->enemy.shields, 4.0f, colorTable[CT_LTBLUE1] );
+		CG_FillRect( vx + 6.0f, vy + 58.0f, bw * s->enemy.shields, 4.0f, colorTable[CT_LTBLUE2] );
 
 		// Evidence: once a second, say what the live image is showing.
 		static int lastLog = 0;

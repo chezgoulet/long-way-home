@@ -209,7 +209,7 @@ enum CrewStatus : uint8_t { CREW_FIT = 0, CREW_INJURED, CREW_DEAD, CREW_ASSIMILA
 // person, repeated, is a bond: friendship or grudge. Salience decays unless reinforced, and the set
 // is bounded, evicting the least salient first.
 enum MemorySource : uint8_t { MEM_SAW = 0, MEM_TOLD, MEM_RUMOUR, MEM_LOG, MEM_SOURCE_COUNT };
-enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, MEM_RESCUE, MEM_VIOLATION, MEM_FUNERAL };
+enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, MEM_RESCUE, MEM_VIOLATION, MEM_FUNERAL, MEM_LOCKOUT };
 const int MEMORY_MAX = 8;
 struct Memory {
 	uint16_t event = 0;
@@ -537,6 +537,31 @@ enum ClockMode : uint8_t { CLOCK_ACCELERATED = 0, CLOCK_REAL_TIME, CLOCK_WALL };
 // answers to you. Munro: the Hazard Team's ensign, as in the retail game.
 enum PlayerRole : uint8_t { ROLE_ANY_POST = 0, ROLE_IN_COMMAND, ROLE_MUNRO };
 
+// The access model's stored shapes, defined here so Ship can hold them (docs/access-and-authority.md).
+// A delegation is a shift's grant; an override is one station forced for a while; a lock-out is a
+// senior officer shutting a post-holder out.
+struct Delegation {
+	int grantor = -1;   // the department head who granted it
+	int grantee = -1;   // the junior who holds it
+	uint8_t station = 0;
+	double expires = 0.0; // ship time the shift ends
+};
+struct Override {
+	int station = -1;    // the station being forced, or -1 for none
+	int first = -1;      // who began it
+	int second = -1;     // the second who agreed, or -1 for a solo force
+	double readyAt = 0.0; // ship time it becomes active
+	double expires = 0.0; // ship time it lapses
+	bool active = false;
+	bool solo = false;
+};
+struct Lockout {
+	uint8_t station = 0;
+	int lockedBy = -1;
+	int locked = -1;
+	double time = 0.0;
+};
+
 struct Config {
 	uint32_t seed = 2371;        // roster generation; the same seed is the same crew
 	float dayScale = 60.0f;      // ship seconds per simulated second: 60 = a day in 24 minutes
@@ -632,6 +657,13 @@ struct Ship {
 	int advanceDeck = 0;         // the deck a security squad is advancing to retake; 0 = none
 	int advanceAt = 0;           // the deck the squad is on now, on its way
 	float advanceMs = 0.0f;      // progress toward the next deck
+
+	// Access: delegations granted for a shift, the one emergency override in progress, and the
+	// lock-outs a senior officer has imposed (docs/access-and-authority.md). All are recorded in
+	// the log, the delegation is temporary, and a lock-out marks the person's memory.
+	std::vector<Delegation> delegations;
+	Override emergencyOverride;
+	std::vector<Lockout> lockouts;
 
 	// the player
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
@@ -1073,6 +1105,67 @@ void Sleep(Ship &s, double shipSeconds);
 bool MayOperate(const CrewMember &who, Station st);
 bool MayCallAlert(const CrewMember &who, Station st);
 bool MayCommand(const CrewMember &who);
+// The same questions, with the delegation in view: a station's access may have been granted for a
+// shift (docs/access-and-authority.md, source 3), which the record alone cannot answer.
+bool MayOperate(const Ship &s, int crew, Station st);
+bool MayCallAlert(const Ship &s, int crew, Station st);
+
+// ---- delegation and revocation (docs/access-and-authority.md) ------------------------------------
+//
+// Source 3 of access: a department head grants a junior their section's access for a shift, and can
+// take it back. The grant is temporary and it names both hands -- who gave it and, when it is
+// revoked, who turned it off -- because the record is the point. Access stays technical and binary:
+// nothing here consults morale. It is the department head's authority, not command's, that is spent.
+// The Delegation, Override and Lockout structs are defined above, before Ship.
+const int DELEGATION_MAX = 24;
+const float DELEGATION_SHIFT_HOURS = 8.0f; // a watch [inv]
+bool Delegate(Ship &s, int grantor, int grantee, Station st);
+bool RevokeDelegation(Ship &s, int revoker, int grantee, Station st);
+bool DelegatedTo(const Ship &s, int crew, Station st);
+const std::vector<Delegation> &Delegations(const Ship &s);
+// The crew can revoke a credential too: a qualification once earned is not held forever.
+bool RevokeCredential(Ship &s, int revoker, int holder, Station st);
+
+// ---- emergency override (docs/access-and-authority.md, source 4) ---------------------------------
+//
+// The fallback for a skeleton crew: slow, loud, logged, and usually needing two people to agree. One
+// person may force it alone, but it takes longer and the log says so. It grants technical access to
+// one station for a while; it does not change who commands, and it does not clear a compromised
+// system -- hardware beats hierarchy, so a hijacked system refuses the override as it refuses rank.
+const float OVERRIDE_TWO_MINUTES = 15.0f;      // two officers agree: until it takes [inv]
+const float OVERRIDE_SOLO_MINUTES = 45.0f;     // one person forces it: slower still [inv]
+const float OVERRIDE_DURATION_MINUTES = 20.0f; // how long the forced access holds [inv]
+bool BeginOverride(Ship &s, int requester, Station st);
+bool ConfirmOverride(Ship &s, int second, Station st);
+bool OverrideActive(const Ship &s, Station st);
+const Override &OverrideState(const Ship &s);
+
+// ---- remote call-up and the lock-out (owner decision, 2026-10-07) ---------------------------------
+//
+// An officer above the post-holder may call up any system's controls from any console, command it
+// remotely, and lock the post-holder out. Command travels; physical work does not -- a repair, a
+// seal, a hatch or a valve still needs a hand standing there (the crew's own jobs, unchanged). The
+// resolution of the conflict in docs/access-and-authority.md: full access is no longer tied to
+// standing beside the system, but the work still is. The lock-out is first-class: it is logged, it
+// names its author, the console that has stopped answering names the person locked out, and it
+// writes a negative saw-it-myself mark on that person's record (docs/memory-and-consequence.md).
+const int LOCKOUT_MAX = 16;
+bool LockOut(Ship &s, int officer, Station st, int locked);
+bool ClearLockout(Ship &s, int officer, Station st, int locked);
+bool LockedOut(const Ship &s, int crew, Station st);
+const std::vector<Lockout> &Lockouts(const Ship &s);
+// The lock-out as it reads on the console that has stopped answering: empty unless `crew` is locked
+// out of `st`, otherwise it names both hands.
+std::string LockoutNotice(const Ship &s, int crew, Station st);
+// Command may travel to a console away from the system; the crew's physical jobs may not. True when
+// this operator may call up this system from this console: it is operated there, or the operator is
+// ship-wide (rank 4 or above, or the ship's role is command).
+bool MayCallUp(const Ship &s, int crew, Station console, SystemId id);
+
+// The named refusal: the reason a control is locked, naming who can open it. This is the string the
+// consoles show, and the one the player learns the chain of command from.
+std::string AccessRefusal(const Ship &s, Station st);
+std::string OperatedFromRefusal(SystemId id);
 
 // Training and credentials: a crew member earns a cross-qualification by training, and a credential
 // lets them operate a station their department does not own. The player's career is the same shape.
@@ -1233,7 +1326,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 47;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log
+const uint16_t SAVE_VERSION = 48;  // 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md)
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.
