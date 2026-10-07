@@ -113,6 +113,47 @@ the check; two entries in the simulation's system table disagreed with it and we
 computer core and the torpedo launchers are on deck 10, not deck 9). The panel-to-console table in
 `module/ui/ui_lwh_engineering.cpp` now carries a focus system per panel.
 
+## Reading and operating are different privileges (owner ruling, 2026-10-07)
+
+A system is **operated from exactly one station** -- the S4 invariant, unchanged. That is not the
+same as being *seen*. Reading and operating are two privileges:
+
+1. **One station operates each system.** Communications is Operations'; sensors are Operations';
+   the transporter is Operations'. The station that operates a system is the only one that may change
+   it (`OperatedFrom`, and the ship's command guard in `g_ship.cpp`).
+2. **Reading is separate, and wider.** A station may **read** a system another station operates and
+   **cannot change it** (`StationReads`). Concretely: **Tactical reads the comms traffic; Operations
+   speaks.** Tactical also reads the sensor picture, internal and external. Sensors and comms are
+   Operations' to *operate*; Tactical's to *read*.
+3. **The screen must show the difference.** A control is drawn as a control (a priority number, a
+   switch) and a read as a readout (tagged `RD`, in the read colour, with no switch). A read is never
+   a control by accident: the clearance model gates the two separately, so pressing `ENTER` on a read
+   does nothing and the ship would refuse the command anyway.
+
+## Two axes: the station shapes the console; the person filters it (owner ruling, 2026-10-07)
+
+Two rules that must not be conflated, the owner's correction of an earlier over-broad statement:
+
+1. **The station decides how many content types the console carries, and the default is one, well.**
+   A console gets more than one content type **only where that post actually needs it** -- multi-content
+   is *earned by the job*, not granted by default. A junction panel that shows one readout stays a
+   panel with one readout; do not put a menu on it. The failure to avoid is every surface in the ship
+   becoming a swiss-army console. In the fleet as built: **Tactical** carries a read layer because the
+   tactical job needs the sensor and comms picture; **Sickbay** carries one because the medical job
+   needs the record and what the Doctor is running. **Engineering, Operations and the Conn carry one
+   content type each** and publish no read layer.
+2. **The person filters it, and that is always true.** Every console gives the player access to
+   whatever the player *already* has access to. What a console offers is decided by the **permission
+   boundary**, not by a hardcoded menu -- a console is never a fixed list of what someone is allowed
+   to do. Whatever clearance you hold is reachable from wherever you stand: the remote call-up,
+   stated as a general rule. A captain at a junction panel sees one readout and can still reach
+   everything his clearance opens.
+
+The two could quietly break each other at a **single-type console**: if "one content type" were read
+as "one capability", the single-type screen would stop reaching what its holder is cleared for. It
+must not. From the Conn console -- one content type, four systems -- a commander still operates a
+system stationed elsewhere, and an uncleared ensign is still refused.
+
 ## Acceptance
 
 - Access and authority are separate quantities. **Access is rank-derived, binary and testable;
@@ -142,6 +183,16 @@ computer core and the torpedo launchers are on deck 10, not deck 9). The panel-t
   `LockOut`, `ClearLockout`, `LockoutNotice`; `scripts/clearance-check.sh`).
 - A sliced system refuses everyone, including the captain and an override. *Built* (`Hijacked`, the
   switch/priority guard in `g_ship.cpp`).
+- **Reading and operating are separate** (owner ruling, 2026-10-07): a system is operated from exactly
+  one station; another station may read it and cannot change it; and the screen shows the difference,
+  a control beside a readout tagged `RD`. *Built* (`StationReads`; `lwh_ship_reads<N>`; the console's
+  `RD` rows; `scripts/screens-check.sh` and `TestPhaserYieldAndReading`).
+- **The station shapes the console; the person filters it** (owner ruling, 2026-10-07): a console
+  whose post needs one content type has exactly one -- Engineering, Operations and the Conn stay
+  single-type, shown by the screenshot `lwh_conn_single.tga` and an empty read list; Tactical and
+  Sickbay carry a read layer, the job named as the reason; and from every console, including a
+  single-type one, the player reaches what their clearance opens (a commander at the Conn reaches
+  sensors, an uncleared ensign is refused). *Built* (`scripts/screens-check.sh`, `g_shipTest 68`).
 - **A dead officer's credentials** -- the fifth item of the original list. The record's credentials
   are retained (the computer does not know a holder is dead), but *using* them is a deliberate act
   the console does not yet offer. **This is reported, not built**, and the older phrasing ("still
