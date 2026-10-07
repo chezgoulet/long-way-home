@@ -177,14 +177,19 @@ ship cannot run everything at once — the core tension of the design.
 
 | fact | value | confidence |
 |---|---|---|
-| Sources | warp core 1000, impulse fusion reactors 300, auxiliary fusion 120, emergency batteries 80 | invented |
-| System demands | life support 60, structural integrity 80, inertial dampers 40, computer 60, shields 200, sensors 60, warp drive 400, impulse 100, phasers 150, torpedo launchers 30, deflector 50, communications 20, transporters 60, sickbay 30, turbolifts 20, tractor beam 60, replicators 60, holodecks 60 (total 1540 against 1420 of reactor supply) | invented |
-| Shedding order | life support, structural integrity, dampers, computer first; comforts last | invented, from the obvious |
+| Sources | warp core 1,400 (scaled by the crystal's ceiling), impulse fusion reactors 250, auxiliary fusion 90, emergency batteries 60; fresh total 1,800 | invented |
+| System demands | life support 60, structural integrity 80, inertial dampers 40, computer 60, shields 200, sensors 60, warp drive 400, impulse 100, phasers 150, torpedo launchers 30, navigational deflector 50, communications 20, transporters 60, sickbay 30, turbolifts 20, tractor beam 60, replicators 60, holodecks 60, **astrometrics 60, science labs 60, gravity plating 30, non-essential lighting 20, cargo handling 20** (total **1,730** against a fresh 1,800 — seventy in hand) | invented |
+| The crystal ceiling scales the warp core's output | output = 1,400 x ceiling; each recomposition lowers the ceiling 0.15 forever, so recomposition trades capability for time | invented (the mechanic is ours; the fracture, the restricted recrystallisation and the better crystal are canon, `docs/exploration-and-science.md`) |
+| Shedding order | cheapest first: cargo handling, non-essential lighting, holodecks, replicators, gravity plating, tractor beam, turbolifts, sickbay, science labs, transporters, communications, navigational deflector, astrometrics, torpedoes, phasers, then sensors, impulse, and **the warp drive last of all, after even the comforts** | invented, from the arithmetic (`docs/budget-squaring.md`, Part six) |
+| Coreless | with the warp core gone the ship runs only life support, structural integrity, inertial dampers, computer core, impulse drive and the deflector (390 of the 400 remaining) and nothing else | invented (`docs/budget-squaring.md`, Part 4a) |
+| The holodeck matrix is a trap | with the main grid down, tying in a holodeck reactor returns a battery charge and wrecks half the system set (canon: "blew half the ship's relays") | canon (VOY "Parallax"); the modelled cost is invented |
+| Posts, and the crew of 100 | the systems carry 22 posts; a watch of 33 hands (100 crew over three watches) covers all 22, and below that the critical set holds while the comforts go unmanned | invented (canon: operable with 100, VOY "The 37's") |
 | Condition green stands down shields and weapons; red shuts replicators and holodecks | — | consistent with on-screen practice; recalled |
 | Unattended station runs at half effect | — | invented |
 | Fuel | warp core burns deuterium and antimatter, fusion reactors deuterium only | technical manuals; recalled |
 | Burn rates | core 0.4% deuterium and 0.3% antimatter per day at full load | invented |
-| Batteries | three hours at full draw, critical systems only | invented |
+| Batteries | 60 EPS, three hours at full draw, the last source and covering any shortfall | invented |
+| The phaser bank's default setting | stun, the bank's nominal demand; the budget's demand table is the bank at nominal | invented |
 | Atmosphere | a deck open to space empties in 5 minutes; a sealed deck without life support lasts 12 hours; restored in 1 hour | invented |
 | Gravity | the plating, on the same life-support system as the air (deck 12): a deck without life support loses hold in 6 hours, and a supplied deck gets it back in 1 | invented |
 | Gravity, felt per person | the world's gravity scaled by the deck's plating (`ScaleGravity(800, gravity)`); at full plating the world's own value stands again | the mechanism is the engine's own (`ps.gravity` plus `SVF_CUSTOM_GRAVITY`, in `g_active.cpp` / `g_target.cpp`); the scaling arithmetic is invented |

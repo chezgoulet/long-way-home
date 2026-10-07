@@ -35,7 +35,7 @@ grep -q 'condition red' "$OUT" || fail "the Tactical console's condition-red key
 grep -q 'phasers .* OFF' "$OUT" || fail "the Tactical console did not switch off its second system (phasers)"
 grep -q 'shields .* power 200/200' "$OUT" || fail "the shields, untouched, are not at full power under red alert"
 echo "PASS  opened by the retail panel's command, the Tactical console set the condition and switched its own system"
-grep -q '^SHIP: phasers priority 7$' "$HOME_DIR/s4-tactical.out" \
+grep -q '^SHIP: phasers priority 8$' "$HOME_DIR/s4-tactical.out" \
   || fail "a priority key at Tactical changed the power order, which is Engineering's to set"
 echo "PASS  the power order cannot be changed from Tactical"
 

@@ -51,13 +51,20 @@ work that already exists.
 **Power (EPS) is the first system, because everything else is downstream of it.** Canon gives the
 topology: M/ARA core in main engineering (Deck 11), electro-plasma routed through EPS conduits, taps
 converting to electricity at each subsystem, plasma manifolds as the fragile middle layer. **[our call]**
-Canon never states a brownout order, so we define one, and it is the ladder the crew argue about:
+Canon never states a brownout order, so we define one, and the budget squaring sets its arithmetic
+(`docs/budget-squaring.md`, Part six): **the cheapest thing is shed first and the warp drive last of
+all, after even the comforts**, so the last thing she gives up is the way home. As implemented, the
+ladder the crew argue about is:
 
-1. shed first: holodecks, replicators, non-critical labs
-2. then: non-essential lighting, cargo handling, astrometrics
-3. then: sensors, comms, transporters
-4. then: shields and weapons
-5. last, never by choice: structural integrity, inertial dampers, life support, gravity
+1. shed first: cargo handling, non-essential lighting, the holodecks, the replicators
+2. then: gravity plating, the tractor beam, the turbolifts, sickbay, the science labs
+3. then: the transporters, communications, the navigational deflector, astrometrics, the torpedoes
+4. then: the phasers, the sensors and the impulse drive
+5. kept longest: the warp drive — and, before everything, the spine (life support, structural
+   integrity, inertial dampers, the computer core), which is fed first and never shed by choice
+
+The five rungs exist in the code: the ladder could not *look* like a brownout until the lighting, the
+cargo handling, the gravity plating and the science were systems of their own.
 
 Model: `warp_core{output, health, coolant, breach_risk, ejected}`; `eps{sector→health, load, coolant}`;
 `antimatter{containment%, pods}`; `deuterium{level, integrity}`; `power{budget, ladder_position,
@@ -68,12 +75,17 @@ Three design consequences we take from canon rather than inventing:
 
 - **The three independent sources are resilience, not redundancy to ignore.** Life support and the
   holodecks keep running when the main grid dies -- so "this deck still has air while that one does not"
-  is a state the ship can be in. That is dramatic, and it is free.
+  is a state the ship can be in. That is dramatic, and it is free. **Not yet built (the largest
+  structural gap):** life support and the holodecks are still ordinary loads on the main grid, so the
+  state cannot occur; the cost of building it is sized in `docs/evidence/the-budgets.md`.
 - **The holodeck matrix is incompatible.** Jump-starting from a holodeck reactor destroys relays. This is
-  a designed failure mode, not a solution: a tempting, canon-backed way to make things worse.
+  a designed failure mode, not a solution: a tempting, canon-backed way to make things worse. **Built:**
+  `JumpStartFromHolodeck` ties in a holodeck reactor when the main grid is down, returns a battery
+  charge, and wrecks half the ship's systems.
 - **Losing the core is not losing the ship.** Impulse fusion and batteries remain; warp is gone. Ejection
   is authorized, unreliable, and the core can be recovered by tractor -- a real decision with a real
-  cost.
+  cost. **Built:** with the warp core gone the ship runs only the survival set -- the critical four, the
+  impulse drive and the deflector -- and nothing else.
 
 **Doors, force fields, bulkheads.** Level 1-10 force fields, sealable compartments, and the transverse
 bulkheads Paris improvised in the Year of Hell (a Titanic reference, and a canon precedent for the
@@ -149,7 +161,7 @@ onto canon cleanly, with numbers:
 | question | canon | our call |
 |---|---|---|
 | brownout order | silent | the five-step ladder above |
-| torpedo complement | totals not stated | set a number, make it deplete |
+| torpedo complement | totals not stated | 38, depleting; canon's waypoints are **eleven** at Day 32 of Year of Hell and **six** at Day 226 (`docs/budget-squaring.md`, Finding four) |
 | sensor ranges | Voyager's not stated | short range by compartment, long range by light-year with a scan time |
 | time-to-organise | no such mechanic | ~20 minutes of ship time, tunable |
 | point defence | no such system | not modelled; rapid phaser fire is the closest thing |

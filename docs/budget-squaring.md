@@ -1,10 +1,17 @@
 # The ship's capability against her budgets
 
-**Status: proposed, awaiting the owner's ruling. Nothing here is implemented.**
+**Status: implemented 2026-10-07, on `feat/the-budgets`. The number set below is the one in the code.**
 
 The **demand** table in Part four stands. The owner's headroom ruling of 2026-10-07 (**Part five**)
 **supersedes Part four's constant 230-EPS shortfall** and replaces it with a supply curve that starts *above*
 demand and tightens as the dilithium crystal ages. Part four's *constant* does not survive; its *demand* does.
+
+Implemented from this document: the five added systems and a demand of **1,730**; the sources at warp core
+**1,400** (scaled by the crystal's ceiling), impulse reactors 250, auxiliary fusion 90, batteries 60, for a
+fresh **1,800**; the shed order with the **warp drive last**; the ceiling-scaled warp core; the engineering
+console's two power figures (fresh and now); and the torpedo complement at 38. `scripts/test.sh`,
+`scripts/check.sh` and the engine checks are green, and the evidence is
+`docs/evidence/the-budgets.md`. Save format 50 (the five systems raise `SYS_COUNT`).
 
 Read this with `docs/damage-and-budgets.md`, which owns the two budgets, and `docs/ship-systems.md`, which
 owns the systems. Every figure below was computed rather than recalled, and the canon it rests on is in
