@@ -39,7 +39,7 @@ maintenance, and to keep our own delta thin enough to rebase onto it whenever th
 rule, 2026-10-04: *"I'd rather be in the best position to inherit community work than increase our support
 of more stuff."*
 
-Current delta from the pinned upstream: **61 files, +404/−135 lines, in seventeen patches by concern.**
+Current delta from the pinned upstream: **61 files, +404/−135 lines, in eighteen patches by concern.**
 
 | patch | concern | why it is separate |
 |---|---|---|
@@ -60,6 +60,7 @@ Current delta from the pinned upstream: **61 files, +404/−135 lines, in sevent
 | `0015` | RPG-X's `target_shaderremap` entity | a Harvest B adoption: the class itself lives in `module/ship/lwh_entities.cpp`; the patch registers it, inert without `LWH_MODULE_DIR` |
 | `0016` | SP: the dead are not reloaded | one attach point and its no-op; the refusing logic lives in `module/`, and without it the hook is an empty inline |
 | `0017` | SP: measure a level's content registration | Task A of the headroom brief: one `developer`-gated log line reading the bridge's own configstring table and the game's entity count, so the content limits are measured against a loaded map; silent by default, logging only |
+| `0018` | entities to 8,192, in both trees | a limits policy like `0004`/`0008`, now that the measurement (`0017`) shows the merged ship at 3,896 of 4,096 (95%) and the fifth re-dress projected to cross; `GENTITYNUM_BITS` 12→13 in the engine's and the module's `q_shared.h`, so `MAX_GENTITIES` is 8,192. The bridge tables already follow `MAX_GENTITIES`, so nothing else moves |
 
 Rules that keep this shape:
 

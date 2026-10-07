@@ -170,11 +170,13 @@ Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere con
   the merged ship spends 213 of 4096 configstrings, 141 of 256 models, 67 of 256 sounds, **3896 of
   4096 gentities (95%)** and **15355 of 16384 vis-clusters (94%)**. The limits are raised:
   `MAX_CONFIGSTRINGS` 4096 and `MAX_GAMESTATE_CHARS` 64000 (moved together, patch `0004`),
-  `MAX_GENTITIES` 4096 by `GENTITYNUM_BITS` 10→12 (derived, patches `0004`/`0008`). **`MAX_MODELS`
+  `MAX_GENTITIES` **8192** by `GENTITYNUM_BITS` 10→12→13 (derived, patches `0004`/`0008`/`0018`; the
+  last raise, ahead of deck 6, is `docs/evidence/raise-the-gentity-ceiling.md`). **`MAX_MODELS`
   is left at 256**: the model index rides the network as 8 bits (`NETF(modelindex)`, `msg.c`), so
-  widening it is a protocol change, and there is no measured pressure. The binding limit is entities,
-  not configstrings; the fifth re-dress (deck 6) is projected to cross 4096 gentities. A save
-  round-trips and both `scripts/test.sh` and `scripts/check.sh` exit 0.
+  widening it is a protocol change, and there is no measured pressure. The binding limit was entities,
+  not configstrings; the fifth re-dress (deck 6) was projected to cross 4096 gentities, and the raise
+  to 8192 was done before it rather than during it. A save round-trips and both `scripts/test.sh` and
+  `scripts/check.sh` exit 0.
 
 ## G5 — capstone scenario ⏳ pending
 

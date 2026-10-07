@@ -1,0 +1,39 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 18/18] entities to 8192, in both trees
+
+The merged fifteen-deck ship spawns 3,896 entities of a 4,096 ceiling (95%), and a fifth
+re-dressed deck adds 254..294 more (docs/evidence/engine-content-headroom.md). GENTITYNUM_BITS
+goes from 12 to 13 in the engine's and the module's q_shared.h together, so MAX_GENTITIES
+follows from 4,096 to 8,192. The bridge tables that patch 0008 moved to MAX_GENTITIES widen
+with it, so there is no literal left behind this time.
+
+It rides the wire: NETF(otherEntityNum) et al in msg.c are sized GENTITYNUM_BITS, so client
+and server must be built together. We build both ends in every mode we ship (SP is one
+process over loopback; mode 2 is cMod as shipped, untouched by this tree); no unmodified
+Elite Force client talks to this engine.
+
+Saves written before this patch do not load after it: entity numbers are persisted and their
+width moved.
+---
+--- a/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h
++++ b/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h
+@@ -1160,7 +1160,7 @@
+ #define	MAX_CLIENTS			64		// absolute limit
+ #define MAX_LOCATIONS		64
+ 
+-#define	GENTITYNUM_BITS		12		// raised again: the whole ship as one map spawns more than 2048
++#define	GENTITYNUM_BITS		13		// raised again: the ship is at 3896 of 4096; a fifth deck adds 254..294
+ #define	MAX_GENTITIES		(1<<GENTITYNUM_BITS)
+ 
+ // entitynums are communicated with GENTITY_BITS, so any reserved
+--- a/efgame/src/game/q_shared.h
++++ b/efgame/src/game/q_shared.h
+@@ -875,7 +875,7 @@
+ #define	MAX_CLIENTS			1 // 128		// absolute limit
+ #define MAX_LOCATIONS		64
+ 
+-#define	GENTITYNUM_BITS		12		// raised again: the whole ship as one map spawns more than 2048
++#define	GENTITYNUM_BITS		13		// raised again: the ship is at 3896 of 4096; a fifth deck adds 254..294
+ #define	MAX_GENTITIES		(1<<GENTITYNUM_BITS)
+ 
+ // entitynums are communicated with GENTITY_BITS, so any reserved
