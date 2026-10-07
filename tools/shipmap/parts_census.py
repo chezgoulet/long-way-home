@@ -63,6 +63,8 @@ def main(argv=None):
     ap.add_argument("--map", required=True)
     ap.add_argument("--game", required=True)
     ap.add_argument("--census", help="the reuse source's census (deck11-census.json)")
+    ap.add_argument("--shader", action="append", default=[],
+                    help="an extra .shader file declaring our aliases (a generated deck shader)")
     a = ap.parse_args(argv)
 
     used = used_textures(a.map)
@@ -71,7 +73,7 @@ def main(argv=None):
     if a.census:
         source = {t.lower() for t in json.load(open(a.census)).get("textures", {})}
     ours = set()
-    for p in glob.glob(os.path.join(HERE, "data", "*.shader")):
+    for p in glob.glob(os.path.join(HERE, "data", "*.shader")) + list(a.shader):
         for ln in open(p).read().lower().splitlines():
             s = ln.strip()
             if not s or s.startswith(("/", "{", "}")):

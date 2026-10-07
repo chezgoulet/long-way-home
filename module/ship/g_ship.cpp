@@ -2013,6 +2013,76 @@ void RunTest( void )
 		if ( step == 5 && level.time >= 7600 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
 		return;
 	}
+	if ( g_shipTest->integer == 29 )
+	{//the deck 7 re-dress (docs/locations/deck07-auxcore.brief.md): stand at the turbolift arrival
+	 // facing in past the core column, then at the core-watch post by the panel, and photograph both.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			gentity_t *arrival = NULL;
+			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "d07_arrival" ) ) arrival = e;
+			}
+			if ( arrival )
+			{
+				vec3_t at, angles = { 0, 180, 0 };  // face into the room, toward the core column
+				VectorCopy( arrival->currentOrigin, at );
+				at[2] += 24.0f;
+				TeleportPlayer( &g_entities[0], at, angles, 0 );
+				VectorCopy( angles, glanceAngles );
+				haveGlanceAim = true;
+				gi.Printf( "SHIP: deck 7 room: standing at %s\n", vtos( at ) );
+			}
+			else gi.Printf( "SHIP: deck 7 room: no d07_arrival on this map\n" );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 4000 ) { gi.SendConsoleCommand( "screenshot lwh_deck07\n" ); step = 2; }
+		if ( step == 2 && level.time >= 5000 )
+		{//the core-watch post, looking down the room at the core column and its panel
+			if ( TeleportPlayerTo( "lwh_core_post", "deck 7 room: at the core" ) )
+			{
+				vec3_t look = { 0, 210, 0 };
+				VectorCopy( look, glanceAngles );
+				haveGlanceAim = true;
+			}
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 6000 ) { gi.SendConsoleCommand( "screenshot lwh_deck07_core\n" ); step = 4; }
+		if ( step == 4 && level.time >= 7400 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
+		return;
+	}
+	if ( g_shipTest->integer == 62 )
+	{//the deck 7 emergency lighting state (docs/locations/deck07-auxcore.brief.md): the auxiliary
+	 // core deck goes red with the ship. Stand at the core post, go to battle stations, photograph
+	 // the red strips, then stand down and photograph them off. The fourth deck to carry the state.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			if ( !TeleportPlayerTo( "lwh_core_post", "emergency test 7" ) )
+				TeleportPlayerTo( "d07_arrival", "emergency test 7" );
+			vec3_t look = { 0, 270, 0 };  // look into the room, at the ceiling strips
+			VectorCopy( look, glanceAngles );
+			haveGlanceAim = true;
+			gi.Printf( "SHIP: emergency test 7: alert %d, life support %d%%\n",
+				static_cast<int>( vessel.alert ),
+				static_cast<int>( ship::SystemCondition( vessel.systems[ship::SYS_LIFE_SUPPORT] ) * 100.0f + 0.5f ) );
+			step = 1;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 1 && level.time >= 3200 ) { ship::SetAlert( vessel, ship::ALERT_RED ); step = 2; }
+		if ( step == 2 && level.time >= 4300 ) { gi.SendConsoleCommand( "screenshot lwh_emergency_07\n" ); step = 3; }
+		if ( step == 3 && level.time >= 5600 ) { ship::SetAlert( vessel, ship::ALERT_GREEN ); step = 4; }
+		if ( step == 4 && level.time >= 6200 ) { gi.SendConsoleCommand( "screenshot lwh_emergency_07_off\n" ); step = 5; }
+		if ( step == 5 && level.time >= 7600 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )

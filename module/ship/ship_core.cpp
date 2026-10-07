@@ -93,7 +93,12 @@ const float GRAVITY_REGEN_HOURS = 1.0f;    // ... and a supplied deck gets it ba
 static const int DEPT_SIZE[DEPT_COUNT] = {20, 50, 25, 30, 16}; // sums to COMPLEMENT [inv split]
 static const int DEPT_DECK[DEPT_COUNT] = {1, 11, 4, 8, 5};     // where department duties are done
 const int MESS_DECK = 2;
-const int HOLODECK_DECK = 6;
+// The deck crew go to for recreation by default -- not "the holodeck". Holodeck 1 is on deck 14 and
+// Holodeck 2 on deck 6, per docs/locations/deck14-stasis.brief.md; SYS_HOLODECKS is one system and
+// this is the *recreational* deck the routine sends people to, which is deck 6, where the crew
+// quarters are. Crew do not model walking to whichever holodeck is nearer: that is a design change,
+// not a rename (see the deck-14 evidence, judgement call 6).
+const int HOLODECK_RECREATION_DECK = 6;
 
 static float Clamp01(float v) { return std::min(1.0f, std::max(0.0f, v)); }
 
@@ -407,7 +412,7 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		}
 		if (c.holoCompulsion >= 1.0f) {
 			c.activity = ACT_RECREATION; // lost in the program: no watch, no post, and it wears on them
-			c.deck = HOLODECK_DECK;
+			c.deck = HOLODECK_RECREATION_DECK;
 			c.fatigue = std::min(1.0f, c.fatigue + shipSeconds / (16.0f * 3600.0f));
 			continue;
 		}
@@ -420,14 +425,14 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		switch (a) {
 		case ACT_ON_DUTY: c.deck = static_cast<uint8_t>(DutyDeck(c)); break;
 		case ACT_MEAL: c.deck = MESS_DECK; break;
-		case ACT_RECREATION: c.deck = s.systems[SYS_HOLODECKS].output > 0.0f ? HOLODECK_DECK : MESS_DECK; break;
+		case ACT_RECREATION: c.deck = s.systems[SYS_HOLODECKS].output > 0.0f ? HOLODECK_RECREATION_DECK : MESS_DECK; break;
 		default: c.deck = c.quartersDeck; break;
 		}
 
 		// An evacuated deck is left: whoever the routine would put there goes to the mess hall instead,
 		// station or not. (Security ordered to that same deck is the exception: that is what a guard is.)
 		if (s.orderEvacuate >= 1 && c.deck == s.orderEvacuate && !(c.dept == DEPT_SECURITY && s.orderSecurityTo == s.orderEvacuate)) {
-			c.deck = static_cast<uint8_t>(s.orderEvacuate == MESS_DECK ? HOLODECK_DECK : MESS_DECK);
+			c.deck = static_cast<uint8_t>(s.orderEvacuate == MESS_DECK ? HOLODECK_RECREATION_DECK : MESS_DECK);
 			if (a == ACT_ON_DUTY && c.post < SYS_COUNT && SPECS[c.post].deck == s.orderEvacuate) {
 				c.activity = ACT_PERSONAL; // off their station, by order
 				a = ACT_PERSONAL;

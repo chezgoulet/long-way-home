@@ -308,3 +308,10 @@ re-dresses in order.
 - `scripts/emergency-check.sh` now runs six headless sessions (decks 12, 13 and 14, environment on
   and off). The decks-12/13 evidence's "8 red and 8 working strips" is now the three decks' 12 and
   12; see the note added to `docs/evidence/deck13-redress.md`.
+
+> Note (2026-10-07, after deck 7): judgement call 6's flag is answered in part by
+> `docs/evidence/deck07-auxcore.md` (Task B): `HOLODECK_DECK` is renamed `HOLODECK_RECREATION_DECK`
+> and commented to say it is the recreational default, with Holodeck 1 on deck 14 and Holodeck 2 on
+> deck 6. The behaviour is unchanged (crew still walk to deck 6); whether to model the nearer
+> holodeck is still the owner's decision. `scripts/emergency-check.sh` now runs eight sessions, and
+> the count is the four decks' 16 red and 16 working strips.
