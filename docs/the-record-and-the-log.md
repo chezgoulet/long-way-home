@@ -17,7 +17,7 @@ programme had been treating as one.
 
 The corpus already had the third layer, and `docs/memory-and-consequence.md` gives it provenance: *saw it
 myself*, *was told by X*, *heard it as rumour*, *read it in the log*. A character cannot know what they were
-never told. `docs/memory-boundaries.md` gives the first layer its boundary rule and `docs/gap-the-log` gives
+never told. `docs/memory-boundaries.md` gives the first layer its boundary rule and `docs/evidence/gap-the-log.md` gives
 the second its first slice. What was missing is that they are three things, not one — and that the interesting
 quantity is the **gap** between them.
 
@@ -61,7 +61,7 @@ Canon has both, and the game's own station menus already ship one of them — *P
 expansion's Virtual Voyager menu list (`docs/gates.md`, G2's acceptance bar).
 
 - **The official log.** Signed and published. The month report lives here. Scoped: a post reads its own scope,
-  command reads all, the player can search (`docs/gap-the-log`).
+  command reads all, the player can search (`docs/evidence/gap-the-log.md`).
 - **The personal log.** Private, and where the truth goes when it cannot go in the report.
 
 **The toll is the distance between them.** The canon instance of the whole mechanic is Sisko's final entry in
