@@ -1,0 +1,96 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 19/19] SP: measure the snapshot path (entities, cap, build time)
+
+The performance-survey brief (docs/evidence/performance-survey.md) asks what the engine's snapshot
+path actually does. Patch 0010 chose the snapshot's entities by visibility and distance; this adds
+the instrument that reads what it chose. Logging only, gated by `developer`, so with it unset the
+bridge builds and serves snapshots exactly as before.
+
+Once a second of level time it prints, from the build itself:
+
+  EFSP: SP_SNAPSHOT: t=20000 ents=1024 peak_ents=1024 cand=1166 peak_cand=1202 trunc=381 built=381
+        build_avg_us=597 build_max_us=818
+
+`cand` is how many entities passed the PVS test (the snapshot's candidates); `ents` is how many were
+written; `trunc` counts snapshots that hit MAX_ENTITIES_IN_SNAPSHOT (the SP cap is the module's
+1024, see efgame/src/cgame/cg_public.h, not the engine's 256). A second line reports the whole render
+frame's wall time, so the engine's share can be told from the game module's own clock:
+
+  EFSP: SP_FRAME: t=20000 frames=1242 avg_us=15342 max_us=43000
+---
+diff --git a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+--- a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
++++ b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+@@ -13,6 +13,7 @@
+ #include "../cgame/cg_public.h"   // cgameImport_t (CG_*), snapshot_t
+ #include "../client/vmachine.h"   // cgameExport_t (CG_INIT, CG_DRAW_ACTIVE_FRAME)
+ #include <algorithm>
++#include <chrono>
+ #include <dlfcn.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -719,7 +720,24 @@
+     }
+ }
+ 
++// Performance-survey instrument (docs/evidence/performance-survey.md). Logging only, gated by
++// `developer`, so with it unset the bridge builds and serves snapshots exactly as before. Once a
++// second of level time it reports the snapshot's entity count (and the peak), whether the snapshot
++// hit MAX_ENTITIES_IN_SNAPSHOT (the SP cap) and how many did, the PVS-passing candidate count, and
++// the snapshot-build time. The render frame's whole time is reported separately so the engine's
++// share can be told from the game module's own frame clock (crew/<map>.json, G_RunFrame).
++static long long SnapUs(void){
++    return static_cast<long long>(std::chrono::duration_cast<std::chrono::microseconds>(
++        std::chrono::steady_clock::now().time_since_epoch()).count());
++}
++static int       s_snapEnts = 0, s_snapCand = 0, s_snapPeakEnts = 0, s_snapPeakCand = 0, s_snapTrunc = 0;
++static long long s_snapUs = 0, s_snapUsMax = 0, s_snapBuilt = 0;
++static int       s_snapReportAt = 0;
++static int       s_frameN = 0, s_frameReportAt = 0;
++static long long s_frameUs = 0, s_frameUsMax = 0;
++
+ static void BuildSnapshot(void){
++    const long long _snapT0 = Cvar_VariableIntegerValue("developer") ? SnapUs() : 0;
+     memset(&g_snap, 0, sizeof(g_snap));
+     g_snap.serverTime = g_levelTime;
+     g_snap.serverCommandSequence = g_svCmdSeq;   // tell the cgame how many server commands exist
+@@ -771,6 +789,21 @@
+     g_snapHist[g_snapNum & (SNAP_RING-1)] = g_snap;
+     if(g_snapNum == 1) g_snapBaseTime = g_snap.serverTime;   // floor for the cgame's trailing cg.time
+     g_snapNum++;
++    // Performance-survey instrument: see the statics above BuildSnapshot.
++    if ( Cvar_VariableIntegerValue("developer") ) {
++        const long long dt = SnapUs() - _snapT0;
++        s_snapEnts = n; s_snapCand = nc;
++        if (n  > s_snapPeakEnts) s_snapPeakEnts = n;
++        if (nc > s_snapPeakCand) s_snapPeakCand = nc;
++        if (nc > MAX_ENTITIES_IN_SNAPSHOT) ++s_snapTrunc;
++        s_snapUs += dt; if (dt > s_snapUsMax) s_snapUsMax = dt; ++s_snapBuilt;
++        if (g_levelTime - s_snapReportAt >= 1000) {
++            s_snapReportAt = g_levelTime;
++            blog("SP_SNAPSHOT: t=%d ents=%d peak_ents=%d cand=%d peak_cand=%d trunc=%d built=%lld build_avg_us=%lld build_max_us=%lld\n",
++                 g_levelTime, s_snapEnts, s_snapPeakEnts, s_snapCand, s_snapPeakCand, s_snapTrunc,
++                 s_snapBuilt, s_snapBuilt ? s_snapUs / s_snapBuilt : 0, s_snapUsMax);
++        }
++    }
+ }
+ 
+ #include "sp_render.h"
+@@ -1742,6 +1775,17 @@
+     if(lastReal == 0) lastReal = now;
+     int delta = now - lastReal; lastReal = now;
+     if(delta < 1) delta = 1; if(delta > 100) delta = 100;   // clamp hitches (no >100ms sim jumps)
++    // Performance-survey instrument: the whole render frame's wall time, so the engine's share can be
++    // told from the game module's (crew/<map>.json G_RunFrame clock). Logging only, gated by developer.
++    if ( Cvar_VariableIntegerValue("developer") ) {
++        const long long us = (long long)delta * 1000;
++        s_frameUs += us; if (us > s_frameUsMax) s_frameUsMax = us; ++s_frameN;
++        if (g_levelTime - s_frameReportAt >= 1000) {
++            s_frameReportAt = g_levelTime;
++            blog("SP_FRAME: t=%d frames=%d avg_us=%lld max_us=%lld\n",
++                 g_levelTime, s_frameN, s_frameN ? s_frameUs / s_frameN : 0, s_frameUsMax);
++        }
++    }
+ 
+     // PAUSE when the in-game menu (ESC) or console is up: retail SP pauses the server; our loopback has no
+     // server, so freeze the sim here — do NOT advance g_levelTime or run ClientThink/RunFrame; just re-draw
