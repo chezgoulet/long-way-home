@@ -32,6 +32,8 @@ Three modes, contract in `docs/client-modes.md`:
 - `docs/lore-ledger.md` -- every number claiming to describe Voyager, sourced or marked invented.
 - `docs/confidence-and-verification.md` -- what to trust, and how far. Read before believing anything.
 - `docs/gates.md` -- the ledger: what is closed, what is measured, what is next.
+- `docs/asset-doctrine.md` -- **where our visuals come from**: reuse and remix the base game's
+  assets; own what we make for our own crew, never ship a likeness of a named one.
 - `docs/path-to-playtest.md` -- **the ordered path**: which stage of the remainder comes next, each with
   its exit criteria, and the one decision each of them waits on. The ledger says what is closed; this says
   in what order the rest is done.
