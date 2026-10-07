@@ -46,8 +46,12 @@ static void TestNominalShip()
 
 static void TestPowerIsConserved()
 {
-	g_test = "power is conserved";
+	// Conservation is now a property of the allocator, not of the ship: with automatic mode on the
+	// ladder spends only what the plant supplies. With it off the player's commitments are honoured
+	// in full and a deficit is reported instead (see TestOversubscriptionReported).
+	g_test = "power is conserved by the automatic allocator";
 	Ship s = NewShip();
+	SetPowerAuto(s, true);
 	for (int step = 0; step < 6; ++step) {
 		if (step == 1) SetAlert(s, ALERT_RED);
 		if (step == 2) DamageSource(s, SRC_WARP_CORE, 0.6f);
@@ -70,6 +74,7 @@ static void TestSheddingFollowsPriority()
 {
 	g_test = "shedding follows priority, and the warp drive is shed last";
 	Ship s = NewShip();
+	SetPowerAuto(s, true); // the ladder is the policy of automatic mode only
 	SetAlert(s, ALERT_YELLOW); // everything demands: nothing is suppressed by the condition
 	Tick(s, 1.0f);
 
@@ -88,6 +93,7 @@ static void TestSheddingFollowsPriority()
 	// Put the warp drive behind the comforts and it is the warp that goes dark first: the inversion
 	// the document warns about, made visible.
 	Ship r = NewShip();
+	SetPowerAuto(r, true);
 	SetAlert(r, ALERT_YELLOW);
 	Tick(r, 1.0f);
 	SetPriority(r, SYS_WARP_DRIVE, 99);
@@ -123,6 +129,7 @@ static void TestBudgetShedSequence()
 	};
 	for (const Case &c : CASES) {
 		Ship q = NewShip();
+		SetPowerAuto(q, true); // the shed sequence is what automatic mode does (docs/power-assignment.md)
 		SetAlert(q, ALERT_YELLOW); // everything demands: nothing is suppressed by the condition
 		Tick(q, 1.0f);
 		q.crystalCeiling = c.ceiling;
@@ -179,13 +186,21 @@ static void TestCorelessShip()
 static void TestBatteriesKeepTheCrewAlive()
 {
 	g_test = "the batteries alone hold life support at exactly full for three hours";
+	// The canon arithmetic stands, but who decides is now the player (docs/power-assignment.md):
+	// with the reactors down the player sets life support to full and everything else dark, and the
+	// batteries hold it. The old ship did this silently; the new one waits to be told.
 	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW); // nothing is stood down by the condition, so every allocation can be set
+	for (int i = 0; i < SYS_COUNT; ++i)
+		if (i != SYS_LIFE_SUPPORT) CHECK(SetAllocation(s, static_cast<SystemId>(i), 0));
 	for (int i = 0; i < SRC_BATTERIES; ++i) SetSourceOnline(s, static_cast<SourceId>(i), false);
+	CHECK(SetAllocation(s, SYS_LIFE_SUPPORT, 100));
 	Tick(s, 1.0f);
 	CHECK(s.sources[SRC_BATTERIES].output == 60);        // exactly life support's own demand
 	CHECK(s.systems[SYS_LIFE_SUPPORT].output == 1.0f);
 	CHECK(s.systems[SYS_STRUCTURAL_INTEGRITY].allocated == 0); // not a system short of it
 	CHECK(s.systems[SYS_COMPUTER_CORE].allocated == 0 && s.systems[SYS_SENSORS].allocated == 0);
+	CHECK(PowerShortfall(s) == 0);                       // the player's commitments fit the batteries
 
 	Tick(s, Hours(s, 2.0f));
 	CHECK(s.stores.batteries > 0.25f && s.stores.batteries < 0.40f); // three hours of charge, two spent
@@ -207,6 +222,126 @@ static void TestBatteriesKeepTheCrewAlive()
 	CHECK(s.systems[SYS_LIFE_SUPPORT].output == 1.0f);
 	CHECK(s.decks[4].atmosphere == 1.0f);
 	CHECK(s.decks[4].gravity == 1.0f);
+}
+
+// ---- power allocation: the player decides (docs/power-assignment.md) ---------------------------
+
+// The proving case, and the acceptance that matters: the holodecks running at full while the
+// shields are dark, and the reverse. Both reachable, both stick, neither overridden by any ladder.
+static void TestThePlayerDecides()
+{
+	g_test = "the proving case: the holodecks at full while the shields are dark, and the reverse";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW); // nothing is stood down by the condition, so both can be set
+	CHECK(!PowerAuto(s));      // the default: the player sets the allocation
+
+	CHECK(SetAllocation(s, SYS_SHIELDS, 0));   // the shields dark
+	Tick(s, 1.0f);
+	CHECK(AllocationSource(s, SYS_SHIELDS) == ALLOC_PLAYER);
+	CHECK(s.systems[SYS_SHIELDS].allocated == 0 && s.systems[SYS_SHIELDS].output == 0.0f);
+	CHECK(s.systems[SYS_HOLODECKS].output == 1.0f); // ... and the holodecks run whole
+	// The ladder would have kept the shields (priority 7) and shed the holodecks (20); the player's
+	// decision stands in both directions.
+	CHECK(SetAllocation(s, SYS_HOLODECKS, 0));
+	CHECK(SetAllocation(s, SYS_SHIELDS, 100));
+	Tick(s, 1.0f);
+	CHECK(s.systems[SYS_HOLODECKS].allocated == 0 && s.systems[SYS_HOLODECKS].output == 0.0f);
+	CHECK(s.systems[SYS_SHIELDS].output == 1.0f);
+	CHECK(AllocationSource(s, SYS_HOLODECKS) == ALLOC_PLAYER);
+}
+
+// The acceptance, to the letter: set an allocation, turn automatic mode off, change nothing else,
+// and the ladder does not fire.
+static void TestLadderOnlyInAutoMode()
+{
+	g_test = "the ladder fires only in automatic mode, and never on a system a person has set";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW);
+	CHECK(SetAllocation(s, SYS_HOLODECKS, 60)); // the player wants the holodecks
+
+	SetPowerAuto(s, true);
+	s.crystalCeiling = 0.55f; // 1,170 against 1,730: the ladder must shed something
+	Tick(s, 1.0f);
+	CHECK(s.systems[SYS_CARGO_HANDLING].allocated == 0);   // the ladder fired on an unset system
+	CHECK(s.systems[SYS_HOLODECKS].allocated == 36);       // ... and never touched the player's 60%
+
+	SetPowerAuto(s, false);    // turn it off, change nothing else
+	Tick(s, 1.0f);
+	CHECK(s.systems[SYS_CARGO_HANDLING].allocated == Spec(SYS_CARGO_HANDLING).demand); // the ladder did not fire
+	CHECK(s.systems[SYS_HOLODECKS].allocated == 36);       // the player's decision stands
+	CHECK(PowerShortfall(s) > 0);                          // ... and the shortfall is reported
+}
+
+// Oversubscription is reported, never resolved: nothing goes dark, and the console refuses more.
+static void TestOversubscriptionReported()
+{
+	g_test = "oversubscription is reported as a number, and nothing is shed";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW);
+	s.crystalCeiling = 0.30f; // the plant ages: 420 (core) + 250 + 90 + 60 = 820 against a demand of 1,730
+	Tick(s, 1.0f);
+	CHECK(s.PowerAvailable() == 820);
+	CHECK(PowerShortfall(s) == 1730 - 820); // the shortfall, as a number
+	for (int i = 0; i < SYS_COUNT; ++i)
+		CHECK(s.systems[i].allocated == EffectiveDemand(s, static_cast<SystemId>(i))); // nothing went dark
+	CHECK(s.systems[SYS_HOLODECKS].output > 0.0f);
+	CHECK(s.systems[SYS_LIFE_SUPPORT].output == 1.0f);
+	bool logged = false;
+	for (const LogEntry &e : s.log) if (e.what.find("exceed the plant") != std::string::npos) logged = true;
+	CHECK(logged); // the record carries it
+
+	// The console refuses more until something is freed: a decrease is allowed, the increase back is not.
+	CHECK(SetAllocation(s, SYS_HOLODECKS, 50));
+	CHECK(!SetAllocation(s, SYS_HOLODECKS, 100));
+	CHECK(AllocationPercent(s, SYS_HOLODECKS) == 50);
+}
+
+// Partial allocation is a real state: forty per cent delivers forty per cent.
+static void TestPartialAllocation()
+{
+	g_test = "forty per cent delivers forty per cent";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW);
+	CHECK(SetAllocation(s, SYS_SENSORS, 40)); // the sensors see nearer, but they see
+	Tick(s, 1.0f);
+	CHECK(AllocationPercent(s, SYS_SENSORS) == 40);
+	CHECK(s.systems[SYS_SENSORS].allocated == 24); // 40% of the demand of 60
+	CHECK(std::fabs(s.systems[SYS_SENSORS].output - 0.4f) < 1e-5f); // almost-on, and measurable
+	CHECK(SetAllocation(s, SYS_SENSORS, 100));
+	Tick(s, 1.0f);
+	CHECK(s.systems[SYS_SENSORS].output == 1.0f);
+}
+
+// Task C: the chief engineer recommends (and is refused, and remembers it), and a band delegation
+// is grantable, held by a name, and revocable immediately.
+static void TestRecommendationAndDelegation()
+{
+	g_test = "the chief engineer's recommendation, his refusal mark, and a revocable band";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW);
+	const int chief = DepartmentHead(s, DEPT_ENGINEERING);
+	CHECK(chief >= 0);
+	const Recommendation rec = RecommendAllocation(s);
+	CHECK(rec.by == chief);
+	CHECK(!rec.reasoning.empty()); // it is on the console, with his reasoning
+	for (int i = 0; i < SYS_COUNT; ++i) CHECK(rec.percent[i] >= 0 && rec.percent[i] <= 100);
+
+	CHECK(RefuseRecommendation(s)); // the player refuses: recorded, and the officer remembers it
+	CHECK(Recall(s.crew[chief], MEM_OVERRULED));
+	CHECK(MemoryCount(s.crew[chief]) >= 1);
+
+	// A band delegation: grantable, held by a name, revocable at once.
+	const int grantor = 0; // whoever commands: the captain signs the grant
+	CHECK(GrantBand(s, grantor, chief, BAND_COMFORT));
+	const BandGrant *held = BandHolder(s, BAND_COMFORT);
+	CHECK(held && held->grantee == chief);
+	CHECK(SetAllocationBy(s, SYS_HOLODECKS, 40, chief)); // the officer acts under the grant
+	CHECK(AllocationSource(s, SYS_HOLODECKS) == ALLOC_DELEGATE);
+	CHECK(AllocationProvenance(s, SYS_HOLODECKS).find(s.crew[chief].name) != std::string::npos);
+	CHECK(!SetAllocationBy(s, SYS_SHIELDS, 40, chief)); // the tactical band is not his
+	CHECK(RevokeBand(s, chief, BAND_COMFORT));
+	CHECK(BandHolder(s, BAND_COMFORT) == nullptr);
+	CHECK(!SetAllocationBy(s, SYS_HOLODECKS, 60, chief)); // immediately: the authority is gone
 }
 
 static void TestHullBreach()
@@ -4420,8 +4555,86 @@ static void TestTorpedoComplement()
 	CHECK(!FireTorpedo(s));                          // none left
 }
 
+// `test_ship_core --power` prints the allocation model as evidence (docs/evidence/power-assignment.md):
+// the proving case, the ladder only in automatic mode, oversubscription reported, the chief engineer's
+// recommendation, and a band delegation.
+static int PrintPower()
+{
+	std::printf("== the proving case: the player decides, and no ladder overrides it\n");
+	{
+		Ship s = NewShip();
+		SetAlert(s, ALERT_YELLOW);
+		SetAllocation(s, SYS_SHIELDS, 0);
+		Tick(s, 1.0f);
+		std::printf("  holodecks %3d%%  shields %3d%%   -> holodecks output %3.0f%%, shields output %3.0f%%  (provenance: %s)\n",
+			AllocationPercent(s, SYS_HOLODECKS), AllocationPercent(s, SYS_SHIELDS), s.systems[SYS_HOLODECKS].output * 100,
+			s.systems[SYS_SHIELDS].output * 100, AllocationProvenance(s, SYS_SHIELDS).c_str());
+		SetAllocation(s, SYS_HOLODECKS, 0);
+		SetAllocation(s, SYS_SHIELDS, 100);
+		Tick(s, 1.0f);
+		std::printf("  holodecks %3d%%  shields %3d%%   -> holodecks output %3.0f%%, shields output %3.0f%%  (provenance: %s)\n",
+			AllocationPercent(s, SYS_HOLODECKS), AllocationPercent(s, SYS_SHIELDS), s.systems[SYS_HOLODECKS].output * 100,
+			s.systems[SYS_SHIELDS].output * 100, AllocationProvenance(s, SYS_HOLODECKS).c_str());
+	}
+
+	std::printf("== the ladder fires only in automatic mode, and never on a system a person has set\n");
+	{
+		Ship s = NewShip();
+		SetAlert(s, ALERT_YELLOW);
+		SetAllocation(s, SYS_HOLODECKS, 60);
+		SetPowerAuto(s, true);
+		s.crystalCeiling = 0.55f;
+		Tick(s, 1.0f);
+		std::printf("  AUTO on  at 0.55: cargo handling %d/%d, holodecks %d/%d (the player's)\n",
+			s.systems[SYS_CARGO_HANDLING].allocated, Spec(SYS_CARGO_HANDLING).demand,
+			s.systems[SYS_HOLODECKS].allocated, Spec(SYS_HOLODECKS).demand);
+		SetPowerAuto(s, false);
+		Tick(s, 1.0f);
+		std::printf("  AUTO off, nothing else changed: cargo handling %d/%d, holodecks %d/%d, short %d\n",
+			s.systems[SYS_CARGO_HANDLING].allocated, Spec(SYS_CARGO_HANDLING).demand,
+			s.systems[SYS_HOLODECKS].allocated, Spec(SYS_HOLODECKS).demand, PowerShortfall(s));
+	}
+
+	std::printf("== oversubscription is reported, never resolved\n");
+	{
+		Ship s = NewShip();
+		SetAlert(s, ALERT_YELLOW);
+		s.crystalCeiling = 0.30f;
+		Tick(s, 1.0f);
+		int dark = 0;
+		for (int i = 0; i < SYS_COUNT; ++i) if (s.systems[i].allocated == 0) ++dark;
+		std::printf("  plant %d EPS, committed %d, SHORT %d; systems allocated %d of %d, dark %d\n",
+			s.PowerAvailable(), PowerCommitted(s), PowerShortfall(s),
+			SYS_COUNT - dark, SYS_COUNT, dark);
+	}
+
+	std::printf("== the chief engineer recommends, and a band delegation is revocable\n");
+	{
+		Ship s = NewShip();
+		SetAlert(s, ALERT_YELLOW);
+		const Recommendation rec = RecommendAllocation(s);
+		std::printf("  %s\n", rec.reasoning.c_str());
+		const int chief = rec.by;
+		std::printf("  refused: %s\n", RefuseRecommendation(s) ? "recorded, and he remembers it" : "nothing to refuse");
+		std::printf("  his mark: MEM_OVERRULED held %s\n", Recall(s.crew[chief], MEM_OVERRULED) ? "yes" : "no");
+		std::printf("  grant the comforts to %s: %s\n", s.crew[chief].name.c_str(),
+			GrantBand(s, 0, chief, BAND_COMFORT) ? "held" : "refused");
+		SetAllocationBy(s, SYS_HOLODECKS, 40, chief);
+		std::printf("  holodecks set to %d%% by %s\n", AllocationPercent(s, SYS_HOLODECKS),
+			AllocationProvenance(s, SYS_HOLODECKS).c_str());
+		const bool revoked = RevokeBand(s, chief, BAND_COMFORT);
+		const bool afterRevoke = SetAllocationBy(s, SYS_HOLODECKS, 100, chief);
+		std::printf("  revoke: %s; then the officer's set is %s\n", revoked ? "immediate" : "refused",
+			afterRevoke ? "accepted (a defect)" : "refused (the authority is gone)");
+	}
+	std::printf("== the meeting seam (not built): a staff meeting would call SetAllocation, RecommendAllocation,\n"
+		"   GrantBand and RevokeBand, and read PowerCommitted/PowerAvailable/PowerShortfall (docs/power-assignment.md)\n");
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
+	if (argc > 1 && !std::strcmp(argv[1], "--power")) return PrintPower();
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
@@ -4435,6 +4648,11 @@ int main(int argc, char **argv)
 	TestBudgetShedSequence();
 	TestCorelessShip();
 	TestBatteriesKeepTheCrewAlive();
+	TestThePlayerDecides();
+	TestLadderOnlyInAutoMode();
+	TestOversubscriptionReported();
+	TestPartialAllocation();
+	TestRecommendationAndDelegation();
 	TestHullBreach();
 	TestFuel();
 	TestRoster();

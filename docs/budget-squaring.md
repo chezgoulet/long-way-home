@@ -28,6 +28,11 @@ the chief engineer recommends, and what automatic mode does when nobody has deci
 does to a player who has decided. The ladder survives as a policy with an author and a name on it; it stops
 being law.
 
+**Implemented 2026-10-07 on `feat/power-assignment`.** The demand table and the supply curve below are
+unchanged; what changed is the mechanism. `SPECS[].priority` is now the policy of automatic mode alone (off by
+default), a system's allocation is a share a person sets, and an over-committed plant is reported as a shortfall
+rather than shed. The ladder tests set automatic mode on. Evidence: `docs/evidence/power-assignment.md`.
+
 Read this with `docs/damage-and-budgets.md`, which owns the two budgets, and `docs/ship-systems.md`, which
 owns the systems. Every figure below was computed rather than recalled, and the canon it rests on is in
 `docs/lore-ledger.md`.

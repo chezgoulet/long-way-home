@@ -24,8 +24,16 @@ const int MAX_SOURCES = 8;
 struct SystemRow {
 	char name[32];
 	int allocated, demand, health, output, manned, need, enabled, priority, station, control;
+	int share, allocBy; // the allocation a person set (per cent) and who set it (docs/power-assignment.md)
+	int band; // the budget band it belongs to, for the band delegation (docs/power-assignment.md, Task C)
 	int read; // 1 = the station reads it but does not operate it: a readout, not a control
 };
+
+// The provenance the ship reports: 0 unset, 1 the player, 2 an officer under standing orders, 3 auto.
+const char *ProvenanceName( int by )
+{
+	switch ( by ) { case 1: return "PLAYER"; case 2: return "DELEGATE"; case 3: return "AUTO"; default: return "UNSET"; }
+}
 
 struct SourceRow {
 	char name[32];
@@ -106,10 +114,11 @@ void Refresh( void )
 		for ( int i = 0; i < MAX_SYSTEMS; ++i )
 		{
 			SystemRow &r = all[nAll];
-			int v[10];
-			if ( !ReadRow( va( "lwh_ship_sys%d", i ), r.name, sizeof( r.name ), v, 10 ) ) break;
+			int v[13];
+			if ( !ReadRow( va( "lwh_ship_sys%d", i ), r.name, sizeof( r.name ), v, 13 ) ) break;
 			r.allocated = v[0]; r.demand = v[1]; r.health = v[2]; r.output = v[3];
 			r.manned = v[4]; r.need = v[5]; r.enabled = v[6]; r.priority = v[7]; r.station = v[8]; r.control = v[9];
+			r.share = v[10]; r.allocBy = v[11]; r.band = v[12];
 			r.read = 0;
 			++nAll;
 		}
@@ -305,6 +314,13 @@ void Draw( void )
 	char line[256];
 	ui.Cvar_VariableStringBuffer( "lwh_ship_aboard", line, sizeof( line ) );
 	if ( line[0] ) UI_DrawProportionalString( 44, 72, line, UI_TINYFONT, colorTable[CT_RED] );
+	if ( screen.station == 0 )
+	{// the meeting's seam, made visible: the chief engineer's recommendation, and who holds a band
+		ui.Cvar_VariableStringBuffer( "lwh_ship_recommend", line, sizeof( line ) );
+		if ( line[0] ) UI_DrawProportionalString( 44, 468, va( "RECOMMENDATION: %s", line ), UI_TINYFONT, colorTable[CT_LTGOLD1] );
+		ui.Cvar_VariableStringBuffer( "lwh_ship_grants", line, sizeof( line ) );
+		if ( line[0] ) UI_DrawProportionalString( 44, 128, va( "DELEGATED: %s", line ), UI_TINYFONT, colorTable[CT_LTBLUE2] );
+	}
 	if ( screen.station == 1 )
 	{
 		// The phaser bank's setting: Tactical's standing decision, and the one the console carries
@@ -385,28 +401,37 @@ void Draw( void )
 		if ( portfolio[0] ) UI_DrawProportionalString( 44, 128, va( "READS  %s", portfolio ), UI_TINYFONT, colorTable[CT_LTBLUE2] );
 	}
 
-	// Distribution: one line per system, in the order power is given out.
-	UI_DrawProportionalString( 44, 142, "PRI  SYSTEM", UI_TINYFONT, colorTable[CT_LTORANGE] );
-	UI_DrawProportionalString( 252, 142, "POWER", UI_TINYFONT, colorTable[CT_LTORANGE] );
-	UI_DrawProportionalString( 400, 142, "OUTPUT", UI_TINYFONT, colorTable[CT_LTORANGE] );
-	UI_DrawProportionalString( 520, 142, "CONDITION  CREW", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	// Distribution: one line per system, in the order power is given out. Each carries the FTL
+	// numbers the brief requires (docs/power-assignment.md, Task B): what a person set (SET), the
+	// power it is getting (POWER bar and a/b), what that power buys (BUYS), and who decided (WHO).
+	UI_DrawProportionalString( 44, 138, "PRI SYSTEM", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 236, 138, "SET", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 268, 138, "POWER GETTING", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 420, 138, "BUYS", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 520, 138, "WHO", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 584, 138, "COND CREW", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	for ( int i = 0; i < screen.systems; ++i )
 	{
 		const SystemRow &r = screen.sys[i];
-		const int y = 155 + i * 15;
+		const int y = 150 + i * 13;
 		const bool selected = i == screen.cursor;
-		if ( selected ) UI_FillRect( 38, y - 1, 582, 14, colorTable[CT_DKPURPLE2] );
+		if ( selected ) UI_FillRect( 38, y - 1, 582, 12, colorTable[CT_DKPURPLE2] );
 		// A read is not a control: a row this station may read but not operate is tagged RD and drawn
 		// in the read colour, so the difference is visible (owner ruling, 2026-10-07).
 		const int text = r.read ? CT_LTBLUE2 : ( !r.enabled ? CT_DKGREY : selected ? CT_WHITE : CT_LTGOLD1 );
-		UI_DrawProportionalString( 44, y, r.read ? "RD" : va( "%3d", r.priority ), UI_TINYFONT, colorTable[text] );
-		UI_DrawProportionalString( 76, y, r.read ? va( "%s  (read)", r.name ) : r.name, UI_TINYFONT, colorTable[text] );
-		Bar( 252, y + 2, 100, 8, r.demand ? r.allocated * 100 / r.demand : 0, CT_LTBLUE2 );
-		UI_DrawProportionalString( 358, y, r.enabled ? va( "%d/%d", r.allocated, r.demand ) : "OFF", UI_TINYFONT, colorTable[text] );
-		Bar( 400, y + 2, 100, 8, r.output, HealthColour( r.health ) );
-		if ( r.control < 50 ) UI_DrawProportionalString( 520, y, "HIJACKED", UI_TINYFONT, colorTable[CT_RED] );
-		else UI_DrawProportionalString( 520, y, va( "%3d%%", r.health ), UI_TINYFONT, colorTable[HealthColour( r.health )] );
-		UI_DrawProportionalString( 584, y, va( "%d/%d", r.manned, r.need ), UI_TINYFONT,
+		UI_DrawProportionalString( 44, y, r.read ? "RD" : va( "%2d", r.priority ), UI_TINYFONT, colorTable[text] );
+		UI_DrawProportionalString( 76, y, r.read ? va( "%s (read)", r.name ) : r.name, UI_TINYFONT, colorTable[text] );
+		// The allocation a person set, and whether the system is on: the two things a person decides.
+		UI_DrawProportionalString( 236, y, r.enabled ? va( "%3d%%", r.share ) : " OFF", UI_TINYFONT,
+			colorTable[!r.enabled ? CT_DKGREY : r.allocBy ? CT_WHITE : CT_LTPURPLE1] );
+		Bar( 268, y + 2, 84, 8, r.demand ? r.allocated * 100 / r.demand : 0, CT_LTBLUE2 );
+		UI_DrawProportionalString( 356, y, r.enabled ? va( "%d/%d", r.allocated, r.demand ) : "OFF", UI_TINYFONT, colorTable[text] );
+		Bar( 420, y + 2, 64, 8, r.output, HealthColour( r.health ) );
+		UI_DrawProportionalString( 490, y, va( "%3d%%", r.output ), UI_TINYFONT, colorTable[text] );
+		UI_DrawProportionalString( 520, y, ProvenanceName( r.allocBy ), UI_TINYFONT,
+			colorTable[r.allocBy == 3 ? CT_LTORANGE : r.allocBy ? CT_LTBLUE2 : CT_DKGREY] );
+		if ( r.control < 50 ) UI_DrawProportionalString( 584, y, "HIJACK", UI_TINYFONT, colorTable[CT_RED] );
+		else UI_DrawProportionalString( 584, y, va( "%3d %d/%d", r.health, r.manned, r.need ), UI_TINYFONT,
 			colorTable[r.manned >= r.need ? CT_LTBLUE2 : CT_RED] );
 	}
 
@@ -414,7 +439,7 @@ void Draw( void )
 	// It reads from the ship and cannot lie. Drawn below the system list where the list leaves room;
 	// where it does not (Main Engineering shows all eighteen), the panel and `ship nav` carry it.
 	{
-		const int navY = 155 + screen.systems * 15 + 3;
+		const int navY = 150 + screen.systems * 13 + 3;
 		if ( navY <= 372 )
 		{
 			ui.Cvar_VariableStringBuffer( "lwh_ship_nav", line, sizeof( line ) );
@@ -428,8 +453,11 @@ void Draw( void )
 		UI_DrawProportionalString( 44, 410, screen.transporter, UI_TINYFONT,
 			colorTable[screen.alert == 2 ? CT_RED : screen.alert == 1 ? CT_LTORANGE : CT_LTBLUE2] );
 
-	UI_DrawProportionalString( 44, 426, screen.station == 0
-		? "UP/DOWN select   ENTER on/off   LEFT/RIGHT priority   1 2 3 condition   Y override   ESC leave"
+	// Engineering shows every system, so its list runs to the foot of the frame: its controls go
+	// below the frame's bottom bar, where the rest have room above it.
+	const int footerY = screen.station == 0 ? 456 : 426;
+	UI_DrawProportionalString( 44, footerY, screen.station == 0
+		? "UP/DOWN  ENTER on/off  -/+ ALLOC  E auto  G accept  D decline  [ ] band  L/R priority  Y override  ESC"
 		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   V phaser setting   1 2 3 condition   F fire torpedo   H countermeasures   Y override   ESC leave"
 		: screen.station == 2 ? "UP/DOWN  ENTER on/off  T beam  R recall  U survey  O field  L hail  M trade  A distress  H counter  Y override  ESC"
 		: screen.station == 3 ? "UP/DOWN   ENTER on/off   J K L jump   C course   X run   H counter   Y override   ESC leave"
@@ -519,6 +547,35 @@ bool Act( int key )
 		if ( screen.station != 1 ) return false;
 		Send( va( "ship yield %d", ( static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_yield_idx" ) ) + 1 ) % 4 ) );
 		return true;
+	// The FTL controls (docs/power-assignment.md, Task B and C): the allocation a person sets, the
+	// automatic mode, the chief's recommendation, and a band delegation. Engineering's to work.
+	case '-': case '=': case '+':
+	{//the allocation itself: not a tier, a number. A decrease is always allowed; an increase the
+	 //ship refuses is reported back in lwh_ship_refusal.
+		if ( r.read || !r.enabled ) return true;
+		int want = r.share + ( key == '-' ? -10 : 10 );
+		if ( want < 0 ) want = 0;
+		if ( want > 100 ) want = 100;
+		Send( va( "ship alloc \"%s\" %d", r.name, want ) );
+		return true;
+	}
+	case 'e': case 'E': // automatic mode: the ladder as policy, off by default
+		Send( "ship auto toggle" );
+		return true;
+	case 'g': case 'G': // accept the chief engineer's recommendation
+		Send( "ship accept" );
+		return true;
+	case 'd': case 'D': // decline it: recorded, and the officer remembers
+		Send( "ship refuse" );
+		return true;
+	case '[': // grant the selected system's band to the chief engineer
+	case ']': // ... and take it back, at once
+	{
+		char chief[16];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_chief", chief, sizeof( chief ) );
+		Send( va( "ship band %s %d %s", key == '[' ? "grant" : "revoke", r.band, chief ) );
+		return true;
+	}
 	case 'h': case 'H': // countermeasures on the selected system: ask the ship for a puzzle, then present it
 		Send( va( "ship breach \"%s\"", r.name ) );
 		ui.Cmd_ExecuteText( EXEC_APPEND, "lwh_eng_key breachopen\n" ); //after the ship has published it
