@@ -26,6 +26,7 @@ Home, our own single player and multiplayer, built on the released Raven game so
 - **the ship as state: the save, the systems, the load adapter** — `docs/ship-model.md`
 - **one system: its state, control, visible effect, failure mode, location** — `docs/ship-systems.md`
 - **power, damage, the two budgets, cascades, abandonment** — `docs/damage-and-budgets.md`
+- **who decides what is online, and how much power each system gets** — `docs/power-assignment.md`
 - **what the ship's numbers should be, and the reasoning** — `docs/budget-squaring.md`
 - **which deck hosts what** — `docs/ship-master-map.md`
 - **what can harm the ship, and what each faction threatens** — `docs/scenario-atlas.md`
