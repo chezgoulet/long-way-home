@@ -111,12 +111,15 @@ four things:
 
 ```
     you are Reyes, crew number 97
-    off refused at MAIN ENGINEERING: you are not cleared for this station
+    off refused at MAIN ENGINEERING: you are not cleared for MAIN ENGINEERING; the Chief Engineer or a lieutenant commander may open it, or a delegation for the shift
     alert refused at TACTICAL: calling the alert needs a lieutenant or above
-    off refused at TACTICAL: that system is not operated from this station
+    off refused at TACTICAL: sensors is operated from OPERATIONS
     clearance test: sensors on, phasers off, condition 0
 PASS  a security ensign operates Tactical's own systems and nothing else, and does not call the alert
 ```
+
+The refusal now names who can open the control (docs/access-and-authority.md, 2026-10-07); the
+clearance model and its new pieces are proved in `docs/evidence/access-and-authority.md`.
 
 Until a character is chosen the player is nobody in particular and is not held to a rank; a
 hijacked system refuses any console. Commands typed bare at the game's own console remain a

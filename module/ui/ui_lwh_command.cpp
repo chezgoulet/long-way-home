@@ -67,7 +67,7 @@ void CommandDraw( void )
 	// The navigation counter: everyone's fact (docs/navigation-counter.md). Here in the ready room it
 	// sits above the forecasts, which are command's alone.
 	ui.Cvar_VariableStringBuffer( "lwh_ship_nav", line, sizeof( line ) );
-	if ( line[0] ) UI_DrawProportionalString( 44, 88, line, UI_TINYFONT, colorTable[CT_LTBLUE1] );
+	if ( line[0] ) UI_DrawProportionalString( 44, 88, line, UI_TINYFONT, colorTable[CT_LTBLUE2] );
 
 	UI_DrawProportionalString( 44, 100, "ORDERS IN FORCE", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	ui.Cvar_VariableStringBuffer( "lwh_ship_orders", line, sizeof( line ) );
@@ -105,16 +105,30 @@ void CommandDraw( void )
 			char *who = strchr( what, '|' ); if ( !who ) break; *who++ = 0;
 			const int y = 224 + rows * 14;
 			UI_DrawProportionalString( 460, y, va( "%s  %s", when, kind ), UI_TINYFONT, colorTable[CT_LTGOLD1] );
-			UI_DrawProportionalString( 460, y + 7, va( "%s - %s", what, who ), UI_TINYFONT, colorTable[CT_LTBLUE1] );
+			UI_DrawProportionalString( 460, y + 7, va( "%s - %s", what, who ), UI_TINYFONT, colorTable[CT_LTBLUE2] );
 		}
 		if ( !rows ) UI_DrawProportionalString( 460, 224, "NOTHING YET", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+	}
+
+	// Access, in command's own room: the emergency override in progress, the lock-outs a senior
+	// officer has imposed, and the grants for a shift (docs/access-and-authority.md, owner decision
+	// 2026-10-07). The lock-out names both hands, so the console can say who did it to whom.
+	{
+		char ov[160], locks[512], grants[512];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_override", ov, sizeof( ov ) );
+		ui.Cvar_VariableStringBuffer( "lwh_ship_lockouts", locks, sizeof( locks ) );
+		ui.Cvar_VariableStringBuffer( "lwh_ship_delegations", grants, sizeof( grants ) );
+		int y = 300;
+		if ( ov[0] ) { UI_DrawProportionalString( 44, y, ov, UI_TINYFONT, colorTable[strstr( ov, "ACTIVE" ) ? CT_RED : CT_LTORANGE] ); y += 14; }
+		if ( locks[0] ) { UI_DrawProportionalString( 44, y, va( "LOCKED OUT: %s", locks ), UI_TINYFONT, colorTable[CT_RED] ); y += 14; }
+		if ( grants[0] ) { UI_DrawProportionalString( 44, y, va( "DELEGATED: %s", grants ), UI_TINYFONT, colorTable[CT_LTBLUE2] ); }
 	}
 
 	// The player's character and their career: command can confirm a field promotion here.
 	ui.Cvar_VariableStringBuffer( "lwh_ship_player", line, sizeof( line ) );
 	UI_DrawProportionalString( 44, 320, va( "YOUR CHARACTER: %s", line[0] ? line : "NONE" ), UI_SMALLFONT, colorTable[CT_WHITE] );
 	ui.Cvar_VariableStringBuffer( "lwh_ship_player_next", line, sizeof( line ) );
-	if ( line[0] ) UI_DrawProportionalString( 44, 336, va( "P  field promotion to %s", line ), UI_TINYFONT, colorTable[CT_LTBLUE1] );
+	if ( line[0] ) UI_DrawProportionalString( 44, 336, va( "P  field promotion to %s", line ), UI_TINYFONT, colorTable[CT_LTBLUE2] );
 	ui.Cvar_VariableStringBuffer( "lwh_ship_promote", line, sizeof( line ) );
 	if ( line[0] ) UI_DrawProportionalString( 44, 350, line, UI_TINYFONT, strncmp( line, "REFUSED", 7 ) == 0 ? colorTable[CT_RED] : colorTable[CT_LTGOLD1] );
 
@@ -125,7 +139,7 @@ void CommandDraw( void )
 		UI_DrawProportionalString( 44, 362, "FORECASTS - the estimate under each course", UI_TINYFONT, colorTable[CT_LTORANGE] );
 		int row = 0;
 		for ( char *tok = strtok( line, ";" ); tok && row < 3; tok = strtok( NULL, ";" ), ++row )
-			UI_DrawProportionalString( 44, 376 + row * 12, tok, UI_TINYFONT, colorTable[CT_LTBLUE1] );
+			UI_DrawProportionalString( 44, 376 + row * 12, tok, UI_TINYFONT, colorTable[CT_LTBLUE2] );
 	}
 
 	UI_DrawProportionalString( 44, 412, "UP/DOWN system   LEFT/RIGHT deck   R repair that system first   G guard to that deck   V evacuate that deck",
@@ -189,7 +203,7 @@ void CreationDraw( void )
 {
 	char line[128];
 	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
-	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTBLUE1] );
+	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTBLUE2] );
 	UI_FillRect( 20, 42, 14, 396, colorTable[CT_DKPURPLE1] );
 	UI_FillRect( 20, 442, 600, 10, colorTable[CT_DKPURPLE1] );
 	UI_DrawProportionalString( 44, 19, "PERSONNEL  -  NEW CREW MEMBER", UI_SMALLFONT, colorTable[CT_BLACK] );
@@ -205,7 +219,7 @@ void CreationDraw( void )
 	static const char *const WORKS[] = { "Operations and the Conn", "Main Engineering", "Tactical", "Operations and the Conn", "Sickbay" };
 	UI_DrawProportionalString( 44, 270, va( "Station: %s%s", creation.rank >= 4 ? "any" : WORKS[creation.dept],
 		creation.rank >= 3 && ( creation.dept == 1 || creation.dept == 2 || creation.rank >= 4 ) ? ", and may call the alert there" : "" ),
-		UI_SMALLFONT, colorTable[CT_LTBLUE1] );
+		UI_SMALLFONT, colorTable[CT_LTBLUE2] );
 
 	ui.Cvar_VariableStringBuffer( "lwh_ship_player", line, sizeof( line ) );
 	if ( line[0] ) UI_DrawProportionalString( 44, 320, va( "SERVING AS: %s", line ), UI_SMALLFONT, colorTable[CT_WHITE] );

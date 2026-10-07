@@ -1808,6 +1808,7 @@ std::string AccountLine( const ship::Ship &s, const ship::CrewMember &c )
 	case ship::MEM_LIE:       return "You told me one thing and did another.";
 	case ship::MEM_RESCUE:    return "You came back for us. I have not forgotten.";
 	case ship::MEM_VIOLATION: return "We crossed a line out there. People will remember.";
+	case ship::MEM_LOCKOUT:   return "You shut me out of my own station. I will not forget it.";
 	}
 	return "All quiet, Captain.";
 }

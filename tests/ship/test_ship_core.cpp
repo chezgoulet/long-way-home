@@ -3268,6 +3268,134 @@ static void TestRankAndRoles()
 	CHECK(Pack(back) == blob);
 }
 
+// The access model beyond rank: delegation, revocation, the emergency override, remote call-up and
+// the lock-out (docs/access-and-authority.md, owner decision 2026-10-07).
+static void TestAccessAndAuthority()
+{
+	g_test = "delegation, revocation, override and the lock-out";
+
+	// Find a department head (a fit engineering lieutenant or above) and a junior engineer to grant.
+	Ship s = NewShip();
+	// A junior of another department, so the delegation is the only reason Engineering opens to them.
+	int head = -1, junior = -1, commander = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT) continue;
+		if (head < 0 && c.dept == DEPT_ENGINEERING && c.rank >= 3) head = i;
+		if (junior < 0 && c.dept != DEPT_ENGINEERING && c.rank < 3) junior = i;
+		if (commander < 0 && c.rank >= 4) commander = i;
+	}
+	CHECK(head >= 0 && junior >= 0 && commander >= 0);
+	CHECK(!MayOperate(s, junior, STN_ENGINEERING)); // not their department, no credential, no grant
+	// Access and authority stay two things: a crew member with no morale still operates their station.
+	CHECK(MayOperate(s.crew[head], STN_ENGINEERING));
+	s.crew[head].morale = 0.0f;
+	CHECK(MayOperate(s.crew[head], STN_ENGINEERING)); // access is not morale-governed
+	s.crew[head].morale = 1.0f;
+
+	// Delegation: the head grants Engineering for a shift. The grantee is not already cleared (a
+	// credential would mask it), so check a station the junior does not hold, then revoke it.
+	CHECK(Delegate(s, head, junior, STN_ENGINEERING) && DelegatedTo(s, junior, STN_ENGINEERING));
+	CHECK(MayOperate(s, junior, STN_ENGINEERING));
+	bool loggedGrant = false, loggedRevoke = false;
+	for (const LogEntry &e : s.log) if (e.what.find("grants") != std::string::npos) loggedGrant = true;
+	CHECK(loggedGrant);
+	const int headRank = s.crew[head].rank;
+	// The revocation names who turned it off, and the access stops.
+	CHECK(RevokeDelegation(s, head, junior, STN_ENGINEERING));
+	for (const LogEntry &e : s.log) if (e.what.find("revokes") != std::string::npos) loggedRevoke = true;
+	CHECK(loggedRevoke && !DelegatedTo(s, junior, STN_ENGINEERING));
+	CHECK(!MayOperate(s, junior, STN_ENGINEERING));
+	(void)headRank;
+
+	// The shift lapses on its own: a delegation with a near expiry is gone after a tick.
+	CHECK(Delegate(s, head, junior, STN_ENGINEERING));
+	s.delegations.back().expires = s.clock + 10.0;
+	CHECK(DelegatedTo(s, junior, STN_ENGINEERING));
+	Tick(s, Hours(s, 1.0f));
+	CHECK(!DelegatedTo(s, junior, STN_ENGINEERING));
+
+	// The crew can revoke a credential too, and the log says who.
+	const int trained = junior;
+	CHECK(Train(s, trained, STN_TACTICAL) && Qualified(s.crew[trained], STN_TACTICAL));
+	CHECK(RevokeCredential(s, commander, trained, STN_TACTICAL));
+	CHECK(!Qualified(s.crew[trained], STN_TACTICAL));
+
+	// Emergency override: slow, and two hands are faster than one. A junior at the Conn begins it.
+	Ship o = NewShip();
+	int sec = -1;
+	for (int i = 0; i < static_cast<int>(o.crew.size()); ++i)
+		if (o.crew[i].status == CREW_FIT && o.crew[i].rank >= 3 && i != head) { sec = i; break; }
+	CHECK(sec >= 0);
+	CHECK(BeginOverride(o, junior, STN_CONN));
+	CHECK(!OverrideActive(o, STN_CONN)); // slow: not yet
+	CHECK(ConfirmOverride(o, sec, STN_CONN) && OverrideState(o).second == sec);
+	Tick(o, Hours(o, OVERRIDE_TWO_MINUTES / 60.0f + 0.05f));
+	CHECK(OverrideActive(o, STN_CONN));
+	// While it holds, the forced station answers to the player even though they are not cleared for it.
+	o.player = junior;
+	CHECK(PlayerMayOperate(o, STN_CONN));
+	CHECK(!PlayerMayOperate(o, STN_ENGINEERING)); // only the station that was forced
+	// It lapses.
+	Tick(o, Hours(o, OVERRIDE_DURATION_MINUTES / 60.0f + 0.05f));
+	CHECK(!OverrideActive(o, STN_CONN));
+
+	// A solo force takes longer and is recorded as one hand.
+	Ship solo = NewShip();
+	CHECK(BeginOverride(solo, junior, STN_CONN));
+	CHECK(!OverrideActive(solo, STN_CONN));
+	Tick(solo, Hours(solo, OVERRIDE_TWO_MINUTES / 60.0f + 0.05f));
+	CHECK(!OverrideActive(solo, STN_CONN)); // one hand must wait the solo time
+	Tick(solo, Hours(solo, (OVERRIDE_SOLO_MINUTES - OVERRIDE_TWO_MINUTES) / 60.0f + 0.05f));
+	CHECK(OverrideActive(solo, STN_CONN) && OverrideState(solo).solo);
+
+	// The named refusal says who can open it, and where a system is worked.
+	CHECK(AccessRefusal(s, STN_ENGINEERING).find("MAIN ENGINEERING") != std::string::npos);
+	CHECK(AccessRefusal(s, STN_ENGINEERING).find("Chief Engineer") != std::string::npos);
+	CHECK(OperatedFromRefusal(SYS_TRANSPORTERS).find("OPERATIONS") != std::string::npos);
+
+	// Remote call-up: a lieutenant commander may call up a system from a console away from it; a
+	// junior may not. Command travels; the physical work still does not.
+	CHECK(!OperatedFrom(SYS_TRANSPORTERS, STN_TACTICAL));
+	CHECK(MayCallUp(s, commander, STN_TACTICAL, SYS_TRANSPORTERS));
+	CHECK(!MayCallUp(s, junior, STN_TACTICAL, SYS_TRANSPORTERS));
+
+	// The lock-out: a senior officer shuts a junior out of their own station. The console stops
+	// answering, the notice names both hands, and the junior's record carries a negative mark.
+	CHECK(!LockOut(s, junior, STN_ENGINEERING, head)); // below the post-holder: refused
+	CHECK(LockOut(s, head, STN_ENGINEERING, junior));
+	CHECK(LockedOut(s, junior, STN_ENGINEERING));
+	CHECK(!MayOperate(s, junior, STN_ENGINEERING));
+	CHECK(LockoutNotice(s, junior, STN_ENGINEERING).find(s.crew[head].name) != std::string::npos);
+	CHECK(LockoutNotice(s, junior, STN_ENGINEERING).find(s.crew[junior].name) != std::string::npos);
+	bool marked = false;
+	for (const Memory &m : s.crew[junior].memories)
+		if (m.event == MEM_LOCKOUT && m.source == MEM_SAW && m.valence < 0.0f && m.person == head) marked = true;
+	CHECK(marked);
+	CHECK(ClearLockout(s, head, STN_ENGINEERING, junior) && !LockedOut(s, junior, STN_ENGINEERING));
+
+	// A compromised system refuses everyone, whatever their rank: hardware beats hierarchy.
+	Ship h = NewShip();
+	h.systems[SYS_PHASERS].enabled = true;
+	h.systems[SYS_PHASERS].control = 0.2f;
+	CHECK(Hijacked(h, SYS_PHASERS));
+	SetEnabled(h, SYS_PHASERS, false);
+	CHECK(h.systems[SYS_PHASERS].enabled); // the console did not answer, even for a captain
+
+	// All of it is in the save, byte for byte.
+	Ship w = NewShip();
+	CHECK(Delegate(w, head, junior, STN_ENGINEERING));
+	CHECK(LockOut(w, head, STN_ENGINEERING, junior));
+	CHECK(BeginOverride(w, head, STN_CONN));
+	CHECK(ConfirmOverride(w, sec, STN_CONN));
+	const std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.delegations.size() == 1 && back.lockouts.size() == 1);
+	CHECK(back.emergencyOverride.station == STN_CONN && back.emergencyOverride.second == sec);
+	CHECK(Pack(back) == blob);
+}
+
 // Orders: what being in command is for.
 static void TestOrders()
 {
@@ -4124,6 +4252,7 @@ int main(int argc, char **argv)
 	TestModesAndClocks();
 	TestSleepAndExits();
 	TestRankAndRoles();
+	TestAccessAndAuthority();
 	TestOrders();
 	TestPlayerInTheWorld();
 

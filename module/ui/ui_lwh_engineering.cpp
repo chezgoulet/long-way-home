@@ -35,6 +35,7 @@ struct Screen {
 	menuframework_s menu;
 	int cursor;
 	int station;        // which console this is: 0 Engineering (sees all), 1 Tactical, 2 Ops, 3 Conn, 4 Sickbay
+	char focus[32];     // the system this console's location is for: the cursor opens on it (location appropriateness)
 	int systems, sources;
 	SystemRow sys[MAX_SYSTEMS];
 	SourceRow src[MAX_SOURCES];
@@ -101,6 +102,15 @@ void Refresh( void )
 	ui.Cvar_VariableStringBuffer( "lwh_ship_transporter", screen.transporter, sizeof( screen.transporter ) );
 	screen.alert = static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_alert" ) );
 	if ( screen.cursor >= screen.systems ) screen.cursor = screen.systems ? screen.systems - 1 : 0;
+	// Location appropriateness: a console opens on the system its location is for (a transporter
+	// console on the transporters, the environmental console on life support). Applied once, so the
+	// hand still moves the cursor afterwards.
+	if ( screen.focus[0] )
+	{
+		for ( int i = 0; i < screen.systems; ++i )
+			if ( !Q_stricmp( screen.sys[i].name, screen.focus ) ) { screen.cursor = i; break; }
+		screen.focus[0] = 0;
+	}
 }
 
 // Every command goes out under the station's name, so the ship can hold it to that station's
@@ -121,7 +131,7 @@ void Bar( int x, int y, int w, int h, int percent, int colour )
 
 int HealthColour( int percent )
 {
-	return percent >= 75 ? CT_LTBLUE1 : percent >= 35 ? CT_LTORANGE : CT_RED;
+	return percent >= 75 ? CT_LTBLUE2 : percent >= 35 ? CT_LTORANGE : CT_RED;
 }
 
 // ---- the breach puzzle ----------------------------------------------------------------------
@@ -229,12 +239,12 @@ void BreachDraw( void )
 		Q_strncpyz( copy, screen.targets, sizeof( copy ) );
 		int row = 0;
 		for ( char *seq = strtok( copy, "|" ); seq; seq = strtok( NULL, "|" ), ++row )
-			UI_DrawProportionalString( 380, 84 + row * 28, seq, UI_SMALLFONT, colorTable[CT_LTBLUE1] );
+			UI_DrawProportionalString( 380, 84 + row * 28, seq, UI_SMALLFONT, colorTable[CT_LTBLUE2] );
 	}
 	UI_DrawProportionalString( 44, 330, va( "BUFFER  %d / %d", screen.npicks, BREACH_BUFFER ), UI_TINYFONT, colorTable[CT_LTORANGE] );
 	UI_DrawProportionalString( 380, 330, va( "TRACE COMPLETES IN %d", ( left + 999 ) / 1000 ), UI_SMALLFONT, colorTable[left < 10000 ? CT_RED : CT_LTGOLD1] );
 	UI_FillRect( 380, 352, 200, 6, colorTable[CT_DKPURPLE3] );
-	UI_FillRect( 380, 352, 200 * left / BREACH_MS, 6, colorTable[left < 10000 ? CT_RED : CT_LTBLUE1] );
+	UI_FillRect( 380, 352, 200 * left / BREACH_MS, 6, colorTable[left < 10000 ? CT_RED : CT_LTBLUE2] );
 	for ( int i = 0; i < screen.npicks; ++i )
 		UI_DrawProportionalString( 60 + i * 56, 348, screen.codes[screen.picks[i]], UI_SMALLFONT, colorTable[CT_WHITE] );
 	UI_DrawProportionalString( 44, 426, "ARROWS move along the lit line   ENTER take the code   S send what you have   ESC abandon",
@@ -246,7 +256,7 @@ void Draw( void )
 	Refresh();
 	if ( screen.breaching ) { BreachDraw(); return; }
 
-	static const int ALERT_COLOUR[3] = { CT_LTBLUE1, CT_YELLOW, CT_RED };
+	static const int ALERT_COLOUR[3] = { CT_LTBLUE2, CT_YELLOW, CT_RED };
 	const int alertColour = ALERT_COLOUR[screen.alert >= 0 && screen.alert < 3 ? screen.alert : 0];
 
 	// The frame: a header bar, a left spine, a footer -- the LCARS shape, in flat colour.
@@ -271,7 +281,7 @@ void Draw( void )
 	if ( screen.station == 1 )
 	{
 		ui.Cvar_VariableStringBuffer( "lwh_ship_enemy", line, sizeof( line ) );
-		UI_DrawProportionalString( 44, 384, line[0] ? line : "NO CONTACTS", UI_SMALLFONT, colorTable[line[0] ? CT_RED : CT_LTBLUE1] );
+		UI_DrawProportionalString( 44, 384, line[0] ? line : "NO CONTACTS", UI_SMALLFONT, colorTable[line[0] ? CT_RED : CT_LTBLUE2] );
 		UI_DrawProportionalString( 44, 398, va( "OUR SHIELDS %d%%", static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_shields" ) ) ),
 			UI_TINYFONT, colorTable[CT_LTGOLD1] );
 	}
@@ -283,19 +293,34 @@ void Draw( void )
 	if ( screen.station == 4 )
 	{
 		ui.Cvar_VariableStringBuffer( "lwh_ship_medical", line, sizeof( line ) );
-		UI_DrawProportionalString( 44, 384, line[0] ? line : "NO MEDICAL DATA", UI_SMALLFONT, colorTable[CT_LTBLUE1] );
+		// TINYFONT, not SMALLFONT: the ward line carries seven fields and overflowed the 640px face
+		// in the large font (see docs/evidence/access-and-authority.md, the usability finding).
+		UI_DrawProportionalString( 44, 384, line[0] ? line : "NO MEDICAL DATA", UI_TINYFONT, colorTable[CT_LTBLUE2] );
 	}
 	if ( screen.station == 2 )
 	{// the endurance clocks and the away kit (Operations)
 		ui.Cvar_VariableStringBuffer( "lwh_ship_clocks", line, sizeof( line ) );
 		if ( line[0] ) UI_DrawProportionalString( 44, 384, line, UI_TINYFONT,
-			colorTable[ui.Cvar_VariableValue( "lwh_ship_clocks_alarm" ) > 0.5f ? CT_RED : CT_LTBLUE1] );
+			colorTable[ui.Cvar_VariableValue( "lwh_ship_clocks_alarm" ) > 0.5f ? CT_RED : CT_LTBLUE2] );
 		ui.Cvar_VariableStringBuffer( "lwh_ship_kit", line, sizeof( line ) );
 		if ( line[0] ) UI_DrawProportionalString( 44, 398, line, UI_TINYFONT, colorTable[CT_LTGOLD1] );
 	}
 	char result[16];
 	ui.Cvar_VariableStringBuffer( "lwh_breach_result", result, sizeof( result ) );
-	if ( result[0] ) UI_DrawProportionalString( 320, 398, va( "LAST COUNTERMEASURE: %s%% EFFECTIVE", result ), UI_TINYFONT, colorTable[CT_LTBLUE1] );
+	if ( result[0] ) UI_DrawProportionalString( 320, 398, va( "LAST COUNTERMEASURE: %s%% EFFECTIVE", result ), UI_TINYFONT, colorTable[CT_LTBLUE2] );
+
+	// Access, at this station: the emergency override in progress and any lock-out that has shut
+	// this station's console. Both name who did it, because the record is the point
+	// (docs/access-and-authority.md, owner decision 2026-10-07).
+	{
+		char ov[128], locks[512];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_override", ov, sizeof( ov ) );
+		ui.Cvar_VariableStringBuffer( "lwh_ship_lockouts", locks, sizeof( locks ) );
+		if ( ov[0] ) UI_DrawProportionalString( 44, 408, ov, UI_TINYFONT,
+			colorTable[strstr( ov, "ACTIVE" ) ? CT_RED : CT_LTORANGE] );
+		else if ( locks[0] )
+			UI_DrawProportionalString( 44, 408, va( "ACCESS LOCKED OUT AT THIS STATION: %s", locks ), UI_TINYFONT, colorTable[CT_RED] );
+	}
 
 	if ( !screen.systems )
 	{
@@ -309,7 +334,7 @@ void Draw( void )
 	{
 		const SourceRow &r = screen.src[i];
 		const int x = 44 + i * 146;
-		UI_DrawProportionalString( x, 94, r.name, UI_TINYFONT, colorTable[r.online ? CT_LTBLUE1 : CT_DKGREY] );
+		UI_DrawProportionalString( x, 94, r.name, UI_TINYFONT, colorTable[r.online ? CT_LTBLUE2 : CT_DKGREY] );
 		Bar( x, 107, 130, 8, r.capacity ? r.output * 100 / r.capacity : 0, HealthColour( r.health ) );
 		UI_DrawProportionalString( x, 117, va( "%d / %d   %d%%%s", r.output, r.capacity, r.health, r.online ? "" : "  OFFLINE" ),
 			UI_TINYFONT, colorTable[CT_LTPURPLE1] );
@@ -329,13 +354,13 @@ void Draw( void )
 		const int text = !r.enabled ? CT_DKGREY : selected ? CT_WHITE : CT_LTGOLD1;
 		UI_DrawProportionalString( 44, y, va( "%3d", r.priority ), UI_TINYFONT, colorTable[text] );
 		UI_DrawProportionalString( 76, y, r.name, UI_TINYFONT, colorTable[text] );
-		Bar( 252, y + 2, 100, 8, r.demand ? r.allocated * 100 / r.demand : 0, CT_LTBLUE1 );
+		Bar( 252, y + 2, 100, 8, r.demand ? r.allocated * 100 / r.demand : 0, CT_LTBLUE2 );
 		UI_DrawProportionalString( 358, y, r.enabled ? va( "%d/%d", r.allocated, r.demand ) : "OFF", UI_TINYFONT, colorTable[text] );
 		Bar( 400, y + 2, 100, 8, r.output, HealthColour( r.health ) );
 		if ( r.control < 50 ) UI_DrawProportionalString( 520, y, "HIJACKED", UI_TINYFONT, colorTable[CT_RED] );
 		else UI_DrawProportionalString( 520, y, va( "%3d%%", r.health ), UI_TINYFONT, colorTable[HealthColour( r.health )] );
 		UI_DrawProportionalString( 584, y, va( "%d/%d", r.manned, r.need ), UI_TINYFONT,
-			colorTable[r.manned >= r.need ? CT_LTBLUE1 : CT_RED] );
+			colorTable[r.manned >= r.need ? CT_LTBLUE2 : CT_RED] );
 	}
 
 	// The navigation counter: the crew's shared fact, on every console (docs/navigation-counter.md).
@@ -346,7 +371,7 @@ void Draw( void )
 		if ( navY <= 372 )
 		{
 			ui.Cvar_VariableStringBuffer( "lwh_ship_nav", line, sizeof( line ) );
-			if ( line[0] ) UI_DrawProportionalString( 44, navY, line, UI_TINYFONT, colorTable[CT_LTBLUE1] );
+			if ( line[0] ) UI_DrawProportionalString( 44, navY, line, UI_TINYFONT, colorTable[CT_LTBLUE2] );
 		}
 	}
 
@@ -354,15 +379,15 @@ void Draw( void )
 	// before the beam, so the operator has the risk before them. A read of state; it cannot lie.
 	if ( screen.station == 2 && screen.transporter[0] )
 		UI_DrawProportionalString( 44, 410, screen.transporter, UI_TINYFONT,
-			colorTable[screen.alert == 2 ? CT_RED : screen.alert == 1 ? CT_LTORANGE : CT_LTBLUE1] );
+			colorTable[screen.alert == 2 ? CT_RED : screen.alert == 1 ? CT_LTORANGE : CT_LTBLUE2] );
 
 	UI_DrawProportionalString( 44, 426, screen.station == 0
-		? "UP/DOWN select   ENTER on/off   LEFT/RIGHT priority   1 2 3 condition green/yellow/red   ESC leave"
-		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   1 2 3 condition   F fire torpedo   H countermeasures   ESC leave"
-		: screen.station == 2 ? "UP/DOWN select   ENTER on/off   T beam a party   R recall   U survey   O force field   H countermeasures   ESC leave"
-		: screen.station == 3 ? "UP/DOWN select   ENTER on/off   J K L jump   C lay in a course   H countermeasures   ESC leave"
-		: screen.station == 4 ? "UP/DOWN select   ENTER on/off   B surgical field   H countermeasures   ESC leave"
-		: "UP/DOWN select   ENTER on/off   H countermeasures   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+		? "UP/DOWN select   ENTER on/off   LEFT/RIGHT priority   1 2 3 condition   Y override   ESC leave"
+		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   1 2 3 condition   F fire torpedo   H countermeasures   Y override   ESC leave"
+		: screen.station == 2 ? "UP/DOWN select   ENTER on/off   T beam   R recall   U survey   O force field   H countermeasures   Y override   ESC leave"
+		: screen.station == 3 ? "UP/DOWN select   ENTER on/off   J K L jump   C course   H countermeasures   Y override   ESC leave"
+		: screen.station == 4 ? "UP/DOWN select   ENTER on/off   B surgical field   H countermeasures   Y override   ESC leave"
+		: "UP/DOWN select   ENTER on/off   H countermeasures   Y override   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
 // One operator action. Shared by the keyboard and by the `lwh_eng_key` command, so that what a
@@ -445,6 +470,15 @@ bool Act( int key )
 	case '1': Send( "ship alert green" ); return true;
 	case '2': Send( "ship alert yellow" ); return true;
 	case '3': Send( "ship alert red" ); return true;
+	case 'y': case 'Y':
+	{// the emergency override at this station: slow, logged, and usually two hands. Sent bare, not
+	 // as the station, because the override is the act of reaching around the chain of command.
+		char ov[128];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_override", ov, sizeof( ov ) );
+		if ( ov[0] && strstr( ov, "PENDING" ) ) ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship override confirm %d\n", screen.station ) );
+		else if ( !ov[0] ) ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship override begin %d\n", screen.station ) );
+		return true;
+	}
 	}
 	return false;
 }
@@ -456,10 +490,13 @@ sfxHandle_t Key( int key )
 	return Menu_DefaultKey( &screen.menu, key ); // ESC and the rest
 }
 
-void Open( int station )
+// A station console, with the system its location is for as the opening cursor (or none).
+void Open( int station, const char *focus = NULL )
 {
 	screen.station = station;
 	screen.cursor = 0;
+	if ( focus ) Q_strncpyz( screen.focus, focus, sizeof( screen.focus ) );
+	else screen.focus[0] = 0;
 	screen.breaching = false;
 	memset( &screen.menu, 0, sizeof( screen.menu ) );
 	screen.menu.draw = Draw;
@@ -546,7 +583,7 @@ void TriageDraw( void )
 	char medical[256], ward[1024];
 	ui.Cvar_VariableStringBuffer( "lwh_ship_medical", medical, sizeof( medical ) );
 	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
-	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTBLUE1] );
+	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTBLUE2] );
 	UI_FillRect( 20, 42, 14, 396, colorTable[CT_DKPURPLE1] );
 	UI_FillRect( 20, 442, 600, 10, colorTable[CT_DKPURPLE1] );
 	UI_DrawProportionalString( 44, 19, "SICKBAY  -  TRIAGE", UI_SMALLFONT, colorTable[CT_BLACK] );
@@ -566,11 +603,11 @@ void TriageDraw( void )
 		const int sev = atoi( bar1 + 1 ), care = atoi( bar2 + 1 );
 		const int y = 88 + row * 16;
 		UI_DrawProportionalString( 44, y, tok, UI_SMALLFONT, colorTable[CT_WHITE] );
-		Bar( 300, y + 2, 120, 10, sev, sev >= 70 ? CT_RED : sev >= 40 ? CT_LTORANGE : CT_LTBLUE1 );
+		Bar( 300, y + 2, 120, 10, sev, sev >= 70 ? CT_RED : sev >= 40 ? CT_LTORANGE : CT_LTBLUE2 );
 		UI_DrawProportionalString( 300, y + 14, va( "%d%%", sev ), UI_TINYFONT, colorTable[CT_LTPURPLE1] );
-		UI_DrawProportionalString( 440, y, care ? "ON A BED" : "WAITING", UI_SMALLFONT, colorTable[care ? CT_LTBLUE1 : CT_RED] );
+		UI_DrawProportionalString( 440, y, care ? "ON A BED" : "WAITING", UI_SMALLFONT, colorTable[care ? CT_LTBLUE2 : CT_RED] );
 	}
-	if ( !row ) UI_DrawProportionalString( 44, 88, "THE WARD IS EMPTY", UI_SMALLFONT, colorTable[CT_LTBLUE1] );
+	if ( !row ) UI_DrawProportionalString( 44, 88, "THE WARD IS EMPTY", UI_SMALLFONT, colorTable[CT_LTBLUE2] );
 	UI_DrawProportionalString( 44, 426, "One row per casualty; the triage order is given at the command console.   ESC leave",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
@@ -613,11 +650,11 @@ void LogDraw( void )
 		char *what = strchr( scope, '|' ); if ( !what ) continue; *what++ = 0;
 		const int y = 66 + row * 17;
 		UI_DrawProportionalString( 44, y, when, UI_TINYFONT, colorTable[CT_LTPURPLE1] );
-		UI_DrawProportionalString( 150, y, who, UI_TINYFONT, colorTable[CT_LTBLUE1] );
+		UI_DrawProportionalString( 150, y, who, UI_TINYFONT, colorTable[CT_LTBLUE2] );
 		UI_DrawProportionalString( 290, y, scope, UI_TINYFONT, colorTable[CT_LTGOLD1] );
 		UI_DrawProportionalString( 360, y, what, UI_TINYFONT, colorTable[CT_WHITE] );
 	}
-	if ( !row ) UI_DrawProportionalString( 44, 66, "THE LOG IS EMPTY", UI_SMALLFONT, colorTable[CT_LTBLUE1] );
+	if ( !row ) UI_DrawProportionalString( 44, 66, "THE LOG IS EMPTY", UI_SMALLFONT, colorTable[CT_LTBLUE2] );
 	UI_DrawProportionalString( 44, 426, "UP/DOWN scroll   the captain's log is written at the command console   ESC leave",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
@@ -667,10 +704,11 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 	}
 	if ( !Q_stricmp( cmd, "ui_lwh_station" ) )
 	{
-		char arg[32];
+		char arg[32], focus[32];
 		ui.Argv( 1, arg, sizeof( arg ) );
 		const int n = atoi( arg );
-		Open( n >= 0 && n <= 4 ? n : 0 );
+		ui.Argv( 2, focus, sizeof( focus ) );  // an optional system name: the cursor opens on it
+		Open( n >= 0 && n <= 4 ? n : 0, focus[0] ? focus : NULL );
 		return qtrue;
 	}
 	// The panels already in the ship call the retail game's station screens by these commands. With
@@ -678,14 +716,15 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 	// it, the retail screen opens as it always did.
 	if ( ui.Cvar_VariableValue( "g_ship" ) )
 	{
-		static const struct { const char *retail; int station; } PANELS[] = {
-			{ "ui_engineeringstatus", 0 }, { "ui_tactical", 1 }, { "ui_ops", 2 }, { "ui_navigation", 3 },
+		static const struct { const char *retail; int station; const char *focus; } PANELS[] = {
+			{ "ui_engineeringstatus", 0, "warp drive" }, { "ui_tactical", 1, "shields" },
+			{ "ui_ops", 2, NULL }, { "ui_navigation", 3, "navigational deflector" },
 		};
 		for ( size_t i = 0; i < sizeof( PANELS ) / sizeof( PANELS[0] ); ++i )
 		{
 			if ( !Q_stricmp( cmd, PANELS[i].retail ) )
 			{
-				Open( PANELS[i].station );
+				Open( PANELS[i].station, PANELS[i].focus );
 				return qtrue;
 			}
 		}
@@ -696,9 +735,15 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 		{
 			char id[32];
 			ui.Argv( 1, id, sizeof( id ) );
-			static const struct { const char *panel; int station; } STATION_PANELS[] = {
-				{ "tactical", 1 }, { "engineeringStatus", 0 }, { "navigation", 3 },
-				{ "transporter", 2 }, { "astrometrics", 2 },   // both are worked from Operations
+			// Each panel opens the console its location is for, focused on that system: the transporter
+			// room's console on the transporters, astrometrics on the sensors, environmental control on
+			// life support (docs/access-and-authority.md, owner decision 2026-10-07).
+			static const struct { const char *panel; int station; const char *focus; } STATION_PANELS[] = {
+				{ "tactical", 1, "shields" }, { "engineeringStatus", 0, "warp drive" },
+				{ "navigation", 3, "navigational deflector" },
+				{ "transporter", 2, "transporters" }, { "astrometrics", 2, "sensors" }, // both worked from Operations
+				{ "environmental", 2, "life support" }, { "lifesupport", 2, "life support" },
+				{ "sickbay", 4, "sickbay" }, { "medical", 4, "sickbay" },
 			};
 			static const char *const NAMES[] = { "MAIN ENGINEERING", "TACTICAL", "OPERATIONS", "CONN", "SICKBAY" };
 			for ( size_t i = 0; i < sizeof( STATION_PANELS ) / sizeof( STATION_PANELS[0] ); ++i )
@@ -706,7 +751,7 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 				if ( !Q_stricmp( id, STATION_PANELS[i].panel ) )
 				{
 					ui.Printf( "LWH: the %s panel opens the %s console\n", id, NAMES[STATION_PANELS[i].station] );
-					Open( STATION_PANELS[i].station );
+					Open( STATION_PANELS[i].station, STATION_PANELS[i].focus );
 					return qtrue;
 				}
 			}
@@ -714,7 +759,7 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 			if ( !Q_stricmpn( id, "replicat", 8 ) || !Q_stricmpn( id, "mess", 4 ) )
 			{
 				ui.Printf( "LWH: the %s panel opens the OPERATIONS console\n", id );
-				Open( 2 );
+				Open( 2, "replicators" );
 				return qtrue;
 			}
 			// The panels that are not stations: the log terminal, the ready room, the personnel padd.

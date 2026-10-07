@@ -22,13 +22,13 @@ static const SystemSpec SPECS[SYS_COUNT] = {
 	{"life support",             12, "Environmental Control", DEPT_ENGINEERING,   60,   0,  1},
 	{"structural integrity",     11, "Main Engineering",      DEPT_ENGINEERING,   80,   1,  1},
 	{"inertial dampers",         11, "Main Engineering",      DEPT_ENGINEERING,   40,   2,  1},
-	{"computer core",             9, "Computer Core",         DEPT_SCIENCES,      60,   3,  1},
+	{"computer core",            10, "Computer Core",         DEPT_SCIENCES,      60,   3,  1}, // main core, deck 10 (docs/ship-master-map.md); auxiliary on deck 7
 	{"shields",                   1, "Bridge, Tactical",      DEPT_SECURITY,     200,   4,  1},
 	{"sensors",                   8, "Astrometrics",          DEPT_SCIENCES,      60,   5,  2},
 	{"warp drive",               11, "Main Engineering",      DEPT_ENGINEERING,  400,   9,  3},
 	{"impulse drive",            10, "Impulse Engineering",   DEPT_ENGINEERING,  100,   6,  2},
 	{"phasers",                   1, "Bridge, Tactical",      DEPT_SECURITY,     150,   7,  2},
-	{"torpedo launchers",         9, "Torpedo Bay",           DEPT_SECURITY,      30,   8,  2},
+	{"torpedo launchers",        10, "Torpedo Bay",           DEPT_SECURITY,      30,   8,  2}, // fore tubes, deck 10; aft tubes deck 4 (docs/ship-master-map.md)
 	{"navigational deflector",   11, "Deflector Control",     DEPT_ENGINEERING,   50,  10,  1},
 	{"communications",            1, "Bridge, Operations",    DEPT_COMMAND,       20,  11,  1},
 	{"transporters",              4, "Transporter Room 1",    DEPT_ENGINEERING,   60,  12,  1},
@@ -2067,19 +2067,26 @@ void Sleep(Ship &s, double shipSeconds)
 	Advance(s, shipSeconds);
 }
 
+// Which stations a department's own people work. The mapping MayOperate and the delegation rules
+// both read, kept in one place so they cannot drift apart.
+static bool DepartmentOperates(Department dept, Station st)
+{
+	switch (st) {
+	case STN_ENGINEERING: return dept == DEPT_ENGINEERING;
+	case STN_TACTICAL: return dept == DEPT_SECURITY;
+	case STN_OPS: case STN_CONN: return dept == DEPT_COMMAND || dept == DEPT_SCIENCES;
+	case STN_SICKBAY: return dept == DEPT_MEDICAL;
+	default: return false;
+	}
+}
+
 bool MayOperate(const CrewMember &who, Station st)
 {
 	if (who.status != CREW_FIT || who.brigged) return false;
 	if (who.rank >= 4) return true;
 	if (st < STN_COUNT && (who.credentials & (1u << st))) return true; // a trained cross-qualification
 	if (st >= STN_COUNT) return false;
-	switch (st) {
-	case STN_ENGINEERING: return who.dept == DEPT_ENGINEERING;
-	case STN_TACTICAL: return who.dept == DEPT_SECURITY;
-	case STN_OPS: case STN_CONN: return who.dept == DEPT_COMMAND || who.dept == DEPT_SCIENCES;
-	case STN_SICKBAY: return who.dept == DEPT_MEDICAL;
-	default: return false;
-	}
+	return DepartmentOperates(who.dept, st);
 }
 
 bool MayCallAlert(const CrewMember &who, Station st)
@@ -2087,7 +2094,246 @@ bool MayCallAlert(const CrewMember &who, Station st)
 	return who.rank >= 3 && (st == STN_ENGINEERING || st == STN_TACTICAL) && MayOperate(who, st);
 }
 
+// The Ship-level questions add the delegation, the lock-out and the override: none is visible in a
+// record alone.
+bool MayOperate(const Ship &s, int crew, Station st)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return false;
+	if (LockedOut(s, crew, st)) return false; // the console has stopped answering this person
+	if (MayOperate(s.crew[crew], st)) return true;
+	return DelegatedTo(s, crew, st);
+}
+
+bool MayCallAlert(const Ship &s, int crew, Station st)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return false;
+	const CrewMember &who = s.crew[crew];
+	if (who.rank < 3) return false;
+	return MayOperate(s, crew, st);
+}
+
 bool MayCommand(const CrewMember &who) { return who.status == CREW_FIT && who.rank >= 5; }
+
+// ---- delegation, revocation and override (docs/access-and-authority.md) ---------------------------
+
+// A head may grant a station's access: a lieutenant commander is ship-wide, a lieutenant heads the
+// department that works the station, and a cross-qualified lieutenant may grant the one they trained for.
+static bool MayGrant(const CrewMember &who, Station st)
+{
+	if (who.status != CREW_FIT || who.brigged || who.rank < 3) return false;
+	if (who.rank >= 4) return true;
+	return DepartmentOperates(who.dept, st) || (st < STN_COUNT && (who.credentials & (1u << st)) != 0);
+}
+
+bool Delegate(Ship &s, int grantor, int grantee, Station st)
+{
+	if (grantor < 0 || grantor >= static_cast<int>(s.crew.size())) return false;
+	if (grantee < 0 || grantee >= static_cast<int>(s.crew.size())) return false;
+	if (grantor == grantee || st >= STN_COUNT) return false;
+	CrewMember &g = s.crew[grantor];
+	CrewMember &t = s.crew[grantee];
+	if (!MayGrant(g, st)) return false;
+	if (t.status != CREW_FIT || t.brigged) return false;
+	if (t.rank >= 4) return false; // already ship-wide: there is nothing a shift could add
+	// One live grant per station and holder: a repeat refreshes the shift rather than stacking.
+	for (Delegation &d : s.delegations)
+		if (d.station == st && d.grantee == grantee) {
+			d.grantor = grantor;
+			d.expires = s.clock + DELEGATION_SHIFT_HOURS * 3600.0;
+			LogEvent(s, g.name, "crew", g.name + " extends " + t.name + "'s " + StationName(st) + " access for another shift");
+			return true;
+		}
+	if (static_cast<int>(s.delegations.size()) >= DELEGATION_MAX) s.delegations.erase(s.delegations.begin());
+	Delegation d;
+	d.grantor = grantor; d.grantee = grantee; d.station = static_cast<uint8_t>(st);
+	d.expires = s.clock + DELEGATION_SHIFT_HOURS * 3600.0;
+	s.delegations.push_back(d);
+	LogEvent(s, g.name, "crew", g.name + " grants " + t.name + " " + StationName(st) + " access for the shift");
+	return true;
+}
+
+bool RevokeDelegation(Ship &s, int revoker, int grantee, Station st)
+{
+	if (revoker < 0 || revoker >= static_cast<int>(s.crew.size())) return false;
+	if (grantee < 0 || grantee >= static_cast<int>(s.crew.size()) || st >= STN_COUNT) return false;
+	const CrewMember &r = s.crew[revoker];
+	if (!MayGrant(r, st)) return false;
+	for (size_t i = 0; i < s.delegations.size(); ++i)
+		if (s.delegations[i].station == st && s.delegations[i].grantee == grantee) {
+			LogEvent(s, r.name, "crew", r.name + " revokes " + s.crew[grantee].name + "'s " + StationName(st) + " access");
+			s.delegations.erase(s.delegations.begin() + i);
+			return true;
+		}
+	return false;
+}
+
+bool DelegatedTo(const Ship &s, int crew, Station st)
+{
+	for (const Delegation &d : s.delegations)
+		if (d.grantee == crew && d.station == st && d.expires > s.clock) return true;
+	return false;
+}
+
+const std::vector<Delegation> &Delegations(const Ship &s) { return s.delegations; }
+
+bool RevokeCredential(Ship &s, int revoker, int holder, Station st)
+{
+	if (revoker < 0 || revoker >= static_cast<int>(s.crew.size())) return false;
+	if (holder < 0 || holder >= static_cast<int>(s.crew.size()) || st >= STN_COUNT) return false;
+	const CrewMember &r = s.crew[revoker];
+	if (!MayGrant(r, st)) return false;
+	CrewMember &c = s.crew[holder];
+	if (!(c.credentials & (1u << st))) return false;
+	c.credentials = static_cast<uint8_t>(c.credentials & ~(1u << st));
+	LogEvent(s, r.name, "crew", r.name + " revokes " + c.name + "'s " + StationName(st) + " qualification");
+	return true;
+}
+
+bool BeginOverride(Ship &s, int requester, Station st)
+{
+	if (requester < 0 || requester >= static_cast<int>(s.crew.size()) || st >= STN_COUNT) return false;
+	const CrewMember &r = s.crew[requester];
+	if (r.status != CREW_FIT || r.brigged) return false;
+	Override &o = s.emergencyOverride;
+	if (o.station >= 0 && o.active)
+	{
+		if (o.station == st) return true; // already forced
+		return false;                     // one at a time
+	}
+	o.station = static_cast<uint8_t>(st);
+	o.first = requester;
+	o.second = -1;
+	o.solo = false;
+	o.active = false;
+	o.readyAt = s.clock + OVERRIDE_SOLO_MINUTES * 60.0; // one hand may force it, slower
+	o.expires = 0.0;
+	LogEvent(s, r.name, "command", "EMERGENCY OVERRIDE: " + r.name + " moves to force " + StationName(st)
+		+ "; a second officer must agree, or one hand may force it in " + std::to_string(static_cast<int>(OVERRIDE_SOLO_MINUTES)) + " minutes");
+	return true;
+}
+
+bool ConfirmOverride(Ship &s, int second, Station st)
+{
+	if (second < 0 || second >= static_cast<int>(s.crew.size())) return false;
+	Override &o = s.emergencyOverride;
+	if (o.station != st || o.active) return false;
+	if (second == o.first) return false; // one person cannot be their own second
+	const CrewMember &c = s.crew[second];
+	if (c.status != CREW_FIT || c.brigged) return false;
+	o.second = second;
+	o.solo = false;
+	o.readyAt = s.clock + OVERRIDE_TWO_MINUTES * 60.0; // two hands: faster
+	LogEvent(s, c.name, "command", "EMERGENCY OVERRIDE: " + c.name + " agrees; " + StationName(st)
+		+ " will answer to them in " + std::to_string(static_cast<int>(OVERRIDE_TWO_MINUTES)) + " minutes");
+	return true;
+}
+
+bool OverrideActive(const Ship &s, Station st)
+{
+	const Override &o = s.emergencyOverride;
+	return o.active && o.station == st && s.clock < o.expires;
+}
+
+const Override &OverrideState(const Ship &s) { return s.emergencyOverride; }
+
+// ---- the named refusal (docs/access-and-authority.md) ---------------------------------------------
+
+// Who a station's own chain of command says can open it. The name the locked control shows.
+static const char *StationHandler(Station st)
+{
+	switch (st) {
+	case STN_ENGINEERING: return "the Chief Engineer";
+	case STN_TACTICAL: return "the Chief of Security";
+	case STN_OPS: return "the Operations officer";
+	case STN_CONN: return "the Conn officer";
+	case STN_SICKBAY: return "the Chief Medical Officer";
+	default: return "a department head";
+	}
+}
+
+std::string AccessRefusal(const Ship &s, Station st)
+{
+	(void)s;
+	return std::string("you are not cleared for ") + StationName(st) + "; " + StationHandler(st)
+		+ " or a lieutenant commander may open it, or a delegation for the shift";
+}
+
+std::string OperatedFromRefusal(SystemId id)
+{
+	return std::string(Spec(id).name) + " is operated from " + StationName(StationOf(id));
+}
+
+// ---- remote call-up and the lock-out (owner decision, 2026-10-07) ---------------------------------
+
+bool MayCallUp(const Ship &s, int crew, Station console, SystemId id)
+{
+	if (id >= SYS_COUNT) return false;
+	if (OperatedFrom(id, console)) return true; // the console's own system: no call-up needed
+	if (console >= STN_COUNT) return false;
+	if (crew == s.player && s.cfg.role == ROLE_IN_COMMAND) return true; // the ship answers to the player
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return false;
+	const CrewMember &who = s.crew[crew];
+	if (who.status != CREW_FIT || who.brigged) return false;
+	return who.rank >= 4; // ship-wide: the captain or first officer calls it up from anywhere
+}
+
+bool LockOut(Ship &s, int officer, Station st, int locked)
+{
+	if (officer < 0 || officer >= static_cast<int>(s.crew.size())) return false;
+	if (locked < 0 || locked >= static_cast<int>(s.crew.size()) || st >= STN_COUNT) return false;
+	if (officer == locked) return false;
+	const CrewMember &o = s.crew[officer];
+	const CrewMember &t = s.crew[locked];
+	if (o.status != CREW_FIT || o.brigged || t.status != CREW_FIT || t.brigged) return false;
+	if (o.rank <= t.rank) return false;    // above the post-holder, and strictly so
+	if (!MayGrant(o, st)) return false;    // the department head, or a ship-wide officer
+	for (Lockout &l : s.lockouts)
+		if (l.station == st && l.locked == locked) {
+			l.lockedBy = officer; l.time = s.clock;
+			LogEvent(s, o.name, "crew", o.name + " locks " + t.name + " out of " + StationName(st));
+			Remember(s, locked, MEM_LOCKOUT, officer, MEM_SAW, -0.6f);
+			return true;
+		}
+	if (static_cast<int>(s.lockouts.size()) >= LOCKOUT_MAX) s.lockouts.erase(s.lockouts.begin());
+	Lockout l;
+	l.station = static_cast<uint8_t>(st); l.lockedBy = officer; l.locked = locked; l.time = s.clock;
+	s.lockouts.push_back(l);
+	LogEvent(s, o.name, "crew", o.name + " locks " + t.name + " out of " + StationName(st));
+	Remember(s, locked, MEM_LOCKOUT, officer, MEM_SAW, -0.6f);
+	return true;
+}
+
+bool ClearLockout(Ship &s, int officer, Station st, int locked)
+{
+	if (officer < 0 || officer >= static_cast<int>(s.crew.size())) return false;
+	const CrewMember &o = s.crew[officer];
+	if (o.status != CREW_FIT || o.brigged || !MayGrant(o, st)) return false;
+	for (size_t i = 0; i < s.lockouts.size(); ++i)
+		if (s.lockouts[i].station == st && s.lockouts[i].locked == locked) {
+			LogEvent(s, o.name, "crew", o.name + " clears the lock-out on " + s.crew[locked].name + " at " + StationName(st));
+			s.lockouts.erase(s.lockouts.begin() + i);
+			return true;
+		}
+	return false;
+}
+
+bool LockedOut(const Ship &s, int crew, Station st)
+{
+	for (const Lockout &l : s.lockouts)
+		if (l.locked == crew && l.station == st) return true;
+	return false;
+}
+
+const std::vector<Lockout> &Lockouts(const Ship &s) { return s.lockouts; }
+
+std::string LockoutNotice(const Ship &s, int crew, Station st)
+{
+	for (const Lockout &l : s.lockouts)
+		if (l.locked == crew && l.station == st && l.lockedBy >= 0 && l.lockedBy < static_cast<int>(s.crew.size())
+			&& crew >= 0 && crew < static_cast<int>(s.crew.size()))
+			return s.crew[l.lockedBy].name + " has locked " + s.crew[crew].name + " out of " + StationName(st);
+	return std::string();
+}
 
 // A player who is down operates nothing and commands nothing, whatever their role: being hurt is a
 // state the ship acts on (Stage B). The check is on the record, so it holds across a save.
@@ -2100,7 +2346,8 @@ bool PlayerMayOperate(const Ship &s, Station st)
 {
 	if (PlayerDown(s)) return false;
 	if (s.cfg.role == ROLE_IN_COMMAND) return true;
-	return s.player >= 0 && s.player < static_cast<int>(s.crew.size()) && MayOperate(s.crew[s.player], st);
+	if (OverrideActive(s, st)) return true; // forced at this station for a while
+	return MayOperate(s, s.player, st);
 }
 
 bool PlayerMayCommand(const Ship &s)
@@ -2727,6 +2974,7 @@ static float EventValence(uint16_t event)
 	case MEM_VIOLATION: return -0.5f;
 	case MEM_ORDER: return 0.1f;
 	case MEM_FUNERAL: return 0.4f;
+	case MEM_LOCKOUT: return -0.6f;
 	default: return 0.0f;
 	}
 }
@@ -2792,6 +3040,7 @@ void DraftReport(Ship &s, int department)
 			case MEM_VIOLATION: l.scope = "command"; l.draft = "the Prime Directive was set aside"; break;
 			case MEM_ORDER: l.scope = "command"; l.draft = "an order was given and carried out"; break;
 			case MEM_FUNERAL: l.scope = "crew"; l.draft = "we buried the lost together and took heart"; break;
+			case MEM_LOCKOUT: l.scope = "command"; l.draft = NameAt(s, m.person) + " locked a hand out of a station"; break;
 			default: continue;
 			}
 			l.text = l.draft;
@@ -3176,6 +3425,38 @@ static void UpdateSystemStates(Ship &s)
 	}
 }
 
+// Delegations lapse with the shift; an override takes when its clock runs out and lapses the same
+// way. Both are acts with a beginning and an end, and both are written down when the state changes
+// (docs/access-and-authority.md). A force by one hand costs the crew something: they saw command
+// reach around the chain, and they remember it -- the log says who did it.
+static void UpdateAccess(Ship &s)
+{
+	for (size_t i = 0; i < s.delegations.size();) {
+		if (s.delegations[i].expires <= s.clock) s.delegations.erase(s.delegations.begin() + i);
+		else ++i;
+	}
+	Override &o = s.emergencyOverride;
+	if (o.station < 0) return;
+	if (o.active) {
+		if (s.clock >= o.expires) {
+			LogEvent(s, AuthorFor(s, DEPT_COMMAND, "the bridge"), "command",
+				std::string("the emergency override at ") + StationName(static_cast<Station>(o.station)) + " has lapsed");
+			o = Override();
+		}
+		return;
+	}
+	if (s.clock < o.readyAt) return;
+	o.active = true;
+	o.solo = o.second < 0;
+	o.expires = s.clock + OVERRIDE_DURATION_MINUTES * 60.0;
+	LogEvent(s, AuthorFor(s, DEPT_COMMAND, "the bridge"), "command",
+		std::string("EMERGENCY OVERRIDE ACTIVE: ") + StationName(static_cast<Station>(o.station))
+		+ " answers to " + (o.solo ? "one hand" : "two officers") + " for "
+		+ std::to_string(static_cast<int>(OVERRIDE_DURATION_MINUTES)) + " minutes");
+	for (CrewMember &c : s.crew)
+		if (c.status == CREW_FIT) c.morale = std::max(0.0f, c.morale - (o.solo ? 0.05f : 0.02f));
+}
+
 static void Advance(Ship &s, double shipSecondsTotal)
 {
 	// Long steps are cut up, so a paused or fast-forwarded ship arrives where a played one would.
@@ -3188,6 +3469,7 @@ static void Advance(Ship &s, double shipSecondsTotal)
 		s.remodulateCooldown = std::max(0.0f, s.remodulateCooldown - step);
 		s.adaptationSuppressed = std::max(0.0f, s.adaptationSuppressed - step);
 		UpdateCrew(s, step);
+		UpdateAccess(s); // a shift's delegation lapses; an override takes or lapses
 		MaturePromises(s); // a deadline that passes with nothing said is a promise broken
 		UpdateSquad(s, step); // the squad's defenders are added before the fight is worked
 		UpdateIntruders(s, step);
@@ -4237,6 +4519,31 @@ std::vector<uint8_t> Pack(const Ship &s)
 			WriteStrCap(w, e.what, PERSONAL_LOG_TEXT_MAX);
 		}
 	}
+	// Access (version 48): the grants for a shift, the one override in progress, and the lock-outs.
+	{
+		const int n = std::min(static_cast<int>(s.delegations.size()), DELEGATION_MAX);
+		w.U8(static_cast<uint8_t>(n));
+		for (int i = 0; i < n; ++i) {
+			const Delegation &d = s.delegations[i];
+			w.U16(static_cast<uint16_t>(d.grantor + 1)); w.U16(static_cast<uint16_t>(d.grantee + 1));
+			w.U8(d.station);
+			w.U64(static_cast<uint64_t>(std::llround(d.expires * 1000.0)));
+		}
+		w.U16(static_cast<uint16_t>(s.emergencyOverride.station + 1));
+		w.U16(static_cast<uint16_t>(s.emergencyOverride.first + 1));
+		w.U16(static_cast<uint16_t>(s.emergencyOverride.second + 1));
+		w.U64(static_cast<uint64_t>(std::llround(s.emergencyOverride.readyAt * 1000.0)));
+		w.U64(static_cast<uint64_t>(std::llround(s.emergencyOverride.expires * 1000.0)));
+		w.U8(s.emergencyOverride.active ? 1 : 0); w.U8(s.emergencyOverride.solo ? 1 : 0);
+		const int nl = std::min(static_cast<int>(s.lockouts.size()), LOCKOUT_MAX);
+		w.U8(static_cast<uint8_t>(nl));
+		for (int i = 0; i < nl; ++i) {
+			const Lockout &l = s.lockouts[i];
+			w.U8(l.station);
+			w.U16(static_cast<uint16_t>(l.lockedBy + 1)); w.U16(static_cast<uint16_t>(l.locked + 1));
+			w.U64(static_cast<uint64_t>(std::llround(l.time * 1000.0)));
+		}
+	}
 	return w.b;
 }
 
@@ -4515,6 +4822,45 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		if (e.owner < 0 || e.owner >= static_cast<int>(count)) return false;
 		if (e.visibility >= LOG_VISIBILITY_COUNT) return false;
 		s.personalLog.push_back(e);
+	}
+	// Access (version 48): the grants for a shift, the one override in progress, and the lock-outs.
+	s.delegations.clear();
+	const int delegationCount = r.U8();
+	if (delegationCount > DELEGATION_MAX) return false;
+	for (int i = 0; i < delegationCount && r.ok; ++i) {
+		Delegation d;
+		d.grantor = static_cast<int16_t>(r.U16()) - 1;
+		d.grantee = static_cast<int16_t>(r.U16()) - 1;
+		d.station = r.U8();
+		d.expires = static_cast<double>(r.U64()) / 1000.0;
+		if (d.station >= STN_COUNT) return false;
+		if (d.grantor < 0 || d.grantor >= static_cast<int>(count)) return false;
+		if (d.grantee < 0 || d.grantee >= static_cast<int>(count)) return false;
+		s.delegations.push_back(d);
+	}
+	s.emergencyOverride.station = static_cast<int16_t>(r.U16()) - 1;
+	s.emergencyOverride.first = static_cast<int16_t>(r.U16()) - 1;
+	s.emergencyOverride.second = static_cast<int16_t>(r.U16()) - 1;
+	s.emergencyOverride.readyAt = static_cast<double>(r.U64()) / 1000.0;
+	s.emergencyOverride.expires = static_cast<double>(r.U64()) / 1000.0;
+	s.emergencyOverride.active = r.U8() != 0;
+	s.emergencyOverride.solo = r.U8() != 0;
+	if (s.emergencyOverride.station >= STN_COUNT) return false;
+	if (s.emergencyOverride.first < -1 || s.emergencyOverride.first >= static_cast<int>(count)) return false;
+	if (s.emergencyOverride.second < -1 || s.emergencyOverride.second >= static_cast<int>(count)) return false;
+	s.lockouts.clear();
+	const int lockoutCount = r.U8();
+	if (lockoutCount > LOCKOUT_MAX) return false;
+	for (int i = 0; i < lockoutCount && r.ok; ++i) {
+		Lockout l;
+		l.station = r.U8();
+		l.lockedBy = static_cast<int16_t>(r.U16()) - 1;
+		l.locked = static_cast<int16_t>(r.U16()) - 1;
+		l.time = static_cast<double>(r.U64()) / 1000.0;
+		if (l.station >= STN_COUNT) return false;
+		if (l.lockedBy < 0 || l.lockedBy >= static_cast<int>(count)) return false;
+		if (l.locked < 0 || l.locked >= static_cast<int>(count)) return false;
+		s.lockouts.push_back(l);
 	}
 	if (s.advanceDeck > DECKS || s.advanceAt > DECKS) return false;
 	if (!r.ok || r.left != 0) return false;
