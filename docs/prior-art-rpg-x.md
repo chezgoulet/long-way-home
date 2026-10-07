@@ -100,6 +100,12 @@ classes that become configstrings per level, so the per-level figure is the one 
 Retail is nowhere near the ceiling: no shipped level exceeds 256 models or 256 sounds, and the worst
 spends roughly 50 configstrings of 1024.
 
+**Re-measured on a loaded map, 2026-10-07** (the engine registers what the map spawns, not only what
+the source names): `borg1` spends 104 of 1024 configstrings, 46 of 256 models and 53 of 256 sounds.
+The merged fifteen-deck ship spends 213 of 4096 configstrings, 141 of 256 models, 67 of 256 sounds,
+but **3896 of 4096 gentities** — the limit it meets first is entities, not configstrings. Limits and
+full transcripts: `docs/evidence/engine-content-headroom.md`.
+
 ### Raised anyway, on the owner's call — and here is the resolution of that disagreement
 
 The measurement above argued for instrumenting and waiting. The owner overruled it, correctly: *"We're

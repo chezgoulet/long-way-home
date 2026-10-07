@@ -36,7 +36,7 @@ static const SystemSpec SPECS[SYS_COUNT] = {
 	{"turbolifts",                1, "Bridge, Operations",    DEPT_ENGINEERING,   20,  14,  0},
 	{"tractor beam",             10, "Shuttlebay Control",    DEPT_ENGINEERING,   60,  15,  1},
 	{"replicators",               2, "Mess Hall",             DEPT_ENGINEERING,   60,  16,  0},
-	{"holodecks",                 6, "Holodeck 1",            DEPT_ENGINEERING,   60,  17,  0},
+	{"holodecks",                 6, "Holodeck 2",            DEPT_ENGINEERING,   60,  17,  0}, // deck 6 carries Holodeck 2; Holodeck 1 is on deck 14
 };
 
 const SystemSpec &Spec(SystemId id) { return SPECS[id < SYS_COUNT ? id : 0]; }

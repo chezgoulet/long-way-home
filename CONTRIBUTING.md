@@ -39,7 +39,7 @@ maintenance, and to keep our own delta thin enough to rebase onto it whenever th
 rule, 2026-10-04: *"I'd rather be in the best position to inherit community work than increase our support
 of more stuff."*
 
-Current delta from the pinned upstream: **61 files, +437/−134 lines, in fourteen patches by concern.**
+Current delta from the pinned upstream: **61 files, +404/−135 lines, in seventeen patches by concern.**
 
 | patch | concern | why it is separate |
 |---|---|---|
@@ -57,6 +57,9 @@ Current delta from the pinned upstream: **61 files, +437/−134 lines, in fourte
 | `0012` | SP: ironman saves | an engine capability: one forward save while `g_ironman` is set, refused otherwise at the command |
 | `0013` | cgame: an attach point for drawing our own readouts | only cgame draws the HUD, and it is a separate concern from the game/UI hooks in `0005`; the call is empty unless `LWH_MODULE_DIR` is set, and the drawing itself lives in `module/cgame/` |
 | `0014` | live in-world panel images | only the renderer can overwrite a texture, so this routes `RemapShader` through the SP bridge and adds `RE_UpdatePanelImage` (upload RGBA into a named shader's image); the drawing and the ship logic live in `module/ship/lwh_panel.cpp` |
+| `0015` | RPG-X's `target_shaderremap` entity | a Harvest B adoption: the class itself lives in `module/ship/lwh_entities.cpp`; the patch registers it, inert without `LWH_MODULE_DIR` |
+| `0016` | SP: the dead are not reloaded | one attach point and its no-op; the refusing logic lives in `module/`, and without it the hook is an empty inline |
+| `0017` | SP: measure a level's content registration | Task A of the headroom brief: one `developer`-gated log line reading the bridge's own configstring table and the game's entity count, so the content limits are measured against a loaded map; silent by default, logging only |
 
 Rules that keep this shape:
 

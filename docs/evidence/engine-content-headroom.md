@@ -1,0 +1,345 @@
+# Evidence — engine content headroom: measured, then the limits
+
+Date: 2026-10-07. Branch: `feat/engine-content-headroom`, cut from `feature/g3-reactive-crew`.
+Brief: the engine-content-headroom brief (Task A measure, Task B raise, Task C one label). Documents:
+`docs/prior-art-rpg-x.md` (the headroom item), `docs/engine-extension-policy.md`,
+`docs/gates.md` (the Track B entry), `docs/evidence/deck07-auxcore.md` (why the fifth re-dress is
+urgent).
+
+Nothing here is asserted without the command that produced it. The command is given before its output.
+
+**The headline, stated before the numbers:** the limit the ship meets first is **not** the one the
+brief expected. Configstrings sit at 5% and models at 55%; the merged ship spends **3896 of 4096
+gentities (95%)** and **15355 of 16384 vis-clusters (94%)**. Raising `MAX_CONFIGSTRINGS` buys the
+SP port almost nothing — its content capacity is bounded by `MAX_MODELS` + `MAX_SOUNDS` and by the
+bridge's own 1024-entry table, not by `MAX_CONFIGSTRINGS`. The lever for "the fifth deck" is the
+entity and vis-cluster ceilings.
+
+## Task A — the measurement
+
+### A0 — the instrument, and what it reads
+
+`patches/0017-content-limit-instrument.patch` adds one gated log line to the SP bridge, after the
+game has spawned the level's entities, so the number is read from the level's own state (the
+bridge's configstring table and the game's entity count), not from the map source. It is silent
+unless `developer` is set, so with it unset (the default) the bridge behaves and saves exactly as
+before. Reproduce any run below with `+set developer 1` and grep `SP_SpawnServer: content:`.
+
+The engine was rebuilt from the patched upstream (`cmake --build build-engine`), the module from
+`module/` (`cmake --build ../upstream/efgame/build-linux`); the binary is
+`build-engine/longwayhome`.
+
+**Run note.** A headless run after a previous successful run hangs at a stale
+`baseEF/<game>.pid` (the "safe video settings" dialog). Every run below deletes it first, the same
+way `scripts/g3-measure.sh` does; `find <home>/baseEF -name '*.pid' -delete`.
+
+### A1 — a loaded retail campaign map (`borg1`)
+
+```
+$ find /tmp/opencode/lwh-home/baseEF -name '*.pid' -delete
+$ SDL_AUDIODRIVER=dummy xvfb-run -a scripts/run-engine.sh --home-dir /tmp/opencode/lwh-home \
+      +set developer 1 +set s_useOpenAL 0 +set s_initsound 0 +map borg1
+EFSP: SP_SpawnServer: CM_LoadMap(maps/borg1.bsp)
+EFSP: SP_SpawnServer: 158 inline models, entity string 115246 bytes
+EFSP: SP_SpawnServer: ge->Init done. num_entities=564 linked=371
+EFSP: SP_SpawnServer: content: 104 configstrings of 4096 (bridge table CS_MAX 1024): 46 models of 256, 53 sounds of 256; gentities 564 of 4096
+EFSP: Munro connected
+```
+
+Read plainly: retail's campaign map spends **104 of 1024** configstrings in the retail budget (10%),
+**46 of 256** models and **53 of 256** sounds. The worst shipped level is nowhere near any ceiling.
+`num_entities=564` is the gentity count the earlier G1 run recorded as 561 (the module adds a few).
+
+### A2 — the mergedship map (fifteen decks in one)
+
+The pk3 is copied into the run's game dir, as `scripts/s3-check.sh` does, and navigation is deleted
+so it bakes fresh.
+
+```
+$ cp build/ship/out/longway_voyager.pk3 /tmp/opencode/ship-home/baseEF/
+$ find /tmp/opencode/ship-home/baseEF -name '*.pid' -delete
+$ SDL_AUDIODRIVER=dummy xvfb-run -a scripts/run-engine.sh --home-dir /tmp/opencode/ship-home \
+      +set com_hunkMegs 768 +set developer 1 +set s_useOpenAL 0 +set s_initsound 0 +map voyager
+EFSP: SP_SpawnServer: CM_LoadMap(maps/voyager.bsp)
+EFSP: SP_SpawnServer: 531 inline models, entity string 577264 bytes
+EFSP: SP_SpawnServer: ge->Init done. num_entities=3896 linked=2043
+EFSP: SP_SpawnServer: content: 213 configstrings of 4096 (bridge table CS_MAX 1024): 141 models of 256, 67 sounds of 256; gentities 3896 of 4096
+EFSP: Munro connected
+```
+
+| limit | retail `borg1` | the merged ship | ceiling |
+|---|---|---|---|
+| configstrings | 104 | 213 | 4096 |
+| models | 46 | **141** | 256 |
+| sounds | 53 | 67 | 256 |
+| gentities | 564 | **3896** | 4096 |
+
+The vis-cluster count, read from the packed artifact (BSP lump 16), because q3map2's cap is the
+other ceiling the fifth deck will meet:
+
+```
+$ unzip -o -j build/ship/out/longway_voyager.pk3 '*.bsp' -d /tmp/opencode/pk3x
+$ python3 - <<'PY'
+import struct
+data=open('/tmp/opencode/pk3x/voyager.bsp','rb').read()
+off,ln=struct.unpack_from('<II',data,8+16*8)      # lump 16 = visibility
+nc,cb=struct.unpack_from('<ii',data,off)          # header: numclusters, clusterbytes
+print(f"visdata bytes {ln} portalclusters {nc} clusterbytes {cb}")
+PY
+visdata bytes 29481608 portalclusters 15355 clusterbytes 1920
+```
+
+`MAX_MAP_VISCLUSTERS` is 16384. The ship is at **15355 (94%)**, with deck 7's copied interior as
+detail geometry — the workaround `docs/evidence/deck07-auxcore.md` describes.
+
+### A3 — what the four re-dressed decks added over the generated placeholders
+
+The placeholder for each absent deck is regenerated by the same tool the build uses
+(`tools/shipmap/gendeck.py`), and each kept, re-dressed deck is read from `build/ship/generated/`.
+The same regexes the validator uses for content registration (`MODEL_REF`/`SOUND_REF` in
+`tools/validator/validate.py`) count distinct models and sounds; entities are counted by
+`classname`.
+
+```
+$ for d in 7 12 13 14; do python3 tools/shipmap/gendeck.py --deck $d --out /tmp/opencode/gen; done
+$ python3 - <<'PY'
+import re, os
+MODEL_REF = re.compile(r'"model2?"\s+"([^"]+)"')
+SOUND_REF = re.compile(r'"(?:noise|sound)"\s+"([^"]+)"')
+CLS = re.compile(r'"classname"\s+"([^"]+)"')
+def stats(path):
+    text=open(path,encoding='utf-8',errors='replace').read()
+    models={m.lower() for m in MODEL_REF.findall(text) if not m.startswith("*")}
+    sounds={s.lower() for s in SOUND_REF.findall(text)}
+    return models,sounds,len(CLS.findall(text))
+RET="build/gdk/maps/eliteforce_virtualvoyager_maps"; GEN="build/ship/generated"
+src=lambda n: f"{RET}/deck{n:02d}.map" if os.path.exists(f"{RET}/deck{n:02d}.map") else f"{GEN}/deck{n:02d}.map"
+union_m, union_s = set(), set()
+for n in range(1,16):
+    m,s,c=stats(src(n))
+    print(f"  deck {n:>2}: {len(m):>3} models {len(s):>3} sounds {c:>4} entities  (new: {len(m-union_m)} models, {len(s-union_s)} sounds)")
+    union_m|=m; union_s|=s
+print(f"  UNION 15 decks: {len(union_m)} models, {len(union_s)} sounds")
+for n in (7,12,13,14):
+    pm,ps,pc=stats(f"/tmp/opencode/gen/deck{n:02d}.map"); rm,rs,rc=stats(f"{GEN}/deck{n:02d}.map")
+    print(f"  deck {n:>2}: placeholder {pc:>3} ent {len(pm)}m {len(ps)}s -> re-dressed {rc:>3} ent {len(rm)}m {len(rs)}s  (+{rc-pc} ent, +{len(rm-pm)}m, +{len(rs-ps)}s)")
+PY
+  deck  1:  30 models   7 sounds  354 entities  (new: 30 models, 7 sounds)
+  ...
+  deck  6:   0 models   0 sounds   81 entities  (new: 0 models, 0 sounds)
+  deck  7:   4 models   5 sounds  343 entities  (new: 0 models, 0 sounds)
+  ...
+  UNION 15 decks: 118 models, 36 sounds
+  deck  7: placeholder  65 ent 0m 0s -> re-dressed 343 ent 4m 5s  (+278 ent, +4m, +5s)
+  deck 12: placeholder  59 ent 0m 0s -> re-dressed 313 ent 3m 5s  (+254 ent, +3m, +5s)
+  deck 13: placeholder  58 ent 0m 0s -> re-dressed 316 ent 3m 5s  (+258 ent, +3m, +5s)
+  deck 14: placeholder  75 ent 0m 0s -> re-dressed 369 ent 4m 5s  (+294 ent, +4m, +5s)
+```
+
+Read plainly: the four re-dresses add **one** model to the union (deck 14's stasis pod) and **no**
+sounds — every other model and all five sounds are already used by another deck. The cost of a
+re-dress is **entities**, +254 to +294 per deck, not content registration. So the fifth re-dress
+(deck 6, composing three sources) is a configstring non-event and an entity event.
+
+### A4 — a retail save round-trips
+
+Session 1 loads `borg1` and the engine writes its level-entry autosave in the retail format;
+session 2 loads that save.
+
+```
+$ SDL_AUDIODRIVER=dummy xvfb-run -a scripts/run-engine.sh --home-dir /tmp/opencode/lwh-home2 \
+      +set developer 1 +set s_useOpenAL 0 +set s_initsound 0 +map borg1
+EFSP: SP_SpawnServer: content: 104 configstrings of 4096 (bridge table CS_MAX 1024): 46 models of 256, 53 sounds of 256; gentities 564 of 4096
+EFSP: save: wrote saves/auto.sav (map borg1, t=1000, eAUTO)
+EFSP: SP_WriteEntryAutosave: wrote eAUTO level-entry autosave for borg1
+EFSP: Munro connected
+
+$ SDL_AUDIODRIVER=dummy xvfb-run -a scripts/run-engine.sh --home-dir /tmp/opencode/lwh-home2 \
+      +set developer 1 +set s_useOpenAL 0 +set s_initsound 0 +load auto
+EFSP: load: saves/auto.sav -> map borg1 t=1000 (deferred reload)
+EFSP: SP_LoadGame: ge=0x746ade67c3a0 apiversion=6 gentitySize=1320
+EFSP: SP_FinishTransition: eAUTO -> reset g_levelTime 1000 -> 1000 (retail SV_SpawnServer parity)
+EFSP: SP_FinishTransition: eAUTO autosave load -> ReadLevel(qtrue), entities respawn fresh
+EFSP: SP_FinishTransition: done numEnt=564 ps.origin=(104 -936 5)
+```
+
+The save written by the patched build reads back and the level returns to its spawn (`ps.origin`
+matches the fresh spawn). The brief's bar — a retail campaign map loads and plays, and a save
+round-trips — is met. The save is the engine's own retail-byte-compatible save, not a shipped
+retail PC save (upstream documents that retail PC saves are incompatible with this port).
+
+## Task B — the limits
+
+### B1 — two of the three were already raised on this branch (trunk, patches 0004 and 0008)
+
+```
+$ grep -nE "GENTITYNUM_BITS|MAX_MODELS|MAX_SOUNDS|MAX_CONFIGSTRINGS|MAX_GAMESTATE_CHARS" \
+      ../upstream/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h \
+      ../upstream/efgame/src/game/q_shared.h
+q_shared.h (efcode, engine):  1163: GENTITYNUM_BITS 12   1174: MAX_MODELS 256   1175: MAX_SOUNDS 256   1178: MAX_CONFIGSTRINGS 4096   1187: MAX_GAMESTATE_CHARS 64000
+q_shared.h (efgame, module):   878: GENTITYNUM_BITS 12    889: MAX_MODELS 256    890: MAX_SOUNDS 256    893: MAX_CONFIGSTRINGS 4096    902: MAX_GAMESTATE_CHARS 64000
+```
+
+- **`MAX_CONFIGSTRINGS` 1024 → 4096** and **`MAX_GAMESTATE_CHARS` 16000 → 64000**, moved together
+  as the source requires, in **patch 0004** — RPG-X's own figure and RPG-X's own pairing.
+- **`MAX_GENTITIES` 1024 → 4096** (`GENTITYNUM_BITS` 10 → 11 → 12), **derived**, in patches 0004
+  and 0008; 0008 also fixed the single-player bridge tables that a literal 1024 had left behind and
+  the game's memory pool. The ship needed 4096, not the brief's 2048: patch 0008 was in the trunk
+  before this branch.
+
+So there is nothing to add for the configstring or entity limits: the derivation the brief asks for
+is already in the series. This branch adds `0017` (the instrument) and Task C (a label).
+
+### B2 — `MAX_MODELS`: left at 256, because the 8-bit wire binds — the call
+
+The brief asks for `MAX_MODELS` 256 → 512 by widening a `MODELNUM_BITS` from 8 to 9. **There is no
+`MODELNUM_BITS` in this lineage.**
+
+```
+$ grep -rn "MODELNUM_BITS" ../upstream/EFAndroid-SP ../upstream/efgame | wc -l
+0
+```
+
+The width lives in the network field table, not a named constant:
+
+```
+$ grep -n "NETF(modelindex)" ../upstream/EFAndroid-SP/app/jni/efcode/qcommon/msg.c
+1054:{ NETF(modelindex), 8 },
+1098:{ NETF(modelindex), 8 },     // (both entityStateFields variants)
+```
+
+`q_shared.h` states it in words — `MAX_MODELS 256 // these are sent over the net as 8 bits` — and
+`msg.c` is the field table that makes it true. An index of 256 or more cannot ride an 8-bit field:
+raised alone, indices 256..511 would be silently truncated on every networked entity, which is the
+class of bug that shows as "the wrong model on the other machine". Widening the field to 9 bits is a
+protocol change: a server so built can no longer talk to any unmodified EF client. That is the point
+at which the brief says to stop rather than break the wire.
+
+**Call: leave `MAX_MODELS` at 256 and record why.** The reason is the wire, and the measurement
+makes the call easy — the merged ship spends **141 of 256** models and retail's worst level **46**;
+the fifth deck adds ~0–1 models. There is no content argument for the protocol fork yet. If a future
+deck ever approaches 256, the change is real and is the owner's: widen `NETF(modelindex)`/
+`NETF(modelindex2)` (and the sound path) to 9 bits, accept the protocol fork, and say so. Named as a
+call the owner may overrule.
+
+### B3 — a finding that changes the premise: configstrings are not the SP port's content ceiling
+
+```
+$ grep -n "define CS_MAX" EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+113:#define CS_MAX 1024
+```
+
+The SP bridge's own configstring table is a literal `CS_MAX 1024`, and the game's configstring
+layout is `CS_MODELS = 10`, `CS_SOUNDS = CS_MODELS + MAX_MODELS`, `CS_PLAYERS = CS_SOUNDS +
+MAX_SOUNDS` (so models occupy 10..265 and sounds 266..521; `CS_MAX` is 522 + `MAX_CLIENTS` = 523 in
+the module). Raising `MAX_CONFIGSTRINGS` to 4096 does
+**not** add content slots in the single-player path: the number of models and sounds a level can
+register is `MAX_MODELS` + `MAX_SOUNDS` — still 512 — and the bridge would drop anything past its
+1024-entry table. `MAX_CONFIGSTRINGS` matters because it sizes the gamestate and the save format
+(which is the reason to move it with `MAX_GAMESTATE_CHARS`), not because it is the content ceiling.
+Configstrings are not what this ship is short of; entities and vis-clusters are.
+
+## Task C — the holodeck row's label
+
+`module/ship/ship_core.cpp`'s `SystemSpec` table named the deck-6 holodeck station "Holodeck 1".
+Deck 14 carries Holodeck 1 (`docs/locations/deck14-stasis.brief.md`); deck 6 carries Holodeck 2.
+The row now reads:
+
+```c
+{"holodecks",                 6, "Holodeck 2",            DEPT_ENGINEERING,   60,  17,  0}, // deck 6 carries Holodeck 2; Holodeck 1 is on deck 14
+```
+
+The system still sits on deck 6 (the recreation deck; one system, reached from both decks), the
+value and all three uses are unchanged. The live docs that stated the old label were corrected to
+match: `docs/lore-ledger.md` (the station-marker row) and `docs/evidence/s5-stations.md` (the
+station table). The dated deck-14 evidence is left as the record of what was true when it was
+written.
+
+```
+$ scripts/test.sh
+ship_core: all checks passed
+...
+all checks passed            # exit 0
+
+$ scripts/check.sh --source-map build/gdk/maps/brig-map/_brig.map --script-corpus build/gdk/scripts
+    ... 2016 of 2024 scripts compiled and read back, 8 rejected (the known set)
+PASS  ...                     # exit 0
+```
+
+## The checks, as PASS lines
+
+```
+PASS  the loaded retail campaign map spends a measured fraction of every content ceiling
+      (… +map borg1: content 104 of 4096 configstrings, 46 of 256 models, 53 of 256 sounds; 564 gentities)
+PASS  the merged fifteen-deck ship loads and spawns the player
+      (… +map voyager: CM_LoadMap(maps/voyager.bsp), 531 inline models, num_entities=3896; "Munro connected")
+PASS  the merged ship is at 3896 of 4096 gentities and 15355 of 16384 vis-clusters
+      (the content line above; BSP lump 16 read from the packed artifact)
+PASS  the four re-dressed decks add one model and no sounds to the union, and 254..294 entities each
+      (the per-deck census above)
+PASS  a save written by this build round-trips through a load
+      (… +load auto: "load: saves/auto.sav -> map borg1", "SP_FinishTransition: done numEnt=564")
+PASS  scripts/test.sh exits 0
+PASS  scripts/check.sh exits 0 (2016 of 2024 scripts compile and read back, the 8 known rejections)
+```
+
+## Headroom found, measured, and deliberately not implemented
+
+These are the deliverables of the standing instruction ("if there's any other way to get more
+performance... report what you find with its number"). Nothing here was implemented.
+
+1. **Gentities are the binding ceiling: 3896 of 4096 (95%).** A fifth re-dress adds ~254–294
+   entities (A3), so deck 6 as a full re-dress is likely to cross 4096. The cheap lever is the same
+   derivation the brief likes: `GENTITYNUM_BITS` 12 → 13 gives 8192. It is on the wire
+   (`NETF(otherEntityNum)`, snapshots) exactly as `GENTITYNUM_BITS` was when 0004/0008 raised it, so
+   it is an internal-format change permissible because we build both ends — but it is a protocol
+   change with the same class of consequence as B2, and the measurement says the fifth deck may need
+   it. **This is the number that tells the owner whether to raise it before deck 6, not after.**
+2. **Vis-clusters: 15355 of 16384 (94%), and q3map2 is the gate.** `MAX_MAP_VISCLUSTERS` is a
+   compiler constant (`q3map2.h:210`, `0x4000`), not an engine one; the ship is under it only
+   because deck 7's copied interior is detail geometry. A sixth full-detail re-dress would need
+   either more detail aliases or a q3map2 rebuilt with a higher cap (its source is in the pin,
+   `q3map2.h`). Report only: rebuilding the compiler is outside this brief.
+3. **The SP configstring table is the wrong 1024.** `sp_bridge.cpp:113` hard-codes `CS_MAX 1024`
+   while `MAX_CONFIGSTRINGS` is 4096 and the game's own `CS_MAX` is ~523; a raise of the content
+   blocks (models/sounds) would need this table widened too, or the bridge silently drops the new
+   configstrings. Cheap (one constant), but pointless unless models/sounds move.
+4. **`MAX_SOUNDS` is untouched at 256** and is 67 in the merged ship (26%): no pressure, and it
+   rides the same 8-bit path as models.
+5. **`maxentities`/snapshot capacity.** The first snapshot on `borg1` carried 476 entities; patch
+   0010 already made the ship's snapshots choose by visibility and distance rather than the first
+   `MAX_ENTITIES_IN_SNAPSHOT`. Not re-measured here; named because it is the other per-frame cost a
+   dense deck pays that retail never does.
+
+## Judgement calls, named as calls
+
+1. **The measurement instrument is engine-side and permanent (`patches/0017`).** Task A asks for a
+   measurement "on a loaded campaign map", which only the engine has. It is logging only, gated by
+   `developer`, and touches nothing with `developer` unset, so retail behaviour and saves are kept;
+   the delta table in `CONTRIBUTING.md` records it. The alternative — a BSP-parsing tool — would
+   have missed the NPC and player models the game registers at spawn (source registration is 118
+   models; the loaded map is 141).
+2. **`MAX_MODELS` is left alone (B2).** The wire binds and there is no measured pressure. Stated as
+   a call, not a conclusion about the game's future content.
+3. **The configstring/entity raises are the trunk's, not this branch's (B1).** I did not re-apply
+   them or duplicate them; the brief's from-values (1024/1024/256) describe the pre-0004 tree, and
+   this branch inherits 4096/4096/256.
+4. **Task C is the label and its live references only.** I changed the `SystemSpec` label, added the
+   one-line comment the brief asks for, and corrected the two live documents that repeated the old
+   label; I left the dated evidence transcripts alone. The deck the system sits on is unchanged,
+   per the brief.
+
+## What could not be verified here
+
+- **A full user save (`save myname`) round-trip.** Only the engine's level-entry autosave was
+  written and reloaded (A4); the command-line `+save`/`+load` tokens execute before the map has
+  spawned, so a user save needs an interactive session. The save format is the same writer, and the
+  autosave proved read-back, but a hand-made save is the stronger test.
+- **A played mission.** "Borg1 loads, spawns the player, and the save returns to it" is what the
+  transcript shows; that the mission is completable is G1's own open item, and a machine cannot
+  close it.
+- **Deck 6's actual entity increase.** The +254–294/deck figure is the four kept re-dresses; deck 6
+  is still the 81-entity placeholder, so the projection is from the measured pattern, not from
+  deck 6 built.
+- **The full-ship frame cost of the raised ceilings.** No new frame measurement was taken; S3's
+  `scripts/s3-check.sh` remains the frame measurement, and it was not re-run here.

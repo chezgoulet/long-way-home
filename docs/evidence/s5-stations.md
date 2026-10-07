@@ -27,7 +27,7 @@ the transporter and astrometrics exist only as `target_interface` screens. The s
 | sickbay | 5 | Sickbay |
 | tractor beam | 10 | Shuttlebay Control |
 | replicators | 2 | Mess Hall |
-| holodecks | 6 | Holodeck 1 |
+| holodecks | 6 | Holodeck 2 |
 
 The generated decks (6, 7, 12, 13, 14) are ours, so their stations can be placed exactly. The
 published decks need markers authored at their fixtures (the bridge models, the transporter panel,
