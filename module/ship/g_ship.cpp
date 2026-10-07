@@ -135,12 +135,16 @@ void Publish( void )
 	static const char *const ALERTS[] = { "GREEN", "YELLOW", "RED" };
 	static const char *const WATCH[] = { "ALPHA", "BETA", "GAMMA" };
 	static const char *const SOURCES[ship::SRC_COUNT] = { "WARP CORE", "IMPULSE REACTORS", "AUXILIARY FUSION", "BATTERIES" };
-	static const int CAPACITY[ship::SRC_COUNT] = { 1000, 300, 120, 80 };
+	static const int CAPACITY[ship::SRC_COUNT] = { 1400, 250, 90, 60 };
 	const int sod = vessel.SecondOfDay();
 
 	gi.cvar_set( "lwh_ship_alert", Fmt( "%d", vessel.alert ).c_str() );
-	gi.cvar_set( "lwh_ship_header", Fmt( "DAY %d  %02d:%02d  %s WATCH   CONDITION %s   POWER %d SUPPLIED  %d ALLOCATED", vessel.Day(),
-		sod / 3600, sod % 3600 / 60, WATCH[vessel.Watch()], ALERTS[vessel.alert], vessel.PowerAvailable(), vessel.PowerAllocated() ).c_str() );
+	// The power budget twice (owner ruling, 2026-10-07): what the plant delivers fresh, and what it
+	// delivers now -- the power half of the navigation counter, and where the player watches it shrink
+	// as the dilithium ages. Costs a string.
+	gi.cvar_set( "lwh_ship_header", Fmt( "DAY %d  %02d:%02d  %s WATCH   CONDITION %s   POWER %d SUPPLIED  %d ALLOCATED   BUDGET %d FRESH  %d NOW", vessel.Day(),
+		sod / 3600, sod % 3600 / 60, WATCH[vessel.Watch()], ALERTS[vessel.alert], vessel.PowerAvailable(), vessel.PowerAllocated(),
+		vessel.PowerCapacityFresh(), vessel.PowerCapacityNow() ).c_str() );
 	gi.cvar_set( "lwh_ship_stores", Fmt( "DEUTERIUM %.1f%%   ANTIMATTER %.1f%%   BATTERIES %.0f%%   TORPEDOES %d   CREW FIT %d OF %d",
 		vessel.stores.deuterium * 100, vessel.stores.antimatter * 100, vessel.stores.batteries * 100, vessel.stores.torpedoes,
 		vessel.CrewFit(), static_cast<int>( vessel.crew.size() ) ).c_str() );
@@ -3708,6 +3712,15 @@ void Svcmd_Ship_f( void )
 		if ( use < 0 ) { gi.Printf( "SHIP: holo recreation | training | therapy | forensic <crew>\n" ); return; }
 		if ( !ship::RunHolodeck( vessel, static_cast<ship::HolodeckUse>( use ), atoi( b ) ) )
 			gi.Printf( "SHIP: the holodeck could not run that (the system is down, or the crew member cannot)\n" );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "jumpstart" ) )
+	{//the holodeck matrix is a trap, not a solution (docs/ship-systems.md; VOY "Parallax"): with
+	 //the main grid down, tying in a holodeck reactor buys a charge and wrecks the ship's relays
+		if ( !ship::JumpStartFromHolodeck( vessel ) )
+			gi.Printf( "SHIP: the holodeck reactor cannot be tied in now (the main grid is up, or it is wrecked)\n" );
+		else gi.Printf( "SHIP: jump-started from a holodeck reactor: the cross-tie blew relays; half the ship is wrecked\n" );
 		Publish();
 		return;
 	}

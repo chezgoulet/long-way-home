@@ -64,50 +64,127 @@ static void TestPowerIsConserved()
 	}
 }
 
-// Battle stations cannot be fully powered: the demand exceeds the supply, by design, and what is
-// shed is whatever stands last in the priority order.
+// The budget is a ladder: what is fed first is given up last, and the warp drive is given up last of
+// all -- the ship keeps the way home after every comfort (docs/budget-squaring.md, Part six).
 static void TestSheddingFollowsPriority()
 {
-	g_test = "shedding follows priority";
+	g_test = "shedding follows priority, and the warp drive is shed last";
 	Ship s = NewShip();
-	SetAlert(s, ALERT_RED);
+	SetAlert(s, ALERT_YELLOW); // everything demands: nothing is suppressed by the condition
 	Tick(s, 1.0f);
-	CHECK(s.systems[SYS_LIFE_SUPPORT].output == 1.0f);
-	CHECK(s.systems[SYS_SHIELDS].allocated == Spec(SYS_SHIELDS).demand);
-	CHECK(s.systems[SYS_HOLODECKS].allocated == 0 && s.systems[SYS_REPLICATORS].allocated == 0);
 
-	DamageSource(s, SRC_WARP_CORE, 1.0f); // the core is gone: 420 units for a ship that wants 1400
+	// A worked ceiling: the crystal ages, the core's output falls, and what she gives up is the
+	// cheapest thing first.
+	s.crystalCeiling = 0.55f;
 	Tick(s, 1.0f);
+	CHECK(s.PowerCapacityNow() == 1170);
+	CHECK(s.systems[SYS_WARP_DRIVE].allocated == Spec(SYS_WARP_DRIVE).demand); // the way home still runs
+	CHECK(s.systems[SYS_CARGO_HANDLING].allocated == 0);                       // the cheapest thing does not
+	CHECK(s.systems[SYS_GRAVITY_PLATING].allocated == 0);
+	CHECK(s.systems[SYS_HOLODECKS].allocated == 0);
 	CHECK(s.systems[SYS_LIFE_SUPPORT].output == 1.0f);
-	CHECK(s.systems[SYS_STRUCTURAL_INTEGRITY].output == 1.0f);
-	CHECK(s.systems[SYS_WARP_DRIVE].allocated == 0);
-	bool starved = false;
-	for (int p = 0; p < SYS_COUNT; ++p)
+
+	// A console can reorder the list. (The design's priority is the point, but it is still a control.)
+	// Put the warp drive behind the comforts and it is the warp that goes dark first: the inversion
+	// the document warns about, made visible.
+	Ship r = NewShip();
+	SetAlert(r, ALERT_YELLOW);
+	Tick(r, 1.0f);
+	SetPriority(r, SYS_WARP_DRIVE, 99);
+	r.crystalCeiling = 0.55f;
+	Tick(r, 1.0f);
+	CHECK(r.systems[SYS_WARP_DRIVE].allocated == 0);
+	CHECK(r.systems[SYS_GRAVITY_PLATING].allocated == Spec(SYS_GRAVITY_PLATING).demand);
+}
+
+// The headline acceptance (docs/budget-squaring.md, Part five): demand 1,730, fresh supply 1,800,
+// seventy EPS in hand, and the deterministic set of systems running or shed at each crystal ceiling.
+static void TestBudgetShedSequence()
+{
+	g_test = "the budget: 1,730 demanded, 1,800 fresh, and the shed sequence at each ceiling";
+	Ship s = NewShip();
+	int demand = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) demand += Spec(static_cast<SystemId>(i)).demand;
+	CHECK(demand == 1730);                         // the demand table
+	CHECK(s.PowerCapacityFresh() == 1800);         // the fresh grid
+	CHECK(s.PowerCapacityNow() == 1800);           // a fresh crystal delivers the whole nameplate
+	CHECK(s.PowerCapacityFresh() - demand == 70);  // she leaves port with seventy in hand
+
+	// At each ceiling, the systems the ship gives up -- the document's table, as the arithmetic runs.
+	struct Case { float ceiling; int supply; int shedCount; SystemId shed[16]; };
+	const Case CASES[4] = {
+		{1.00f, 1800, 0, {}},
+		{0.85f, 1590, 4, {SYS_CARGO_HANDLING, SYS_LIGHTING, SYS_HOLODECKS, SYS_REPLICATORS}},
+		{0.70f, 1380, 9, {SYS_CARGO_HANDLING, SYS_LIGHTING, SYS_HOLODECKS, SYS_REPLICATORS, SYS_GRAVITY_PLATING,
+			SYS_TRACTOR_BEAM, SYS_TURBOLIFTS, SYS_SICKBAY, SYS_SCIENCE_LABS}},
+		{0.55f, 1170, 14, {SYS_CARGO_HANDLING, SYS_LIGHTING, SYS_HOLODECKS, SYS_REPLICATORS, SYS_GRAVITY_PLATING,
+			SYS_TRACTOR_BEAM, SYS_TURBOLIFTS, SYS_SICKBAY, SYS_SCIENCE_LABS, SYS_TRANSPORTERS, SYS_COMMUNICATIONS,
+			SYS_NAV_DEFLECTOR, SYS_ASTROMETRICS, SYS_TORPEDO_LAUNCHERS}},
+	};
+	for (const Case &c : CASES) {
+		Ship q = NewShip();
+		SetAlert(q, ALERT_YELLOW); // everything demands: nothing is suppressed by the condition
+		Tick(q, 1.0f);
+		q.crystalCeiling = c.ceiling;
+		Tick(q, 1.0f);
+		CHECK(q.PowerCapacityNow() == c.supply);
+		bool shed[SYS_COUNT] = {false};
+		int n = 0;
 		for (int i = 0; i < SYS_COUNT; ++i) {
-			if (s.systems[i].priority != p) continue;
-			const bool full = s.systems[i].allocated == Spec(static_cast<SystemId>(i)).demand || !s.systems[i].enabled;
-			const bool wants = Spec(static_cast<SystemId>(i)).demand > 0 && i != SYS_HOLODECKS && i != SYS_REPLICATORS;
-			if (starved && wants) CHECK(s.systems[i].allocated == 0); // once power runs out, nothing later gets any
-			if (wants && !full && s.systems[i].allocated < Spec(static_cast<SystemId>(i)).demand) starved = true;
+			const int want = EffectiveDemand(q, static_cast<SystemId>(i));
+			if (want > 0 && q.systems[i].allocated < want) { shed[i] = true; ++n; }
 		}
-	CHECK(starved);
+		CHECK(n == c.shedCount);
+		for (int k = 0; k < c.shedCount; ++k) CHECK(shed[c.shed[k]]);
+		// And in the document's order: the list is the shed order, highest keep-priority first.
+		for (int k = 1; k < c.shedCount; ++k)
+			CHECK(Spec(c.shed[k - 1]).priority > Spec(c.shed[k]).priority);
+		// The warp drive is never among them while there is any crystal left: she keeps the way home.
+		CHECK(!shed[SYS_WARP_DRIVE]);
+	}
+}
 
-	// A console can reorder the list: put the warp drive first and it is fed before the shields.
-	SetPriority(s, SYS_WARP_DRIVE, -1);
+// Coreless (docs/budget-squaring.md, Part 4a): with the warp core gone, the fusion reactors and the
+// batteries are all that remain, and the ship runs only the set that keeps her alive and moving.
+static void TestCorelessShip()
+{
+	g_test = "coreless: the critical four, the impulse drive and the deflector, and nothing else";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW);
 	Tick(s, 1.0f);
-	CHECK(s.systems[SYS_WARP_DRIVE].allocated == Spec(SYS_WARP_DRIVE).demand);
-	CHECK(s.systems[SYS_SHIELDS].allocated == 0);
+	DamageSource(s, SRC_WARP_CORE, 1.0f); // the core is gone entirely
+	Tick(s, 1.0f);
+	CHECK(Coreless(s));
+	CHECK(s.PowerCapacityNow() == 400);   // impulse reactors 250 + auxiliary fusion 90 + batteries 60
+
+	// The survival set is 390 of the 400; there is not the power for another system.
+	int vital = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		const bool inSet = i == SYS_LIFE_SUPPORT || i == SYS_STRUCTURAL_INTEGRITY || i == SYS_INERTIAL_DAMPERS
+			|| i == SYS_COMPUTER_CORE || i == SYS_IMPULSE_DRIVE || i == SYS_NAV_DEFLECTOR;
+		if (inSet) vital += Spec(static_cast<SystemId>(i)).demand;
+	}
+	CHECK(vital == 390);
+	CHECK(s.PowerAllocated() == 390);
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		const bool inSet = i == SYS_LIFE_SUPPORT || i == SYS_STRUCTURAL_INTEGRITY || i == SYS_INERTIAL_DAMPERS
+			|| i == SYS_COMPUTER_CORE || i == SYS_IMPULSE_DRIVE || i == SYS_NAV_DEFLECTOR;
+		CHECK(s.systems[i].allocated == (inSet ? Spec(static_cast<SystemId>(i)).demand : 0));
+	}
+	// No weapons, no sensors, no comms: there is not the power.
+	CHECK(s.systems[SYS_SHIELDS].allocated == 0 && s.systems[SYS_SENSORS].allocated == 0
+		&& s.systems[SYS_PHASERS].allocated == 0 && s.systems[SYS_COMMUNICATIONS].allocated == 0);
 }
 
 static void TestBatteriesKeepTheCrewAlive()
 {
-	g_test = "batteries carry the critical systems, then run out";
+	g_test = "the batteries alone hold life support at exactly full for three hours";
 	Ship s = NewShip();
 	for (int i = 0; i < SRC_BATTERIES; ++i) SetSourceOnline(s, static_cast<SourceId>(i), false);
 	Tick(s, 1.0f);
-	CHECK(s.sources[SRC_BATTERIES].output == 80);
-	CHECK(s.systems[SYS_LIFE_SUPPORT].output == 1.0f);          // 60 of the 80
-	CHECK(s.systems[SYS_STRUCTURAL_INTEGRITY].allocated == 20); // what is left; nothing for anyone else
+	CHECK(s.sources[SRC_BATTERIES].output == 60);        // exactly life support's own demand
+	CHECK(s.systems[SYS_LIFE_SUPPORT].output == 1.0f);
+	CHECK(s.systems[SYS_STRUCTURAL_INTEGRITY].allocated == 0); // not a system short of it
 	CHECK(s.systems[SYS_COMPUTER_CORE].allocated == 0 && s.systems[SYS_SENSORS].allocated == 0);
 
 	Tick(s, Hours(s, 2.0f));
@@ -814,7 +891,9 @@ static void TestBoarding()
 	Tick(s, Hours(s, 2.0f / 60.0f)); // two minutes
 	CHECK(s.systems[SYS_SENSORS].control < 1.0f && !Hijacked(s, SYS_SENSORS));
 	CHECK(s.systems[SYS_WARP_DRIVE].control == 1.0f); // they are not on deck 11
-	Tick(s, Hours(s, 3.0f / 60.0f));
+	// Deck 8 now carries three systems (sensors, astrometrics and the labs), so the two boarders
+	// spread across them; the seize threshold at six minutes is what finally makes the deck theirs.
+	Tick(s, Hours(s, 4.0f / 60.0f));
 	CHECK(Hijacked(s, SYS_SENSORS));
 	CHECK(s.systems[SYS_SENSORS].output == 0.0f && s.systems[SYS_SENSORS].allocated > 0); // it runs, but not for us
 
@@ -1122,8 +1201,10 @@ static void TestCombat()
 	                                  // (three came; security is already among them)
 	CHECK(s.decks[ENGINEERING_DECK - 1].intruders > 0.0f);
 
-	// Red alert: shields and phasers. The fight is now ours to win.
+	// Red alert: shields and phasers. The fight is now ours to win. (The bank is set to kill: this is
+	// a fight, and the default stun setting does it no harm.)
 	SetAlert(s, ALERT_RED);
+	SetPhaserYield(s, YIELD_KILL);
 	Tick(s, Hours(s, 4.0f / 60.0f));
 	CHECK(s.enemy.shields < 1.0f);
 	CHECK(s.shieldStrength > 0.0f);
@@ -1535,6 +1616,7 @@ static void TestCrewJusticeAndBorg()
 		sh.enemy.kind = kind; sh.enemy.borg = kind == ENEMY_BORG_VESSEL;
 		sh.enemy.shields = 0.0f; sh.enemy.shieldGen = 0.0f; sh.enemy.firepower = 0.0f;
 		SetAlert(sh, ALERT_RED);
+		SetPhaserYield(sh, YIELD_KILL); // a fight, not the peacetime stun setting
 		Tick(sh, Hours(sh, 10.0f));
 		return sh.enemy.hull;
 	};
@@ -4214,18 +4296,18 @@ static void TestPhaserYieldAndReading()
 	CHECK(!OperatedFrom(SYS_COMMUNICATIONS, STN_TACTICAL));  // ... and Tactical cannot change it
 	CHECK(!StationReads(STN_TACTICAL, SYS_WARP_DRIVE));      // not everything is a portfolio
 
-	// The bank's setting: default kill (150% of the bank's nominal), a higher setting asks more power,
+	// The bank's setting: default stun (the bank's nominal demand), a higher setting asks more power,
 	// a lower one less, and a bad setting changes nothing.
 	Ship s = NewShip();
 	const int nominal = Spec(SYS_PHASERS).demand;
-	CHECK(PhaserYieldOf(s) == YIELD_KILL);
-	CHECK(EffectiveDemand(s, SYS_PHASERS) == nominal * 150 / 100);
-	CHECK(!SetPhaserYield(s, 9) && PhaserYieldOf(s) == YIELD_KILL);
-	SetPhaserYield(s, YIELD_STUN);
-	const int stun = EffectiveDemand(s, SYS_PHASERS);
+	CHECK(PhaserYieldOf(s) == YIELD_STUN);
+	CHECK(EffectiveDemand(s, SYS_PHASERS) == nominal);
+	CHECK(!SetPhaserYield(s, 9) && PhaserYieldOf(s) == YIELD_STUN);
+	SetPhaserYield(s, YIELD_KILL);
+	const int kill = EffectiveDemand(s, SYS_PHASERS);
 	SetPhaserYield(s, YIELD_VAPORIZE);
 	const int vap = EffectiveDemand(s, SYS_PHASERS);
-	CHECK(stun == nominal && nominal < vap);
+	CHECK(kill == nominal * 150 / 100 && kill < vap);
 	CHECK(EffectiveDemand(s, SYS_SHIELDS) == Spec(SYS_SHIELDS).demand); // every other system is unchanged
 
 	std::vector<uint8_t> blob = Pack(s);
@@ -4256,6 +4338,88 @@ static void TestPhaserYieldAndReading()
 	std::printf("PASS  the phaser setting asks 100/125/150/175%% and vaporize hits harder than stun; comms is Operations' and Tactical reads it\n");
 }
 
+// Canon's crew check (docs/ship-systems.md, "The 37's"): the ship is operable with 100, and below
+// that flyable but degraded.
+static void TestHundredCrew()
+{
+	g_test = "operable with 100 crew";
+	CHECK(PostsNeeded() == 22);                     // the systems' posts, the skeleton crew's bill
+	const WatchCoverage full = CoverWithCrew(100);
+	CHECK(full.perWatch >= PostsNeeded());          // a watch of 33 hands covers all 22 posts
+	CHECK(full.postsCovered == PostsNeeded());
+	CHECK(full.critical);
+	// Below a hundred the ship is degraded but flyable: the critical set holds, the comforts go.
+	const WatchCoverage thin = CoverWithCrew(60);
+	CHECK(thin.perWatch < PostsNeeded());
+	CHECK(thin.postsCovered < PostsNeeded());
+	CHECK(thin.critical);
+}
+
+// The holodeck matrix is a trap, not a solution (docs/ship-systems.md; VOY "Parallax").
+static void TestHolodeckTrap()
+{
+	g_test = "the holodeck matrix is a trap";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	CHECK(!JumpStartFromHolodeck(s));               // the main grid is up: there is no need
+	CHECK(s.systems[SYS_HOLODECKS].health == 1.0f); // and nothing happens
+
+	// With the core gone, the temptation: it returns a charge and wrecks half the relays.
+	Ship d = NewShip();
+	Tick(d, 1.0f);
+	DamageSource(d, SRC_WARP_CORE, 1.0f);
+	Tick(d, 1.0f);
+	CHECK(Coreless(d));
+	const float batteries = d.stores.batteries;
+	CHECK(JumpStartFromHolodeck(d));
+	CHECK(d.stores.batteries > batteries);          // it did buy back power
+	CHECK(d.systems[SYS_HOLODECKS].health == 0.0f); // and it wrecked what it tapped
+	int ruined = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) if (d.systems[i].health < 1.0f) ++ruined;
+	CHECK(ruined >= SYS_COUNT / 3);                 // canon's "half the ship's relays", counted as systems
+}
+
+// The owner's mechanic (docs/budget-squaring.md, Part five): the crystal's ceiling scales the warp
+// core's output, so recomposition trades capability for time.
+static void TestCrystalCeilingScalesOutput()
+{
+	g_test = "the crystal ceiling scales the warp core's output";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	CHECK(s.PowerCapacityNow() == 1800);
+	s.crystalCeiling = 0.85f;
+	Tick(s, 1.0f);
+	CHECK(s.PowerCapacityNow() == 1590);            // 1400 x 0.85 + 250 + 90 + 60
+	s.dilithium = 0.2f;
+	const float before = s.crystalCeiling;
+	CHECK(Recomposite(s) && s.crystalCeiling < before);
+	Tick(s, 1.0f);
+	CHECK(s.PowerCapacityNow() == static_cast<int>(1400 * s.crystalCeiling + 0.5f) + 400);
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.crystalCeiling == s.crystalCeiling && back.PowerCapacityNow() == s.PowerCapacityNow());
+}
+
+// The torpedo complement: canon's 38, set at the start and depleted by fire (docs/budget-squaring.md,
+// Part 3, Finding four).
+static void TestTorpedoComplement()
+{
+	g_test = "the torpedo complement: 38, and it depletes";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW); // the launchers are not suppressed by a green watch
+	Tick(s, 1.0f);
+	CHECK(s.stores.torpedoes == 38);
+	for (int fired = 0; fired < 38; ++fired) {
+		s.enemy = Enemy(); s.enemy.present = true; s.enemy.hull = 1.0f; s.enemy.shields = 0.0f;
+		s.enemy.boarders = 0; s.enemy.firepower = 0.0f;
+		CHECK(FireTorpedo(s));
+	}
+	CHECK(s.stores.torpedoes == 0);
+	s.enemy = Enemy(); s.enemy.present = true; s.enemy.hull = 1.0f;
+	CHECK(!FireTorpedo(s));                          // none left
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
@@ -4268,6 +4432,8 @@ int main(int argc, char **argv)
 	TestNominalShip();
 	TestPowerIsConserved();
 	TestSheddingFollowsPriority();
+	TestBudgetShedSequence();
+	TestCorelessShip();
 	TestBatteriesKeepTheCrewAlive();
 	TestHullBreach();
 	TestFuel();
@@ -4337,6 +4503,10 @@ int main(int argc, char **argv)
 	TestOrders();
 	TestPlayerInTheWorld();
 	TestPhaserYieldAndReading();
+	TestHundredCrew();
+	TestHolodeckTrap();
+	TestCrystalCeilingScalesOutput();
+	TestTorpedoComplement();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

@@ -16,30 +16,76 @@ namespace ship {
 // ---- the tables -------------------------------------------------------------------------------
 
 // Demand is in EPS units [inv]. Deck and station are [lore] where the ledger says so. Priority is
-// the order power is shed in: life before structure before everything else.
+// the order power is kept in, and therefore the order it is shed in: the lowest number is fed first
+// and given up last. It is the brownout ladder stated as arithmetic (docs/budget-squaring.md, Part
+// six), and the five new systems are placed by it: the science and the comforts go first, the warp
+// drive goes last of all, after even the comforts. The array is in enum order, one line per SystemId.
 static const SystemSpec SPECS[SYS_COUNT] = {
 	// name                     deck station                 department        demand prio crew
 	{"life support",             12, "Environmental Control", DEPT_ENGINEERING,   60,   0,  1},
 	{"structural integrity",     11, "Main Engineering",      DEPT_ENGINEERING,   80,   1,  1},
 	{"inertial dampers",         11, "Main Engineering",      DEPT_ENGINEERING,   40,   2,  1},
 	{"computer core",            10, "Computer Core",         DEPT_SCIENCES,      60,   3,  1}, // main core, deck 10 (docs/ship-master-map.md); auxiliary on deck 7
-	{"shields",                   1, "Bridge, Tactical",      DEPT_SECURITY,     200,   4,  1},
-	{"sensors",                   8, "Astrometrics",          DEPT_SCIENCES,      60,   5,  2},
-	{"warp drive",               11, "Main Engineering",      DEPT_ENGINEERING,  400,   9,  3},
-	{"impulse drive",            10, "Impulse Engineering",   DEPT_ENGINEERING,  100,   6,  2},
-	{"phasers",                   1, "Bridge, Tactical",      DEPT_SECURITY,     150,   7,  2},
-	{"torpedo launchers",        10, "Torpedo Bay",           DEPT_SECURITY,      30,   8,  2}, // fore tubes, deck 10; aft tubes deck 4 (docs/ship-master-map.md)
-	{"navigational deflector",   11, "Deflector Control",     DEPT_ENGINEERING,   50,  10,  1},
-	{"communications",            1, "Bridge, Operations",    DEPT_COMMAND,       20,  11,  1},
-	{"transporters",              4, "Transporter Room 1",    DEPT_ENGINEERING,   60,  12,  1},
-	{"sickbay",                   5, "Sickbay",               DEPT_MEDICAL,       30,  13,  2},
-	{"turbolifts",                1, "Bridge, Operations",    DEPT_ENGINEERING,   20,  14,  0},
-	{"tractor beam",             10, "Shuttlebay Control",    DEPT_ENGINEERING,   60,  15,  1},
-	{"replicators",               2, "Mess Hall",             DEPT_ENGINEERING,   60,  16,  0},
-	{"holodecks",                 6, "Holodeck 2",            DEPT_ENGINEERING,   60,  17,  0}, // deck 6 carries Holodeck 2; Holodeck 1 is on deck 14
+	{"shields",                   1, "Bridge, Tactical",      DEPT_SECURITY,     200,   7,  1},
+	{"sensors",                   8, "Astrometrics",          DEPT_SCIENCES,      60,   6,  2},
+	// The warp drive is shed last of all (docs/budget-squaring.md): the ship gives up her way home
+	// only after she has given up everything else, or the priorities invert and she keeps the
+	// holodecks lit at the cost of going anywhere.
+	{"warp drive",               11, "Main Engineering",      DEPT_ENGINEERING,  400,   4,  3},
+	{"impulse drive",            10, "Impulse Engineering",   DEPT_ENGINEERING,  100,   5,  2},
+	{"phasers",                   1, "Bridge, Tactical",      DEPT_SECURITY,     150,   8,  2},
+	{"torpedo launchers",        10, "Torpedo Bay",           DEPT_SECURITY,      30,   9,  2}, // fore tubes, deck 10; aft tubes deck 4 (docs/ship-master-map.md)
+	{"navigational deflector",   11, "Deflector Control",     DEPT_ENGINEERING,   50,  11,  1},
+	{"communications",            1, "Bridge, Operations",    DEPT_COMMAND,       20,  12,  1},
+	{"transporters",              4, "Transporter Room 1",    DEPT_ENGINEERING,   60,  13,  1},
+	{"sickbay",                   5, "Sickbay",               DEPT_MEDICAL,       30,  15,  2},
+	{"turbolifts",                1, "Bridge, Operations",    DEPT_ENGINEERING,   20,  16,  0},
+	{"tractor beam",             10, "Shuttlebay Control",    DEPT_ENGINEERING,   60,  17,  1},
+	{"replicators",               2, "Mess Hall",             DEPT_ENGINEERING,   60,  19,  0},
+	{"holodecks",                 6, "Holodeck 2",            DEPT_ENGINEERING,   60,  20,  0}, // deck 6 carries Holodeck 2; Holodeck 1 is on deck 14
+	{"astrometrics",              8, "Astrometrics",          DEPT_SCIENCES,      60,  10,  0}, // canon's own facility, deck 8, with its own arrays
+	{"science labs",              8, "Science Labs",          DEPT_SCIENCES,      60,  14,  0}, // the mission's own load: she is a science vessel
+	{"gravity plating",          12, "Environmental Control", DEPT_ENGINEERING,   30,  18,  0}, // the plating draws power; life support's own deck
+	{"non-essential lighting",   12, "Environmental Control", DEPT_ENGINEERING,   20,  21,  0}, // the first thing the show turns off, and the rung the ladder was missing
+	{"cargo handling",           10, "Cargo Bay",             DEPT_ENGINEERING,   20,  22,  0}, // the ladder's other missing rung
 };
 
 const SystemSpec &Spec(SystemId id) { return SPECS[id < SYS_COUNT ? id : 0]; }
+
+// The posts the ship must man: the systems' own needs summed. Canon's "The 37's" has her operable
+// with 100 crew; this is the number that has to fit under that. [inv]
+int PostsNeeded()
+{
+	int n = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) n += SPECS[i].crewNeeded;
+	return n;
+}
+
+// The skeleton-crew arithmetic: one watch's hands are given to the posts in the order power is kept
+// in, so the critical set (the four that keep her alive, the impulse drive and the deflector) is the
+// last to go unmanned. At 100 crew a watch has 33 hands, and all 22 posts fit under it. [inv]
+WatchCoverage CoverWithCrew(int crew)
+{
+	WatchCoverage c;
+	c.perWatch = crew / WATCHES;
+	c.postsNeeded = PostsNeeded();
+	int order[SYS_COUNT];
+	for (int i = 0; i < SYS_COUNT; ++i) order[i] = i;
+	std::stable_sort(order, order + SYS_COUNT, [](int a, int b) { return SPECS[a].priority < SPECS[b].priority; });
+	int hands = c.perWatch;
+	bool critical = true;
+	for (int k = 0; k < SYS_COUNT; ++k) {
+		const int i = order[k];
+		const bool key = i == SYS_LIFE_SUPPORT || i == SYS_STRUCTURAL_INTEGRITY || i == SYS_INERTIAL_DAMPERS
+			|| i == SYS_COMPUTER_CORE || i == SYS_IMPULSE_DRIVE || i == SYS_NAV_DEFLECTOR;
+		const int need = SPECS[i].crewNeeded;
+		if (need == 0) continue;
+		if (hands >= need) { hands -= need; c.postsCovered += need; }
+		else if (key) critical = false;
+	}
+	c.critical = critical;
+	return c;
+}
 
 // Who operates what. [lore] in outline -- tactical has weapons and shields, the conn flies the
 // ship, ops runs her services -- and [inv] at the edges (see docs/lore-ledger.md).
@@ -100,10 +146,10 @@ struct SourceSpec {
 };
 
 static const SourceSpec SOURCES[SRC_COUNT] = {
-	{"warp core", 1000, 0.004f, 0.003f},
-	{"impulse reactors", 300, 0.003f, 0.0f},
-	{"auxiliary fusion", 120, 0.001f, 0.0f},
-	{"emergency batteries", 80, 0.0f, 0.0f},
+	{"warp core", 1400, 0.004f, 0.003f},   // the plant (docs/budget-squaring.md, Parts 4a/5); its output also scales with the crystal's ceiling
+	{"impulse reactors", 250, 0.003f, 0.0f}, // the secondary that flies her home
+	{"auxiliary fusion", 90, 0.001f, 0.0f},  // keeps the spine alive after the core
+	{"emergency batteries", 60, 0.0f, 0.0f}, // exactly life support, at full, for three hours
 };
 
 const float BATTERY_HOURS = 3.0f;          // full cells at full draw [inv]
@@ -131,8 +177,6 @@ static void MemoryDecay(Ship &s, float shipSeconds); // salience fades unless re
 static void MaturePromises(Ship &s);                 // a deadline that passes unresolved is broken
 static void UpdateJobs(Ship &s);                     // the queue of outstanding work (docs/crew-work.md)
 static uint32_t AnomalyRoll(uint32_t counter, uint32_t seed); // a deterministic draw (the ruling)
-
-static bool Critical(SystemId id) { return SPECS[id].priority <= SPECS[SYS_COMPUTER_CORE].priority; }
 
 // What the alert condition switches off, whatever its console says. Green: weapons and shields
 // stand down. Red: comforts go dark.
@@ -750,26 +794,58 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 
 // ---- power ------------------------------------------------------------------------------------
 
+// What a source can deliver right now: its nameplate scaled by its own health and -- for the warp
+// core alone -- by the dilithium crystal's ceiling (docs/budget-squaring.md, Part five). The owner's
+// mechanic: the ceiling bears on *output*. Recomposition buys the crystal life and permanently
+// lowers the plant, so the power budget is what pays for the extra time. [inv, beside the fraction
+// rates in docs/lore-ledger.md]
+static int SourceCapacity(const Ship &s, SourceId id)
+{
+	int cap = static_cast<int>(SOURCES[id].capacity * s.sources[id].health + 0.5f);
+	if (id == SRC_WARP_CORE) cap = static_cast<int>(cap * Clamp01(s.crystalCeiling) + 0.5f);
+	return cap;
+}
+
+// The coreless ship (docs/budget-squaring.md, Part 4a): with the warp core gone, only the fusion
+// reactors and the batteries are left, and the ship runs the set that keeps her alive and moving --
+// the critical four, the impulse drive and the navigational deflector. It is a survival allocation.
+bool Coreless(const Ship &s)
+{
+	const Source &core = s.sources[SRC_WARP_CORE];
+	return s.coreEjected || s.coreShutdown || !core.online || core.health <= 0.0f;
+}
+
+// The systems the coreless ship still runs. Everything else is dark, however much the crew would
+// like the sensors: 390 of the 400 remaining EPS is the whole of the survival set.
+static bool CorelessVital(SystemId id)
+{
+	return id == SYS_LIFE_SUPPORT || id == SYS_STRUCTURAL_INTEGRITY || id == SYS_INERTIAL_DAMPERS
+		|| id == SYS_COMPUTER_CORE || id == SYS_IMPULSE_DRIVE || id == SYS_NAV_DEFLECTOR;
+}
+
 static void UpdatePower(Ship &s, float shipSeconds)
 {
 	const float days = shipSeconds / SECONDS_PER_DAY;
+	const bool coreless = Coreless(s);
 
-	// What is asked for, in shedding order.
+	// What is asked for, in shedding order. Coreless, only the survival set asks: the rest of the
+	// ship cannot run on what is left, so it does not draw at all.
 	int order[SYS_COUNT];
 	int demand[SYS_COUNT];
-	int wanted = 0, critical = 0;
+	int wanted = 0;
 	for (int i = 0; i < SYS_COUNT; ++i) {
 		order[i] = i;
 		const System &sys = s.systems[i];
-		const bool on = sys.enabled && sys.health > 0.0f && !SuppressedByAlert(s.alert, static_cast<SystemId>(i));
+		const bool on = sys.enabled && sys.health > 0.0f && !SuppressedByAlert(s.alert, static_cast<SystemId>(i))
+			&& (!coreless || CorelessVital(static_cast<SystemId>(i)));
 		demand[i] = on ? EffectiveDemand(s, static_cast<SystemId>(i)) : 0;
 		wanted += demand[i];
-		if (Critical(static_cast<SystemId>(i))) critical += demand[i];
 	}
 	std::stable_sort(order, order + SYS_COUNT, [&](int a, int b) { return s.systems[a].priority < s.systems[b].priority; });
 
-	// What can be supplied. Reactors run only as hard as the load asks, in order, and only while
-	// they have fuel; the batteries discharge only to keep the critical systems alive.
+	// What can be supplied. The sources run only as hard as the load asks, in order, and only while
+	// they have fuel. The batteries are the last source and cover any shortfall -- not the critical
+	// systems alone -- which is what puts them in the 1,800 nameplate (docs/budget-squaring.md).
 	int supply = 0;
 	for (int i = 0; i < SRC_COUNT; ++i) {
 		Source &src = s.sources[i];
@@ -778,9 +854,8 @@ static void UpdatePower(Ship &s, float shipSeconds)
 		const bool fuelled = i == SRC_BATTERIES ? s.stores.batteries > 0.0f
 			: s.stores.deuterium > 0.0f && (SOURCES[i].antimatterPerDay == 0.0f || s.stores.antimatter > 0.0f);
 		if (!fuelled) continue;
-		const int capacity = static_cast<int>(SOURCES[i].capacity * src.health);
-		const int need = i == SRC_BATTERIES ? critical - supply : wanted - supply;
-		src.output = std::max(0, std::min(capacity, need));
+		const int capacity = SourceCapacity(s, static_cast<SourceId>(i));
+		src.output = std::max(0, std::min(capacity, wanted - supply));
 		supply += src.output;
 
 		const float load = SOURCES[i].capacity ? static_cast<float>(src.output) / SOURCES[i].capacity : 0.0f;
@@ -2063,6 +2138,24 @@ int Ship::PowerAllocated() const
 	return n;
 }
 
+// The budget the engineering console shows twice (owner ruling, 2026-10-07): the plant at a fresh
+// crystal and full health, and the plant at the crystal's ceiling and today's health. The gap is the
+// power half of the navigation counter -- the number that tells the player the budget is shrinking.
+int Ship::PowerCapacityFresh() const
+{
+	int n = 0;
+	for (int i = 0; i < SRC_COUNT; ++i) n += SOURCES[i].capacity;
+	return n;
+}
+
+int Ship::PowerCapacityNow() const
+{
+	int n = 0;
+	for (int i = 0; i < SRC_COUNT; ++i)
+		if (sources[i].online && sources[i].health > 0.0f) n += SourceCapacity(*this, static_cast<SourceId>(i));
+	return n;
+}
+
 int Ship::CrewFit() const
 {
 	int n = 0;
@@ -3319,6 +3412,38 @@ bool EndHolodeckProgram(Ship &s, int crew)
 	if (c.holoCompulsion < 1.0f) return false;
 	c.holoCompulsion = 0.0f;
 	LogEvent(s, CommandingOfficer(s), "crew", c.name + " is pulled out of the holodeck");
+	return true;
+}
+
+// The holodeck matrix is a trap, not a solution (docs/ship-systems.md, "Macrocosm"/"Parallax"): when
+// the main grid is down, the holodeck reactors look like an independent source to jump-start from,
+// and the matrices are incompatible -- tapping one blows half the ship's relays. It gives back a
+// little power now and wrecks systems across her, so it is worse than the problem it solves.
+bool JumpStartFromHolodeck(Ship &s)
+{
+	if (!Coreless(s)) {
+		LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "engineering"), "engineering",
+			"there is no need to jump-start from a holodeck reactor: the main grid is up");
+		return false;
+	}
+	if (s.systems[SYS_HOLODECKS].health <= 0.0f) {
+		LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "engineering"), "engineering",
+			"the holodeck reactors are wrecked; there is nothing to jump-start from");
+		return false;
+	}
+	// The temptation: the cells take a charge off the holodeck reactor, so some power comes back.
+	s.stores.batteries = std::min(1.0f, s.stores.batteries + 0.5f);
+	// The cost: the matrices are incompatible, and the cross-tie blows relays across her. Half the
+	// systems take the hit, deterministically, and the holodecks do not survive it. [inv number;
+	// canon gives "half the ship's relays"]
+	int ruined = 0;
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		if (i == SYS_HOLODECKS) { s.systems[i].health = 0.0f; ++ruined; continue; }
+		if (i % 2 == 0) { s.systems[i].health = Clamp01(s.systems[i].health - 0.5f); ++ruined; }
+	}
+	LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "engineering"), "engineering",
+		"jump-started from a holodeck reactor: the matrices are incompatible and the cross-tie blows half the ship's relays ("
+		+ std::to_string(ruined) + " systems ruined)");
 	return true;
 }
 
@@ -5001,15 +5126,17 @@ std::string Describe(const Ship &s)
 {
 	static const char *const ALERTS[] = {"green", "yellow", "red"};
 	static const char *const WATCH[] = {"alpha", "beta", "gamma"};
-	char line[160];
 	std::string out;
+	char line[256];
 	const int sod = s.SecondOfDay();
 	std::snprintf(line, sizeof(line), "day %d %02d:%02d  %s watch  condition %s  crew fit %d of %d\n", s.Day(), sod / 3600,
 		sod % 3600 / 60, WATCH[s.Watch()], ALERTS[s.alert], s.CrewFit(), static_cast<int>(s.crew.size()));
 	out += line;
 	if (s.leftStanding) out += "left standing (the ship keeps her own time)\n";
-	std::snprintf(line, sizeof(line), "power %d supplied, %d allocated  deuterium %.1f%%  antimatter %.1f%%  batteries %.0f%%  torpedoes %d  parts %.0f  material %.0f  medical %.0f  rations %.0f\n",
-		s.PowerAvailable(), s.PowerAllocated(), s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes,
+	std::snprintf(line, sizeof(line), "power %d supplied, %d allocated  budget %d fresh, %d now%s  deuterium %.1f%%  antimatter %.1f%%  batteries %.0f%%  torpedoes %d  parts %.0f  material %.0f  medical %.0f  rations %.0f\n",
+		s.PowerAvailable(), s.PowerAllocated(), s.PowerCapacityFresh(), s.PowerCapacityNow(),
+		Coreless(s) ? "  (CORELESS: survival power only)" : "",
+		s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes,
 		s.stores.spareParts, s.stores.materials, s.stores.medicalSupplies, s.stores.rations);
 	out += line;
 	std::snprintf(line, sizeof(line), "  beacon %d of %d in sector %d (%s)  shields at %.0f%%", s.beacon, static_cast<int>(s.sector.size()) - 1,
@@ -5078,7 +5205,7 @@ std::string Describe(const Ship &s)
 	}
 	for (int i = 0; i < SRC_COUNT; ++i) {
 		std::snprintf(line, sizeof(line), "  source %-22s %4d of %4d  health %3.0f%%%s\n", SOURCES[i].name, s.sources[i].output,
-			SOURCES[i].capacity, s.sources[i].health * 100, s.sources[i].online ? "" : "  OFFLINE");
+			SourceCapacity(s, static_cast<SourceId>(i)), s.sources[i].health * 100, s.sources[i].online ? "" : "  OFFLINE");
 		out += line;
 	}
 	for (int i = 0; i < SYS_COUNT; ++i) {

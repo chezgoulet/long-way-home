@@ -390,6 +390,36 @@ Remaining: the human check (whether the arrow *feels* like a hard month) is the 
 per-route risk split in the document's own example is projected as the estimate per course, not two
 numbers per course.
 
+### The ship's budgets squared
+
+`docs/budget-squaring.md`, implemented 2026-10-07 (`docs/evidence/the-budgets.md`,
+`TestBudgetShedSequence`, `TestCorelessShip`, `TestCrystalCeilingScalesOutput`, `TestHundredCrew`,
+`TestHolodeckTrap`, `TestTorpedoComplement`; `scripts/s2-check.sh`). Save format **version 50**: five
+systems are added, so `SYS_COUNT` rises and older saves are invalid, as every bump has invalidated them.
+
+- five new systems — **astrometrics, science labs, gravity plating, non-essential lighting, cargo
+  handling** — at the document's demands; **demand totals 1,730** ✅
+- the sources rebalanced so the core is the plant: warp core **1,400** (scaled by the crystal's ceiling),
+  impulse reactors 250, auxiliary fusion 90, batteries 60; **fresh supply 1,800**, and a fresh ship leaves
+  port **seventy EPS in hand** ✅
+- `crystalCeiling` scales the warp core's **output**, so recomposition permanently lowers the plant — the
+  owner's mechanic, marked `[inv]` in the ledger ✅
+- the **shed order** with the **warp drive last of all**, after even the comforts; a test walks the
+  sequence at ceilings 1.00, 0.85, 0.70 and 0.55 and matches the document's table ✅
+- **coreless:** the critical four, the impulse drive and the deflector (390 of the remaining 400) and
+  nothing else — no weapons, no sensors, no comms ✅
+- **the batteries alone** hold life support at exactly full for three hours, not a system short of it ✅
+- the **engineering console shows the budget twice**, fresh against now (`BUDGET 1800 FRESH  1800 NOW`) ✅
+- the **torpedo complement is 38 and depletes**; canon's waypoints (eleven, six) are recorded ✅
+- canon's checks: **operable with 100 crew** (22 posts, covered by a watch of 33) ✅ and the **holodeck
+  matrix as a trap** (`JumpStartFromHolodeck`, `ship jumpstart`) ✅; **at least one deck holding air
+  independently of the main grid** is measured and sized — the largest structural gap — and not built
+  (20 `SYS_LIFE_SUPPORT` references, 17 `atmosphere`, 11 `MinutesOfAir`, across four files)
+- `scripts/test.sh`, `scripts/check.sh` and the engine checks exit 0 ✅
+
+Remaining: the owner's walkthrough (whether the budget feels tight rather than punishing), and the
+deck-by-deck air mechanism — a lane of its own.
+
 ### Then, in rough order
 
 **First batch done (2026-10-07)** — `docs/evidence/backlog-materials-and-crew.md`, `scripts/backlog-check.sh`,
