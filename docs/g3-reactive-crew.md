@@ -1,9 +1,14 @@
 # G3 — Reactive crew: specification
 
-Status: **specification, no code written.** The charter requires the arbitration rules below to exist
-*before* any Track C implementation, and requires navigation coverage on the candidate space to be
-measured before crew work begins. Both are done here; the measurement is real, taken from the
-published map sources.
+Status: **implemented and measured; awaiting the owner's judgement.** The direction layer is in
+`module/crew/`, attached by `patches/0005`, authored through the scenario manifest's `crew` section,
+and measured headless by `scripts/g3-measure.sh` — results in
+`docs/evidence/g3-reactive-crew-measured.md`. Every criterion in §5 is a number and has been taken;
+the one thing left is the one thing a log cannot decide: whether the deck feels inhabited.
+
+The specification below was written before any code, as the charter requires. Where implementation
+found the deck or the engine to be other than the specification assumed, the text is corrected in
+place and the finding is recorded in §8, so that this document describes what exists.
 
 ---
 
@@ -54,6 +59,11 @@ candidate deck (`waypoint` family entities, `waypoint_navgoal`, crew already pla
 **Recommendation: `maps/tour/deck04`** — the densest navigation of any deck, eight crew already
 placed, and nineteen interactive objects to hold posts at. `deck05` is the alternate if more navgoal
 granularity turns out to matter than raw waypoint count.
+
+Those counts are from the published map *sources*. The deck as shipped in the expansion pak differs:
+`maps/tour/deck04.bsp` carries **93 waypoints, 8 navgoals, 8 placed NPCs and 10 spawners**. The
+recommendation stands — it is still the best-furnished deck — but §8 records what those eight NPCs
+turned out to be.
 
 Two consequences worth stating. The decks are Virtual Voyager's, so **G2 and G3 share a space** —
 which is efficient, and means G2's acceptance walk doubles as the reconnaissance for G3. And the
@@ -117,20 +127,26 @@ navigator + anims + say  -- existing steering, animation, dialogue
 - **The post is the unit, not the character.** A post exists whether or not anyone holds it. This is
   what makes the multiplayer deficit model possible later, and it is what makes G3 testable now: a
   post is either occupied or it is not.
-- **Reused machinery, explicitly.** Posts are `waypoint_navgoal` entities already in the map — the
-  space's own navigation furniture, no new authoring required. Acknowledgement uses the `say.h` bark
-  vocabulary. Facing uses the existing head/torso tracking states. Steering uses the navigator, and
+- **Reused machinery, explicitly.** A post is a position: either authored in the scenario, or
+  borrowed from a `waypoint_navgoal` already in the map. Travel to it uses the engine's own
+  locational-goal mechanism (`NPC_SetMoveGoal`, the per-NPC `tempGoal`), so the layer sets no
+  behaviour state at all. Acknowledgement uses the game's existing response path (`NPC_Use` →
+  `NPC_Respond`, the `EV_RESPOND`/`EV_BUSY` lines). Facing uses the existing look-target and
+  desired-yaw fields. Steering uses the navigator, and
   **navigation data bakes itself**: the engine writes `maps/<map>.nav` on a map's first load whenever
   the file is missing (see `docs/evidence/trackb-map-toolchain.md`).
-- **No new animation.** `BS_SAY` already provides the talk animation timed to a sound's length, and
-  `BS_WAIT`/`BS_LOOK`/`BS_AIM` cover standing, turning and facing.
+- **No new animation.** Standing, walking, turning the head and turning the body are all things the
+  default behaviour state already does for an NPC with a goal, a look target and a desired yaw.
 - **Persistence follows a precedent that already works in this engine family.** RPG-X keeps character
   and ship state in SQLite bundled *inside the gamecode* (`g_sql.c`, `sqlite3.c`, `ui_sql.c`) — no
   external daemon, state stored where it is owned. See `docs/prior-art-rpg-x.md`. G3 keeps its per-NPC
-  state in the SP module's own save path for the same reason.
+  state in the SP module's own save path for the same reason: one extra chunk (`CREW`) in the save,
+  written only while the layer is on, so a save made with `g_crew 0` is byte-for-byte what it was.
 - **Persistence is bounded from the start.** Per NPC: post id, current goal, and the schedule cursor
   (unused in G3, present for G4). G3's target is **256 bytes per NPC** -- a number to fail against
   rather than a hope, and it is measured at five crew before anything is designed for thirty.
+  Measured: **20 bytes per NPC plus a 16-byte header** — fixed-width and little-endian, independent
+  of the host's struct layout.
 
 ## 4a. The substrate, named from the shipped source
 
@@ -145,9 +161,11 @@ Read from `src/game/`, so the design above rests on named mechanisms rather than
   in §2 formalises what the engine already intends.
 - **There is an override slot, and the corollaries are its documented behaviour.** The NPC struct
   carries `behaviorState` ("determines what actions he should be doing") beside `tempBehavior`
-  ("while valid, overrides other behavior"). `BS_SAY` already demonstrates the full cycle -- turn to
-  the target, play the bark, **revert when the sound finishes** -- which is exactly "an interruption
-  is a pause, not a reassignment". G3 does not need a new arbitration system; it needs to use this one.
+  ("while valid, overrides other behavior"). The layer reads both and writes neither: a temporary
+  behaviour, or any state that does not simply follow a goal, marks the NPC as someone else's.
+  *(Corrected: this paragraph originally cited `BS_SAY` as a working example of the cycle. Its
+  header comment describes one; `NPC_BSSay` itself is a two-line `FIXME: Implement` stub. Nothing
+  in G3 depends on it.)*
 - **Goals are already navigator-driven**: `goalEntity`, `captureGoal`, plus leadership fields
   (`lastLeaderPoint`, `leaderTeleportSpot`). Travel to a post is an existing capability.
 - **Speech has both ends**: `sayString` and `sayTarg` on the NPC, and the bark vocabulary in `say.h` --
@@ -203,7 +221,7 @@ The charter's bar, with the measurement named for each:
 | every NPC reaches its post within a bounded time | timestamp from level start to first arrival per NPC; bound set at implementation |
 | zero navigation failures | count of stuck NPCs (no movement for N seconds) and out-of-world events |
 | player address → acknowledgement within a bounded time | trigger an address, timestamp the bark |
-| no ICARUS script regressions | the deck's existing `target_scriptrunner` scripts all fire and complete |
+| no ICARUS script regressions | the entities with a script in flight, compared against a run with the layer off; and a script run on a post-holder must take them and give them back |
 | save/load restores posts and schedule cursor | save, load, assert per-NPC state equality |
 | save-size increase within budget | byte delta of the save before and after the crew is added |
 | frame time holds | the existing performance harness, with and without the crew |
@@ -211,7 +229,28 @@ The charter's bar, with the measurement named for each:
 Every one of these is a number, and every one can fail loudly. That is the point: the milestone is
 judged by measurements, and the qualitative judgement — does the deck feel inhabited — comes after.
 
+"At post" is the engine's own arrival test (`NAV_HitNavGoal`, the one `UpdateGoal` uses), not a
+fixed distance: the layer and the navigator must agree about when a walk is over, or the NPC is
+re-sent to a post it has already reached. Coverage sampling starts when every crew member has
+arrived or failed, or when the reach bound expires, whichever is first — the walk to the post is
+judged by the reach criterion, not counted against occupancy.
+
+How each is taken, concretely (`scripts/g3-measure.sh`, three engine runs):
+
+- a **baseline** run with the layer off records the game-frame time and which entities have a
+  script in flight;
+- the **crewed** run samples coverage, addresses every crew member as the player would and times
+  the reply, counts stuck events and precedence violations, takes the same script census, and ends
+  by saving;
+- a **reload** run loads that save and compares every persisted field of every crew member against
+  what was saved, then checks the posts are still held.
+
+`tools/crewgen/g3report.py` prints one line per criterion. Evidence that is absent is reported as
+NOT MEASURED and fails the run.
+
 ## 6. Implementation order
+
+All six steps are done; they are kept as the record of the order the work took.
 
 1. **Direction layer skeleton**, no behaviour change: posts loaded from the map's navgoals, occupancy
    tracked, logged. Verifies the substrate without moving anything.
@@ -314,3 +353,48 @@ Each with the mitigation that makes it testable rather than merely worrying.
   during the G3 run instead of trusting inspection -- criterion 3 of §5 is that count.
 - **The frame-time criterion is the one most likely to bite** (~15%), because the direction layer runs
   on top of an interpreter-based VM. It is measured explicitly rather than assumed.
+
+## 8. What implementation found
+
+Recorded because each of these was an assumption in the text above until the deck was loaded.
+
+- **None of deck04's eight placed crew can be given a post.** Four — Tuvok, Chell, Cuervo and the
+  transporter chief — run permanent ICARUS scripts from the moment they spawn; under the precedence
+  in §2 they are level 1 for the whole level, and the layer correctly never touches them. The other
+  four are the lounge party, spawned `STARTINSOLID` in their chairs: they have no ground under them
+  and cannot walk. The charter named this risk ("named-crew entities may have hard-coded
+  behaviour"); it turned out to be the whole deck.
+- **The deck's navgoals are already spoken for.** `cuer1–3` are Cuervo's own patrol route and
+  `transporternav1–4` belong to the transporter-room script. "Every navgoal is a post" remains the
+  default for a map with no authored crew section, but it is the wrong default for a shipped deck.
+- **So the crew are declared by the scenario.** `scenarios/deck04-watch` names six crew — existing
+  character types from the game's own NPC table, with their own models and voices — and six posts
+  on the deck's waypoints. The layer spawns them through the map's own `NPC_starfleet` spawner.
+  Nothing new is authored, which keeps the milestone's promise; but they are *added* to the deck
+  rather than found on it, and that is a departure from "named crew already placed" that the owner
+  should weigh when judging the gate.
+- **Waypoints do not see doors.** Two of the six suggested starting positions were one waypoint
+  away from their posts and still unreachable: a door between them does not open for crew. The
+  measured run reported both as failures to reach; the positions were moved. This is risk one of §7
+  (density is not navigability) arriving exactly as predicted, and it is why the suggestion tool is
+  described as a starting point.
+- **The director works, and was seen to.** When one crew member failed to reach the most
+  important of two posts, the director pulled the holder of a less important one across the deck to
+  cover it — unprompted, in a real run — and the hole moved to the post that mattered less.
+- **Script precedence needed four predicates, not one.** A running sequencer, a pending task, a
+  temporary behaviour or foreign behaviour state, and a goal the layer did not set. Risk six of §7
+  expected this.
+- **"Zero violations" proves less than it sounds, so precedence is also tested by doing it.** The
+  violation counter is an assertion at every place the layer writes to an NPC; the decision above
+  each write has already excluded scripted NPCs, so the counter is zero by construction and only
+  moves if the construction is wrong. Two measurements stand beside it that do not depend on the
+  layer's own logic being right: the script census compared against a run with the layer off, and
+  a live test in which the harness runs a real ICARUS script (compiled by our own compiler) on a
+  crew member who is holding a post, then checks that the layer yielded on its next turn and had
+  the member back on duty when the script ended.
+- **Decisions are taken every frame, after every entity has thought.** At a slower cadence a script
+  that took an NPC mid-walk would find the layer's goal still on it for up to a tenth of a second.
+  Evaluated at the end of each frame, the goal is gone before the NPC next thinks. The layer costs
+  a few microseconds a frame, so there was no reason to ration it.
+- **Acknowledgement was already in the game.** Using a friendly NPC makes Munro greet them by name
+  or rank and the NPC reply. G3 times it and adds the collision case; it did not need to build it.

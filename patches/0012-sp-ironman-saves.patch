@@ -1,0 +1,50 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 12/12] single player: ironman saves
+
+While g_ironman is set there is one save, "ironman", written forward by the game itself. A save
+or a load by any other name is refused at the command, so the menus, a key binding and the console
+are all held to it alike; dying resumes that one save rather than the level's autosave. The
+level-entry autosave is still written, because the engine needs it, but cannot be loaded.
+
+With g_ironman unset, which is the default, nothing changes.
+---
+diff --git a/EFAndroid-SP/app/jni/sp/sp_integration.c b/EFAndroid-SP/app/jni/sp/sp_integration.c
+--- a/EFAndroid-SP/app/jni/sp/sp_integration.c
++++ b/EFAndroid-SP/app/jni/sp/sp_integration.c
+@@ -267,6 +267,17 @@
+ static void SP_Use_f(void){ extern int SP_GameConsoleCommand(void); SP_GameConsoleCommand(); }
+ extern void SP_SaveGame( const char *name );
+ extern void SP_LoadGameFile( const char *name );
++// Ironman (Long Way Home): while g_ironman is set there is one save, written forward by the game
++// itself, and no going back to an earlier one. A save or load by any other name is refused here, at
++// the command, so that the menus, a key binding and the console are all held to it alike. The
++// level-entry autosave is still written -- the engine needs it -- but cannot be loaded.
++static qboolean SP_IronmanRefuses( const char *verb, const char *name, qboolean loading ){
++    if ( !Cvar_VariableIntegerValue( "g_ironman" ) ) return qfalse;
++    if ( !Q_stricmp( name, "ironman" ) ) return qfalse;
++    if ( !loading && !Q_stricmp( name, "auto" ) ) return qfalse;
++    Com_Printf( "Ironman: %s '%s' refused. The ship is saved for you, and only forward.\n", verb, name );
++    return qtrue;
++}
+ static void SP_Save_f(void){
+     // Retail's `save` strips the trailing '*' autosave/thumbnail marker (g_target.cpp emits "save auto*").
+     // Without this the autosave lands as saves/auto*.sav -> the Load menu's AUTOSAVE button (`load auto`)
+@@ -274,6 +285,7 @@
+     char nm[64];
+     Q_strncpyz( nm, Cmd_Argc()>1 ? Cmd_Argv(1) : "quik", sizeof(nm) );
+     { int l = (int)strlen(nm); if( l>0 && nm[l-1]=='*' ) nm[l-1] = '\0'; }
++    if ( SP_IronmanRefuses( "save", nm, qfalse ) ) return;
+     SP_SaveGame( nm );
+ }
+ static void SP_Load_f(void){
+@@ -282,8 +294,9 @@
+     // normal (non-holodeck) level sends `load *respawn`. Retail's `*respawn` reloads the `auto` autosave
+     // (there is NO respawn.sav; the leading `*` is a special load sentinel, NOT a strippable suffix). The
+     // port previously opened saves/*respawn.sav -> not found -> silent no-op, so pressing attack did nothing.
+-    if( !Q_stricmp( arg, "*respawn" ) ) arg = "auto";
++    if( !Q_stricmp( arg, "*respawn" ) ) arg = Cvar_VariableIntegerValue( "g_ironman" ) ? "ironman" : "auto";   // death resumes the one save
+     else if( arg[0] == '*' )           arg = arg + 1;   // strip the sentinel for any other *<name> load
++    if ( SP_IronmanRefuses( "load", arg, qtrue ) ) return;
+     SP_LoadGameFile( arg );
+ }
+ // The UI's "delete save" button (ui_game.cpp ID_DELETEGAMEDATA) issues "wipe <name>". The port never

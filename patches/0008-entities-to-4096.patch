@@ -1,0 +1,65 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 8/8] entities to 4096, in both trees and the bridge
+
+The whole ship as one map spawns 2,802 entities. GENTITYNUM_BITS goes from 11 to 12 in the
+engine's and the module's q_shared.h together, and the game module's fixed memory pool from 4 MB
+to 24 MB: the entity array alone is now 5.4 MB.
+
+It also fixes what the previous raise (patch 0004) left behind. The single-player bridge sized
+its linked-entity, clip-handle and area tables with a literal 1024, so every entity numbered above
+1023 was silently left out of linking, clipping and traces. They now follow MAX_GENTITIES.
+
+Saves written before this patch do not load after it: entity numbers are persisted and their
+width moved.
+---
+diff --git a/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h b/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h
+--- a/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h
++++ b/EFAndroid-SP/app/jni/efcode/qcommon/q_shared.h
+@@ -1160,7 +1160,7 @@
+ #define	MAX_CLIENTS			64		// absolute limit
+ #define MAX_LOCATIONS		64
+ 
+-#define	GENTITYNUM_BITS		11		// raised: a furnished deck binds 1024 long before models do
++#define	GENTITYNUM_BITS		12		// raised again: the whole ship as one map spawns more than 2048
+ #define	MAX_GENTITIES		(1<<GENTITYNUM_BITS)
+ 
+ // entitynums are communicated with GENTITY_BITS, so any reserved
+diff --git a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+--- a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
++++ b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+@@ -96,7 +96,9 @@
+ static intptr_t SP_CgameSyscall( intptr_t cmd, ... );    // cgame->engine dispatcher (defined below)
+ 
+ // ---- minimal server world (entities link here so EntitiesInBox/trace can find them) ----
+-#define SP_MAX_ENT 1024
++// Follows the engine's entity limit. It was a literal 1024, which the raised limit left behind:
++// every entity numbered above 1023 was silently left out of linking, clipping and traces.
++#define SP_MAX_ENT MAX_GENTITIES
+ static gentity_t *g_linked[SP_MAX_ENT];
+ static int        g_numLinked = 0;
+ static char       g_curMap[64] = {0};   // current SP map name (for save framing + transitions)
+diff --git a/efgame/src/game/g_mem.cpp b/efgame/src/game/g_mem.cpp
+--- a/efgame/src/game/g_mem.cpp
++++ b/efgame/src/game/g_mem.cpp
+@@ -15,7 +15,8 @@
+ // (e.g. voy16) then hit "G_Alloc: failed" and ERR_DROP back to the main menu.
+ // Enlarge the pool so the 64-bit build keeps comfortably more headroom. No
+ // logic change.
+-#define POOLSIZE	(4 * 1024 * 1024)
++// 4 MB held 1024 entities and their strings. The entity array alone is now 5.4 MB (4096 entities).
++#define POOLSIZE	(24 * 1024 * 1024)
+ 
+ static char		memoryPool[POOLSIZE];
+ static int		allocPoint;
+diff --git a/efgame/src/game/q_shared.h b/efgame/src/game/q_shared.h
+--- a/efgame/src/game/q_shared.h
++++ b/efgame/src/game/q_shared.h
+@@ -875,7 +875,7 @@
+ #define	MAX_CLIENTS			1 // 128		// absolute limit
+ #define MAX_LOCATIONS		64
+ 
+-#define	GENTITYNUM_BITS		11		// raised: a furnished deck binds 1024 long before models do
++#define	GENTITYNUM_BITS		12		// raised again: the whole ship as one map spawns more than 2048
+ #define	MAX_GENTITIES		(1<<GENTITYNUM_BITS)
+ 
+ // entitynums are communicated with GENTITY_BITS, so any reserved

@@ -14,12 +14,14 @@ Error codes are stable so a fault can be referred to by name:
   E005  malformed manifest              (missing, unparseable, or missing required keys)
   E006  declared script fails to compile
   E007  compiled script fails round-trip (the game's reader rejects it)
+  E008  crew section invalid            (malformed, or inconsistent with the map it names)
   W001  declared script never referenced by any map
   W004  map has no navigation coverage and is not declared inhabited (fine for space)
   W005  content registration approaching an engine limit (models/sounds) - see the note
   W006  content registration approaching the configstring budget
   W002  retail asset references seen (unverifiable without game data) - informational
-  W003  script checks skipped (no compiler/reader supplied)
+  W003  checks skipped (no compiler/reader, dictionary or game data supplied)
+  W007  crew section advisory (outside the G3 bar, or more crew than posts)
 
 Usage:
   validate.py <scenario-dir> [--ibize PATH] [--ibi-dump PATH] [--entitydict PATH]
@@ -49,7 +51,7 @@ SOUND_REF = re.compile(r'"(?:noise|sound)"\s+"([^"]+)"')
 # consumes them registers per LEVEL, not globally, which is why the count is per map.
 MAX_MODELS = 256
 MAX_SOUNDS = 256
-MAX_CONFIGSTRINGS = 1024
+MAX_CONFIGSTRINGS = 4096  # raised from the retail 1024 by patches/0004
 # Warn well before the ceiling: content that runs out of configstrings fails in ways that look like
 # missing textures rather than missing capacity, so the warning has to arrive early enough to act on.
 CONTENT_WARN_FRACTION = 0.6
@@ -112,14 +114,45 @@ def check_manifest(root, rep):
         rep.error("E005", "scenario.json", "manifest not found")
         return None
     try:
-        man = json.load(open(path))
+        with open(path, encoding="utf-8") as f:
+            man = json.load(f)
     except (OSError, ValueError) as e:
         rep.error("E005", "scenario.json", f"unparseable: {e}")
+        return None
+    if not isinstance(man, dict):
+        rep.error("E005", "scenario.json", "the manifest must be a JSON object")
         return None
     for key in ("name", "maps", "scripts"):
         if key not in man:
             rep.error("E005", "scenario.json", f"missing required key '{key}'")
     return man
+
+
+def check_crew(man, data_dir, rep, root):
+    """The crew section is the Track B <-> Track C contract; tools/crewgen owns its rules."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "crewgen"))
+    import crewgen
+
+    crew = man["crew"]
+    data = None
+    if data_dir:
+        try:
+            data = crewgen.GameData(data_dir)
+        except FileNotFoundError as e:
+            rep.warn("W003", "crew", f"{e}: crew types not checked against the game's NPC table")
+    scoped = crewgen.ScenarioData(root, data)
+    local = isinstance(crew, dict) and isinstance(crew.get("map"), str) and scoped.has_local(crew["map"])
+    if not data_dir and not local:
+        rep.warn("W003", "crew", "no --data supplied: crew section not checked against the map it names")
+    try:
+        errors, warnings = crewgen.validate(crew, scoped if (data or local) else None)
+    except (OSError, ValueError) as e:
+        rep.error("E008", "scenario.json", f"crew: could not read the map: {e}")
+        return
+    for detail in errors:
+        rep.error("E008", "scenario.json", detail)
+    for detail in warnings:
+        rep.warn("W007", "scenario.json", detail)
 
 
 def script_stem(declared_path, root):
@@ -274,8 +307,14 @@ def main():
                     out.append(hit)
         return out
 
+    crew = man.get("crew")
+    if crew is not None:
+        check_crew(man, a.data, rep, root)
+
     maps = expand(man.get("maps", []))
-    if not maps:
+    # A scenario that crews a deck the installation already has brings no map of its own.
+    reuses_map = isinstance(crew, dict) and isinstance(crew.get("map"), str) and not man.get("maps")
+    if not maps and not reuses_map:
         rep.error("E005", "scenario.json", "no maps matched the declared patterns")
     scripts = expand(man.get("scripts", []))
 

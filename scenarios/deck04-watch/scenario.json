@@ -1,0 +1,26 @@
+{
+  "name": "deck04-watch",
+  "maps": [],
+  "scripts": [],
+  "crew": {
+    "map": "tour/deck04",
+    "max": 6,
+    "bounds": {"reach_ms": 90000, "ack_ms": 5000, "save_bytes_per_npc": 256},
+    "members": [
+      {"name": "watch1", "type": "Renner", "at": [-2306, -3192, -3936], "yaw": 142},
+      {"name": "watch2", "type": "Showers", "at": [-3288, -1176, -3936], "yaw": 180},
+      {"name": "watch3", "type": "Green", "at": [-3746, -3144, -3936], "yaw": 45},
+      {"name": "watch4", "type": "Lang", "at": [-2320, -2280, -3928], "yaw": 198},
+      {"name": "watch5", "type": "Inya", "at": [-3272, -2272, -3936], "yaw": 295},
+      {"name": "watch6", "type": "Kray", "at": [-2320, -3744, -3928], "yaw": 180}
+    ],
+    "posts": [
+      {"name": "post1", "at": [-2224, -3192, -3936], "yaw": 145, "holder": "watch1"},
+      {"name": "post2", "at": [-3500, -1176, -3936], "yaw": 285, "holder": "watch2"},
+      {"name": "post3", "at": [-3746, -3248, -3932], "yaw": 49, "holder": "watch3"},
+      {"name": "post4", "at": [-2320, -1992, -3936], "yaw": 214, "holder": "watch4"},
+      {"name": "post5", "at": [-3344, -2272, -3936], "yaw": 306, "holder": "watch5"},
+      {"name": "post6", "at": [-2612, -3744, -3928], "yaw": 111, "holder": "watch6"}
+    ]
+  }
+}

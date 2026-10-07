@@ -1,5 +1,6 @@
 # build trees
 build/
+build-*/
 build64/
 build32/
 cmake-build-*/
@@ -30,3 +31,4 @@ dist/
 .DS_Store
 __pycache__/
 *.pyc
+.validate-build/

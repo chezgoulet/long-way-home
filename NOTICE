@@ -13,6 +13,12 @@ Singleplayer game module (Raven STEF Game Source License, 2002-11-21):
   distributing them free of charge for non-commercial purposes. Prohibited: sale, rental,
   commercial exploitation, reverse engineering of the shipped game.
 
+Adopted community gamecode (Raven STEF Game Source License, UberGames' own notice permitting
+source reuse with credit):
+  RPG-X (UberGames) — the entity classes Long Way Home adopts, each credited in the file that
+  implements it. So far: target_shaderremap (module/ship/lwh_entities.cpp, patches/0015).
+  https://github.com/UberGames/rpgxEF
+
 Tools and data referenced but NOT redistributed here:
   Raven Software's Game Development Kit (efRadiant, q3map, bspc, BehavEd, IBIze) — obtained
   separately, used locally. Our native replacements are rebuilt from released source.

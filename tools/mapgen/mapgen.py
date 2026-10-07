@@ -29,8 +29,9 @@ import argparse
 import os
 
 
-def brush(bounds, texture):
-    """A box brush: six planes, written as the three points each plane needs."""
+def brush(bounds, texture, scale=(1, 1)):
+    """A box brush: six planes, written as the three points each plane needs. `scale` is the
+    texture's x/y scale; a larger value covers more world units with one tile."""
     (x1, y1, z1), (x2, y2, z2) = bounds
     planes = [
         ((x1, y1, z1), (x1, y2, z1), (x2, y2, z1)),   # bottom
@@ -48,8 +49,8 @@ def brush(bounds, texture):
         # surface lumps are all empty -- which the engine later rejects as "Map with no shaders".
         # Raven's own shipped maps order them this way; match them, don't re-derive.
         a, b, c = a, c, b
-        out.append("( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s 0 0 0 1 1"
-                   % (a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], texture))
+        out.append("( %d %d %d ) ( %d %d %d ) ( %d %d %d ) %s 0 0 0 %g %g"
+                   % (a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], texture, scale[0], scale[1]))
     out.append("}")
     return "\n".join(out)
 
@@ -113,8 +114,10 @@ def main():
     n = 0
     for x in range(T + a.navgrid, W_ - T, a.navgrid):
         for y in range(T + a.navgrid, D_ - T, a.navgrid):
+            # 24 above the floor: a waypoint's box, like a standing NPC's, reaches 24 below its
+            # origin. Lower than that it starts in the floor and relies on the engine nudging it out.
             parts.append(entity([("classname", "waypoint"),
-                                 ("origin", "%d %d %d" % (x, y, 8))]))
+                                 ("origin", "%d %d %d" % (x, y, 24))]))
             n += 1
 
     with open(a.out, "w") as fh:

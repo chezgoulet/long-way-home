@@ -1,0 +1,20 @@
+name: test
+
+# Everything that can be checked without the game: the direction layer's unit tests, the tool
+# tests, lint, and the shape of the patch series. Gate evidence that needs real content is
+# produced on the playtest host (scripts/check.sh, scripts/g3-measure.sh), not here.
+
+on:
+  push:
+    branches: [main, testing]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
+      - name: Run the checks
+        run: scripts/test.sh

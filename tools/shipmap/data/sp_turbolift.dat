@@ -1,0 +1,23 @@
+//----------------------------------------
+//    The turbolift's deck list for the whole ship (Long Way Home).
+//    Same format as the game's own ext_data/sp_turbolift.dat, which lists the ten decks that were
+//    separate levels; this lists all fifteen. Decks 6, 7, 12, 13 and 14 are generated placeholders
+//    and their names are invented (docs/lore-ledger.md). The computer's voice exists only for the
+//    game's own decks.
+//----------------------------------------
+
+DECK1 "Bridge"				""		"use tour_turbo_01"		"sound/voice/computer/tour/deck1.mp3"
+DECK2 "Mess Hall"				""		"use tour_turbo_02"		"sound/voice/computer/tour/deck2.mp3"
+DECK3 "Officers' Quarters"		""		"use tour_turbo_03"		"sound/voice/computer/tour/deck3.mp3"
+DECK4 "Hazard Ops"			""		"use tour_turbo_04"		"sound/voice/computer/tour/deck4.mp3"
+DECK5 "Sick Bay"				""		"use tour_turbo_05"		"sound/voice/computer/tour/deck5.mp3"
+DECK6 "Holodecks"				""		"use tour_turbo_06"		""
+DECK7 "Crew Quarters"			""		"use tour_turbo_07"		""
+DECK8 "Astrometrics / Cargo Bay"	""		"use tour_turbo_08"		"sound/voice/computer/tour/deck8.mp3"
+DECK9 "Computer Core"			""		"use tour_turbo_09"		"sound/voice/computer/tour/deck9.mp3"
+DECK10 "Shuttle Bay"			""		"use tour_turbo_10"		"sound/voice/computer/tour/deck10.mp3"
+DECK11 "Engineering"			""		"use tour_turbo_11"		"sound/voice/computer/tour/deck11.mp3"
+DECK12 "Environmental Control"	""		"use tour_turbo_12"		""
+DECK13 "Life Support Plant"		""		"use tour_turbo_13"		""
+DECK14 "Engineering Support"		""		"use tour_turbo_14"		""
+DECK15 "Hazard Team Training"		""		"use tour_turbo_15"		""

@@ -1,0 +1,49 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 16/16] the dead are not reloaded
+
+One attach point and its no-op. In the ship programme death is attrition, not a reload:
+docs/path-to-playtest.md Stage B asks that the player's death be reachable and *not* a reload.
+Retail's respawn (press attack while dead) sends `load *respawn`, which under ironman resumes the
+one forward save -- a reset all the same. This hook lets the player-in-the-world logic refuse it:
+when the extension is on and the player's record is closed, respawn does nothing, and the ship
+carries on with command passed to the senior surviving officer.
+
+The logic is not in this tree: `LWH_BlockRespawn` is compiled in from LWH_MODULE_DIR (which defines
+LWH_CREW). Without it the hook is an empty inline returning false, so the module builds and behaves
+exactly as upstream does.
+---
+diff --git a/efgame/src/game/g_client.cpp b/efgame/src/game/g_client.cpp
+--- a/efgame/src/game/g_client.cpp
++++ b/efgame/src/game/g_client.cpp
+@@ -3,6 +3,8 @@
+ #include "anims.h"
+ #include "boltons.h"
+ 
++#include "lwh_hooks.h"
++
+ extern void Q3_DebugPrint( int level, const char *format, ... );
+ // g_client.c -- client functions that don't happen every frame
+ 
+@@ -303,6 +305,11 @@
+ */
+ void respawn( gentity_t *ent ) {
+ 
++	if ( LWH_BlockRespawn( ent ) ) {
++		// the record is closed and the extension is on: the dead are not reloaded (Stage B)
++		return;
++	}
++
+ 	if (Q_stricmpn(level.mapname,"_holo",5)) {
+ 		gi.SendConsoleCommand("load *respawn\n");	// special case
+ 	}
+diff --git a/efgame/src/game/lwh_hooks.h b/efgame/src/game/lwh_hooks.h
+--- a/efgame/src/game/lwh_hooks.h
++++ b/efgame/src/game/lwh_hooks.h
+@@ -36,6 +36,7 @@
+ inline const char *LWH_ScopedName( const char *name ) { return name; }
+ inline void LWH_SP_target_shaderremap( struct gentity_s * ) {}
+ inline void LWH_target_shaderremap_use( struct gentity_s *, struct gentity_s *, struct gentity_s * ) {}
++inline bool LWH_BlockRespawn( struct gentity_s * ) { return false; }
+ #endif
+ 
+ #endif

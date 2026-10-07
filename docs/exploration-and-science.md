@@ -144,6 +144,17 @@ alongside survival -- they are **how survival is paid for**. The chart is the ma
 crew hours spent surveying are the same hours that could have sealed a hull breach. And the number that
 measures everything, in the end, is a single one: **how far is left.**
 
+**Implemented 2026-10-07** (`module/ship/ship_core.cpp`, save format 30; `TestDilithium`,
+`scripts/dilithium-check.sh`): `dilithium` is the crystal's remaining life (0..1), spent per jump so
+warp use directly spends the future; `Recomposite` buys back 0.35 in the frame while lowering the
+ceiling by 0.15 each time, so replacement is eventually necessary; a new crystal is obtained by
+mining a belt, trading (40 material), salvaging a derelict, or **researching** a better one (+0.10
+efficiency, which shortens every jump) — canon's five ways with four built; the scoreboard is
+`DilithiumRange` in light years (`dilithium × 3,000 × quality`); and below 2% there is no warp at
+all, the ship still running sublight. A dedicated **survey to locate a source** (`LocateDilithium`,
+console `ship finddilithium`) charts the nearest belt, trader or derelict reachable through the
+sector, so the crew know where to detour before the crystal runs dry.
+
 ## What each mechanic needs
 
 - **Scan, chart, course:** tier 2 sensors, plus a `chart` table and a distance-remaining number.
@@ -155,3 +166,21 @@ measures everything, in the end, is a single one: **how far is left.**
 
 Nothing here needs new art. It needs the ship to remember what she has learned, and to make the crew choose
 between knowing something and keeping the ship alive.
+
+**The probe, implemented 2026-10-07** (`LaunchProbe`, save format 36; `TestProbes`,
+`scripts/probe-check.sh`): the ship carries a complement of probes (`Stores.probes`, six to start).
+Launching one from the torpedo launcher consumes it and **charts the target** without the ship going
+there -- the survey writes the beacon's kind, whether or not it is ever visited -- and the probe is
+**sometimes lost** (deterministically), which is itself information. Console `ship probe <beacon>`.
+Not built: the probe *classes* with different sensor packages, and probe telemetry that "arrives with
+something on it that demands a response".
+
+**The phenomenon, implemented 2026-10-07** (`RevealPhenomenon`/`RespondPhenomenon`, save format 37;
+`TestPhenomenon`, `scripts/phenomenon-check.sh`): every sector holds one anomaly, on a beacon fixed
+by the seed. Its attributes are hidden and **revealed one scan at a time** (three in all, `ship scan`);
+`ship study <0-3>` gives the response -- shield harmonics, warp geometry, distance, or do not touch.
+Each attribute resolves to a **value** (gravimetric, subspace, temporal, tetryon) and the **correct
+response is a function of the three values** (their sum mod four) -- so it can only be worked out once
+them all are resolved, and a guess before then is luck. The correct response is the science reward,
+material; a wrong one is damage the crew can watch (`BreachDeck`). Not built: the two canon story
+models (a nebula that is alive; a phenomenon experimenting on the crew).

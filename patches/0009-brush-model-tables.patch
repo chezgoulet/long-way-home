@@ -1,0 +1,57 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 9/9] brush models: room for a whole ship, and a bounds check
+
+A map's brush models (doors, usables, triggers) are registered by the client game into two tables
+indexed by their number in the map. The tables were sized MAX_MODELS (256) and filled with no
+bounds check, so a map with more ran off the end of `cgs` into `cg` and crashed in whatever read
+the corrupted state first (CG_BuildSolidList, through a snapshot pointer made of floats). They get
+their own limit, 4096, and the loop now refuses a map that exceeds it by name.
+
+The renderer's model table goes from 1024 to 4096 for the same reason: the merged ship is some
+900 brush models before a single prop is loaded.
+
+The missing check is a defect in the released source independent of us; the sizes are ours.
+---
+diff --git a/EFAndroid-SP/app/jni/efcode/renderervk/tr_local.h b/EFAndroid-SP/app/jni/efcode/renderervk/tr_local.h
+--- a/EFAndroid-SP/app/jni/efcode/renderervk/tr_local.h
++++ b/EFAndroid-SP/app/jni/efcode/renderervk/tr_local.h
+@@ -1050,7 +1050,7 @@
+ 	int			 numLods;
+ } model_t;
+ 
+-#define	MAX_MOD_KNOWN	1024
++#define	MAX_MOD_KNOWN	4096	// was 1024: a whole ship is ~900 brush models before a single prop
+ 
+ void		R_ModelInit (void);
+ model_t		*R_GetModelByHandle( qhandle_t hModel );
+diff --git a/efgame/src/cgame/cg_main.cpp b/efgame/src/cgame/cg_main.cpp
+--- a/efgame/src/cgame/cg_main.cpp
++++ b/efgame/src/cgame/cg_main.cpp
+@@ -1234,6 +1234,9 @@
+ 	CG_LoadingString("map brushes");
+ 	// register the inline models
+ 	cgs.numInlineModels = cgi_CM_NumInlineModels();
++	if ( cgs.numInlineModels > MAX_INLINE_MODELS ) {
++		CG_Error( "This map has %i brush models; the limit is %i", cgs.numInlineModels, MAX_INLINE_MODELS );
++	}
+ 	for ( i = 1 ; i < cgs.numInlineModels ; i++ ) {
+ 		char	name[10];
+ 		vec3_t			mins, maxs;
+diff --git a/efgame/src/cgame/cg_media.h b/efgame/src/cgame/cg_media.h
+--- a/efgame/src/cgame/cg_media.h
++++ b/efgame/src/cgame/cg_media.h
+@@ -355,8 +355,12 @@
+ 	sfxHandle_t		sound_precache[MAX_SOUNDS];
+ 
+ 	int				numInlineModels;
+-	qhandle_t		inlineDrawModel[MAX_MODELS];
+-	vec3_t			inlineModelMidpoints[MAX_MODELS];
++	// Brush models (doors, usables, triggers) are indexed by their number in the map, not through the
++	// model configstrings, so these need not share MAX_MODELS. They did, at 256, and were filled with no
++	// bounds check: a map with more ran off the end of cgs and into cg. CG_RegisterGraphics now checks.
++#define MAX_INLINE_MODELS	4096
++	qhandle_t		inlineDrawModel[MAX_INLINE_MODELS];
++	vec3_t			inlineModelMidpoints[MAX_INLINE_MODELS];
+ 
+ 	clientInfo_t	clientinfo[MAX_CLIENTS];
+ 

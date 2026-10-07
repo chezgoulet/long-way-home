@@ -16,8 +16,57 @@ mechanically.
 
 ## Status
 
-Pre-development. Gate G0 is the current objective: build the singleplayer game module
-natively, reconstruct the script compiler, and write the asset validator.
+The gate ledger, `docs/gates.md`, is the authority; this is its summary.
+
+| gate | what | state |
+|---|---|---|
+| G0 | toolchain: native game module, script compiler, validator, entity dictionary | closed |
+| G1 | native client plays the campaign: mission, save, reload | closed, signed off |
+| G2 / G6 | Virtual Voyager and the retail game as a mode | reported working by the owner |
+| G7 | retail multiplayer over LAN or VPN (cMod, as shipped) | server half proven; needs two machines |
+| G3 | reactive crew: 5–10 NPCs holding posts on one deck | implemented and measured; awaiting the owner's judgement |
+| S1 | ship core: power, systems, decks, clock, the 141-crew roster and watches | done |
+| S2 | the ship running in the game, and Main Engineering's console driving it | built and verified headless; yours to operate |
+| S3 | the whole ship as one map: fifteen decks, toured by turbolift | built and verified headless; not yet walked by a person |
+| S4 | every station's console | first slice: four stations open from the ship's own panels; their deeper controls and in-world status are not built |
+| S5 | crew daily lives | first slice: the crew on your deck are the ones the ship's routine has there |
+| S6 | damage, repair and casualties | first slice in the ship core: crewed repair that costs parts, airless decks that injure and kill, sickbay recovery |
+| S7 | intruders and hacking | first slice in the ship core: boarders, contested control of systems, security response, the breach puzzle's rules |
+| S8 | the Borg | first slice in the ship core: assimilation of decks and crew, and stripping it back |
+| S9 | the outside | first slice in the ship core: a sector to jump across and ship-to-ship combat through the ship's own systems |
+| S10 | play modes, roles, character creation | first slice in the ship core: ironman and holodeck, three clocks, clearance by rank, three player roles |
+
+## Building and checking
+
+```
+scripts/bootstrap-upstream.sh     # clone the pinned upstream, apply patches/, build the game modules and tools
+scripts/test.sh                   # every check that needs no game data (this is what CI runs)
+scripts/fetch-gdk.sh              # fetch the official GDK content G0 is checked against, into build/gdk
+scripts/check.sh ...              # G0's corpus checks; needs that content
+scripts/g3-measure.sh             # G3's measured run; needs your own copy of the game
+scripts/build-ship.sh             # S3: stitch the published decks into one map and compile it
+scripts/s3-check.sh               # S3: tour all fifteen decks of the one map by turbolift
+scripts/s10-check.sh              # S10: ironman refuses saves and loads by hand
+scripts/s9-check.sh               # S7, S9: the breach puzzle screen, a jump from the Conn, a torpedo from Tactical
+scripts/s7-check.sh               # S7, S8: boarders and Borg drones as hostile bodies tied to the ship's count
+scripts/s5-check.sh               # S5: embodied crew follow the ship's roster and walk to their places
+scripts/s4-check.sh               # S4: a station console opened by the ship's own panel command
+scripts/s2-check.sh               # S2: the ship in the game, saved, reloaded, and operated from its console
+scripts/run-engine.sh             # play (see docs/playtest.md)
+scripts/run-scenario.sh           # play a crewed deck
+```
+
+## Layout
+
+| path | what |
+|---|---|
+| `patches/` | our delta from the pinned upstream port: twelve patches, one concern each |
+| `engine/` | the native Linux build of the single-player engine (GPL-2.0) |
+| `module/` | our game logic, compiled into the game module (STEF licence) — the crew direction layer and the ship simulation |
+| `tools/` | script compiler, validator, entity dictionary, map generator, crew authoring |
+| `scenarios/` | scenarios as versioned artifacts, each with a `scenario.json` |
+| `tests/` | unit tests for the direction layer and the tools |
+| `docs/` | the charter, the gate ledger, specifications, and the evidence for every claim |
 
 ## Why this exists
 
@@ -50,6 +99,14 @@ sponsored by any of them, and no official status is claimed.
   model, and the engine's measured limits. **Read this first.**
 - `docs/program-charter-v3.md` — the gated programme charter: gates, scope, arbitration rules,
   acceptance criteria.
+- `docs/ship-programme.md` — the operational-Voyager programme: the owner's decisions and gates S1–S10.
+- `docs/lore-ledger.md` — every figure in the ship simulation, with its source or marked invented.
+- `docs/gates.md` — the gate ledger: what has passed, on what evidence, and what is still open.
+- `docs/client-modes.md` — the client's three modes, and why retail multiplayer is cMod as shipped.
+- `docs/g3-reactive-crew.md` — the reactive-crew specification, and what building it found.
+- `docs/scenario-manifest.md` — the scenario format, including the crew section.
+- `docs/playtest.md` — how to run the client, and what to send back.
+- `CONTRIBUTING.md` — branch flow, the patch discipline, and the evidence rules.
 - `docs/program-proposal-v2.md` — the proposal that preceded it, including the track analysis.
 - `docs/native-linux-client-proposal.md` — the original client proposal (v1).
 - `docs/elite-force-content-options.md` — what is possible, and under what licence.

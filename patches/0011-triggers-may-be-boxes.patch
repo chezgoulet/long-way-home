@@ -1,0 +1,25 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 11/11] triggers may be boxes
+
+A trigger needs a volume, not geometry, but every trigger in the released game takes its volume
+from a brush model. On a whole ship that is 500 brush models spent on boxes. A trigger written with
+"mins" and "maxs" and no brush model is now a plain box at its origin; one with a brush model
+behaves exactly as before.
+---
+diff --git a/efgame/src/game/g_trigger.cpp b/efgame/src/game/g_trigger.cpp
+--- a/efgame/src/game/g_trigger.cpp
++++ b/efgame/src/game/g_trigger.cpp
+@@ -13,7 +13,12 @@
+ 	if (!VectorCompare (self->s.angles, vec3_origin))
+ 		G_SetMovedir (self->s.angles, self->movedir);
+ 
+-	gi.SetBrushModel( self, self->model );
++	// A trigger needs a volume, not geometry. One written with "mins"/"maxs" and no brush model is a
++	// plain box at its origin, and costs the map no brush model at all.
++	if ( self->model && self->model[0] == '*' )
++	{
++		gi.SetBrushModel( self, self->model );
++	}
+ 	self->contents = CONTENTS_TRIGGER;		// replaces the -1 from gi.SetBrushModel
+ 	self->svFlags = SVF_NOCLIENT;
+ 

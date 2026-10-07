@@ -1,0 +1,325 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 5/10] attach points for Long Way Home's own game logic
+
+Twenty-one one-line calls and a build option. The logic itself is not in this tree: it is compiled
+in from LWH_MODULE_DIR (the long-way-home repository's module/), and game/lwh_hooks.h and
+ui/lwh_ui_hooks.h turn every call into an empty inline when that is unset, so this patch alone
+changes no behaviour.
+
+Four things attach here: the crew direction layer (Crew_*), the ship simulation (Ship_*),
+deck-scoped names for scripts on the merged ship (LWH_Scope*), and our screens in the UI module
+(LWH_UI_ConsoleCommand; sources under LWH_MODULE_DIR/ui go to the UI library, the rest to the game):
+  G_InitCvars / InitGame       register cvars; start once the map's entities exist
+  G_RunFrame (first, last)     the frame clock, then each system's turn after every entity has thought
+  ShutdownGame                 the ship's state is carried through a level change
+  NPC_Use / NPC_Respond        time the player's address against the acknowledgement
+  NPC_Touch                    being walked into
+  G_LoadSave_*MiscData         one optional save chunk each, written only while the system is on
+  ConsoleCommand (game, ui)    the "crew" and "ship" commands; our screens' commands
+  CTaskManager::Update, G_Find while a script runs, a name is looked up on its owner's deck first
+---
+diff --git a/efgame/CMakeLists.txt b/efgame/CMakeLists.txt
+--- a/efgame/CMakeLists.txt
++++ b/efgame/CMakeLists.txt
+@@ -82,8 +82,25 @@
+ list(REMOVE_ITEM EFGAME_SRC
+   ${SRC}/icarus/Interface.cpp ${SRC}/icarus/Interpreter.cpp ${SRC}/icarus/Tokenizer.cpp)
+ 
++# Long Way Home: game logic that is ours lives outside this tree and is compiled in from
++# LWH_MODULE_DIR (the long-way-home repository's module/). Unset, the hooks in game/lwh_hooks.h
++# are no-ops and this builds exactly as upstream does.
++set(LWH_MODULE_DIR "" CACHE PATH "Directory of additional game-module sources")
++if(LWH_MODULE_DIR)
++  file(GLOB_RECURSE LWH_MODULE_SRC ${LWH_MODULE_DIR}/*.cpp)
++  file(GLOB LWH_UI_SRC ${LWH_MODULE_DIR}/ui/*.cpp)   # screens: these belong to the UI module
++  if(LWH_UI_SRC)
++    list(REMOVE_ITEM LWH_MODULE_SRC ${LWH_UI_SRC})
++  endif()
++  list(APPEND EFGAME_SRC ${LWH_MODULE_SRC})
++endif()
++
+ add_library(efgame SHARED ${EFGAME_SRC})
+ target_include_directories(efgame PRIVATE ${EF_INCLUDES})
++if(LWH_MODULE_DIR)
++  target_include_directories(efgame PRIVATE ${LWH_MODULE_DIR}/crew ${LWH_MODULE_DIR}/ship)
++  target_compile_definitions(efgame PRIVATE LWH_CREW)
++endif()
+ target_compile_options(efgame PRIVATE ${EF_COPTS})
+ target_compile_definitions(efgame PRIVATE NDEBUG)
+ target_link_options(efgame PRIVATE
+@@ -103,8 +120,12 @@
+ # Under _USRDLL the FX_*Think func-table (the #else / #ifndef _USRDLL branch) is excluded ->
+ # zero cgame deps; the only symbol it then needs is gameinfo's `gi` (see gameinfo.cpp guard).
+ list(APPEND EFUI_SRC ${SRC}/game/g_weaponLoad.cpp)
+-add_library(efui SHARED ${EFUI_SRC} ${EF_SHARED_SRC} ${EFUI_EXTRA_SRC})
++add_library(efui SHARED ${EFUI_SRC} ${EF_SHARED_SRC} ${EFUI_EXTRA_SRC} ${LWH_UI_SRC})
+ target_include_directories(efui PRIVATE ${EF_INCLUDES})
++if(LWH_UI_SRC)
++  target_include_directories(efui PRIVATE ${LWH_MODULE_DIR}/ui)
++  target_compile_definitions(efui PRIVATE LWH_UI)
++endif()
+ target_compile_options(efui PRIVATE ${EF_COPTS})
+ # _USRDLL must be target-wide (not per-file) so the globbed gameinfo.cpp also takes the UI branch.
+ # Do NOT add _USRDLL to the efgame target (the game build keeps g_weaponLoad's cgame funcs[] table).
+diff --git a/efgame/src/game/NPC_reactions.cpp b/efgame/src/game/NPC_reactions.cpp
+--- a/efgame/src/game/NPC_reactions.cpp
++++ b/efgame/src/game/NPC_reactions.cpp
+@@ -3,6 +3,7 @@
+ #include "anims.h"
+ #include "g_functions.h"
+ #include "characters.h"
++#include "lwh_hooks.h"
+ 
+ extern void G_AddVoiceEvent( gentity_t *self, int event, int speakDebounceTime );
+ float g_crosshairEntDist = Q3_INFINITE;
+@@ -356,6 +357,7 @@
+ 		{
+ 			NPCInfo->touchedByPlayer = other;
+ 		}
++		Crew_OnTouched( self, other );
+ 
+ 		if ( other == NPCInfo->goalEntity ) 
+ 		{
+@@ -432,6 +434,8 @@
+ {
+ 	int event;
+ 
++	Crew_OnResponded( self );
++
+ 	if ( self->NPC->behaviorState == BS_FORMATION )
+ 	{
+ 		event = Q_irand(EV_MISSION1, EV_MISSION3);
+@@ -655,6 +659,7 @@
+ 
+ 	if(self->client && self->NPC)
+ 	{//Run any use instructions
++		Crew_OnUsed( self, activator );
+ 		if ( self->NPC->behaviorState == BS_MEDIC_HIDE && activator->client )
+ 		{//Heal me NOW, dammit!
+ 			if ( activator->health < activator->max_health )
+diff --git a/efgame/src/game/g_main.cpp b/efgame/src/game/g_main.cpp
+--- a/efgame/src/game/g_main.cpp
++++ b/efgame/src/game/g_main.cpp
+@@ -8,6 +8,7 @@
+ #include "g_navigator.h"
+ #include "anims.h"
+ #include "../speedrun/sound_skipping.hpp"
++#include "lwh_hooks.h"
+ 
+ extern CNavigator		navigator;
+ 
+@@ -170,6 +171,8 @@
+ 	g_fixFreezeBorg1 = gi.cvar( "g_fixFreezeBorg1", "1", CVAR_ARCHIVE );
+ 	g_snapVelocity = gi.cvar( "g_snapVelocity", "1", CVAR_CHEAT );
+ 	g_showPaths = gi.cvar( "g_showPaths", "", CVAR_ARCHIVE );
++	Crew_RegisterCvars();
++	Ship_RegisterCvars();
+ }
+ 
+ /*
+@@ -341,6 +344,8 @@
+ 	}
+ 
+ 	speedrun::InitSoundSkipping();
++	Ship_Init();
++	Crew_Init();
+ }
+ 
+ 
+@@ -351,6 +356,7 @@
+ */
+ void ShutdownGame( void ) {
+ 	gi.Printf ("==== ShutdownGame ====\n");
++	Ship_Shutdown();
+ 
+ 	gi.Printf ("... ICARUS_Shutdown\n");
+ 	ICARUS_Shutdown ();	//Shut ICARUS down
+@@ -833,6 +839,7 @@
+ 	gentity_t	*ent;
+ 	int			msec;
+ 
++	Crew_FrameBegin();
+ 	level.framenum++;
+ 	level.previousTime = level.time;
+ 	level.time = levelTime;
+@@ -954,6 +961,9 @@
+ 		ClientEndFrame( ent );
+ 	}
+ 
++	Ship_Frame();
++	Crew_Frame();
++
+ 	//DEBUG STUFF
+ 	NAV_ShowDebugInfo();
+ 	NPC_ShowDebugInfo();
+@@ -977,6 +987,8 @@
+ void G_LoadSave_WriteMiscData(void)
+ {
+ 	gi.AppendToSaveGame('LCKD', &player_locked, sizeof(player_locked));
++	Crew_WriteSave();
++	Ship_WriteSave();
+ }
+ 
+ 
+@@ -984,5 +996,7 @@
+ void G_LoadSave_ReadMiscData(void)
+ {
+ 	gi.ReadFromSaveGame('LCKD', &player_locked, sizeof(player_locked), NULL);
++	Crew_ReadSave();
++	Ship_ReadSave();
+ }
+ 
+diff --git a/efgame/src/game/g_svcmds.cpp b/efgame/src/game/g_svcmds.cpp
+--- a/efgame/src/game/g_svcmds.cpp
++++ b/efgame/src/game/g_svcmds.cpp
+@@ -1,6 +1,7 @@
+ 
+ #include "g_local.h"
+ #include "boltons.h"
++#include "lwh_hooks.h"
+ 
+ extern int ICARUS_RunScript( gentity_t *ent, const char *name );
+ extern team_t TranslateTeamName( const char *name );
+@@ -125,6 +126,16 @@
+ 		return qtrue;
+ 	}
+ 
++	if (Q_stricmp (cmd, "crew") == 0) {
++		Svcmd_Crew_f ();
++		return qtrue;
++	}
++
++	if (Q_stricmp (cmd, "ship") == 0) {
++		Svcmd_Ship_f ();
++		return qtrue;
++	}
++
+ 	if (Q_stricmp (cmd, "Command") == 0) {
+ 		Svcmd_Comm_f ();
+ 		return qtrue;
+diff --git a/efgame/src/game/g_utils.cpp b/efgame/src/game/g_utils.cpp
+--- a/efgame/src/game/g_utils.cpp
++++ b/efgame/src/game/g_utils.cpp
+@@ -3,6 +3,7 @@
+ #include "g_local.h"
+ #include "g_functions.h"
+ #include "g_nav.h"
++#include "lwh_hooks.h"
+ 
+ #define ACT_ACTIVE		qtrue
+ #define ACT_INACTIVE	qfalse
+@@ -132,6 +133,8 @@
+ 	else
+ 		from++;
+ 
++	match = (char *) LWH_ScopedName( match );
++
+ 	for ( ; from < &g_entities[globals.num_entities] ; from++)
+ 	{
+ 		if (!from->inuse)
+diff --git a/efgame/src/icarus/TaskManager.cpp b/efgame/src/icarus/TaskManager.cpp
+--- a/efgame/src/icarus/TaskManager.cpp
++++ b/efgame/src/icarus/TaskManager.cpp
+@@ -3,6 +3,7 @@
+ //	-- jweier
+ 
+ #include "icarus.h"
++#include "lwh_hooks.h"
+ #include <assert.h>
+ extern void Com_Printf( const char *fmt, ... );
+ 
+@@ -327,7 +328,9 @@
+ 	m_count = 0;	//Needed for runaway init
+ 	m_resident = true;
+ 
++	LWH_ScopeBegin( m_ownerID );
+ 	int returnVal = Go();
++	LWH_ScopeEnd();
+ 
+ 	m_resident = false;
+ 
+diff --git a/efgame/src/ui/ui_atoms.cpp b/efgame/src/ui/ui_atoms.cpp
+--- a/efgame/src/ui/ui_atoms.cpp
++++ b/efgame/src/ui/ui_atoms.cpp
+@@ -4,6 +4,7 @@
+ 	User interface building blocks and support functions.
+ **********************************************************************/
+ #include "ui_local.h"
++#include "lwh_ui_hooks.h"
+ #include "gameinfo.h"
+ #include "../qcommon/stv_version.h"
+ 
+@@ -1222,6 +1223,10 @@
+ 	// ensure minimum menu data is available
+ 	Menu_Cache();
+ 
++	if ( LWH_UI_ConsoleCommand( cmd ) ) {
++		return qtrue;
++	}
++
+ 	if ( Q_stricmp (cmd, "ui_cache") == 0 ) {
+ 		UI_Cache_f();
+ 		return qtrue;
+diff --git a/efgame/src/game/lwh_hooks.h b/efgame/src/game/lwh_hooks.h
+new file mode 100644
+--- /dev/null
++++ b/efgame/src/game/lwh_hooks.h
+@@ -0,0 +1,38 @@
++// lwh_hooks.h -- where Long Way Home's own game logic attaches to the game module.
++//
++// The logic itself is not in this tree: it is compiled in when the build sets LWH_MODULE_DIR
++// (which defines LWH_CREW). Without it every hook below is an empty inline, so the module
++// builds and behaves as it always has.
++
++#ifndef LWH_HOOKS_H
++#define LWH_HOOKS_H
++
++#ifdef LWH_CREW
++#include "g_crew.h"
++#include "g_ship.h"
++#include "g_scope.h"
++#else
++struct gentity_s;
++inline void Crew_RegisterCvars( void ) {}
++inline void Crew_Init( void ) {}
++inline void Crew_FrameBegin( void ) {}
++inline void Crew_Frame( void ) {}
++inline void Crew_OnUsed( struct gentity_s *, struct gentity_s * ) {}
++inline void Crew_OnResponded( struct gentity_s * ) {}
++inline void Crew_OnTouched( struct gentity_s *, struct gentity_s * ) {}
++inline void Crew_WriteSave( void ) {}
++inline void Crew_ReadSave( void ) {}
++inline void Svcmd_Crew_f( void ) {}
++inline void Ship_RegisterCvars( void ) {}
++inline void Ship_Init( void ) {}
++inline void Ship_Frame( void ) {}
++inline void Ship_Shutdown( void ) {}
++inline void Ship_WriteSave( void ) {}
++inline void Ship_ReadSave( void ) {}
++inline void Svcmd_Ship_f( void ) {}
++inline void LWH_ScopeBegin( int ) {}
++inline void LWH_ScopeEnd( void ) {}
++inline const char *LWH_ScopedName( const char *name ) { return name; }
++#endif
++
++#endif
+diff --git a/efgame/src/ui/lwh_ui_hooks.h b/efgame/src/ui/lwh_ui_hooks.h
+new file mode 100644
+--- /dev/null
++++ b/efgame/src/ui/lwh_ui_hooks.h
+@@ -0,0 +1,15 @@
++// lwh_ui_hooks.h -- where Long Way Home's own screens attach to the UI module.
++//
++// Like game/lwh_hooks.h: the screens are compiled in from LWH_MODULE_DIR/ui when the build sets
++// it (which defines LWH_UI). Without it this is an empty inline and the UI is upstream's.
++
++#ifndef LWH_UI_HOOKS_H
++#define LWH_UI_HOOKS_H
++
++#ifdef LWH_UI
++#include "lwh_ui.h"
++#else
++inline qboolean LWH_UI_ConsoleCommand( const char * ) { return qfalse; }
++#endif
++
++#endif

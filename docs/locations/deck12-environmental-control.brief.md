@@ -81,3 +81,26 @@ console in it?**
 No new art. No new species. Do not build the atmosphere plant accurately -- it needs to *read* as plant, not
 simulate it. Do not build section 42 or the Haunting entity here; that is a scenario next door, and putting
 it in this room would spend the adjacency.
+
+## 10. Status (2026-10-06)
+
+**Re-dressed from `tour/deck11` and awaiting the owner's walkthrough.** The blockout was approved in
+principle; this is the detail pass, and it is built the way `docs/authoring-a-location.md` requires:
+the room is **copied from the reuse target the brief names** (`tour/deck11`, main engineering) and
+changed to be this room -- reduced vertical scale, the warp core replaced by an atmosphere plant, a
+Jefferies tube exit to deck 11 on the side opposite the door, and the watch console moved to the
+entrance. The room's own consoles, railings, lighting fixtures, wall panels, door hardware, props and
+"small untidiness" come along with the copy. The parts list is
+`docs/locations/deck12-parts-list.md`; the tool is `tools/shipmap/dressdeck12.py`, called by
+`scripts/build-ship.sh`.
+
+Done: the copy and its four changes; section 42 still sealed next door; the life-support station
+marker, the compartment wiring, the breach triggers and field, and the status panel; navigation
+baked; the **emergency lighting state** (`hall/hall_light_red`, switched by the module at red alert
+or a life-support failure). Evidence, with the commands: `docs/evidence/deck12-redress.md`.
+
+Open, and only the owner can close it: **does it read as somewhere a person watches over fifteen
+decks of air?** The compression is a hypothesis -- a tall room made low may read as machinery or as
+squashed. The tube, the plant and the watch post are placed by measurement, not by eye. Walk it; if
+the corner does not surprise or the rail does not read, that is the next pass.
+

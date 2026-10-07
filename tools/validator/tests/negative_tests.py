@@ -159,8 +159,16 @@ def main():
         if rc == 0 and "ERROR" not in out:
             print("PASS  clean fixture validates with no errors")
         else:
-            print(f"FAIL  clean fixture should pass (rc={rc})\n{out}")
-            failures += 1
+            # The baseline must be clean, or every seeded case below is measured against a broken
+            # fixture and a real regression reads like fixture noise. Say so as a fixture problem,
+            # naming the source map, rather than letting it surface as an E003 from inside a case.
+            print(f"FAIL  the clean fixture is not clean: the supplied source map is not a usable "
+                  f"clean fixture ({os.path.basename(args.source_map)})")
+            print("      A clean fixture must be built around a space whose declared-inhabited map "
+                  "has navigation entities (a holomatch map has none).")
+            for line in out.splitlines()[:8]:
+                print("      " + line)
+            return 2
 
         for label, seed, code, needle in CASES:
             case = os.path.join(tmp, "case_" + code)

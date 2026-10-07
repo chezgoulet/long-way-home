@@ -1,0 +1,202 @@
+{
+"classname" "worldspawn"
+"message" "lwhroom"
+{
+( 0 0 -16 ) ( 768 1024 -16 ) ( 0 1024 -16 ) 8472/wallconduit2 0 0 0 1 1
+( 0 0 0 ) ( 768 1024 0 ) ( 768 0 0 ) 8472/wallconduit2 0 0 0 1 1
+( 0 0 -16 ) ( 768 0 0 ) ( 768 0 -16 ) 8472/wallconduit2 0 0 0 1 1
+( 0 1024 -16 ) ( 768 1024 0 ) ( 0 1024 0 ) 8472/wallconduit2 0 0 0 1 1
+( 0 0 -16 ) ( 0 1024 0 ) ( 0 0 0 ) 8472/wallconduit2 0 0 0 1 1
+( 768 0 -16 ) ( 768 1024 0 ) ( 768 1024 -16 ) 8472/wallconduit2 0 0 0 1 1
+}
+{
+( 0 0 192 ) ( 768 1024 192 ) ( 0 1024 192 ) 8472/wallconduit2 0 0 0 1 1
+( 0 0 208 ) ( 768 1024 208 ) ( 768 0 208 ) 8472/wallconduit2 0 0 0 1 1
+( 0 0 192 ) ( 768 0 208 ) ( 768 0 192 ) 8472/wallconduit2 0 0 0 1 1
+( 0 1024 192 ) ( 768 1024 208 ) ( 0 1024 208 ) 8472/wallconduit2 0 0 0 1 1
+( 0 0 192 ) ( 0 1024 208 ) ( 0 0 208 ) 8472/wallconduit2 0 0 0 1 1
+( 768 0 192 ) ( 768 1024 208 ) ( 768 1024 192 ) 8472/wallconduit2 0 0 0 1 1
+}
+{
+( 0 0 0 ) ( 16 1024 0 ) ( 0 1024 0 ) 8472/wallconduit1 0 0 0 1 1
+( 0 0 192 ) ( 16 1024 192 ) ( 16 0 192 ) 8472/wallconduit1 0 0 0 1 1
+( 0 0 0 ) ( 16 0 192 ) ( 16 0 0 ) 8472/wallconduit1 0 0 0 1 1
+( 0 1024 0 ) ( 16 1024 192 ) ( 0 1024 192 ) 8472/wallconduit1 0 0 0 1 1
+( 0 0 0 ) ( 0 1024 192 ) ( 0 0 192 ) 8472/wallconduit1 0 0 0 1 1
+( 16 0 0 ) ( 16 1024 192 ) ( 16 1024 0 ) 8472/wallconduit1 0 0 0 1 1
+}
+{
+( 752 0 0 ) ( 768 1024 0 ) ( 752 1024 0 ) 8472/wallconduit1 0 0 0 1 1
+( 752 0 192 ) ( 768 1024 192 ) ( 768 0 192 ) 8472/wallconduit1 0 0 0 1 1
+( 752 0 0 ) ( 768 0 192 ) ( 768 0 0 ) 8472/wallconduit1 0 0 0 1 1
+( 752 1024 0 ) ( 768 1024 192 ) ( 752 1024 192 ) 8472/wallconduit1 0 0 0 1 1
+( 752 0 0 ) ( 752 1024 192 ) ( 752 0 192 ) 8472/wallconduit1 0 0 0 1 1
+( 768 0 0 ) ( 768 1024 192 ) ( 768 1024 0 ) 8472/wallconduit1 0 0 0 1 1
+}
+{
+( 0 0 0 ) ( 768 16 0 ) ( 0 16 0 ) 8472/wallconduit1 0 0 0 1 1
+( 0 0 192 ) ( 768 16 192 ) ( 768 0 192 ) 8472/wallconduit1 0 0 0 1 1
+( 0 0 0 ) ( 768 0 192 ) ( 768 0 0 ) 8472/wallconduit1 0 0 0 1 1
+( 0 16 0 ) ( 768 16 192 ) ( 0 16 192 ) 8472/wallconduit1 0 0 0 1 1
+( 0 0 0 ) ( 0 16 192 ) ( 0 0 192 ) 8472/wallconduit1 0 0 0 1 1
+( 768 0 0 ) ( 768 16 192 ) ( 768 16 0 ) 8472/wallconduit1 0 0 0 1 1
+}
+{
+( 0 1008 0 ) ( 768 1024 0 ) ( 0 1024 0 ) 8472/wallconduit1 0 0 0 1 1
+( 0 1008 192 ) ( 768 1024 192 ) ( 768 1008 192 ) 8472/wallconduit1 0 0 0 1 1
+( 0 1008 0 ) ( 768 1008 192 ) ( 768 1008 0 ) 8472/wallconduit1 0 0 0 1 1
+( 0 1024 0 ) ( 768 1024 192 ) ( 0 1024 192 ) 8472/wallconduit1 0 0 0 1 1
+( 0 1008 0 ) ( 0 1024 192 ) ( 0 1008 192 ) 8472/wallconduit1 0 0 0 1 1
+( 768 1008 0 ) ( 768 1024 192 ) ( 768 1024 0 ) 8472/wallconduit1 0 0 0 1 1
+}
+}
+{
+"classname" "light"
+"light" "300"
+"origin" "384 512 160"
+}
+{
+"classname" "info_player_start"
+"origin" "384 64 24"
+"angle" "0"
+}
+{
+"classname" "waypoint"
+"origin" "144 144 24"
+}
+{
+"classname" "waypoint"
+"origin" "144 272 24"
+}
+{
+"classname" "waypoint"
+"origin" "144 400 24"
+}
+{
+"classname" "waypoint"
+"origin" "144 528 24"
+}
+{
+"classname" "waypoint"
+"origin" "144 656 24"
+}
+{
+"classname" "waypoint"
+"origin" "144 784 24"
+}
+{
+"classname" "waypoint"
+"origin" "144 912 24"
+}
+{
+"classname" "waypoint"
+"origin" "272 144 24"
+}
+{
+"classname" "waypoint"
+"origin" "272 272 24"
+}
+{
+"classname" "waypoint"
+"origin" "272 400 24"
+}
+{
+"classname" "waypoint"
+"origin" "272 528 24"
+}
+{
+"classname" "waypoint"
+"origin" "272 656 24"
+}
+{
+"classname" "waypoint"
+"origin" "272 784 24"
+}
+{
+"classname" "waypoint"
+"origin" "272 912 24"
+}
+{
+"classname" "waypoint"
+"origin" "400 144 24"
+}
+{
+"classname" "waypoint"
+"origin" "400 272 24"
+}
+{
+"classname" "waypoint"
+"origin" "400 400 24"
+}
+{
+"classname" "waypoint"
+"origin" "400 528 24"
+}
+{
+"classname" "waypoint"
+"origin" "400 656 24"
+}
+{
+"classname" "waypoint"
+"origin" "400 784 24"
+}
+{
+"classname" "waypoint"
+"origin" "400 912 24"
+}
+{
+"classname" "waypoint"
+"origin" "528 144 24"
+}
+{
+"classname" "waypoint"
+"origin" "528 272 24"
+}
+{
+"classname" "waypoint"
+"origin" "528 400 24"
+}
+{
+"classname" "waypoint"
+"origin" "528 528 24"
+}
+{
+"classname" "waypoint"
+"origin" "528 656 24"
+}
+{
+"classname" "waypoint"
+"origin" "528 784 24"
+}
+{
+"classname" "waypoint"
+"origin" "528 912 24"
+}
+{
+"classname" "waypoint"
+"origin" "656 144 24"
+}
+{
+"classname" "waypoint"
+"origin" "656 272 24"
+}
+{
+"classname" "waypoint"
+"origin" "656 400 24"
+}
+{
+"classname" "waypoint"
+"origin" "656 528 24"
+}
+{
+"classname" "waypoint"
+"origin" "656 656 24"
+}
+{
+"classname" "waypoint"
+"origin" "656 784 24"
+}
+{
+"classname" "waypoint"
+"origin" "656 912 24"
+}

@@ -1,0 +1,472 @@
+# Lore ledger
+
+Every figure in the ship simulation that claims to describe Voyager, with where it comes from. The
+rule (owner, 2026-10-05): **on-screen canon first, then the technical manuals, then invention — and
+invention is labelled.** Anything here can be overruled; the code cites this file, not the other way
+round.
+
+**Read the confidence column.** Sources marked *recalled* were written from memory, without the
+episode or manual open, and must be checked before they are relied on. *Game* means the retail game's
+own data, which is in hand. *Invented* means nothing canonical exists or was found, and the value was
+chosen for play.
+
+## The ship
+
+| fact | value | source | confidence |
+|---|---|---|---|
+| Decks | 15 | Intrepid class, stated on screen and in the writers' technical guide | recalled |
+| Complement | 141 | Crew figures on screen vary between roughly 140 and 153 across the series; the owner's design note uses ~141 after "Caretaker" | recalled; the owner's figure |
+| Photon torpedoes | 38, not replaceable | "The Cloud" | recalled |
+| Bridge | deck 1 | on screen | recalled |
+| Mess hall | deck 2 | on screen | recalled |
+| Senior officers' quarters | deck 3 | on screen | recalled |
+| Transporter room 1 | deck 4 | on screen; also the game's `tour/deck04` | game |
+| Sickbay | deck 5 | on screen | recalled |
+| Holodecks | Holodeck 2 on deck 6; **Holodeck 1 on deck 14** (the contested one) | deck 6 is on screen; the deck-14 holodeck is canon-contested (VOY "Darkling"), and the split is our call (`docs/locations/deck14-stasis.brief.md`, section 2) | recalled / our call |
+| Astrometrics | deck 8 | on screen | recalled |
+| Shuttlebay | deck 10 | on screen | recalled |
+| Main Engineering | deck 11 | on screen | recalled |
+| Computer core | **deck 10** (main), deck 7 (auxiliary) | the game's own turbolift menu says "DECK9 Computer Core" (`sp_turbolift.dat`), but canon places the main core on deck 10 and the auxiliary core on deck 7 (`docs/ship-master-map.md`, `docs/research/voyager-interior-systems.md`). **Our call, 2026-10-07:** we follow the master map; the simulation's system table moves the computer core from deck 9 to deck 10. | game / our call |
+| Hazard Ops | deck 4 | the same file | game |
+| The five decks with no published source (6, 7, 12, 13, 14) | a sealed hall with a waypoint grid to start; **decks 7, 12, 13 and 14 are re-dressed from `tour/deck11`, and deck 6 is composed from three maps** (see below) | nothing canonical exists; invented, and logged as such | invented |
+| Astrometrics and the cargo bay | deck 8 | the same file | game |
+| Environmental control, torpedo bay, impulse engineering, deflector control | decks 12, **10** (torpedo bay, fore; aft tubes deck 4, `docs/ship-master-map.md`), 10, 11 | — | invented placement / master map |
+| Decks present as maps | 1, 2, 3, 4, 5, 8, 9, 10, 11, 15 | the expansion pack's `maps/tour/` | game |
+
+### Decks with no published map (generated placeholders)
+
+| deck | taken to hold | source | confidence |
+|---|---|---|---|
+| 6 | Holodecks | on screen | recalled |
+| 7 | Crew Quarters | — | invented |
+| 12 | Environmental Control | on screen (the deck list); the layout is invented | recalled / invented |
+| 13 | Life Support Plant | on screen (the ship's systems spine, ~10 m below Main Engineering) | recalled |
+| 14 | Stasis chambers, Holodeck 1 | stasis units and a holodeck on screen, contested (VOY "Darkling"); the split from deck 6 is our call | recalled / our call |
+
+Deck 6 is now **composed** -- the fifth and last re-dress, and the only one that composites rather than
+crops (below); decks 7, 12, 13 and 14 are re-dressed from `tour/deck11`. Nothing about their interiors
+is canonical or attempts to be. Deck 13's turbolift label was "Cargo and
+Stores" in an earlier draft of our own fifteen-deck list; it is now **Life Support Plant**, matching
+`docs/ship-master-map.md`.
+
+Two calls made on deck 12 (`docs/locations/deck12-environmental-control.brief.md`), recorded once:
+
+- **Section 42 is closed off, not built.** Canon has it on the same deck; the master map keeps it
+  off-limits for a scenario. It is a sealed compartment -- solid bulkheads on its two open sides,
+  the deck's own walls on the other two -- with no way in, and its inside is not waypointed. It is
+  deliberately not spent as scenery.
+- **The deck declares its own turbolift edge.** Each generated deck emits a `target_level_change`
+  carrying a `mapname` (`tour/deck04`); the stitcher rewrites it to a teleporter to that deck's
+  arrival and adds the reverse, so the new deck is reachable from the turbolift and the edge is in
+  the map data rather than assumed.
+
+### Deck 12 re-dressed from `tour/deck11` (`docs/locations/deck12-environmental-control.brief.md`)
+
+| item | value | source | confidence |
+|---|---|---|---|
+| The room | main engineering's room from `tour/deck11`, copied and changed; the brief's reuse target | the brief, section 3; `docs/authoring-a-location.md` | design |
+| The room crop | x -4096..-2704, y -4032..-2784, taken from the source's own detail-brush cluster (centres x -4012..-2730, y -3972..-2814) | measured from the source | invented (the crop line) |
+| Vertical scale | compressed toward the floor by 0.78 (deck 11's ~404-unit room becomes 192) | the brief, "reduce the vertical scale" | design |
+| The core | dropped (the tall core-textured cluster) and an atmosphere plant raised in its place from the room's own chrome/glass/beam materials | the brief, "the warp core becomes an atmosphere plant" | design |
+| The tube | a low Jefferies tube on the west wall, opposite the main door, with a `target_level_change` to `tour/deck11` -- the route when the turbolifts are down | the brief, section 5 | invented (placement) |
+| The watch console | at the entrance, off the door, with the life-support station marker in front of it | the brief, "where the room can be entered" | invented (placement) |
+| The room's classes | deck 11's own lights, speakers, doors, panels, triggers, props and navigation survive the copy; its scripts, NPCs, pickup and turbolift network do not | this work | design |
+| The emergency lighting | authored strips: `hall/hall_light_red` held off, `engineering/elight1` working; the module swaps them at red alert or when life support is below 60% | the brief, section 6; the game's own shader | invented (the threshold) |
+| The parts list | `docs/locations/deck12-parts-list.md`; every texture and model resolves to existing game content | this work | measured |
+
+### Deck 13 re-dressed from `tour/deck11` (`docs/locations/deck13-life-support.brief.md`)
+
+| item | value | source | confidence |
+|---|---|---|---|
+| The room | main engineering's room from `tour/deck11`, copied and changed; the brief's reuse target, "as for deck 12" | the brief, section 3; `docs/authoring-a-location.md` | design |
+| The room crop | x -4096..-2704, y -4032..-2784, the same line deck 12 took (the source's own detail-brush cluster) | measured from the source | invented (the crop line) |
+| Vertical scale | compressed toward the floor by 0.8 (deck 11's ~404-unit room becomes 224): taller than deck 12's control room, a hall | the brief, "the vertical scale reduced" | design |
+| The core | dropped (the tall core-textured cluster) and a **central machinery island** of atmosphere processors raised in its place from the room's own materials | the brief, "the warp core swapped for an atmosphere plant" | design |
+| The catwalk | a raised walkway along the north wall with a rail and a stair of 16-unit steps; the brief's "raised machinery catwalk" | the brief, section 5 | invented (placement) |
+| The tube | a low Jefferies tube at the west end, far from the door, with a `target_level_change` to `tour/deck11` -- the route down from Engineering | the brief, section 5 | invented (placement) |
+| The plant post | `lwh_plant_post` and a `waypoint_navgoal_1` named `plantwatch` on the catwalk: the brief's "one watch/roving maintenance position" | the brief, section 5 | invented (placement) |
+| The local plant panel | a console on the catwalk with the live `lwh/panel` surface; operating it is the engineering console | the brief, section 7 | invented (placement) |
+| The room's classes | deck 11's own lights, speakers, doors, panels, triggers, props and navigation survive the copy; its scripts, NPCs, pickup and turbolift network do not | this work | design |
+| The emergency lighting | authored strips: `hall/hall_light_red` held off, `engineering/elight1` working; the module swaps them at red alert or when life support is below 60% | the brief, section 6; the game's own shader | invented (the threshold) |
+| No reference image | canon shows no life-support plant; the closest is an engineering plant room, the reason for the reuse target | the brief, section 2 | recalled (the absence) |
+| The parts list | `docs/locations/deck13-parts-list.md`; every texture and model resolves to existing game content | this work | measured |
+
+### Deck 14 re-dressed from `tour/deck11` (`docs/locations/deck14-stasis.brief.md`)
+
+| item | value | source | confidence |
+|---|---|---|---|
+| The room | main engineering's room from `tour/deck11`, copied and changed; the brief's reuse target, "for the industrial read" | the brief, section 3; `docs/authoring-a-location.md` | design |
+| The room crop | x -4096..-2704, y -4032..-2784, the same line decks 12 and 13 took (the source's own detail-brush cluster) | measured from the source | invented (the crop line) |
+| Vertical scale | compressed toward the floor by 0.72 (deck 11's ~404-unit room becomes 208): between deck 12's control room (192) and deck 13's hall (224), a low clinical ward | the brief, section 5 "flat" | invented |
+| The raised core deck | deck 11's large raised machinery platform dropped (38 brushes) so the room is the brief's **one flat chamber**; decks 12 and 13 kept it and built their plant on it | the brief, section 5 | invented |
+| The pods | the game's own `models/mapobjects/stasis/pod.md3`, eight along the north wall, each on a pedestal at its local floor | the brief, sections 3-4 | invented (placement); the model is the game's |
+| The holodeck | a closed doorframe on the north wall at the far end of the pod row (Holodeck 1), with the control panel (`lwh/panel`) and the maintenance post `lwh_stasis_post`/`stasiswatch`; the door is a frame, not a programme. The numbered SYS_HOLODECKS station marker moved to deck 6 when deck 6 was composed (below) | the brief, sections 3, 5, 7; the decided placement | invented (placement) |
+| The tube | a low Jefferies tube at the west end, far from the door, with a `target_level_change` to deck 13 -- the route up to the life-support plant | the brief, section 5 | invented (placement, destination) |
+| The lighting | deck 11's 104 lights kept dimmed (70%), plus authored cold (0.42 0.55 0.98) over the pods, warm (1.0 0.78 0.48) at the holodeck, neutral between | the brief, section 6 | invented |
+| The room's classes | deck 11's own lights, speakers, doors, panels, triggers, props and navigation survive the copy; its scripts, NPCs, pickup and turbolift network do not | this work | design |
+| The emergency lighting | authored strips tagged `_14`: `hall/hall_light_red` held off, `engineering/elight1` working; the module swaps them at red alert or life support below 60% | the brief, section 6; the game's own shader | invented (the threshold) |
+| The holodeck station marker | `lwh_station_17` was defined here (deck 14) by the deck-14 re-dress; it **moved to deck 6** when deck 6 was composed (deck 6's `dressdeck06.py` defines it now, and deck 14 defines it no longer). `ship_core`'s `SystemSpec` names the station "Holodeck 2" on deck 6, where the recreational holodeck is; the two decks cannot both define one name (the stitcher would rename both and `StationFor` would find neither) | `ship_core` `SystemSpec` (deck 6); deck 6's brief, section 8 | our call |
+| `SYS_HOLODECKS`'s model deck | `ship_core`'s `SystemSpec` still says deck 6; the constant is now named `HOLODECK_RECREATION_DECK` (deck 7's work renamed it to say it is the *recreational* default, not "the holodeck"): Holodeck 1 is deck 14, Holodeck 2 is deck 6. **Behaviour not changed** -- crew still walk to deck 6; two real nodes and a nearest rule are the owner's decision, flagged | this work; `docs/locations/deck14-stasis.brief.md`, section 2 | our call (the name); flagged (the behaviour) |
+| No reference image | canon shows no stasis chamber; the closest is the game's own stasis maps and engineering plant room, the reason for the reuse target | the brief, section 2 | recalled (the absence) |
+| The parts list | `docs/locations/deck14-parts-list.md`; every texture resolves to existing game content, and every model to a shipped one | this work | measured |
+
+### Deck 7 re-dressed from `tour/deck11` (`docs/locations/deck07-auxcore.brief.md`)
+
+| item | value | source | confidence |
+|---|---|---|---|
+| The room | main engineering's room from `tour/deck11`, copied and changed; the brief's reuse target, "for the industrial read; the core column is the deck's spine" | the brief, section 3; `docs/authoring-a-location.md` | design |
+| The room crop | x -4096..-2704, y -4032..-2784, the same line decks 12, 13 and 14 took (the source's own detail-brush cluster) | measured from the source | invented (the crop line) |
+| Vertical scale | compressed toward the floor by 0.8 (deck 11's ~404-unit room becomes 240): taller than deck 13's hall (224), because this is the depth deck and the core column is the spine | the brief, "the core column is tall" | invented |
+| The raised core deck | deck 11's large raised machinery platform dropped (38 brushes) so the room is the brief's one chamber | the brief, section 5 | invented |
+| The core | the tall core-textured cluster dropped (28 brushes) and an **auxiliary core column** raised at the centre from the room's own core materials, with the core panel at its base | the brief, "the warp core for an auxiliary core column" | invented (placement); the materials are the source's |
+| The cargo islands | two low plinths to the sides with the game's own crates (`models/mapobjects/cargo/crate.md3`), each seated on its local floor | the brief, "add cargo islands" and section 4 | invented (placement); the model is the game's |
+| The escape hatch | a short walkable platform with 16-unit steps and a ceiling hatch in `cargo/cargodoor1` with a lit rim: the brief's "escape-pod access overhead". No pod asset ships, so no pod | the brief, section 5 | invented |
+| The core station and post | `lwh_station_3` (`SYS_COMPUTER_CORE`, the auxiliary depth) at the panel and `lwh_core_post`/`corewatch` at the watch position | the brief, section 7 | invented (placement) |
+| The tube | a low Jefferies tube at the west end, far from the door, with a `target_level_change` to `tour/deck10` (the main computer core) -- the fallback route | the brief, section 5 | invented (placement, destination) |
+| The lighting | deck 11's 104 lights kept (dimmed), plus authored working light over the cargo floor and a blue glow at the core column | the brief, section 6 | invented |
+| The emergency lighting | authored strips tagged `_07`: `hall/hall_light_red` held off, `engineering/elight1` working; the module swaps them at red alert or life support below 60% | the brief, section 6; the game's own shader | invented (the threshold) |
+| **The whole copied interior is detail geometry** | the room's copied furniture, the core column, the islands and the hatch are emitted through generated per-material shader aliases (`lwh/detail07/...`, 94, same images + `surfaceparm detail`); the shell, door and tube stay structural. Detail brushes do not split the BSP tree, so the fourth re-dress does not pass `MAX_MAP_VISCLUSTERS` (16384); the ship is 15355 clusters. The aliases are shipped in the pak and mirrored into a compiler-only game dir | `tools/shipmap/dressdeck07.py`, `scripts/build-ship.sh`, `scripts/build-map.sh --q3game` | invented mechanism; measured |
+| **The stitcher drops degenerate brushes** | a re-dress crop can clamp a brush until two of a face's points coincide (zero normal); q3map2's bevel pass indexes `mapplanes[-1]` for it and segfaults on a map this size. The shared merge step drops them (21 on the merged ship) | `tools/shipmap/stitch.py`; `docs/evidence/deck07-auxcore.md`, judgement call 1 | measured |
+| The waypoint box filter | the deck's waypoint grid is filtered with the engine's standing box (±15 x/y, −24..+32 z), not a bare point, because `SP_waypoint` checks `G_CheckInSolid` on that box | `g_nav.cpp`; `docs/evidence/deck07-auxcore.md`, judgement call 5 | measured from the engine |
+| No reference image | canon shows no auxiliary computer-core room; the closest is an engineering plant room, the reason for the reuse target | the brief, section 2 | recalled (the absence) |
+| The parts list | `docs/locations/deck07-parts-list.md`; every texture resolves to existing game content, and every model to a shipped one | this work | measured |
+
+**The recreational-holodeck default** (`module/ship/ship_core.cpp`): `HOLODECK_DECK` was renamed
+`HOLODECK_RECREATION_DECK` and commented to say it is the deck the routine sends people to for
+recreation (deck 6, where the quarters are), with Holodeck 1 on deck 14 and Holodeck 2 on deck 6. The
+value and the three uses are unchanged; whether crew should walk to the nearer holodeck is the
+owner's decision, flagged, not done (`docs/evidence/deck07-auxcore.md`, "Task B, judged as a call").
+
+### Deck 6 composed from `tour/deck09`, `_brig` and `_holodeck_firingrange` (`docs/locations/deck06-holodecks.brief.md`)
+
+| item | value | source | confidence |
+|---|---|---|---|
+| The deck | **composed, not cropped**: deck 6 carries three functions on one deck -- a holodeck, an armory with a security post, and the crew quarters -- so its parts come from three maps, and the commit message names which zone came from which | the brief, section 3; `docs/authoring-a-location.md` | design |
+| The envelope | one hall, x -4608..-3072, y -4096..-3072, floor -3996, **height 224** (taller than deck 12's 192 and deck 13's 224, because the deck must carry a 192-unit holodeck arch and still have headroom); the corridor is the route, not the room | the brief, section 5 | invented |
+| The quarters frontage | a 1,088 x 336 slice of `tour/deck09`'s hall (the crew-quarters deck), x -3788..-2700, y -3300..-2964, set along the north side at true scale -- the hall-and-alcoves read the spatial program asks for | the brief, section 3 | design |
+| The armory | a 512 x 336 slice of `_brig` around the brig's own player start (x -320..192, y -460..-124), set into a south-west alcove -- the game's only security interior, so the armory borrows its lockers, grating and lighting | the brief, section 3 | design |
+| The holodeck doorframes | the arch cluster of `Tour/_holodeck_firingrange` (a `_holodeck_*` programme map), 120 x 208, turned 90 degrees and placed twice on the south-east wall; a frame and its lit door leaf, not a working programme | the brief, section 3, and its non-goal (section 9) | design |
+| The corridor | authored: the route, turbolift at the east wall, Jefferies tube at the west, the three zones opening onto it. The lighting brief (below) is the instrument that keeps three interiors from reading as one corridor with three props in it | the brief, sections 5-6 | invented |
+| The vertical scale | one hall, **224** units (deck 12's control room is 192, deck 13's plant hall 224, deck 14's ward 208); the 192-unit arch and headroom over it set it | the brief, section 5 | invented |
+| The lighting | warm (1.0 0.82 0.55) at the quarters frontage and the holodeck end, working neutral (0.95 0.97 1.0) down the corridor, cool (0.86 0.90 1.0) at the armory, and the arch's own warm glow | the brief, section 6 | invented |
+| The holodeck station | `lwh_station_17` (`SYS_HOLODECKS`) at the holodeck arch's control panel (`lwh/panel`); **moved here from deck 14** when this deck was built, because `ship_core`'s `SystemSpec` names the system's station "Holodeck 2" on deck 6 and two decks cannot define one name | `ship_core` `SystemSpec`; the brief, section 8; judgement call in `docs/evidence/deck06-composition.md` | our call |
+| The posts | the holodeck maintenance post `lwh_holo_post`/`holowatch` before the arch, and the security post `lwh_armory_post`/`armorywatch` in the armory | the brief, section 5 | invented (placement) |
+| **The copied interiors are detail geometry** | the three zones are emitted through generated per-material shader aliases (`lwh/detail06/...`, the same images plus `surfaceparm detail`); the shell, door and tube stay structural. Detail brushes do not split the BSP tree, so the fifth re-dress does not pass `MAX_MAP_VISCLUSTERS` (16384); the merged ship is 15,321 clusters | deck 7's mechanism (`tools/shipmap/dressdeck07.py`); `docs/evidence/deck06-composition.md` | invented mechanism; measured |
+| The tube | a low Jefferies tube at the west end, far from the door, with a `target_level_change` to `tour/deck05` (sickbay, the deck below) -- the fallback route when the turbolifts are down | the brief, section 5 | invented (destination) |
+| The emergency lighting | authored strips tagged `_06`: `hall/hall_light_red` held off, `engineering/elight1` working; the module swaps them, as on decks 7, 12, 13 and 14 | the brief, section 6; the game's own shader | invented (the threshold) |
+| No reference image | canon shows no deck-6 interior; the game's own holodeck maps show the arch, and the deck list gives the functions, not a plan | the brief, section 2 | recalled (the absence) |
+| The parts list | `docs/locations/deck06-parts-list.md`; every texture resolves to existing game content, and every model to a shipped one | this work | measured |
+
+## Crew
+
+| fact | value | source | confidence |
+|---|---|---|---|
+| Senior staff names, ranks, departments | Janeway, Chakotay, Tuvok, Paris, Kim, Torres, the Doctor, Seven, Neelix, Vorik | on screen; NPC types from the game | recalled / game |
+| Hazard Team | Foster, Munro, Biessman, Chang, Telsia, Chell, Jurot, Kenn, Odell | the retail game | game types; full names recalled |
+| Everyone else | "Crewman NNN", uniformed by department | — | invented, placeholder |
+| Department sizes | command 20, engineering/operations 50, security 25, sciences 30, medical 16 | — | invented |
+| Three watches of eight hours, alpha from 0800 | — | Starfleet three-shift rotation ("Chain of Command" has it changed to four) | recalled |
+| Daily routine | 8 h duty, 1 h meal, 3 h recreation, 3 h personal, 8 h sleep, 1 h meal | — | invented |
+| The Doctor counted in the complement | yes | he is a hologram, not a crew member in the count | simplification, to revisit |
+| Fatigue rates | exhausted after 20 h on duty; cleared by 8 h sleep | — | invented |
+
+## Systems and power
+
+Canon gives no usable power figures. **All power is in invented "EPS units"**, chosen so that the
+ship cannot run everything at once — the core tension of the design.
+
+| fact | value | confidence |
+|---|---|---|
+| Sources | warp core 1000, impulse fusion reactors 300, auxiliary fusion 120, emergency batteries 80 | invented |
+| System demands | life support 60, structural integrity 80, inertial dampers 40, computer 60, shields 200, sensors 60, warp drive 400, impulse 100, phasers 150, torpedo launchers 30, deflector 50, communications 20, transporters 60, sickbay 30, turbolifts 20, tractor beam 60, replicators 60, holodecks 60 (total 1540 against 1420 of reactor supply) | invented |
+| Shedding order | life support, structural integrity, dampers, computer first; comforts last | invented, from the obvious |
+| Condition green stands down shields and weapons; red shuts replicators and holodecks | — | consistent with on-screen practice; recalled |
+| Unattended station runs at half effect | — | invented |
+| Fuel | warp core burns deuterium and antimatter, fusion reactors deuterium only | technical manuals; recalled |
+| Burn rates | core 0.4% deuterium and 0.3% antimatter per day at full load | invented |
+| Batteries | three hours at full draw, critical systems only | invented |
+| Atmosphere | a deck open to space empties in 5 minutes; a sealed deck without life support lasts 12 hours; restored in 1 hour | invented |
+| Gravity | the plating, on the same life-support system as the air (deck 12): a deck without life support loses hold in 6 hours, and a supplied deck gets it back in 1 | invented |
+| Gravity, felt per person | the world's gravity scaled by the deck's plating (`ScaleGravity(800, gravity)`); at full plating the world's own value stands again | the mechanism is the engine's own (`ps.gravity` plus `SVF_CUSTOM_GRAVITY`, in `g_active.cpp` / `g_target.cpp`); the scaling arithmetic is invented |
+| A breach, in the world | an authored `trigger_push` aimed at the hole, a `trigger_hurt` of 10 damage every 0.5 s, and a `func_usable` field brush across the hole | invented map detail (a deck-12 blockout); the module switches them on and off from the hull and force-field state |
+
+## Damage control and casualties
+
+All invented. Canon shows repair teams, casualties and a sickbay that fills up; it gives no rates.
+
+| fact | value |
+|---|---|
+| Damage-control party | engineers on duty with no station; at most 3 to a system |
+| Rebuilding a destroyed system | 6 engineer-hours and 12 spare parts |
+| Spare parts aboard | 100 |
+| A deck is unbreathable below | 25% atmosphere |
+| Exposure injures / kills after | 60 s / 300 s |
+| Sickbay | 6 under treatment at once; 12 hours each at full output |
+
+## Intruders and control
+
+All invented.
+
+| fact | value |
+|---|---|
+| A system is hijacked below | 50% control |
+| One unopposed boarder takes a system in | 10 minutes |
+| A full station crew wins an uncontested system back in | 20 minutes |
+| A counter-hack returns at most | 50% control |
+| One defender accounts for one boarder (and the reverse) in | 4 minutes |
+| Boarders with nothing to take move a deck in | 15 minutes |
+| Breach puzzle | 5x5 grid, 6 codes, buffer 7, targets of 2/3/4 worth 1/2/3 |
+
+## The Borg
+
+That drones assimilate technology and people is on screen. Every rate is invented.
+
+| fact | value |
+|---|---|
+| One unopposed drone converts a deck in | 1 hour |
+| A deck's systems are lost outright above | 50% assimilated |
+| One unopposed drone takes one crew member in | 10 minutes |
+| Stripping a wholly assimilated deck | 8 engineer-hours, 20 spare parts, at most 4 engineers |
+
+## The outside
+
+All invented, FTL being the model the owner named.
+
+| fact | value |
+|---|---|
+| A sector | 12 beacons: 40% empty, 30% hostile, 20% derelict, 10% Borg |
+| A jump costs | 1% deuterium, 1% antimatter; needs the warp drive at half output or better |
+| Full phasers strip an enemy's shields, or hole a bare hull, in | 6 minutes |
+| One torpedo on an unshielded hull | 34% (three to destroy) |
+| Our shields recharge from nothing in | 3 minutes at full shield output |
+| A raider strips our shields at | 25% a minute; the Borg at 50% |
+| A minute of unopposed fire | 15% off each system on the deck hit, 10% off its hull |
+| A boarding party | 3 from a raider, 4 drones from the Borg, to Main Engineering |
+| A derelict yields | 25 spare parts |
+
+## Rank and clearance
+
+That departments work their own stations and that senior officers can take any is on screen in
+outline. The thresholds are invented.
+
+| fact | value |
+|---|---|
+| Any station | lieutenant commander and above |
+| Calls the alert | lieutenant and above, at Engineering or Tactical |
+| Commands | commander and above (the captain and first officer) |
+| A created character | at most lieutenant commander |
+| Wall-clock catch-up | at most 30 days per absence |
+| A guard ordered to a deck | 4 security |
+| The breach puzzle's trace | 30 seconds |
+
+## Stations
+
+| fact | value | confidence |
+|---|---|---|
+| Tactical operates weapons and shields | on screen | recalled |
+| The conn flies the ship: warp, impulse | on screen | recalled |
+| Operations runs sensors, communications, transporters and ship's services | on screen | recalled |
+| Engineering allocates power to everything | on screen | recalled |
+| Tractor beam at Tactical; deflector and inertial dampers at the Conn; life support, structural integrity and the computer core under Operations | — | invented |
+| Only Engineering sets the power order; only Engineering and Tactical call the alert | — | invented (on screen the captain calls it; command authority is S10) |
+
+## The materials economy, travel systems and the crew (2026-10-07)
+
+All invented; none of these figures is stated on screen or in the manuals. They are in
+`module/ship/ship_core.h` and can be overruled in one place.
+
+| fact | value |
+|---|---|
+| A derelict, stripped with the tractor beam | 25 more spare parts and 20 raw material |
+| Fabrication | 1 raw material becomes 1 spare part, at the replicators |
+| Machine, tractor and travel thresholds | the system must deliver above 50% to be doing its job |
+| A weak deflector on a jump | breaches a deck by 20% |
+| An undamped jump | injures one or two crew |
+| Structural integrity and hits | hull damage scales with `2 − integrity output` |
+| The EMH | holds the ward at 50% output, needs the computer core |
+| A Borg vessel's adaptation | phaser adaptation rises by 2× the damage dealt, torpedo by 1.5×; damage falls by `1 − adaptation` |
+| A funeral | lifts a crew member's morale by 0.15, up to 0.7 |
+| The brig | a fit crew member confined, off duty, operating nothing |
+| A training credential | one station, earned by training, no crew-hours modelled |
+| A resource belt | 30 raw material and 8% tankage of deuterium, once |
+| A refugee | eats one crew-day of rations a day; crowding drags morale by 5% at the full complement |
+| Memory | at most 8 marks per person; salience fades 1% an hour; a mark carries provenance |
+| Trauma | the summed negative salient valence, up to 15% of the morale target |
+| The holodeck | recreation +0.15 morale; training grants one credential; therapy fades negative marks to 40% |
+| Quarters quality | senior 0.7, others 0.4–0.8; ±5% of the morale target; improving all quarters costs 10 material |
+| The holodeck's hold | recreation adds 0.3 compulsion a visit; at 1.0 the crew member is lost in it until pulled out |
+| The nacelle pylons | a warp jump needs them above 50%; a hit on Main Engineering damages them |
+| The mobile emitter | the EMH holds the ward at 0.8 instead of 0.5 |
+| A pre-warp contact | observing yields 10 material and +0.03 morale; interfering takes 30 material and 20 supplies, a violation mark, and +0.2 resentment |
+| The Maquis split | about one generated crew member in six is Maquis; resentment seeds at up to 0.3 and drags morale by 0.15×; reconciling removes 0.2 a time |
+| The airponics bay | grows 0.5 days of rations an hour while life support runs, without the replicators |
+| A wingman | every third hostile beacon also holds a second raider at 60% of the primary's firepower |
+| The alert klaxon | the game's own `sound/ambience/voyager/redalert.mp3` on red, `alarm1.mp3` on yellow | game |
+| Core radiation | a core below half health irradiates deck 11 at `(0.5 − health)` seconds a second; injures at 60 s, kills at 300 s |
+| An exploding console | a hit on a deck injures one fit crew member manning a station there | inv |
+| A poisoned site | beaming an away team to a phenomenon or a belt injures one of them | inv |
+| The job queue | one job per damaged system (priority from the system's shedding order), breached hull (20), assimilated deck (30) or player build (40); command's "see first to" makes it −1; bounded at 24 |
+| A build job | up to 4 free engineers make 1 spare part per 4 engineer-hours from 1 material each |
+| Deferred maintenance | a wholly undermanned station fails after 10 days of it, losing 40% of its health |
+| Boarder kinds | raider (loots stores when it holds), Borg (assimilates), hunter (wounds the crew); a party can be sent for a named deck |
+| Borg strategic awareness | +0.15 a cube contact, plus a little while assimilating; above 0.4 a quarter of hostiles become Borg in the next sector; adds to the adaptation rate |
+| A grudge toward command | remembered valence below −0.3 toward whoever commands multiplies a post-holder's effectiveness by (1 + bond) |
+| Visible damage | a system below 85% health sparks at its station on the player's deck | inv |
+| Visible fire | a burning deck draws min(8, ceil(fire×8)) smoke/flame effects, one in three a flame | inv |
+| Borg deck sections | a generated deck's four sections turn Borg in order, one per `ASSIMILATED/4` of assimilation | inv |
+
+Borg strategic awareness beyond a single vessel's adaptation is named in the design and not yet
+modelled.
+
+## The month report, the promise and the lie (2026-10-06)
+
+The design is `docs/the-record-and-the-log.md` and `docs/memory-and-consequence.md`; these are the
+numbers it left to us, all invented. They are in `module/ship/ship_core.h`.
+
+| fact | value |
+|---|---|
+| Outstanding promises held | at most 16 |
+| A promise's starting mark | `MEM_PROMISE`, source saw-it, valence +0.6 |
+| A promise kept / broken | valence +1.0 / −0.9; a deadline passed unresolved is broken |
+| A lie mark's valence | −0.6, amplified ×1.6 across factions and ×1.3 over a negative existing bond, suppressed ×0.5 within one |
+| Report lines per report | at most 24 |
+| Signed reports kept with their diff | at most 8 |
+
+## The navigation counter (`docs/navigation-counter.md`)
+
+Canon supplies the two figures; every factor that turns them into a projection is invented, and the
+mapping of the position model onto the 75,000 light years is ours.
+
+| item | value | source |
+|---|---|---|
+| The whole journey | 75,000 light years | canon: the Delta Quadrant crossing [lore] |
+| Nominal effective rate | 1,000 c | canon: 75,000 ly at warp 6.2 is about 75 years [lore] |
+| The crossing as beacon steps | `SECTORS_TO_CROSS × (SECTOR_BEACONS−1)` = 33 forward jumps | inv |
+| Crystal speed floor | ×0.92 at a spent crystal, ×1.0 at full life | inv |
+| Warp drive speed floor | ×0.90 at no output, ×1.0 at full | inv |
+| Crew speed floor | ×0.95 at half manning, ×1.0 at full | inv |
+| No source charted | ×0.98 (a charted belt, trader or derelict is ×1.0) | inv |
+| The counter is written to the log | about every 7 days | inv |
+| A better researched crystal | ×quality on the effective speed, so it can beat the nominal figure | inv |
+
+The worked example in the document (*71 years nominal, 76 at current capability* for a ship 71,240 ly
+out with a 62% crystal, a worn engine and no charted source) is reproduced by these factors to the
+year: 0.9696 × 0.98 × 0.98 × 1,000 c = 931 c, and 71,240 / 931 = 76 years.
+
+## Dilithium, the constraint that forces exploration (`docs/exploration-and-science.md`)
+
+| item | value | source |
+|---|---|---|
+| One crystal's worth of progress | about 3,000 light years | canon: an Intrepid core lasts up to 3 years and 75,000 ly at warp 6.2 is some 75 years, so ~25 supplies [lore] |
+| A fresh crystal lasts | 40 cruising jumps | inv |
+| Recomposition buys back | 0.35 of the crystal's life | inv |
+| The ceiling falls per recomposition | 0.15, so replacement is eventually necessary | inv |
+| A trader takes for a crystal | 40 material | inv |
+| A researched better crystal | +0.10 efficiency, which shortens every jump | inv |
+| Below | 2% crystal | there is no warp; the ship still runs sublight |
+| Acquired by | mining a resource belt, trading, salvaging a derelict, or researching a better crystal | canon's five ways, four built |
+| A probe | charts a target without the ship, spending one of the six carried; sometimes lost | inv |
+| A dilithium survey | charts the nearest belt/trader/derelict reachable through the sector, so the crew can detour | inv |
+| A phenomenon | three hidden attribute values, revealed one scan each; the right response (their sum mod 4) gives 30 material, the wrong one breaches a deck | inv |
+
+## The Borg incursion (`docs/borg-incursion.md`)
+
+| item | value | source |
+|---|---|---|
+| A clean intercept | intruders cleared without any system touched: recorded, named, no casualties | owner's rule, 2026-10-05 |
+| No dwell, no write | an unopposed intruder writes nothing for the first 120 ship-seconds (then compromise begins) | inv |
+| The three thresholds | compromise at 120 s, contested at 240 s, systems seized at 360 s (unopposed) | inv |
+| A force field | rated 0-10; one intruder drains one level per 5 minutes; a level-10 field suppresses Borg adaptation while it holds | inv |
+| A security squad | musters at deck 9, advances one deck per 3 minutes, then holds the deck with 4 defenders until it is clear | inv |
+| `dwell` | ship-seconds the intruders have held unopposed | inv |
+| `compromised` | set when any system on the deck loses control to intruders, or assimilation begins | inv |
+| Deck controllers | crew / borg / contested / sealed / uninhabitable | design |
+| A modulation rotation | breaks 0.5 of the Borg's adaptation, then a 120-second cooldown | inv |
+| A vinculum raid | adaptation to zero and suppressed for 300 s, at the cost of one wounded security crew | inv |
+| De-assimilation window | a captive with wounds in (0, 0.8); past 0.8 it is too late | inv |
+| The cost of recovery | wounds × 40 supplies and × 20 material; the scar equals the wounds, and drags morale by scar × 0.25 | inv |
+
+## Shuttles (`docs/shuttles.md`)
+
+| item | value | source |
+|---|---|---|
+| Starting complement | Class 2, Type 6, Type 8, and the Aeroshuttle | canon: "Class 2, Type 6 and Type 8 shuttles plus the runabout-sized Aeroshuttle" [lore] |
+| The Delta Flyer | built by the crew, so not present at the start | canon (2375) [lore] |
+| A replacement costs | 30 material and 8 crew-hours in the second bay | inv |
+| Cargo carried out | up to 10 material, 10 rations, 10 parts per launch | inv |
+
+## The warp core cascade (`docs/failure-is-content.md`)
+
+| item | value | source |
+|---|---|---|
+| Coolant loss | a failing core empties its coolant loops in 20 minutes | inv |
+| Containment | at full overheat, falls to critical in 10 minutes | inv |
+| The breach countdown | 180 seconds once containment is critical (interruptible) | inv |
+| System failure states | nominal; degraded below two-thirds health; offline below a third or switched off; destroyed at zero | inv |
+| Refilling the coolant | 15 material, +0.5 coolant | inv |
+
+## The player in the world (`docs/path-to-playtest.md`, Stage B)
+
+| item | value | source |
+|---|---|---|
+| The player's body health | fit is whole; an untreated injury shows `100 × (1 − severity)`, at least 1 and never whole | inv |
+| The console lets go at the operator | an acute anomaly injures the player to severity 0.5, a catastrophic one to 0.8 (the same as the station's own hand) | inv |
+| The world's damage into the record | the body's lost health is written into the record's severity; a full body is no injury | inv |
+| Who commands when the player is lost | the senior fit officer, by rank, in roster order | design (roster promotes to fill the gap, `docs/failure-is-content.md`) |
+| Death is not a reload | the engine's respawn is refused while the extension is on and the record is closed | owner's rule, `docs/path-to-playtest.md` Stage B |
+
+## The two logs (`docs/the-record-and-the-log.md`)
+
+The official log's bounds are already recorded above. This is the private store, added 2026-10-06
+(`docs/evidence/the-two-logs.md`).
+
+| item | value | source |
+|---|---|---|
+| The personal log's bound | 128 entries per ship, oldest dropped | inv |
+| A personal entry's length cap | 200 characters | inv |
+
+## The stations' information portfolios (owner ruling, 2026-10-07)
+
+The names are the retail **Virtual Voyager** station menus the game already ships -- Library,
+Astrometrics, Personal Log, Medical Log, Recipes, Social Calendar, Disease Library, Shooting Range,
+Weapon Library, Cargo, Engineering Library (`docs/program-proposal-v2.md` section 4; `docs/gates.md`
+G2, where they are reported opening). Sourcing is **per portfolio**, not once for all of them, and
+the manual is not a source: no Star Trek technical manual is held, and a technical-manual console
+layout would be invented. Two consoles carry a portfolio, because their posts need a second content
+type (owner ruling); the others carry one and are marked so.
+
+**Tactical** -- the sensor picture and the comms traffic (`STN_TACTICAL` reads `SYS_SENSORS`,
+`SYS_COMMUNICATIONS`, `SYS_COMPUTER_CORE`).
+
+| item | source | confidence |
+|---|---|---|
+| Sensors, external (the chart) | the game's `Astrometrics` menu, and the ship's own chart model | game |
+| Sensors, internal (intruders, fire, per deck) | internal sensors used to locate boarders on screen | recalled (episode) |
+| Comms access (hail / trade / distress) | hailing and answering on screen; the ship's own beacon choices | recalled (episode) |
+
+**Sickbay** -- the medical record and what the Doctor is running (`STN_SICKBAY` reads
+`SYS_LIFE_SUPPORT`, `SYS_COMPUTER_CORE`).
+
+| item | source | confidence |
+|---|---|---|
+| Medical Log | the game's `Medical Log` menu | game |
+| Disease Library | the game's `Disease Library` menu | game |
+| Visit roster (who is due a check) | nothing canonical; chosen for play | invented |
+| Research (the Doctor's, while the EMH is up) | the Doctor's own research on screen | recalled (episode) |
+
+**Single-type consoles** (owner ruling): Engineering, Operations and the Conn carry one content type
+each and publish no read layer. Engineering is the ship-wide power distributor and already holds every
+system as a control; the others operate their own systems and read no one else's.
+
+| item | value | source |
+|---|---|---|
+| The phaser setting ladder | stun / heavy stun / kill / vaporize; the bank's nominal demand is a stun shot, and each setting asks 100 / 125 / 150 / 175 per cent of it, and does 0.4 / 0.7 / 1.0 / 1.35 times the damage | invented (`docs/ship-systems.md` tier 2 names "a power setting from stun to vaporize"; the ladder is ours) |
+| Which station reads which system | Tactical: sensors, comms, computer core; Sickbay: life support, computer core; Engineering: all | invented, from the owner's named examples |
+
+
+
+Bio-neural gel packs, the EMH's dependence on sickbay power and holo-emitters, the
+variable-geometry nacelles, cargo bays, replicator rations as a resource, and holodeck power being
+incompatible with other systems (a point Voyager makes on screen, which would change the
+`holodecks` row above). Shuttles are modelled (`docs/shuttles.md`): the bay's complement and where
+each one is, an away shuttle with its manifest, a loss as a build job, and a bay hit.
