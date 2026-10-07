@@ -36,11 +36,13 @@ like any other — they hold a post, they accumulate marks, and they can be woun
 assimilated or lost, with the run carrying it. **They are not protected by authored content and they are not
 re-authored.** That pairing is the doctrine: the cast is fully simulated and never restaged.
 
-**And novel voice is code we ship, never audio.** Any new line a named character speaks is produced by the
-mechanism in this repository acting on assets the player already owns, generated on the player's own machine,
-and it lives in their cache beside the save. The repository carries the mechanism and never the output — the
-shape `docs/staff-meetings.md` already settled on for voice, for the same two reasons, licence and resources
-alike.
+**And novel voice is code we ship, never audio.** Any new line a named character speaks is produced by
+**the analyzer and synthesizer this repository ships**, acting on **the voice assets the player already
+owns**, generated on the player's own machine, and it lives in their cache beside the save. The repository
+carries the mechanism and never the output — the shape `docs/staff-meetings.md` settled on for voice, for the
+same two reasons, licence and resources alike. **The boundary is on generation and distribution, not on
+capability** (owner's ruling, 2026-10-07): nobody on this project generates an actor's voice and keeps the
+result — not in the repository, not in an issue, not in a pull request, not in a document.
 
 ## And what never changes
 
