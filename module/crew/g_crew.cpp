@@ -1700,6 +1700,26 @@ void Crew_Frame( void )
 		cs.maxGameNs = std::max( cs.maxGameNs, ns );
 		++cs.gameFrames;
 	}
+	// Performance-survey instrument (docs/evidence/performance-survey.md): the game module's own
+	// frame cost and the direction layer's, per second of level time. Logging only, gated by
+	// `developer`, so with it unset the layer behaves exactly as before. `game` is everything the
+	// module did in the frame before the layer's turn (G_RunFrame's own clock); `layer` is the
+	// layer's decisions alone (0 when the layer is off, as in a baseline run).
+	{
+		cvar_t *dev = gi.cvar( "developer", "0", 0 );
+		static int s_atMs = 0, s_gameFrames = 0, s_layerFrames = 0;
+		static int64_t s_gameNs = 0, s_layerNs = 0;
+		if ( dev && dev->integer && level.time - s_atMs >= 1000 )
+		{
+			const int dfg = cs.gameFrames - s_gameFrames, dfl = cs.st.frames - s_layerFrames;
+			gi.Printf( "CREW: perf t=%d game_frames=%d game_avg_us=%d layer_frames=%d layer_avg_us=%d members=%d\n",
+				level.time, dfg, dfg ? static_cast<int>( ( cs.gameNs - s_gameNs ) / dfg / 1000 ) : 0,
+				dfl, dfl ? static_cast<int>( ( cs.st.frameNs - s_layerNs ) / dfl / 1000 ) : 0,
+				static_cast<int>( cs.members.size() ) );
+			s_atMs = level.time; s_gameFrames = cs.gameFrames; s_layerFrames = cs.st.frames;
+			s_gameNs = cs.gameNs; s_layerNs = cs.st.frameNs;
+		}
+	}
 	if ( cs.baseline ) BaselineFrame();
 	if ( !cs.active ) return;
 	const auto t0 = std::chrono::steady_clock::now();

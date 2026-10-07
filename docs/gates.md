@@ -178,6 +178,18 @@ Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere con
   to 8192 was done before it rather than during it. A save round-trips and both `scripts/test.sh` and
   `scripts/check.sh` exit 0.
 
+- **crowded-room snapshot performance → measured 2026-10-07, the answer belongs to Track D**
+  (`docs/evidence/performance-survey.md`, `patches/0019`). The design (§8) names "everyone in one
+  room" as the case that defeats the engine's culling and needs a designed answer. Measured on the
+  loaded ship: the multiplayer cap is `MAX_SNAPSHOT_ENTITIES` **256** (`qcommon.h:142`), silently
+  truncated past (`sv_snapshot.c:344`); the single-player bridge's cap is the module's
+  `MAX_ENTITIES_IN_SNAPSHOT` **1024** (`efgame/src/cgame/cg_public.h:17`), and it is **already
+  spent in the ordinary case** — the ship's PVS passes ~1,166–1,202 entities at every point tried and
+  the snapshot writes 1024 on every tick. Distance-based model LOD exists and is on, but is
+  render-side and cannot help the wire. The module costs **2.0 ms/frame** idle and **~3.5 ms** with
+  32 co-located crew (the layer's ceiling); the snapshot build is **~0.6 ms/tick**. A real 150-body
+  room and the two-machine wire were **not measured**. No lever pulled; the menu is in the evidence.
+
 ## G5 — capstone scenario ⏳ pending
 
 ---
