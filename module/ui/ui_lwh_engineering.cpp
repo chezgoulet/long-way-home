@@ -329,12 +329,16 @@ void Draw( void )
 		UI_DrawProportionalString( 44, 384, line[0] ? line : "NO MEDICAL DATA", UI_TINYFONT, colorTable[CT_LTBLUE2] );
 	}
 	if ( screen.station == 2 )
-	{// the endurance clocks and the away kit (Operations)
+	{// the endurance clocks, the away kit and what the beacon here affords (Operations)
 		ui.Cvar_VariableStringBuffer( "lwh_ship_clocks", line, sizeof( line ) );
 		if ( line[0] ) UI_DrawProportionalString( 44, 384, line, UI_TINYFONT,
 			colorTable[ui.Cvar_VariableValue( "lwh_ship_clocks_alarm" ) > 0.5f ? CT_RED : CT_LTBLUE2] );
 		ui.Cvar_VariableStringBuffer( "lwh_ship_kit", line, sizeof( line ) );
 		if ( line[0] ) UI_DrawProportionalString( 44, 398, line, UI_TINYFONT, colorTable[CT_LTGOLD1] );
+		// The beacon-choice block (row 21): what the outside offers here, as keys rather than typed
+		// commands. Operations speaks and hails; the Conn runs (X at the helm). Decision, not readout.
+		ui.Cvar_VariableStringBuffer( "lwh_ship_beacon", line, sizeof( line ) );
+		if ( line[0] ) UI_DrawProportionalString( 44, 352, line, UI_TINYFONT, colorTable[CT_LTGOLD1] );
 	}
 	char result[16];
 	ui.Cvar_VariableStringBuffer( "lwh_breach_result", result, sizeof( result ) );
@@ -427,8 +431,8 @@ void Draw( void )
 	UI_DrawProportionalString( 44, 426, screen.station == 0
 		? "UP/DOWN select   ENTER on/off   LEFT/RIGHT priority   1 2 3 condition   Y override   ESC leave"
 		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   V phaser setting   1 2 3 condition   F fire torpedo   H countermeasures   Y override   ESC leave"
-		: screen.station == 2 ? "UP/DOWN select   ENTER on/off   T beam   R recall   U survey   O force field   H countermeasures   Y override   ESC leave"
-		: screen.station == 3 ? "UP/DOWN select   ENTER on/off   J K L jump   C course   H countermeasures   Y override   ESC leave"
+		: screen.station == 2 ? "UP/DOWN  ENTER on/off  T beam  R recall  U survey  O field  L hail  M trade  A distress  H counter  Y override  ESC"
+		: screen.station == 3 ? "UP/DOWN   ENTER on/off   J K L jump   C course   X run   H counter   Y override   ESC leave"
 		: screen.station == 4 ? "UP/DOWN select   ENTER on/off   B surgical field   H countermeasures   Y override   ESC leave"
 		: "UP/DOWN select   ENTER on/off   H countermeasures   Y override   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
@@ -479,9 +483,21 @@ bool Act( int key )
 		if ( screen.station != 2 ) return false;
 		Send( "ship recall" );
 		return true;
-	case 'u': case 'U': // astrometrics makes its survey
+	case 'u': case 'U': // astrometrics: open the survey board, where the target is the decision
 		if ( screen.station != 2 ) return false;
-		Send( "ship survey" );
+		ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_survey\n" );
+		return true;
+	case 'm': case 'M': // trade with a trader (row 21: the beacon's choices, now a key)
+		if ( screen.station != 2 ) return false;
+		Send( "ship trade" );
+		return true;
+	case 'a': case 'A': // answer a distress call
+		if ( screen.station != 2 ) return false;
+		Send( "ship distress" );
+		return true;
+	case 'x': case 'X': // the Conn runs from a fight it cannot win (the fourth choice, at the helm)
+		if ( screen.station != 3 ) return false;
+		Send( "ship run" );
 		return true;
 	case 'c': case 'C': // the Conn lays in a course for the far end of the sector
 		if ( screen.station != 3 ) return false;
@@ -507,8 +523,13 @@ bool Act( int key )
 		Send( va( "ship breach \"%s\"", r.name ) );
 		ui.Cmd_ExecuteText( EXEC_APPEND, "lwh_eng_key breachopen\n" ); //after the ship has published it
 		return true;
-	case 'j': case 'J': case 'k': case 'K': case 'l': case 'L':
+	case 'l': case 'L': // Operations hails; the Conn, where L is the second jump, does not (see below)
+		if ( screen.station == 2 ) { Send( "ship hail" ); return true; }
+		if ( screen.station != 3 ) return false;
+		// fall through: at the Conn, L is the second of the jumps
+	case 'j': case 'J': case 'k': case 'K':
 	{
+		if ( screen.station != 3 ) return false; // the ship is flown from the Conn (the station's own act)
 		char links[64];
 		ui.Cvar_VariableStringBuffer( "lwh_ship_links", links, sizeof( links ) );
 		int want = ( key | 32 ) - 'j', n = 0;
@@ -831,6 +852,107 @@ sfxHandle_t PersonalKey( int key )
 	return Menu_DefaultKey( &personal.menu, key );
 }
 
+// ---- the survey screen (row 22: the tricorder / away-kit readout made a decision) --------------
+//
+// Operations' console showed the kit line and nothing to do with it. The instruments are the ship's
+// (lwh_ship_survey lists what a tricorder can be spent on here: the site the ship is at, and the
+// ship's own compartments). The tricorder charge is shared, so *what to scan* is the decision, and a
+// weak charge reads wrong -- the reading comes back in lwh_ship_survey_reading and the tricorder's
+// own honesty is the consequence. One content type, Operations' (the sensors), as the ruling requires.
+
+struct SurveyRow { char type[8]; char name[48]; char state[24]; };
+
+struct {
+	menuframework_s menu;
+	int cursor;
+} survey;
+
+int ReadSurvey( SurveyRow *out, int max )
+{
+	char buf[2048];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_survey", buf, sizeof( buf ) );
+	int n = 0;
+	for ( char *tok = strtok( buf, ";" ); tok && n < max; tok = strtok( NULL, ";" ) )
+	{
+		char *bar1 = strchr( tok, '|' ); if ( !bar1 ) continue; *bar1++ = 0;
+		char *bar2 = strchr( bar1, '|' ); if ( !bar2 ) continue; *bar2++ = 0;
+		Q_strncpyz( out[n].type, tok, sizeof( out[n].type ) );
+		Q_strncpyz( out[n].name, bar1, sizeof( out[n].name ) );
+		Q_strncpyz( out[n].state, bar2, sizeof( out[n].state ) );
+		++n;
+	}
+	return n;
+}
+
+bool SurveyAct( int key )
+{
+	SurveyRow rows[20];
+	const int n = ReadSurvey( rows, 20 );
+	switch ( key )
+	{
+	case K_UPARROW: if ( n ) survey.cursor = ( survey.cursor + n - 1 ) % n; return true;
+	case K_DOWNARROW: if ( n ) survey.cursor = ( survey.cursor + 1 ) % n; return true;
+	case K_ENTER: case K_KP_ENTER:
+		if ( n )
+		{//the site is the beacon the ship is at; a deck is scanned in place. Both come out of the
+		 //Operations console, so the ship holds them to that station's authority (the two axes).
+			if ( !Q_stricmp( rows[survey.cursor].type, "SITE" ) )
+				ui.Cmd_ExecuteText( EXEC_APPEND, "ship as 2 scan\n" );
+			else
+				ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship as 2 scancomp %d\n", survey.cursor ) );
+		}
+		return true;
+	}
+	return false;
+}
+
+void SurveyDraw( void )
+{
+	char line[512];
+	SurveyRow rows[20];
+	const int n = ReadSurvey( rows, 20 );
+	if ( survey.cursor >= n ) survey.cursor = n ? n - 1 : 0;
+	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
+	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTBLUE2] );
+	UI_FillRect( 20, 42, 14, 396, colorTable[CT_DKPURPLE1] );
+	UI_FillRect( 20, 442, 600, 10, colorTable[CT_DKPURPLE1] );
+	UI_DrawProportionalString( 44, 19, "OPERATIONS  -  SURVEY", UI_SMALLFONT, colorTable[CT_BLACK] );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_header", line, sizeof( line ) );
+	UI_DrawProportionalString( 44, 46, line, UI_SMALLFONT, colorTable[CT_LTGOLD1] );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_kit", line, sizeof( line ) );
+	UI_DrawProportionalString( 44, 64, line, UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+	UI_DrawProportionalString( 44, 84, "WHAT A SCAN MAY BE SPENT ON  (the charge is shared)", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	for ( int i = 0; i < n && i < 17; ++i )
+	{
+		const int y = 100 + i * 16;
+		const bool selected = i == survey.cursor;
+		if ( selected ) UI_FillRect( 38, y - 1, 582, 14, colorTable[CT_DKPURPLE2] );
+		UI_DrawProportionalString( 44, y, rows[i].name, UI_TINYFONT,
+			colorTable[selected ? CT_WHITE : CT_LTGOLD1] );
+		const bool trouble = Q_stricmp( rows[i].state, "nominal" ) && Q_stricmp( rows[i].state, "already charted" )
+			&& Q_stricmp( rows[i].state, "unscanned" );
+		UI_DrawProportionalString( 460, y, rows[i].state, UI_TINYFONT,
+			colorTable[trouble ? CT_RED : CT_LTBLUE2] );
+	}
+	if ( !n ) UI_DrawProportionalString( 44, 100, "NO SURVEY DATA  -  the ship simulation is not running", UI_SMALLFONT, colorTable[CT_RED] );
+
+	ui.Cvar_VariableStringBuffer( "lwh_ship_survey_reading", line, sizeof( line ) );
+	UI_DrawProportionalString( 44, 396, line[0] ? va( "LAST READING: %s", line ) : "LAST READING: none",
+		UI_TINYFONT, colorTable[CT_LTGOLD1] );
+
+	ui.Cvar_VariableStringBuffer( "lwh_ship_refusal", line, sizeof( line ) );
+	if ( line[0] ) UI_DrawProportionalString( 44, 412, va( "REFUSED: %s", line ), UI_TINYFONT, colorTable[CT_RED] );
+
+	UI_DrawProportionalString( 44, 426, "UP/DOWN choose   ENTER scan   a weak charge reads wrong   ESC leave",
+		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+}
+
+sfxHandle_t SurveyKey( int key )
+{
+	if ( SurveyAct( key ) ) return menu_null_sound;
+	return Menu_DefaultKey( &survey.menu, key );
+}
+
 } // namespace
 
 qboolean LWH_UI_ConsoleCommand( const char *cmd )
@@ -880,6 +1002,26 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 		char arg[32];
 		ui.Argv( 1, arg, sizeof( arg ) );
 		TriageAct( KeyByName( arg ) );
+		return qtrue;
+	}
+	if ( !Q_stricmp( cmd, "ui_lwh_survey" ) )
+	{//the tricorder survey (row 22): what a charge is spent on, from Operations
+		survey.cursor = 0;
+		memset( &survey.menu, 0, sizeof( survey.menu ) );
+		survey.menu.draw = SurveyDraw;
+		survey.menu.key = SurveyKey;
+		survey.menu.fullscreen = qfalse;
+		survey.menu.wrapAround = qtrue;
+		survey.menu.initialized = qtrue;
+		UI_PushMenu( &survey.menu );
+		ui.Cvar_Set( "ui_liveMenu", "1" );
+		return qtrue;
+	}
+	if ( !Q_stricmp( cmd, "lwh_survey_key" ) )
+	{//drive the survey board by name, as a test's hand
+		char arg[32];
+		ui.Argv( 1, arg, sizeof( arg ) );
+		SurveyAct( KeyByName( arg ) );
 		return qtrue;
 	}
 	if ( !Q_stricmp( cmd, "lwh_ui_turbolift" ) ) { ReportTurboliftDecks(); return qtrue; }

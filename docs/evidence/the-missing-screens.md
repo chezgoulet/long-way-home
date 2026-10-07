@@ -14,6 +14,7 @@ scripts/test.sh
 scripts/check.sh --source-map build/gdk/maps/brig-map/_brig.map --script-corpus build/gdk/scripts
 scripts/personal-log-check.sh
 scripts/screens-check.sh
+scripts/every-screen-check.sh
 scripts/s2-check.sh ; scripts/s4-check.sh ; scripts/gaps-check.sh ; scripts/shuttle-check.sh ; scripts/clearance-check.sh
 ```
 
@@ -40,18 +41,18 @@ audit could not.
 | 9 | **Personal log** | `the-record-and-the-log.md`, `gates.md` G2 (*Personal Log* menu) | **was missing; built** (see B) | `ui_lwh_personal`; `lwh_personal.tga`; `scripts/personal-log-check.sh` |
 | 10 | Command console (standing orders, write-offs) | `damage-and-budgets.md`, `scenario-atlas.md` | has one | `ui_lwh_command`; `lwh_command.tga`, `lwh_access.tga`; `scripts/clearance-check.sh` |
 | 11 | Personnel / character screen | `start-states.md`, `access-and-authority.md` | has one | `ui_lwh_character`; `lwh_personnel.tga` |
-| 12 | The glance (in-world readout) | `scenario-atlas.md` ("what you can see"), `access-and-authority.md` | **thin** -- a read at the panel, no control | `lwh_glance.tga`; `scripts/s4-glance-check.sh` |
+| 12 | The glance (in-world readout) | `scenario-atlas.md` ("what you can see"), `access-and-authority.md` | **thin, left** -- a read at the panel, no control; the in-world control is engine/world work, out of the console scope (Task E, the reason) | `lwh_glance.tga`; `scripts/s4-glance-check.sh` |
 | 13 | The painted panel surface | `asset-doctrine.md`, `ship-master-map.md` | has one | `lwh_panel.tga`; `scripts/s4-panel-check.sh` |
 | 14 | The viewscreen | `scenario-atlas.md` (the outside) | has one | `lwh_viewscreen.tga`; `scripts/viewscreen-check.sh` |
 | 15 | The alert state | `ship-systems.md`, `failure-is-content.md` | has one | every console header; `scripts/condition-check.sh` |
 | 16 | The navigation counter | `navigation-counter.md` | has one | every console; `scripts/nav-check.sh` |
 | 17 | The turbolift deck menu | `ship-systems.md` (movement), `ship-master-map.md` | has one (retail menu, our list) | `lwh_turbolift.tga`; `ui_lwh_turbolift` |
-| 18 | **Shuttle load-screen** | `shuttles.md` ("Not built: the load-screen") | **missing** -- and it is a *menu*, not a station screen (see below) | model: `LaunchShuttle`; check: `scripts/shuttle-check.sh` |
-| 19 | Damage-control board / the job queue as a face | `damage-and-budgets.md` (the board must be operable in real time), `crew-work.md` ("the queue needs a board") | **thin** -- the queue exists (`Jobs`) and shows as the Engineering list and the command console's GIVEN UP, but there is no board of the queue itself | model `Jobs`; `lwh_engineering.tga`, `lwh_command.tga` |
-| 20 | The month report screen (draft, edit, strike, sign) | `the-record-and-the-log.md` (the month report is the period beat) | **missing** -- the model is complete (`DraftReport`/`StrikeReportLine`/`SignReport`), the *editing screen* is not built | model `MonthReport`; no screen |
-| 21 | The beacon-choice screen (hail / trade / distress / run) | `exploration-and-science.md`, `scenario-atlas.md` | **thin** -- the choices are console commands (`ship hail\|trade\|distress\|run`) with no key on any console | `ui_lwh_engineering.cpp` Ops footer has no hail key; `scripts/s4-check.sh` drives them by command |
-| 22 | The tricorder / away-kit readout | `gap-tricorders-and-kit.md`, `exploration-and-science.md` | **thin** -- `ship scan`/`ship scancomp` print; the Ops console shows only the kit line, not a survey screen | `ui_lwh_engineering.cpp` stn 2; `scripts/gaps-check.sh` |
-| 23 | The star chart / forecasts | `navigation-counter.md`, `exploration-and-science.md` | **thin** -- a chart line on the Conn and forecasts on the command console; no chart you can work | `lwh_ops.tga`, `lwh_command.tga` |
+| 18 | **Shuttle load-screen** | `shuttles.md` ("Not built: the load-screen") | **missing, left as a menu** -- a *decision menu* at launch, not a station screen; the model (`LaunchShuttle`) exists and naming it a menu is the answer (Task D, and Task E, the reason) | model: `LaunchShuttle`; check: `scripts/shuttle-check.sh` |
+| 19 | Damage-control board / the job queue as a face | `damage-and-budgets.md` (the board must be operable in real time), `crew-work.md` ("the queue needs a board") | **was thin; built** (`ui_lwh_jobs`, Task E) -- the queue now has its own board, and its one command-side act (setting the order) obeys the two-lock | `ui_lwh_command.cpp`; `lwh_jobs.tga`; `scripts/every-screen-check.sh` |
+| 20 | The month report screen (draft, edit, strike, sign) | `the-record-and-the-log.md` (the month report is the period beat) | **was missing; built** (`ui_lwh_report`, Task E) -- strike a line, soften a number, sign to the crew or file it upward; the diff is drawn | `ui_lwh_command.cpp`; `lwh_report.tga`; `scripts/every-screen-check.sh` |
+| 21 | The beacon-choice screen (hail / trade / distress / run) | `exploration-and-science.md`, `scenario-atlas.md` | **was thin; thickened** (Task E) -- the choices are keys on the Operations console (`L` hail, `M` trade, `A` distress), where the ship already says the hailing channels are Operations'; the run is the Conn's (`X`) | `ui_lwh_engineering.cpp`; `lwh_ops_beacon.tga`; `scripts/every-screen-check.sh` |
+| 22 | The tricorder / away-kit readout | `gap-tricorders-and-kit.md`, `exploration-and-science.md` | **was thin; thickened** (`ui_lwh_survey`, Task E) -- a survey board: the site the ship is at and the ship's own compartments, one shared charge, so *what to scan* is the decision | `ui_lwh_engineering.cpp`; `lwh_survey.tga`; `scripts/every-screen-check.sh` |
+| 23 | The star chart / forecasts | `navigation-counter.md`, `exploration-and-science.md` | **was thin; thickened** (`ui_lwh_chart`, Task E) -- a chart you can work: the sector, where the ship is, the forecast per beacon, and setting a course by key | `ui_lwh_command.cpp`; `lwh_chart.tga`; `scripts/every-screen-check.sh` |
 | 24 | The wall of names / sealed quarters | `morale.md`, `the-record-and-the-log.md` | has one (on the personnel screen) | `lwh_personnel.tga` |
 | 25 | The Medical Log / Disease Library / visit roster (Virtual Voyager menus) | `program-proposal-v2.md` §4, `gates.md` G2 | **thin, now a read layer** on the Sickbay console (see the portfolios) | `lwh_sickbay.tga`; `scripts/screens-check.sh` |
 | 26 | Astrometrics / Cargo / Recipes / Social Calendar / Library / Engineering Library (Virtual Voyager menus) | `program-proposal-v2.md` §4, `gates.md` G2 | **retail content, reconciled**: the game ships these menus; our consoles carry the ones the posts need (sensors on Tactical, the medical record on Sickbay) and leave the rest to the retail Virtual Voyager menus | `docs/lore-ledger.md`, the portfolios |
@@ -179,6 +180,30 @@ it into the console pattern is the point: it is a distinct thing, and the model 
 (`LaunchShuttle` with its manifest and cargo, `scripts/shuttle-check.sh`) already exists. This is named
 as a judgement call below.
 
+## Task E -- the second pass: the two absences built, the three thin screens thickened (2026-10-07)
+
+The owner's second brief works the same list to the end: **no row may be left missing or thin
+without a reason recorded.** Rows 19-23 -- the two genuine absences and the three thin screens --
+are now built or thickened, and rows 12 and 18 are left with their reasons recorded. Full evidence
+with the run's own lines: **`docs/evidence/every-screen.md`**; the check: `scripts/every-screen-check.sh`.
+
+| row | was | now | it is a decision? |
+|---|---|---|---|
+| 19 job-queue board | thin: the queue showed only inside the Engineering list and the command console's GIVEN UP | **built**: `ui_lwh_jobs`, the queue as its own board | yes: command sets the order (`LEFT`/`RIGHT`) and orders a build (`B`); the ship refuses a non-commander by name |
+| 20 month report editor | missing: the model was complete and there was no screen | **built**: `ui_lwh_report`, reached from the command console (`O`) | yes: strike a line, soften a number, sign to the crew (`ENTER`) or file it upward (`U`) -- the lie and its direction |
+| 21 beacon choices | thin: `ship hail\|trade\|distress\|run` with no key on any console | **thickened**: keys on the Operations console (`L`/`M`/`A`) and the run at the Conn (`X`); the block names what the beacon affords | yes: which channel to open at this site |
+| 22 tricorder survey | thin: the Ops console showed only the kit line | **thickened**: `ui_lwh_survey`, the site and the ship's compartments, one shared charge | yes: what to spend a scan on, and a weak charge reads wrong |
+| 23 star chart | thin: a chart line and forecasts, nothing to work | **thickened**: `ui_lwh_chart`, the sector graph with a course set by key | yes: where to make for, with the forecast per beacon |
+| 12 the glance | thin: a read at the panel | **left**: the control is in-world (an engine/world affordance), out of the console scope of both briefs; the read it does carry is correct | it is a read by design; the decision is a world interaction, not a console act |
+| 18 shuttle load-screen | missing | **left**: a decision *menu* at the moment of launch, not a station console; the model (`LaunchShuttle`) is in place | a decision by design; the reason it is not forced into the console pattern is Task D |
+
+The two-lock on the new screens: every act of the report editor and the job board is gated by the
+ship's own `PlayerMayCommand`, not by a clearance model of the screens'. A post officer -- and a
+created character never commands until command passes to them -- opens the screen, sees the refusal
+by name ("the report is the commanding officer's to write", "priority is command's to set"), and
+changes nothing. The screenshots `lwh_report_locked.tga` and `lwh_jobs_locked.tga` are that refusal
+rendered; the same run then shows the commanding officer's edits and re-order landing.
+
 ## Measured accessibility numbers
 
 Contrast is WCAG 2.x on the engine's palette against the black console background (and against the
@@ -253,11 +278,13 @@ the Conn publishes no read layer, not that it feels right.
 2. **The shuttle load-screen is a menu, left unbuilt.** `docs/shuttles.md` asks it to make you decide;
    the decision is real, but it is a launch-time menu, not a station console, and naming it as such is
    the honest answer rather than forcing it into the console pattern.
-3. **The month report editor (row 20) and the job-queue board (row 19) are left built-in-model,
-   missing-in-screen.** Both are genuine absences the sweep found. They are left because the brief's
-   order is "the personal log first, then whatever else is genuinely missing, in order of what the game
-   needs most," and after the personal log the two owner-approved additions (the portfolios and the two
-   axes) were the larger, named need. They are recorded here as the next screens, not silently dropped.
+3. **The month report editor (row 20) and the job-queue board (row 19) were, in this first pass,
+   left built-in-model and missing-in-screen.** Both were genuine absences the sweep found. They were
+   built in the second pass (Task E, and `docs/evidence/every-screen.md`): `ui_lwh_report` and
+   `ui_lwh_jobs`. The first-pass ordering was "the personal log first, then whatever else is
+   genuinely missing, in order of what the game needs most"; with the personal log and the two
+   owner-approved additions (the portfolios and the two axes) in, the two absences and the three thin
+   screens were the next need and are now done.
 4. **The phaser-yield ladder is ours.** `docs/ship-systems.md` names the setting; the percentages
    (100/125/150/175) and the damage factors (0.4/0.7/1.0/1.35) are invented and recorded in
    `docs/lore-ledger.md`.

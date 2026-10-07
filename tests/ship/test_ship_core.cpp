@@ -3101,6 +3101,21 @@ static void TestJobQueue()
 	CHECK(building);
 	Tick(b, Hours(b, 12.0f));
 	CHECK(b.stores.spareParts >= parts0 + 5.0f && b.stores.materials < 200.0f);
+
+	// The board's one command-side act (docs/crew-work.md, "priority is where rank lives"): a job's
+	// place in the order is command's to set, the place is carried across the tick, and a job that
+	// does not exist is not a target. The board is ui_lwh_jobs; this is the function behind it.
+	Ship q = NewShip();
+	DamageSystem(q, SYS_HOLODECKS, 0.5f);
+	Tick(q, 0.0f);
+	CHECK(!SetJobPriority(q, 0, -5));               // nobody commands yet: refused, changing nothing
+	CHECK(Jobs(q).front().priority != -5);
+	SetRole(q, ROLE_IN_COMMAND);
+	const int before = Jobs(q).front().priority;
+	CHECK(SetJobPriority(q, 0, before - 3));        // command moves it up
+	Tick(q, 0.0f);
+	CHECK(Jobs(q).front().priority == before - 3);  // and the place survives the tick's rebuild
+	CHECK(!SetJobPriority(q, 99, 0));               // no such job
 }
 
 // S10. How it is played, and who may do what.
