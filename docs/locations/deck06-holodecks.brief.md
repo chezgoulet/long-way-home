@@ -68,5 +68,9 @@ No new art. Do not build a holodeck programme here.
 
 ## 10. Status (2026-10-07)
 
-**Blockout building** — a corridor with two holodeck doorframes and an armory alcove, reachable on the
-merged ship (`scripts/deck06-check.sh`).
+**Composed** — three zones from three maps (`tour/deck09`, `_brig`, `Tour/_holodeck_firingrange`)
+carried into one corridor, reachable on the merged ship. Tool `tools/shipmap/dressdeck06.py`;
+`scripts/deck06-check.sh`; `g_shipTest 63`; the parts list `docs/locations/deck06-parts-list.md`;
+evidence `docs/evidence/deck06-composition.md`. The `SYS_HOLODECKS` station (section 5) is marked as
+`lwh_station_17` at the holodeck arch (section 8), moved here from deck 14. Awaiting the owner's
+walkthrough.

@@ -20,7 +20,9 @@ copy with deck 14's program.
     game's own stasis pods (`models/mapobjects/stasis/pod.md3`, the brief's section 4) is set along
     the north wall, the machinery wall the brief asks for, each on a pedestal at its local floor;
   * adds a **holodeck doorframe** at the far (west) end of the pod row, on the north wall, warm-lit,
-    with the holodeck's control panel -- Holodeck 1, the placement this deck decides;
+    with the holodeck's control panel -- Holodeck 1, the placement this deck decides; the numbered
+    SYS_HOLODECKS station marker moved to deck 6's re-dress when deck 6 was built (ship_core's
+    SystemSpec puts the system on deck 6), leaving this deck the frame and a maintenance post;
   * adds a **Jefferies tube mouth** at the far end from the door (west), low and awkward, with a
     traversal to deck 13 -- the route down when the turbolifts are down;
   * keeps the deck's wiring (the lift edge, the status panel, the navigation furniture) and adds the
@@ -511,9 +513,11 @@ class Build:
         self.w(brush(((px - 64, py - 48, base), (px + 64, py + 48, base + 48)), "engineering/console1"))
         self.w(brush(((px - 56, py - 40, base + 48), (px + 56, py + 40, base + 80)), "voyager/basic"))
         self.w(brush(((px - 48, py - 40, base + 80), (px + 48, py - 32, base + 120)), "lwh/panel"))
-        # the holodeck's own station marker (SYS_HOLODECKS = 17) at the panel, and the maintenance
-        # post in front of the arch, facing it
-        self.point("info_notnull", "lwh_station_17", (px, py - 96, base + 24))
+        # The maintenance post in front of the arch, facing it. The numbered SYS_HOLODECKS station
+        # marker (`lwh_station_17`) is NOT here: ship_core's SystemSpec puts the holodecks system on
+        # deck 6, so the station marker moved to deck 6's re-dress (dressdeck06.py) when it was built
+        # -- two decks defining one name would make the stitcher rename both and StationFor would find
+        # neither. Deck 14 keeps the holodeck frame and this maintenance post.
         self.point("info_notnull", "lwh_stasis_post", (HOLO_X, wy - 288, base + 24))
         self.point("waypoint_navgoal_1", "stasiswatch", (HOLO_X, wy - 288, base + 24))
         self.report["holodeck"] = [px, py, HOLO_X]

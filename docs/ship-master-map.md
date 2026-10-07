@@ -29,10 +29,11 @@ Diagram, regenerable from `tools/mastermap.py`: `voyager-master-map.png`.
 **Ten of fifteen decks ship as maps** (01, 02, 03, 04, 05, 08, 09, 10, 11, 15). The five absent decks --
 06, 07, 12, 13, 14 -- are the build order's spine, and `tour/deck15` already exists, so do not build it.
 
-A **generated blockout now exists for deck 6** (`build/ship/generated/deck06.map`), reachable on the merged ship and carrying the
-system it hosts; **decks 7, 12, 13 and 14 are re-dressed from `tour/deck11`** (below). The **game today** column above describes the retail game, which has no map for any
-of them. What remains for 6 is the **re-dress** against a shipped interior: the brief is
-in `docs/locations/`, and it names its own reuse target and what to keep.
+**All five absent decks are built.** Decks 7, 12, 13 and 14 are re-dressed from `tour/deck11`, and
+**deck 6 is composed** from three maps -- `tour/deck09` (the quarters frontage), `_brig` (the armory)
+and a `_holodeck_*` programme map (the arch) -- which the brief (section 3) requires because deck 6
+carries three functions on one deck (below). The **game today** column above describes the retail
+game, which has no map for any of them.
 
 ## The lift spine
 
@@ -89,8 +90,17 @@ no turbolifts); the holodecks (warmth, and a safety interlock failure).
    `g_shipTest 27`, screenshots `lwh_deck13.tga` / `lwh_deck13_catwalk.tga`. The tool is
    `tools/shipmap/dressdeck13.py` (deck 12's pattern); the parts list
    `docs/locations/deck13-parts-list.md`; evidence `docs/evidence/deck13-redress.md`.
-3. **Deck 6, holodeck 2, armory and quarters** — **blockout built 2026-10-07**: a corridor with two
-   holodeck doorframes and an armory locker; `scripts/deck-check.sh 6`, screenshot `lwh_deck06.tga`.
+3. **Deck 6, holodeck 2, armory and quarters** — **composed 2026-10-07** and awaiting the owner's
+   walkthrough: the fifth and last re-dress, and the only one that composes rather than crops. Three
+   functions on one deck, from three maps — a slice of `tour/deck09`'s hall as the quarters frontage,
+   `_brig`'s security room as the armory, and the arch of a `_holodeck_*` programme map
+   (`Tour/_holodeck_firingrange`) for two holodeck doorframes — carried into one corridor, with the
+   copied interiors as detail geometry. `scripts/deck06-check.sh`, `g_shipTest 63`, screenshots
+   `lwh_deck06.tga` / `lwh_deck06_holodeck.tga` / `lwh_deck06_armory.tga`; the tool
+   `tools/shipmap/dressdeck06.py` (deck 7's mechanism), the parts list
+   `docs/locations/deck06-parts-list.md`, evidence `docs/evidence/deck06-composition.md`. The
+   `SYS_HOLODECKS` station marker moved here from deck 14 (ship_core's `SystemSpec` puts the system on
+   deck 6).
 4. **Deck 14, stasis and holodeck 1** — **re-dressed from `tour/deck11` 2026-10-07** and awaiting
    the owner's walkthrough: a row of the game's own stasis pods along the north wall, a holodeck
    doorframe at the far end (Holodeck 1), the raised core deck cleared for one flat chamber, cold
@@ -111,5 +121,5 @@ no turbolifts); the holodecks (warmth, and a safety interlock failure).
 6. Decks 10, 8, 4 (published) and the amenity items — **station markers placed at the published maps'
    own fixtures where they exist** (transporters on deck 4, sensors on deck 8; the rest are on the
    deck-4 hub or the unnamed bridge, and need chosen origins — the S5 item). Of the five decks with
-   no published source, **7, 12, 13 and 14 are re-dressed and await the owner's walkthrough; deck 6
-   is the last, and its brief refuses a single copy target.**
+   no published source, **all five are built -- 7, 12, 13 and 14 re-dressed and deck 6 composed --
+   and all five await the owner's walkthrough.**
