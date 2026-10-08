@@ -5441,6 +5441,226 @@ static void TestCharacterSaveRoundTrip()
 	}
 }
 
+// A person with no modifier but their skill: neutral morale, no conditions, no traits, a routine
+// task. The tests below vary one thing at a time from this, so a difference is attributable.
+static CrewMember PlainCrew()
+{
+	CrewMember c;
+	c.name = "Test Crewman";
+	c.conditionCount = 0;
+	c.fatigue = 0.0f;
+	c.deficit = 0.65f; c.outlook = 0.6f; c.holdings = 0.6f; // morale exactly 0.5: the morale factor is neutral
+	c.traits = 0;
+	c.desire = DESIRE_A_PERSON; c.need = NEED_SLEEP; c.fear = FEAR_DYING_ALONE;
+	c.species = SPECIES_HUMAN;
+	for (int k = 0; k < SKILL_COUNT; ++k) c.skills[k] = 3;
+	return c;
+}
+
+// Twenty thousand draws at a fixed condition and load, for a set of factors: the measurement a
+// difference in the odds can be read from.
+static int MeasureWork(float condition, float stress, const WorkFactor *f, int n)
+{
+	int hits = 0;
+	for (uint32_t i = 0; i < 20000; ++i)
+		if (RollWork(condition, stress, f, n, i * 2654435761u + 12345u) != ANOMALY_NONE) ++hits;
+	return hits;
+}
+
+// Task A: the failure roll's odds are a function of what the operator can actually do. The same
+// task and the same person at two skill levels produce different outcomes.
+static void TestEffectiveSkillReachesTheOdds()
+{
+	g_test = "effective skill reaches the failure roll's odds";
+	CrewMember lo = PlainCrew(); lo.skills[SKILL_ENGINEERING] = 1;
+	CrewMember hi = PlainCrew(); hi.skills[SKILL_ENGINEERING] = 5;
+	WorkFactor lf[WORK_FACTOR_MAX], hf[WORK_FACTOR_MAX];
+	const int ln = WorkFactors(lo, SKILL_ENGINEERING, WORK_ROUTINE, 1.0f, lf, WORK_FACTOR_MAX);
+	const int hn = WorkFactors(hi, SKILL_ENGINEERING, WORK_ROUTINE, 1.0f, hf, WORK_FACTOR_MAX);
+	CHECK(ln >= 1 && hn >= 1);
+	CHECK(lf[0].kind == WORK_SKILL && lf[0].delta > 0.0f); // an unskilled hand raises the odds
+	CHECK(hf[0].kind == WORK_SKILL && hf[0].delta < 0.0f); // a competent one lowers them
+	CHECK(hf[0].delta < lf[0].delta);
+	const float c = 0.40f;
+	CHECK(WorkOdds(c, hf, hn) < WorkOdds(c, lf, ln));
+	const int loHits = MeasureWork(c, 1.0f, lf, ln);
+	const int hiHits = MeasureWork(c, 1.0f, hf, hn);
+	CHECK(loHits > hiHits);
+	CHECK(std::fabs(loHits / 20000.0f - WorkOdds(c, lf, ln)) < 0.03f);
+}
+
+// Task B(i): a condition moves the odds while it holds, and the move is attributable -- the factor
+// line and the log name the condition, its magnitude and its kind.
+static void TestConditionMovesTheOdds()
+{
+	g_test = "a condition moves the odds, and the reasons are named";
+	CrewMember c = PlainCrew();
+	WorkFactor base[WORK_FACTOR_MAX];
+	const int bn = WorkFactors(c, SKILL_ENGINEERING, WORK_ROUTINE, 1.0f, base, WORK_FACTOR_MAX);
+	const float before = WorkOdds(0.40f, base, bn);
+	CHECK(AddCondition(c, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_SHARP,
+		CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW));
+	WorkFactor after[WORK_FACTOR_MAX];
+	const int an = WorkFactors(c, SKILL_ENGINEERING, WORK_ROUTINE, 1.0f, after, WORK_FACTOR_MAX);
+	CHECK(an > bn);
+	CHECK(WorkOdds(0.40f, after, an) > before);
+	const std::string line = WorkFactorLine(after, an);
+	CHECK(line.find("afraid") != std::string::npos);
+	CHECK(line.find("sharp") != std::string::npos);
+	CHECK(line.find("condition") != std::string::npos); // kept distinct: the kind is in the record
+	CHECK(MeasureWork(0.40f, 1.0f, after, an) > MeasureWork(0.40f, 1.0f, base, bn));
+
+	// The reason travels with the work: a use that goes wrong writes the condition into the log.
+	Ship s = NewShip();
+	s.cfg.dayScale = 1.0f;
+	SetAlert(s, ALERT_RED);
+	Tick(s, 1.0f);
+	const int op = 30;
+	s.crew[op].conditionCount = 0;
+	s.crew[op].traits = 0;
+	s.crew[op].species = SPECIES_HUMAN;
+	s.crew[op].skills[SKILL_ENGINEERING] = 0;
+	const uint8_t all = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
+	CHECK(Sicken(s, op, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_SHARP,
+		CLEAR_END_OF_WATCH, all));
+	bool named = false;
+	for (int i = 0; i < 500 && !named; ++i) {
+		s.systems[SYS_TRANSPORTERS].health = 0.4f;
+		s.systems[SYS_TRANSPORTERS].output = 0.4f;
+		if (UseSystemBy(s, SYS_TRANSPORTERS, 1.0f, op) == ANOMALY_NONE) continue;
+		for (const LogEntry &e : s.log)
+			if (e.what.find("condition under") != std::string::npos
+			    && e.what.find("afraid") != std::string::npos) named = true;
+	}
+	CHECK(named);
+}
+
+// Task B(ii): a trait is durable and behavioural, and shapes performance by interacting with the
+// moment, not as a flat penalty. Steady under fire does nothing on a quiet watch and helps at battle
+// stations; quick healer does not touch the odds at all (it shapes recovery).
+static void TestTraitShapesPerformance()
+{
+	g_test = "a trait shapes performance without being a straight penalty";
+	CrewMember plain = PlainCrew();
+	CrewMember steady = PlainCrew();
+	steady.traits = static_cast<uint16_t>(1u << TRAIT_STEADY_UNDER_FIRE);
+	WorkFactor pf[WORK_FACTOR_MAX], sf[WORK_FACTOR_MAX];
+	const int pn0 = WorkFactors(plain, SKILL_ENGINEERING, WORK_ROUTINE, 0.0f, pf, WORK_FACTOR_MAX);
+	const int sn0 = WorkFactors(steady, SKILL_ENGINEERING, WORK_ROUTINE, 0.0f, sf, WORK_FACTOR_MAX);
+	CHECK(sn0 == pn0); // calm: the trait is not a flat shift
+	CHECK(WorkOdds(0.40f, sf, sn0) == WorkOdds(0.40f, pf, pn0));
+	const int pn1 = WorkFactors(plain, SKILL_ENGINEERING, WORK_ROUTINE, 1.0f, pf, WORK_FACTOR_MAX);
+	const int sn1 = WorkFactors(steady, SKILL_ENGINEERING, WORK_ROUTINE, 1.0f, sf, WORK_FACTOR_MAX);
+	CHECK(sn1 > pn1);
+	CHECK(WorkOdds(0.40f, sf, sn1) < WorkOdds(0.40f, pf, pn1)); // under load: it helps
+	CHECK(WorkFactorLine(sf, sn1).find("steady under fire") != std::string::npos);
+	// Quick healer is a trait too, but it shapes recovery, not the odds: the difference is the point.
+	CrewMember healer = PlainCrew();
+	healer.traits = static_cast<uint16_t>(1u << TRAIT_QUICK_HEALER);
+	WorkFactor hf[WORK_FACTOR_MAX];
+	const int hn = WorkFactors(healer, SKILL_ENGINEERING, WORK_ROUTINE, 1.0f, hf, WORK_FACTOR_MAX);
+	CHECK(WorkOdds(0.40f, hf, hn) == WorkOdds(0.40f, pf, pn1));
+}
+
+// Task B(iii): a drive biases what a person does and how they bear up -- conditionally on the work,
+// never a flat subtraction. Fear of decompression costs on a hull task and nothing on a routine one;
+// wanting to prove something helps under load and does nothing on a quiet watch.
+static void TestDriveBiasesBehaviour()
+{
+	g_test = "a drive biases behaviour rather than only subtracting";
+	CrewMember f = PlainCrew(); f.fear = FEAR_DECOMPRESSION;
+	WorkFactor hf[WORK_FACTOR_MAX], rf[WORK_FACTOR_MAX];
+	const int hn = WorkFactors(f, SKILL_ENGINEERING, WORK_HULL, 0.15f, hf, WORK_FACTOR_MAX);
+	const int rn = WorkFactors(f, SKILL_ENGINEERING, WORK_ROUTINE, 0.15f, rf, WORK_FACTOR_MAX);
+	CHECK(hn > rn);
+	CHECK(WorkOdds(0.40f, hf, hn) > WorkOdds(0.40f, rf, rn)); // the work changed, not the person
+	CHECK(WorkFactorLine(hf, hn).find("decompression") != std::string::npos);
+	CHECK(WorkFactorLine(rf, rn).find("decompression") == std::string::npos);
+	CrewMember d = PlainCrew(); d.desire = DESIRE_TO_PROVE;
+	WorkFactor cf[WORK_FACTOR_MAX], lf[WORK_FACTOR_MAX];
+	const int cn = WorkFactors(d, SKILL_ENGINEERING, WORK_ROUTINE, 0.15f, cf, WORK_FACTOR_MAX);
+	const int ln = WorkFactors(d, SKILL_ENGINEERING, WORK_ROUTINE, 1.0f, lf, WORK_FACTOR_MAX);
+	CHECK(WorkOdds(0.40f, lf, ln) < WorkOdds(0.40f, cf, cn)); // under load it leans in
+	CHECK(WorkFactorLine(lf, ln).find("leans in") != std::string::npos);
+}
+
+// Task B(iv): morale is read from its three components and reaches the work: a person who does not
+// believe the course is worth the cost works like one who does not, and the reason names the
+// component responsible.
+static void TestMoraleReachesTheWork()
+{
+	g_test = "morale reaches the work, and the component responsible is named";
+	CrewMember low = PlainCrew(); low.deficit = 1.0f; low.outlook = 0.0f; low.holdings = 0.0f;
+	CrewMember high = PlainCrew(); high.deficit = 0.0f; high.outlook = 1.0f; high.holdings = 1.0f;
+	WorkFactor lf[WORK_FACTOR_MAX], hf[WORK_FACTOR_MAX];
+	const int ln = WorkFactors(low, SKILL_ENGINEERING, WORK_ROUTINE, 0.15f, lf, WORK_FACTOR_MAX);
+	const int hn = WorkFactors(high, SKILL_ENGINEERING, WORK_ROUTINE, 0.15f, hf, WORK_FACTOR_MAX);
+	CHECK(ln > 0 && hn > 0);
+	CHECK(WorkOdds(0.40f, lf, ln) > WorkOdds(0.40f, hf, hn));
+	CHECK(WorkFactorLine(lf, ln).find("morale") != std::string::npos);
+	CHECK(WorkFactorLine(lf, ln).find(MoraleReason(low)) != std::string::npos);
+	CHECK(MeasureWork(0.40f, 0.15f, lf, ln) > MeasureWork(0.40f, 0.15f, hf, hn));
+}
+
+// Task C: every modifier that touched an outcome is listable, and the reasons are recoverable from
+// the outcome: the factors computed for the operator are exactly those the log carries.
+static void TestReasonsRecoverableFromOutcome()
+{
+	g_test = "every modifier that touched an outcome is recoverable from the outcome";
+	Ship s = NewShip();
+	s.cfg.dayScale = 1.0f;
+	SetAlert(s, ALERT_RED);
+	Tick(s, 1.0f);
+	const int op = 30;
+	s.crew[op].conditionCount = 0;
+	s.crew[op].traits = static_cast<uint16_t>(1u << TRAIT_STEADY_UNDER_FIRE);
+	s.crew[op].species = SPECIES_HUMAN;
+	s.crew[op].skills[SKILL_ENGINEERING] = 0;
+	s.crew[op].deficit = 0.8f; s.crew[op].outlook = 0.2f; s.crew[op].holdings = 0.2f;
+	const uint8_t all = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
+	CHECK(Sicken(s, op, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_CLEAR,
+		CLEAR_END_OF_WATCH, all));
+	std::string found;
+	for (int i = 0; i < 500 && found.empty(); ++i) {
+		s.systems[SYS_TRANSPORTERS].health = 0.4f;
+		s.systems[SYS_TRANSPORTERS].output = 0.4f;
+		if (UseSystemBy(s, SYS_TRANSPORTERS, 1.0f, op) == ANOMALY_NONE) continue;
+		for (const LogEntry &e : s.log)
+			if (e.what.find("condition under") != std::string::npos) { found = e.what; break; }
+	}
+	CHECK(!found.empty());
+	// Recompute the factors for the operator as they were, and require each one in the line.
+	WorkFactor wf[WORK_FACTOR_MAX];
+	const int n = WorkFactors(s.crew[op], DepartmentSkill(Spec(SYS_TRANSPORTERS).dept),
+		WorkContextOf(SYS_TRANSPORTERS), 1.0f, wf, WORK_FACTOR_MAX);
+	CHECK(n > 0);
+	for (int i = 0; i < n; ++i) CHECK(found.find(wf[i].name) != std::string::npos);
+}
+
+// Task D: the two-sided test. A Betazoid's empathy is a capability, not a bonus: it helps where the
+// faculty fits (reading a patient) and costs where it does not (a hull full of the hurt), and the
+// name of the faculty appears in both.
+static void TestBetazoidEmpathyTwoSided()
+{
+	g_test = "a Betazoid's empathy helps in one case and costs in another";
+	CrewMember human = PlainCrew(); human.species = SPECIES_HUMAN;
+	CrewMember bet = PlainCrew(); bet.species = SPECIES_BETAZOID;
+	WorkFactor hm[WORK_FACTOR_MAX], bm[WORK_FACTOR_MAX], hh[WORK_FACTOR_MAX], bh[WORK_FACTOR_MAX];
+	const int hmn = WorkFactors(human, SKILL_MEDICAL, WORK_MEDICAL, 0.15f, hm, WORK_FACTOR_MAX);
+	const int bmn = WorkFactors(bet, SKILL_MEDICAL, WORK_MEDICAL, 0.15f, bm, WORK_FACTOR_MAX);
+	const int hhn = WorkFactors(human, SKILL_ENGINEERING, WORK_HULL, 0.15f, hh, WORK_FACTOR_MAX);
+	const int bhn = WorkFactors(bet, SKILL_ENGINEERING, WORK_HULL, 0.15f, bh, WORK_FACTOR_MAX);
+	CHECK(WorkOdds(0.40f, bm, bmn) < WorkOdds(0.40f, hm, hmn)); // helps
+	CHECK(WorkOdds(0.40f, bh, bhn) > WorkOdds(0.40f, hh, hhn)); // costs
+	const std::string mLine = WorkFactorLine(bm, bmn), hLine = WorkFactorLine(bh, bhn);
+	CHECK(mLine.find("empathy") != std::string::npos);
+	CHECK(hLine.find("empathy") != std::string::npos);
+	CHECK(mLine.find("reads the feeling") != std::string::npos);
+	CHECK(hLine.find("others' pain") != std::string::npos);
+	CHECK(MeasureWork(0.40f, 0.15f, bm, bmn) < MeasureWork(0.40f, 0.15f, hm, hmn));
+	CHECK(MeasureWork(0.40f, 0.15f, bh, bhn) > MeasureWork(0.40f, 0.15f, hh, hhn));
+}
+
 // One crew member in full, for the evidence: the four kinds, the drives, and the morale reads.
 static void PrintOneCrew(const CrewMember &c, int idx)
 {
@@ -5526,10 +5746,127 @@ static int PrintManner()
 	return 0;
 }
 
+// One case of the work, printed: the odds, the measured count, and the reasons.
+static void PrintWorkCase(const char *label, float condition, float stress,
+                          const WorkFactor *f, int n)
+{
+	std::printf("    %-26s odds %.4f (base %.4f)   measured %d of 20000\n",
+		label, WorkOdds(condition, f, n), AnomalyOdds(condition), MeasureWork(condition, stress, f, n));
+	std::printf("                               reasons: %s\n",
+		n > 0 ? WorkFactorLine(f, n).c_str() : "none");
+}
+
+// The task done by the same person in two conditions, with the reasons printed: the transcript the
+// owner judges, not a verdict (docs/character-attributes.md).
+static int PrintWork()
+{
+	std::printf("== the character layer reaches the work (docs/character-attributes.md)\n");
+	const float cond = 0.40f;  // a system at 40%: the document's own degraded example
+	const float battle = 1.0f; // used at battle stations: the load the design called the worst
+
+	Ship s = NewShip();
+	int who = -1;
+	for (int i = 19; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].dept == DEPT_ENGINEERING && s.crew[i].status == CREW_FIT) { who = i; break; }
+	if (who < 0) { std::printf("  no engineering crew member\n"); return 0; }
+	CrewMember person = s.crew[who];
+	person.conditionCount = 0;
+	person.traits = 0;
+	person.desire = DESIRE_A_PERSON; person.need = NEED_SLEEP; person.fear = FEAR_DYING_ALONE;
+	person.species = SPECIES_HUMAN;
+
+	// One task, one person, two conditions.
+	CrewMember fresh = person;
+	fresh.fatigue = 0.0f; fresh.deficit = 0.05f; fresh.outlook = 0.80f; fresh.holdings = 0.80f;
+	CrewMember worn = person;
+	worn.fatigue = 0.8f; worn.deficit = 0.5f; worn.outlook = 0.4f; worn.holdings = 0.5f;
+	AddCondition(worn, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_SLIGHT,
+		CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW);
+	AddCondition(worn, COND_HUNGRY, "the galley is empty", CVAL_DEBUFF, CMAG_CLEAR,
+		CLEAR_MEAL, 0.0f, CVIS_PLAYER | CVIS_CREW);
+	WorkFactor ff[WORK_FACTOR_MAX], wf[WORK_FACTOR_MAX];
+	const int fn = WorkFactors(fresh, SKILL_ENGINEERING, WORK_ROUTINE, battle, ff, WORK_FACTOR_MAX);
+	const int wn = WorkFactors(worn, SKILL_ENGINEERING, WORK_ROUTINE, battle, wf, WORK_FACTOR_MAX);
+	std::printf("\n  one person (%s, engineering %d), one task at 40%% under battle stations\n",
+		person.name.c_str(), person.skills[SKILL_ENGINEERING]);
+	PrintWorkCase("fresh", cond, battle, ff, fn);
+	PrintWorkCase("afraid, hungry, worn", cond, battle, wf, wn);
+
+	// The same task and the same person at two skill levels.
+	std::printf("\n  the same task, two skill levels\n");
+	CrewMember low = person; low.skills[SKILL_ENGINEERING] = 1;
+	CrewMember high = person; high.skills[SKILL_ENGINEERING] = 5;
+	WorkFactor lf[WORK_FACTOR_MAX], hf[WORK_FACTOR_MAX];
+	const int ln = WorkFactors(low, SKILL_ENGINEERING, WORK_ROUTINE, battle, lf, WORK_FACTOR_MAX);
+	const int hn = WorkFactors(high, SKILL_ENGINEERING, WORK_ROUTINE, battle, hf, WORK_FACTOR_MAX);
+	PrintWorkCase("engineering 1", cond, battle, lf, ln);
+	PrintWorkCase("engineering 5", cond, battle, hf, hn);
+
+	// The four kinds, kept distinct in one list.
+	std::printf("\n  the kinds kept distinct (one person carrying all of them, a hull task)\n");
+	CrewMember all = person;
+	all.skills[SKILL_ENGINEERING] = 1;
+	all.traits = static_cast<uint16_t>((1u << TRAIT_STEADY_UNDER_FIRE) | (1u << TRAIT_CLAUSTRAPHOBIC));
+	all.fear = FEAR_DECOMPRESSION;
+	all.desire = DESIRE_HOME;
+	all.deficit = 0.6f; all.outlook = 0.2f; all.holdings = 0.2f;
+	all.conditionCount = 0;
+	AddCondition(all, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_CLEAR,
+		CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW);
+	WorkFactor af[WORK_FACTOR_MAX];
+	const int an = WorkFactors(all, SKILL_ENGINEERING, WORK_HULL, battle, af, WORK_FACTOR_MAX);
+	PrintWorkCase("under a hull task", cond, battle, af, an);
+
+	// The Betazoid's empathy, two-sided.
+	std::printf("\n  the Betazoid's empathy, two-sided (one faculty, two situations)\n");
+	CrewMember bet = person;
+	bet.species = SPECIES_BETAZOID; bet.traits = 0; bet.conditionCount = 0;
+	bet.deficit = 0.05f; bet.outlook = 0.80f; bet.holdings = 0.80f;
+	bet.fear = FEAR_DYING_ALONE; bet.desire = DESIRE_A_PERSON;
+	CrewMember hum = bet; hum.species = SPECIES_HUMAN;
+	WorkFactor bmf[WORK_FACTOR_MAX], hmf[WORK_FACTOR_MAX], bhf[WORK_FACTOR_MAX], hhf[WORK_FACTOR_MAX];
+	const int bmn = WorkFactors(bet, SKILL_MEDICAL, WORK_MEDICAL, 0.15f, bmf, WORK_FACTOR_MAX);
+	const int hmn = WorkFactors(hum, SKILL_MEDICAL, WORK_MEDICAL, 0.15f, hmf, WORK_FACTOR_MAX);
+	const int bhn = WorkFactors(bet, SKILL_ENGINEERING, WORK_HULL, 0.15f, bhf, WORK_FACTOR_MAX);
+	const int hhn = WorkFactors(hum, SKILL_ENGINEERING, WORK_HULL, 0.15f, hhf, WORK_FACTOR_MAX);
+	PrintWorkCase("Human, a medical task", cond, 0.15f, hmf, hmn);
+	PrintWorkCase("Betazoid, a medical task", cond, 0.15f, bmf, bmn);
+	PrintWorkCase("Human, a hull task", cond, 0.15f, hhf, hhn);
+	PrintWorkCase("Betazoid, a hull task", cond, 0.15f, bhf, bhn);
+
+	// The console's read, and one use that goes wrong as the record writes it.
+	std::printf("\n  one use that goes wrong, as the console and the record write it\n");
+	Ship u = NewShip();
+	u.cfg.dayScale = 1.0f;
+	SetAlert(u, ALERT_RED);
+	Tick(u, 1.0f);
+	const int op = who;
+	u.crew[op].conditionCount = 0;
+	u.crew[op].skills[SKILL_ENGINEERING] = 0;
+	u.crew[op].species = SPECIES_HUMAN;
+	u.crew[op].deficit = 0.8f; u.crew[op].outlook = 0.2f; u.crew[op].holdings = 0.2f;
+	AddCondition(u.crew[op], COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_CLEAR,
+		CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW);
+	std::printf("    console: %s\n", WorkReading(u, op, SYS_TRANSPORTERS).c_str());
+	bool logged = false;
+	for (int i = 0; i < 500 && !logged; ++i) {
+		u.systems[SYS_TRANSPORTERS].health = 0.4f;
+		u.systems[SYS_TRANSPORTERS].output = 0.4f;
+		if (UseSystemBy(u, SYS_TRANSPORTERS, 1.0f, op) == ANOMALY_NONE) continue;
+		for (const LogEntry &e : u.log)
+			if (e.what.find("condition under") != std::string::npos) {
+				std::printf("    log    : %s: %s\n", e.who.c_str(), e.what.c_str());
+				logged = true; break;
+			}
+	}
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
 	if (argc > 1 && !std::strcmp(argv[1], "--manner")) return PrintManner();
+	if (argc > 1 && !std::strcmp(argv[1], "--work")) return PrintWork();
 	if (argc > 1 && !std::strcmp(argv[1], "--power")) return PrintPower();
 	if (argc > 1 && !std::strcmp(argv[1], "--meeting")) return PrintMeeting();
 	if (argc > 1 && !std::strcmp(argv[1], "--voice")) return PrintVoice();
@@ -5642,6 +5979,13 @@ int main(int argc, char **argv)
 	TestSpeciesAreCapabilitiesNotBonuses();
 	TestManner();
 	TestCharacterSaveRoundTrip();
+	TestEffectiveSkillReachesTheOdds();
+	TestConditionMovesTheOdds();
+	TestTraitShapesPerformance();
+	TestDriveBiasesBehaviour();
+	TestMoraleReachesTheWork();
+	TestReasonsRecoverableFromOutcome();
+	TestBetazoidEmpathyTwoSided();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

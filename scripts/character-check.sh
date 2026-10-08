@@ -24,6 +24,9 @@ echo
 echo "==> the manner at three morale levels"
 "$WORK/ship/test_ship_core" --manner | tee "$WORK/manner.txt"
 echo
+echo "==> the work: the same task in two conditions, with the reasons"
+"$WORK/ship/test_ship_core" --work | tee "$WORK/work.txt"
+echo
 
 fail() { echo "FAIL  $1" >&2; exit 1; }
 # The four kinds and the drives are present.
@@ -44,5 +47,15 @@ grep -q 'need:' "$WORK/crew.txt" || fail "no species need was printed"
 # The manner reaches all three bands.
 grep -q 'at breaking point' "$WORK/manner.txt" || fail "the manner did not reach the low band"
 grep -q 'worn' "$WORK/manner.txt" || fail "the manner did not reach the middle band"
+# The four kinds and morale reach the work, and every reason is printed.
+grep -q 'reasons:' "$WORK/work.txt" || fail "the work did not print its reasons"
+grep -q 'skill engineering skill' "$WORK/work.txt" || fail "the skill did not reach the work"
+grep -q 'condition afraid (slight)' "$WORK/work.txt" || fail "a condition did not reach the work by name"
+grep -q 'trait steady under fire' "$WORK/work.txt" || fail "a trait did not shape the work"
+grep -q 'drive afraid of decompression' "$WORK/work.txt" || fail "a drive did not bias the work"
+grep -q 'morale (.*): ' "$WORK/work.txt" || fail "morale did not reach the work"
+# The Betazoid's empathy helps in one case and costs in another -- both, by name.
+grep -q 'empathy: reads the feeling, not the thought' "$WORK/work.txt" || fail "the Betazoid's empathy did not help"
+grep -q "empathy: others' pain arrives uninvited" "$WORK/work.txt" || fail "the Betazoid's empathy did not cost"
 
-echo "PASS  three generated crew printed in full; morale broken into three components; every condition with source, cure and visibility; species as capabilities and needs; the manner across three levels"
+echo "PASS  three generated crew printed in full; morale broken into three components; every condition with source, cure and visibility; species as capabilities and needs; the manner across three levels; the four kinds and morale reach the work, each reason printed, the Betazoid's empathy both helping and costing"

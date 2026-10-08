@@ -259,6 +259,9 @@ enum Skill : uint8_t {
 };
 const char *SkillName(uint8_t s);
 const int SKILL_MAX = 5;
+// The skill a department's work leads with (engineering leads engineering, medical medical, and so
+// on): the one place the mapping lives, used by the derivation and by the work an operator does.
+uint8_t DepartmentSkill(Department d);
 
 // Traits: few, permanent, behavioural -- legible in a log line, never a percentile.
 enum Trait : uint8_t {
@@ -512,6 +515,69 @@ struct Ship;
 bool Sicken(Ship &s, int crew, uint8_t id, const std::string &source, int8_t valence,
             uint8_t magnitude, uint8_t clears, uint8_t visible);
 bool Cure(Ship &s, int crew, uint8_t id);
+
+// ---- the four kinds reach the work: the operator's factors, named (docs/character-attributes.md) --
+//
+// The owner's ruling: buffs and debuffs must have impacts on the quality of work and the outcomes.
+// The failure roll's odds are therefore a function of what the operator can actually do, not only of
+// the system's condition. The system still sets the base odds and the load still sets the severity
+// (docs/failure-is-content.md); the operator's factors move the odds. Each factor is one of the
+// kinds, kept distinct and named, so a worse outcome can be explained rather than reading as a
+// random failure:
+//
+//   * skill      -- what they can do: a competent hand lowers the odds, an unskilled one raises them;
+//   * condition  -- temporary and situational: a debuff raises the odds while it holds, a buff lowers;
+//   * trait      -- durable and behavioural: it reaches the work by interacting with the moment
+//                   (steady under fire helps under load), never as a flat shift;
+//   * drive      -- a motive: it biases what a person does and how they bear up, conditionally on the
+//                   work (fear of decompression on a hull task), never a flat subtraction;
+//   * morale     -- the read from deficit, outlook and holdings: a person who does not believe the
+//                   course is worth the cost works like one who does not;
+//   * capability -- a species capability is two-sided (a Betazoid's empathy reads a patient's feeling
+//                   for good and takes on others' pain for bad), never a bonus.
+//
+// A modifier the player cannot see is worse than no modifier at all, so every factor carries its
+// name and its measured weight, and WorkFactorLine() renders the list the log and the console carry.
+enum WorkFactorKind : uint8_t {
+	WORK_SKILL = 0, WORK_CONDITION, WORK_TRAIT, WORK_DRIVE, WORK_MORALE, WORK_CAPABILITY,
+	WORK_FACTOR_KIND_COUNT
+};
+const char *WorkFactorKindName(uint8_t k);
+
+// What the work is: the moment a trait or drive is answering. Set by the system a use is made of --
+// a hull task, a medical task, a hazardous use -- and available to any other work as needed.
+enum WorkContext : uint8_t {
+	WORK_ROUTINE = 0, WORK_HAZARD, WORK_HULL, WORK_RECLAIM, WORK_MEDICAL, WORK_CONTEXT_COUNT
+};
+const char *WorkContextName(uint8_t c);
+uint8_t WorkContextOf(SystemId id);   // the context a system's own use is made in
+
+const int WORK_FACTOR_MAX = 16;
+struct WorkFactor {
+	uint8_t kind = WORK_SKILL;
+	std::string name;     // "afraid (slight)", "steady under fire (under load)", "morale (worn): ..."
+	float delta = 0.0f;   // signed shift to the odds: + worse, - better
+};
+
+// The named factors a person brings to a task of `skill` in `context` under `stress`, in a fixed
+// order. Only factors that actually move the odds are returned. Pure and deterministic.
+int WorkFactors(const CrewMember &c, uint8_t skill, uint8_t context, float stress,
+                WorkFactor *out, int maxOut);
+
+// The odds of an anomaly for one use: the system's condition sets the base, the operator's factors
+// move it. Clamped to [0,1], and the top tenth of capability stays nominal whatever the operator, so
+// a well-kept system still does not mangle anyone (docs/failure-is-content.md's promise).
+float WorkOdds(float condition, const WorkFactor *f, int n);
+// One use, as RollAnomaly, with the operator's factors reaching the odds. The severity ladder is
+// unchanged: the condition and the load still set it.
+uint8_t RollWork(float condition, float stress, const WorkFactor *f, int n, uint32_t roll);
+// The factors as one line, for the log and the console: "condition afraid (slight) +0.15; drive
+// afraid of decompression (sealing the hull) +0.25". Empty when nothing moved the odds.
+std::string WorkFactorLine(const WorkFactor *f, int n);
+// The whole picture for one person at one system -- who, what they can do, and every factor that
+// moved the odds -- for the personnel console. This is the read that makes "why is this person
+// working badly" answerable.
+std::string WorkReading(const Ship &s, int crew, SystemId id);
 
 // Where a crew member is and what they are doing at a time of day, by their watch alone. The day
 // is eight hours on duty, then a meal, recreation, personal time and eight hours' sleep.

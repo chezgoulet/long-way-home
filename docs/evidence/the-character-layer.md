@@ -268,6 +268,9 @@ scripts/character-check.sh
    `UseSystem`'s odds is left to the failure-content work; the acceptance that matters here
    ("a tired engineer is measurably slower") is already served by fatigue and the morale read. This
    is named so it is not mistaken for done.
+   **Corrected in the follow-up lane:** the wiring is done in `docs/character-attributes.md`, "The
+   wiring: how each kind reaches the work" (`feat/the-work-bites`, evidence
+   `docs/evidence/the-work-bites.md`). This call stands as what was true of *this* pass.
 6. **The species table's Talaxian and Bolian entries are `[ours]`**, because canon gives thin or no
    biology and `docs/character-attributes.md` says to be honest about it. The generated crew can
    draw both; holograms are never generated (that is the Doctor, and a ship does not crew many of

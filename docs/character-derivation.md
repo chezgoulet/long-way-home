@@ -207,11 +207,11 @@ the reading moves, and the reason names it. That test exists
   not carry.
 
 `Morale` is the shipped read of the three components today; `Effectiveness`, compliance and capacity
-read the same state. **What is not yet wired is named as a judgement call** in
-`docs/evidence/the-character-layer.md`: `EffectiveSkill` is computed and legible, but the failure
-roll in `UseSystem` still reads the older condition (health, staffing) rather than subtracting a
-named condition — the conditions layer is honest and visible, and the failure-odds wiring is the
-next step.
+read the same state. **The failure roll's odds are now wired**: `UseSystem` (via `WorkFactors`,
+`WorkOdds`, `RollWork`) reads the operator's four kinds and morale, each by its own named route, so a
+worse outcome says what did it. That wiring and the derivation of each kind's reach are written in
+`docs/character-attributes.md`, "The wiring: how each kind reaches the work", with evidence in
+`docs/evidence/the-work-bites.md`.
 
 ## 6. The special cases
 
