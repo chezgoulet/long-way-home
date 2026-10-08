@@ -131,3 +131,85 @@ And then:
 - **Track D / multiplayer.** The design says multiplayer *"is simply a start state with more players in it"* —
   which means this mechanism is a prerequisite for it, and building it here is the cheap half.
 - **The overlay, the in-game playback and the live model call** (the meeting programme's phase three).
+
+---
+
+## Part three — the owner's ruling: it is a configurator, not a preset list (2026-10-08)
+
+Part two asked how many start states to build. **The owner's answer is that the player should not be choosing
+from a list of them at all.** Verbatim:
+
+> I think the UI that lets you launch a long way home should give the player full control of the start state. If
+> they want to play as any member of the command crew, that means that character died in the beginning and the
+> playing character is replacing them. The player should also be able to decide if any of the rest of the command
+> crew survived or did not. in this way they can start with a completely fictitious crew and none of the show
+> characters or a mix and match. The player can also choose a totally different character path and career path.
+> If they want to play lower decks, they can play lower decks. If they want to play be maquis trying to integrate
+> with the ways of Starfleet, they can do that. And, of course, if they want to be the captain, they can do that.
+
+**So the entry point is a configurator, and it has four dimensions:**
+
+| dimension | what the player decides |
+|---|---|
+| **who they are** | the player's record: register, rank, department, and the path that brought them here |
+| **who died** | per command-crew member — **survivor or casualty. Any, all, or none.** |
+| **who fills the gaps** | the vacancy derivation promotes from the roster — or **the roster is fictitious entirely**, and none of the show characters appear |
+| **the career path** | Starfleet junior, lower decks, Maquis integrating into Starfleet, and the chair |
+
+**And the principle it is:** `docs/start-states.md` already says *"there is no post the player is not allowed to
+start in."* **The ruling extends it — no crew member is protected from being a casualty, and no career is
+closed.** That is the same sentence as *"the menu grants the situation"*, taken all the way out.
+
+## The constraint this creates, and it must be settled before any scenario is authored
+
+**If the player can field an all-fictitious crew, then every authored line, every scenario, every meeting brief
+and every log entry must address people by POST and ROLE — never by name.**
+
+The design says *"the scenarios are identical; the position in them is what changes."* **That only holds if the
+scenarios do not name anyone.** A line written as *"Tuvok, seal the breach"* is a line that cannot be spoken in
+a run where Tuvok died at the Caretaker and a fictitious ensign holds security — and it is not one broken line,
+it is the whole slate.
+
+**So: content addresses the post; the simulation resolves the post to a person.** This is a law for the scenario
+work (the walkthrough's G4, and the register's O15), recorded here because the scenarios land *after* this scope
+and must be authored under it. **It is cheap now and unaffordable later** — every scenario written the other way
+has to be rewritten, and the failure would surface as "the scenarios don't work with the configurator" long
+after the cause.
+
+## And the voice follows the cast
+
+The voice review settled the split: **the canon few are cloned from the retail assets the player owns, and our
+own crew get voices we choose.** The ruling composes with that rather than fighting it:
+
+- **a canon character who survived** — their retail voice, cloned on the player's own machine;
+- **a canon character who died** — no voice is needed for them at all, and their lines are not authored;
+- **a fictitious crew member** — a voice from our own casting, chosen per character and held for the campaign.
+
+**Which means the casting map is cast-state data rather than a fixed table**: it is derived from the same start
+state that decides who is aboard. That belongs to the meeting programme's phase three, and it has a dependency
+now that it did not have before.
+
+## What the first pass builds
+
+- **The configurator**, with those four dimensions, on the menu that G1 puts there.
+- **Three proving cases, and they are chosen because each exercises a different path**: the **canon default**
+  (nobody dies, the chain is intact), **the captain** (the chair is vacant and the derivation fills it), and
+  **an all-fictitious crew** (none of the show characters appear, and nothing in the run depends on their names).
+- **The derivation**, unchanged: casualties, then vacancies **by the rules that run in play**.
+- **The `log_seed`**, opened on the default and describing whatever the player configured — because that entry is
+  how the game *tells* the player what they chose.
+- **The POST-not-NAME law** above, written into the scenario authoring rules so the content work inherits it.
+
+**And what is not in this pass:** the **arcs** the career paths imply. A Maquis integrating into Starfleet is a
+*played experience* — resentment, affinity, who trusts you and when — and that is the affinities and allegiance
+work, not the configurator. This pass lets the player **choose** that path and records it in the record; the arc
+that follows is authored later and against the same post-not-name law.
+
+## What this does not change
+
+- **The mechanism is the same one.** The configurator writes the casualties list; the derivation is untouched.
+- **The default is still canon**, and the configurator opens on it — so a player who wants the retail feel gets
+  it by accepting what is already there.
+- **Agents' rule unchanged**: the menu grants the situation, the fiction supplies the reason, the simulation
+  holds you to it. It is simply doing more work now.
+
