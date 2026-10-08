@@ -9,11 +9,15 @@ requirements rather than as advice.
 
 ## The four pieces, and their dependency order
 
-**The voice spike** (running) — does the mechanism work at all? One character, one sentence, one wav. **Nothing
-else may be built on it until it answers.** It is the cheapest thing to be wrong about.
+**The voice spike** — **DONE AND ACCEPTED, 2026-10-08.** Does the mechanism work at all? It does: four characters
+proven, two artefacts found by the owner's ear, three knobs named, and both artefacts fixed and heard.
+`docs/evidence/voice-review.md` is the whole arc. **The mechanism is not a risk any more** — what remains is
+the plumbing that calls it.
 
-**The power assignment** (running) — the meeting *decides allocations*, so the allocation model has to exist and
-be settable by a person before a meeting can set it. This is why it goes first.
+**The power assignment** — **DONE, 2026-10-08** (`docs/power-assignment.md`, PR #59). The meeting *decides
+allocations*, so the allocation model had to exist and be settable by a person before a meeting could set it.
+That is why it went first. Its seam for the meeting is `SetAllocation`, `RecommendAllocation` and the
+delegation.
 
 **The plumbing** — the brief generator, the async worker, the cache, the cue track, the overlay, and the log
 integration. It depends on the two above only at the edges.
