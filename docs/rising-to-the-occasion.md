@@ -81,8 +81,38 @@ two together are what make a crew a cast rather than a table.
 
 ## What it needs, and what it does not
 
-**Already there:** marks with valence and provenance; allegiance; drives; morale read from three components;
-the roster; the log; the work queue.
+**Verified against the code, 2026-10-08 — and this line replaced an earlier one that was wrong.**
+
+**Already there, and better than the first draft claimed:**
+
+- **The witnesses.** `struct Memory` carries `source` (`MEM_SAW` / `MEM_TOLD` / `MEM_RUMOUR` / `MEM_LOG`) — **which
+  is witness provenance, first-class** — a `person` field for *who the mark involved*, and a `valence` whose
+  positive end is written as **"pride/relief"**. `Remember(Ship&, crew, event, person, source, valence)` writes
+  one; `MemoryCount` and `Bond(a, b)` read them, and `Bond` is *how they feel about a person*. **`MEM_RESCUE` is
+  already an event in the enum.**
+- **Allegiance.** `holdings` — *"0 alone and blaming .. 1 held: bonds, allegiances"* — is one of morale's three
+  components, so regard already reaches morale.
+- **The cost.** Wounds; the three severities (*degraded / acute / catastrophic*); conditions with source, cure
+  and visibility; and death. All present.
+- **The log and the record**, and the work queue.
+
+**NOT there, and it is the crux of this design: **drives are derived and stored, and nothing reads them.**
+`DeriveCharacter` fills them; no consumer exists. **The lever this document leans on — that the drive decides
+who rises — does not exist yet.** It is the same shape of gap as `EffectiveSkill` (computed, unwired), and it is
+one step past the pass in flight, not a parallel system.
+
+**One thing the design gets for free, and it was not planned by anyone.** A mark's `salience` **decays unless
+reinforced.** So a heroism that nobody talks about *fades*, and one the crew keep telling persists. **Heroism
+survives only if it is retold** — which is the behaviour this document asks for, already in the model.
+
+**And the mechanism is not new.** A crisis is a **condition**; a person's state sets the **odds**; what it costs
+them is the **severity**. That is `docs/damage-and-budgets.md`'s own shape — *condition sets the odds, stress
+sets the severity* — applied to a person instead of a system. **Nothing here needs an engine feature.**
+
+**And the crew are simulated by rules, not by agents** — arbitration, post assignment, the restaffing rule — so
+**a heroism and a refusal are authored as rules in the crew layer.** That is consistent with the law that *the
+simulation decides*, and it makes this smaller than it sounds: a rule that reads the drive and the morale and
+rolls beyond effective skill.
 
 **New:** the *offer* — a situation in which exceeding is possible; the **exceeding** (odds beyond effective
 skill); the **cost**; the **witness memory**; and the **refusal**, legible in the log.
