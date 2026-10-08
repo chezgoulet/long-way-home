@@ -759,14 +759,21 @@ document an agent reads first.
   reads as covering the whole document.
 
 ### G14 — Morale is a scalar, not the three components, and the crew have no manner
-- **Missing:** `docs/morale.md` defines morale per person as derived from **deficit, outlook and
-  holdings**, never a hidden counter. The code has a single `float morale` plus drivers, and the log can
-  say why — but the three components do not exist, and the crew's **manner** (barks wired to morale) is
-  not built. `docs/story-and-semantics.md` conflict 2 named this and it is unchanged.
+**CLOSED 2026-10-08 (`feat/the-character-layer`), first half built and second half demonstrated.**
+The single `float morale` is **gone**: morale is now `Morale(c)`, read from **deficit, outlook and
+holdings**, each eased by its own drivers, and `MoraleReason(c)` names the component most
+responsible so the log can say which moved and why. The manner is built as `MannerLine(c)` and
+**demonstrated at three morale levels** (`scripts/character-check.sh`) rather than declared — the
+judgement whether it reads is the owner's. One-place account: `docs/character-derivation.md`;
+evidence: `docs/evidence/the-character-layer.md`.
+- **Was missing:** `docs/morale.md` defines morale per person as derived from **deficit, outlook and
+  holdings**, never a hidden counter. The code had a single `float morale` plus drivers, and the log
+  could say why — but the three components did not exist, and the crew's **manner** (barks wired to
+  morale) was not built. `docs/story-and-semantics.md` conflict 2 named this.
 - **Says so:** `docs/story-and-semantics.md` (conflict 2); `docs/morale.md`;
   `docs/evidence/gap-morale-and-fatigue.md` ("What is left for this gap").
-- **To close:** the three components as derived reads, and the barks wired to morale (needs the crew
-  layer and a session to judge).
+- **To close:** the three components as derived reads, and the barks wired to morale — both landed;
+  what remains is the owner's read of the manner at a playtest.
 
 ### G15 — No crew scenario exists for the generated decks (see G10) and the fleet's own characters cannot hold posts
 - **Missing:** G3's measured six are *added* to deck 4; none of deck 4's own eight NPCs can hold a post.

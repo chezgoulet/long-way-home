@@ -340,7 +340,7 @@ void Publish( void )
 			if ( c.status == ship::CREW_INJURED ) { ++injured; if ( c.underCare ) ++beds; }
 			else if ( c.status == ship::CREW_ASSIMILATED ) ++assimilated;
 			else if ( c.status == ship::CREW_DEAD ) ++lost;
-			else { ++fit; morale += c.morale; fatigue += c.fatigue; }
+			else { ++fit; morale += ship::Morale(c); fatigue += c.fatigue; }
 		}
 		if ( fit ) { morale /= fit; fatigue /= fit; }
 		gi.cvar_set( "lwh_ship_medical", Fmt( "INJURED %d   BEDS %d   WAITING %d   LOST %d   ASSIMILATED %d   MORALE %d%%   FATIGUE %d%%   TRIAGE %s",

@@ -34,6 +34,7 @@ Home, our own single player and multiplayer, built on the released Raven game so
 - **the record, the log and the memory; veracity, purge, assimilation** — `docs/the-record-and-the-log.md`
 - **rank, access, authority, consoles and screens** — `docs/access-and-authority.md`
 - **the crew's work: the queue, the watch, assignment** — `docs/crew-work.md`
+- **the character layer: skills, traits, conditions, species, and the derivation** — `docs/character-derivation.md`
 - **exploration, survey, contacts, the dilithium constraint** — `docs/exploration-and-science.md`
 - **the Borg** — `docs/borg-incursion.md`
 - **endings and destinations** — `docs/endings.md`

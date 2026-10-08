@@ -521,9 +521,10 @@ static void TestMoraleAndFatigue()
 	Tick(s, 1.0f);
 	CHECK(s.systems[SYS_SENSORS].output == 1.0f); // a fresh, rested watch is a whole hand
 
-	// The same hands, spent and gone through the motions, deliver much less.
+	// The same hands, spent and gone through the motions, deliver much less. Morale is a read of
+	// the three components; a wholly short, hopeless, unheld person reads 0.2.
 	for (CrewMember &c : s.crew)
-		if (c.post == SYS_SENSORS) { c.fatigue = 1.0f; c.morale = 0.2f; }
+		if (c.post == SYS_SENSORS) { c.fatigue = 1.0f; c.deficit = 0.5f; c.outlook = 0.0f; c.holdings = 0.0f; }
 	Tick(s, 0.0f);
 	const float spent = s.systems[SYS_SENSORS].output;
 	CHECK(spent < 1.0f);
@@ -532,24 +533,29 @@ static void TestMoraleAndFatigue()
 
 	// Rested and willing again: the post is a whole hand once more.
 	for (CrewMember &c : s.crew)
-		if (c.post == SYS_SENSORS) { c.fatigue = 0.0f; c.morale = 1.0f; }
+		if (c.post == SYS_SENSORS) { c.fatigue = 0.0f; c.deficit = 0.0f; c.outlook = 1.0f; c.holdings = 1.0f; }
 	Tick(s, 0.0f);
 	CHECK(s.systems[SYS_SENSORS].output == 1.0f);
 
-	// The drivers move: a watch raises fatigue, and green lifts the mood.
+	// The drivers move: a watch raises fatigue, and green lifts the reading.
 	Ship t = NewShip();
 	t.crew[0].watch = 0; t.crew[0].post = SYS_SENSORS; t.crew[0].dept = DEPT_SCIENCES;
-	t.crew[0].fatigue = 0.0f; t.crew[0].morale = 0.5f;
+	t.crew[0].fatigue = 0.0f; t.crew[0].deficit = 0.2f; t.crew[0].outlook = 0.2f; t.crew[0].holdings = 0.2f;
+	const float before = Morale(t.crew[0]);
 	Tick(t, Hours(t, 8.0f));                       // 0800 to 1600, alpha watch on duty throughout
 	CHECK(t.crew[0].fatigue > 0.0f);
-	CHECK(t.crew[0].morale > 0.5f);
+	CHECK(Morale(t.crew[0]) > before);
 
-	// Morale survives a save and a load.
-	for (CrewMember &c : t.crew) c.morale = 0.42f;
+	// The three components, and the reading they produce, survive a save and a load.
+	for (CrewMember &c : t.crew) { c.deficit = 0.30f; c.outlook = 0.40f; c.holdings = 0.50f; }
+	const float read = Morale(t.crew[0]);
 	std::vector<uint8_t> blob = Pack(t);
 	Ship u = NewShip();
 	CHECK(Unpack(blob.data(), blob.size(), u));
-	CHECK(std::fabs(u.crew[0].morale - 0.42f) < 1e-4f);
+	CHECK(std::fabs(u.crew[0].deficit - 0.30f) < 1e-4f);
+	CHECK(std::fabs(u.crew[0].outlook - 0.40f) < 1e-4f);
+	CHECK(std::fabs(u.crew[0].holdings - 0.50f) < 1e-4f);
+	CHECK(std::fabs(Morale(u.crew[0]) - read) < 1e-4f);
 }
 
 static void TestDeterminismAndStepSize()
@@ -1639,8 +1645,8 @@ static void TestMaterialsAndTravel()
 	Tick(united, Hours(united, 24.0f));
 	Tick(split, Hours(split, 24.0f));
 	float um = 0.0f, sm = 0.0f;
-	for (const CrewMember &c : united.crew) if (c.status == CREW_FIT) um += c.morale;
-	for (const CrewMember &c : split.crew) if (c.status == CREW_FIT) sm += c.morale;
+	for (const CrewMember &c : united.crew) if (c.status == CREW_FIT) um += Morale(c);
+	for (const CrewMember &c : split.crew) if (c.status == CREW_FIT) sm += Morale(c);
 	CHECK(sm < um);
 
 	// It is all in the save.
@@ -1682,11 +1688,11 @@ static void TestCrewJusticeAndBorg()
 
 	// A funeral lifts the crew, and only whoever commands holds one.
 	Ship f = NewShip();
-	for (CrewMember &c : f.crew) c.morale = 0.3f;
+	for (CrewMember &c : f.crew) { c.deficit = 0.4f; c.outlook = 0.1f; c.holdings = 0.1f; }
 	CHECK(!HoldFuneral(f));                                   // nobody in particular
 	SetRole(f, ROLE_IN_COMMAND);
-	const float before = f.crew[0].morale;
-	CHECK(HoldFuneral(f) && f.crew[0].morale > before);
+	const float before = Morale(f.crew[0]);
+	CHECK(HoldFuneral(f) && Morale(f.crew[0]) > before);
 
 	// Grief: a death is notified and the quarters sealed; the funeral opens them again. A crew member
 	// asleep on a deck that loses its air dies (their quarters are there, so the injured stay in it).
@@ -2174,8 +2180,8 @@ static void TestResourcesAndPressure()
 	Tick(full, Hours(full, 24.0f));
 	CHECK(full.stores.rations < empty.stores.rations);
 	float em = 0.0f, fm = 0.0f;
-	for (const CrewMember &c : empty.crew) if (c.status == CREW_FIT) em += c.morale;
-	for (const CrewMember &c : full.crew) if (c.status == CREW_FIT) fm += c.morale;
+	for (const CrewMember &c : empty.crew) if (c.status == CREW_FIT) em += Morale(c);
+	for (const CrewMember &c : full.crew) if (c.status == CREW_FIT) fm += Morale(c);
 	CHECK(fm < em);
 
 	// A hearing releases the innocent, and a conviction keeps them confined.
@@ -2740,7 +2746,7 @@ static void TestDeassimilation()
 	Tick(scarred, 1.0f); Tick(clean, 1.0f);
 	scarred.crew[who].assimScar = 1.0f;
 	Tick(scarred, Hours(scarred, 24.0f)); Tick(clean, Hours(clean, 24.0f));
-	CHECK(scarred.crew[who].morale < clean.crew[who].morale);
+	CHECK(Morale(scarred.crew[who]) < Morale(clean.crew[who]));
 
 	// It is all in the save.
 	std::vector<uint8_t> blob = Pack(s);
@@ -2962,8 +2968,8 @@ static void TestHolodeckAndQuarters()
 	Ship s = NewShip();
 	Tick(s, 1.0f);
 	// Recreation lifts the mood.
-	s.crew[0].morale = 0.5f;
-	CHECK(RunHolodeck(s, HOLO_RECREATION, 0) && s.crew[0].morale > 0.5f);
+	s.crew[0].deficit = 0.2f; s.crew[0].outlook = 0.3f; s.crew[0].holdings = 0.3f; // reads 0.5
+	CHECK(RunHolodeck(s, HOLO_RECREATION, 0) && Morale(s.crew[0]) > 0.5f);
 	// Training grants the credential for the crew member's own department station.
 	CHECK(!Qualified(s.crew[0], STN_CONN));  // Janeway, command: the Conn is the department's station
 	CHECK(RunHolodeck(s, HOLO_TRAINING, 0) && Qualified(s.crew[0], STN_CONN));
@@ -2983,8 +2989,8 @@ static void TestHolodeckAndQuarters()
 	Tick(calm, Hours(calm, 24.0f));
 	Tick(hurt, Hours(hurt, 24.0f));
 	float cm = 0.0f, hm = 0.0f;
-	for (const CrewMember &c : calm.crew) if (c.status == CREW_FIT) cm += c.morale;
-	for (const CrewMember &c : hurt.crew) if (c.status == CREW_FIT) hm += c.morale;
+	for (const CrewMember &c : calm.crew) if (c.status == CREW_FIT) cm += Morale(c);
+	for (const CrewMember &c : hurt.crew) if (c.status == CREW_FIT) hm += Morale(c);
 	CHECK(hm < cm);
 
 	// Living conditions: better quarters, at a cost in material.
@@ -3227,7 +3233,7 @@ static void TestSoak()
 			CHECK(s.decks[d].assimilated >= 0.0f && s.decks[d].assimilated <= 1.0f);
 		}
 		for (const CrewMember &c : s.crew) {
-			CHECK(c.morale >= 0.0f && c.morale <= 1.0f && !std::isnan(c.morale));
+			CHECK(Morale(c) >= 0.0f && Morale(c) <= 1.0f && !std::isnan(Morale(c)));
 			CHECK(c.fatigue >= 0.0f && c.fatigue <= 1.0f);
 			CHECK(c.severity >= 0.0f && c.severity <= 1.0f && c.wounds >= 0.0f && c.wounds <= 1.0f);
 			CHECK(c.deck <= DECKS);
@@ -3521,9 +3527,9 @@ static void TestAccessAndAuthority()
 	CHECK(!MayOperate(s, junior, STN_ENGINEERING)); // not their department, no credential, no grant
 	// Access and authority stay two things: a crew member with no morale still operates their station.
 	CHECK(MayOperate(s.crew[head], STN_ENGINEERING));
-	s.crew[head].morale = 0.0f;
+	s.crew[head].deficit = 1.0f; s.crew[head].outlook = 0.0f; s.crew[head].holdings = 0.0f; // reads 0.0
 	CHECK(MayOperate(s.crew[head], STN_ENGINEERING)); // access is not morale-governed
-	s.crew[head].morale = 1.0f;
+	s.crew[head].deficit = 0.0f; s.crew[head].outlook = 1.0f; s.crew[head].holdings = 1.0f;
 
 	// Delegation: the head grants Engineering for a shift. The grantee is not already cleared (a
 	// credential would mask it), so check a station the junior does not hold, then revoke it.
@@ -3929,8 +3935,8 @@ static void TestHullSealFireRations()
 	Tick(fed, Hours(fed, 24.0f));
 	float hungryMorale = 0.0f, fedMorale = 0.0f;
 	int hn = 0, fn = 0;
-	for (const CrewMember &c : hungry.crew) if (c.status == CREW_FIT) { hungryMorale += c.morale; ++hn; }
-	for (const CrewMember &c : fed.crew) if (c.status == CREW_FIT) { fedMorale += c.morale; ++fn; }
+	for (const CrewMember &c : hungry.crew) if (c.status == CREW_FIT) { hungryMorale += Morale(c); ++hn; }
+	for (const CrewMember &c : fed.crew) if (c.status == CREW_FIT) { fedMorale += Morale(c); ++fn; }
 	CHECK(hn > 0 && fn > 0 && hungryMorale / hn < fedMorale / fn);
 
 	// Fire and rations are in the save.
@@ -5225,8 +5231,305 @@ static int PrintVoice()
 	return failures;
 }
 
+// ---- the character layer (O8, docs/character-derivation.md) -------------------------------------
+
+// The derivation is a function of the record and the seed, not a table of hand-written people. The
+// same seed produces the same person, which is what "saves must replay identically" requires; a
+// different seed produces a different crew.
+static void TestTheDerivation()
+{
+	g_test = "the derivation is a function of the record and the seed";
+	Ship a = NewShip(), b = NewShip();
+	CHECK(a.crew.size() == b.crew.size());
+	bool same = true;
+	for (size_t i = 0; i < a.crew.size(); ++i) {
+		const CrewMember &x = a.crew[i], &y = b.crew[i];
+		if (x.name != y.name || x.species != y.species || x.traits != y.traits ||
+		    x.desire != y.desire || x.need != y.need || x.fear != y.fear) { same = false; break; }
+		for (int k = 0; k < SKILL_COUNT; ++k) if (x.skills[k] != y.skills[k]) { same = false; break; }
+		if (!same) break;
+	}
+	CHECK(same); // the same seed, the same crew
+
+	Config cfgA; cfgA.seed = 909; Ship c = NewShip(cfgA);
+	Config cfgB; cfgB.seed = 910; Ship d = NewShip(cfgB);
+	int differences = 0;
+	for (size_t i = 0; i < c.crew.size() && i < d.crew.size(); ++i)
+		if (c.crew[i].species != d.crew[i].species || c.crew[i].traits != d.crew[i].traits ||
+		    c.crew[i].desire != d.crew[i].desire) ++differences;
+	CHECK(differences > 20); // a different seed is a different crew
+
+	// The four kinds are present, and species is not a skill bonus: Vulcans and humans have the
+	// same average skill, so no species reads as "the good one".
+	Ship s = NewShip();
+	int vulcanSum = 0, vulcanN = 0, humanSum = 0, humanN = 0;
+	for (const CrewMember &m : s.crew) {
+		int t = 0;
+		for (int k = 0; k < SKILL_COUNT; ++k) t += m.skills[k];
+		if (m.species == SPECIES_VULCAN) { vulcanSum += t; ++vulcanN; }
+		else if (m.species == SPECIES_HUMAN) { humanSum += t; ++humanN; }
+	}
+	CHECK(vulcanN > 0 && humanN > 0);
+	const float vulcanAvg = static_cast<float>(vulcanSum) / vulcanN;
+	const float humanAvg = static_cast<float>(humanSum) / humanN;
+	CHECK(std::fabs(vulcanAvg - humanAvg) < 1.5f); // no species is the good one
+}
+
+// A condition carries its source, its cure and its visibility; one arrives, is recorded, and is
+// cured; the set stays small.
+static void TestConditionLifecycle()
+{
+	g_test = "a condition arrives, is recorded with source and cure, and is cured";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int who = 30;
+	s.crew[who].conditionCount = 0;
+	const size_t before = s.log.size();
+	const uint8_t all = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
+	CHECK(Sicken(s, who, COND_CONCUSSED, "concussed in the coolant bay", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SICKBAY, all));
+	const Condition *k = FindCondition(s.crew[who], COND_CONCUSSED);
+	CHECK(k != nullptr);
+	CHECK(k->source == "concussed in the coolant bay");
+	CHECK(k->clears == CLEAR_SICKBAY);
+	CHECK((k->visible & CVIS_PLAYER) && (k->visible & CVIS_CREW) && (k->visible & CVIS_LOG));
+	CHECK(s.log.size() > before); // recorded on arrival
+	// A condition nobody can see is refused: it would be a hidden penalty.
+	CHECK(!Sicken(s, who, COND_AFRAID, "an unnamed dread", CVAL_DEBUFF, CMAG_SLIGHT, CLEAR_REST, 0));
+	CHECK(FindCondition(s.crew[who], COND_AFRAID) == nullptr);
+	const size_t afterArrival = s.log.size();
+	CHECK(Cure(s, who, COND_CONCUSSED)); // the cure is recorded too
+	CHECK(FindCondition(s.crew[who], COND_CONCUSSED) == nullptr);
+	CHECK(s.log.size() > afterArrival);
+	// Two or three at a time, never a soup.
+	CHECK(Sicken(s, who, COND_EXHAUSTED, "hasn't slept enough", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_REST, all));
+	CHECK(Sicken(s, who, COND_HUNGRY, "the galley is empty", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_MEAL, all));
+	CHECK(Sicken(s, who, COND_HYPOXIC, "the deck has no air", CVAL_DEBUFF, CMAG_SHARP, CLEAR_SICKBAY, all));
+	CHECK(s.crew[who].conditionCount == CONDITION_MAX);
+	CHECK(!Sicken(s, who, COND_EXHAUSTED, "again", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_REST, all)); // dedup
+	CHECK(Sicken(s, who, COND_GRIEVING, "lost someone", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SALIENCE, all));
+	CHECK(s.crew[who].conditionCount == CONDITION_MAX); // evicted, not stacked
+}
+
+// Morale is read from the three components, never a stored counter: change one and the reading
+// moves, and the reason names it. The log says which one moved and why.
+static void TestMoraleIsReadFromThree()
+{
+	g_test = "morale is read from deficit, outlook and holdings, and the log names the reason";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	CrewMember c = s.crew[30];
+	c.conditionCount = 0;
+	c.deficit = 0.2f; c.outlook = 0.6f; c.holdings = 0.6f;
+	CHECK(std::fabs(Morale(c) - (0.40f * 0.8f + 0.35f * 0.6f + 0.25f * 0.6f)) < 1e-5f);
+	const float before = Morale(c);
+	c.outlook = 0.0f;
+	CHECK(Morale(c) < before); // one component moved, and the reading moved with it
+	CHECK(std::string(MoraleReason(c)) == "does not believe the course is worth the cost");
+	c.outlook = 0.6f; c.deficit = 1.0f;
+	CHECK(Morale(c) < before);
+	CHECK(std::string(MoraleReason(c)) == "short of what they need" ||
+	      std::string(MoraleReason(c)) == "short on sleep");
+	// And the log carries it: the person carrying the most of it is named by component.
+	s.crew[30].deficit = 1.0f; s.crew[30].outlook = 0.0f; s.crew[30].holdings = 0.0f;
+	s.lastMoodLog = -1.0e9;
+	Tick(s, Hours(s, 1.0f));
+	bool named = false;
+	for (const LogEntry &e : s.log)
+		if (e.what.find("short of what they need") != std::string::npos ||
+		    e.what.find("short on sleep") != std::string::npos) named = true;
+	CHECK(named);
+}
+
+// Species are capabilities, needs and susceptibilities -- never bonuses. The record carries words
+// and prone conditions, and the only comparison one can make is a need.
+static void TestSpeciesAreCapabilitiesNotBonuses()
+{
+	g_test = "species are capabilities, needs and susceptibilities -- never bonuses";
+	for (int sp = 0; sp < SPECIES_COUNT; ++sp) {
+		const SpeciesRecord &r = SpeciesOf(sp);
+		CHECK(r.name && r.name[0]);
+		bool anyCapability = false;
+		for (int i = 0; i < SPECIES_TRAIT_MAX; ++i) if (r.capabilities[i]) anyCapability = true;
+		CHECK(anyCapability);
+	}
+	// Rest hours are the shape of rest, a need with a cost, not a bonus: the Vulcan needs less of
+	// it and must meditate, the Borg needs the alcove, the hologram needs none and is different.
+	CHECK(SpeciesOf(SPECIES_VULCAN).restNeedHours < SpeciesOf(SPECIES_HUMAN).restNeedHours);
+	CHECK(SpeciesOf(SPECIES_HUMAN).sleeps);
+	CHECK(!SpeciesOf(SPECIES_VULCAN).sleeps);
+	CHECK(!SpeciesOf(SPECIES_HOLOGRAM).needsFood && !SpeciesOf(SPECIES_HOLOGRAM).sleeps);
+	// A species need produces a condition, and the condition names its source.
+	Ship s = NewShip();
+	int vulcan = -1;
+	for (int i = 19; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].species == SPECIES_VULCAN) { vulcan = i; break; }
+	if (vulcan < 0) { CHECK(false); return; }
+	s.crew[vulcan].watch = 0; // on duty at 0800, so the cycle is not slept off
+	s.crew[vulcan].fatigue = 0.8f;
+	s.crew[vulcan].conditionCount = 0;
+	s.clock = 8 * 3600;
+	Tick(s, Hours(s, 1.0f));
+	const Condition *k = FindCondition(s.crew[vulcan], COND_MEDITATION_DUE);
+	CHECK(k != nullptr);
+	if (k) CHECK(k->source == "the meditation cycle, unkept");
+
+	// The galley and the watch bill read species and adapt: a hologram does not tire, and does not
+	// eat -- heterogeneity is a logistics difference, not a stat.
+	Ship h = NewShip();
+	int doctor = -1;
+	for (int i = 0; i < static_cast<int>(h.crew.size()); ++i)
+		if (h.crew[i].species == SPECIES_HOLOGRAM) { doctor = i; break; }
+	CHECK(doctor >= 0);
+	h.crew[doctor].watch = 0;
+	h.crew[doctor].fatigue = 0.9f;
+	Tick(h, Hours(h, 8.0f)); // a full watch on duty
+	CHECK(h.crew[doctor].fatigue == 0.0f); // no fatigue at all for a hologram
+
+	Ship eats = NewShip(), fasts = NewShip();
+	eats.stores.rations = 60.0f; fasts.stores.rations = 60.0f;
+	eats.crew[doctor].species = SPECIES_HUMAN; // the same person, made to eat
+	Tick(fasts, Hours(fasts, 24.0f));
+	Tick(eats, Hours(eats, 24.0f));
+	CHECK(eats.stores.rations < fasts.stores.rations);
+}
+
+// The manner reads at three levels: the same person sounds like what they feel.
+static void TestManner()
+{
+	g_test = "the manner reads at three morale levels";
+	Ship s = NewShip();
+	CrewMember c = s.crew[30];
+	c.conditionCount = 0;
+	c.deficit = 0.80f; c.outlook = 0.10f; c.holdings = 0.10f; const char *lo = MannerLine(c);
+	c.deficit = 0.30f; c.outlook = 0.50f; c.holdings = 0.50f; const char *mid = MannerLine(c);
+	c.deficit = 0.00f; c.outlook = 0.90f; c.holdings = 0.90f; const char *hi = MannerLine(c);
+	CHECK(lo && mid && hi);
+	CHECK(std::string(lo) != std::string(mid));
+	CHECK(std::string(mid) != std::string(hi));
+	CHECK(std::string(lo) != std::string(hi));
+	// The band names are the document's own.
+	CHECK(std::string(MoraleBandName(0.9f)) == "fit");
+	CHECK(std::string(MoraleBandName(0.6f)) == "worn");
+	CHECK(std::string(MoraleBandName(0.4f)) == "strained");
+	CHECK(std::string(MoraleBandName(0.1f)) == "at breaking point");
+}
+
+// The whole layer round-trips the save: the three reads and the conditions are dynamic; the static
+// half comes back from the seed.
+static void TestCharacterSaveRoundTrip()
+{
+	g_test = "the character layer round-trips the save";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	s.crew[30].conditionCount = 0;
+	s.crew[30].deficit = 0.33f; s.crew[30].outlook = 0.22f; s.crew[30].holdings = 0.44f;
+	const uint8_t all = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
+	CHECK(Sicken(s, 30, COND_GRIEVING, "lost someone in the coolant bay", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SALIENCE, all));
+	std::vector<uint8_t> blob = Pack(s);
+	Ship u = NewShip();
+	CHECK(Unpack(blob.data(), blob.size(), u));
+	CHECK(std::fabs(u.crew[30].deficit - 0.33f) < 1e-4f);
+	CHECK(std::fabs(u.crew[30].outlook - 0.22f) < 1e-4f);
+	CHECK(std::fabs(u.crew[30].holdings - 0.44f) < 1e-4f);
+	const Condition *k = FindCondition(u.crew[30], COND_GRIEVING);
+	CHECK(k && k->source == "lost someone in the coolant bay" && k->clears == CLEAR_SALIENCE);
+	// The static half came back identical, because it is derived from the same seed.
+	for (size_t i = 0; i < u.crew.size() && i < s.crew.size(); ++i) {
+		CHECK(u.crew[i].species == s.crew[i].species);
+		CHECK(u.crew[i].traits == s.crew[i].traits);
+		for (int kk = 0; kk < SKILL_COUNT; ++kk) CHECK(u.crew[i].skills[kk] == s.crew[i].skills[kk]);
+	}
+}
+
+// One crew member in full, for the evidence: the four kinds, the drives, and the morale reads.
+static void PrintOneCrew(const CrewMember &c, int idx)
+{
+	std::printf("  [%d] %s -- %s, %s, %s department, post %s\n", idx, c.name.c_str(),
+		SpeciesName(c.species), c.rank >= 5 ? "senior officer" : c.rank >= 3 ? "officer" : "crewman",
+		c.dept == DEPT_COMMAND ? "command" : c.dept == DEPT_ENGINEERING ? "engineering"
+			: c.dept == DEPT_SECURITY ? "security" : c.dept == DEPT_SCIENCES ? "sciences" : "medical",
+		c.post < SYS_COUNT ? Spec(static_cast<SystemId>(c.post)).name : "department duties");
+	std::printf("      skills:");
+	for (int k = 0; k < SKILL_COUNT; ++k) std::printf(" %s %d", SkillName(static_cast<uint8_t>(k)), c.skills[k]);
+	std::printf("   (effective engineering %.1f)\n", EffectiveSkill(c, SKILL_ENGINEERING));
+	std::printf("      traits:");
+	for (int t = 0; t < TRAIT_COUNT; ++t) if (HasTrait(c, static_cast<uint8_t>(t))) std::printf(" %s;", TraitName(static_cast<uint8_t>(t)));
+	std::printf("\n");
+	std::printf("      drives: wants %s; short of %s; afraid of %s\n", DesireName(c.desire), NeedName(c.need), FearName(c.fear));
+	const SpeciesRecord &sp = SpeciesOf(c.species);
+	std::printf("      species: %s\n", sp.name);
+	for (int i = 0; i < SPECIES_TRAIT_MAX; ++i)
+		if (sp.capabilities[i]) std::printf("        capability: %s\n", sp.capabilities[i]);
+	for (int i = 0; i < SPECIES_TRAIT_MAX; ++i)
+		if (sp.needs[i]) std::printf("        need: %s\n", sp.needs[i]);
+	for (int i = 0; i < SPECIES_TRAIT_MAX; ++i)
+		if (sp.susceptibilities[i]) std::printf("        susceptibility: %s\n", sp.susceptibilities[i]);
+	std::printf("      conditions (%d):", c.conditionCount);
+	for (int i = 0; i < c.conditionCount; ++i) {
+		const Condition &k = c.conditions[i];
+		std::printf("\n        %s (%s, %s) from \"%s\"; clears with %s; visible to %s%s%s",
+			ConditionName(k.id), ConditionValenceName(k.valence), ConditionMagnitudeName(k.magnitude),
+			k.source.c_str(), ConditionClearName(k.clears),
+			(k.visible & CVIS_PLAYER) ? "player" : "", (k.visible & CVIS_CREW) ? " crew" : "",
+			(k.visible & CVIS_LOG) ? " log" : " (not logged)");
+	}
+	std::printf("\n");
+	std::printf("      morale %.2f (%s) = deficit %.2f (heart %.2f) / outlook %.2f / holdings %.2f -- %s\n",
+		Morale(c), MoraleBandName(Morale(c)), c.deficit, 1.0f - c.deficit, c.outlook, c.holdings, MoraleReason(c));
+	std::printf("      says: \"%s\"\n", MannerLine(c));
+}
+
+// Three generated crew members, printed in full -- the acceptance the owner judges.
+static int PrintCrew()
+{
+	Ship s = NewShip();
+	// A day and a half in the normal course, then a hard stretch -- battle stations and an empty
+	// galley -- so the conditions shown are the ship's own and not posed on the people.
+	Tick(s, Hours(s, 36.0f));
+	s.alert = ALERT_RED;
+	s.stores.rations = 0.0f;
+	SetEnabled(s, SYS_REPLICATORS, false);
+	Tick(s, Hours(s, 8.0f));
+	std::printf("== three generated crew members, in full (O8; docs/character-derivation.md)\n");
+	// One from each of three departments, deterministically: the first fit, unnamed member of each.
+	int chosen[3] = {-1, -1, -1};
+	int nChosen = 0;
+	bool deptUsed[DEPT_COUNT] = {false};
+	for (int i = 19; i < static_cast<int>(s.crew.size()) && nChosen < 3; ++i) {
+		if (s.crew[i].status != CREW_FIT || deptUsed[s.crew[i].dept]) continue;
+		deptUsed[s.crew[i].dept] = true;
+		chosen[nChosen++] = i;
+	}
+	for (int k = 0; k < nChosen; ++k) PrintOneCrew(s.crew[chosen[k]], chosen[k]);
+	return 0;
+}
+
+// The manner at three morale levels, for one person -- a demonstration, not a verdict.
+static int PrintManner()
+{
+	Ship s = NewShip();
+	const CrewMember &base = s.crew[19];
+	CrewMember c = base;
+	std::printf("== the manner at three morale levels (G14, second half)\n");
+	std::printf("  one crew member: %s, %s; wants %s; afraid of %s\n", c.name.c_str(),
+		SpeciesName(c.species), DesireName(c.desire), FearName(c.fear));
+	struct Level { const char *label; float deficit, outlook, holdings; };
+	const Level levels[3] = {
+		{"fit", 0.05f, 0.85f, 0.80f},
+		{"worn", 0.35f, 0.45f, 0.45f},
+		{"at breaking point", 0.80f, 0.10f, 0.15f},
+	};
+	for (const Level &l : levels) {
+		c.deficit = l.deficit; c.outlook = l.outlook; c.holdings = l.holdings;
+		std::printf("  %-16s morale %.2f (%s): \"%s\"\n", l.label, Morale(c), MoraleBandName(Morale(c)), MannerLine(c));
+	}
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
+	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
+	if (argc > 1 && !std::strcmp(argv[1], "--manner")) return PrintManner();
 	if (argc > 1 && !std::strcmp(argv[1], "--power")) return PrintPower();
 	if (argc > 1 && !std::strcmp(argv[1], "--meeting")) return PrintMeeting();
 	if (argc > 1 && !std::strcmp(argv[1], "--voice")) return PrintVoice();
@@ -5333,6 +5636,12 @@ int main(int argc, char **argv)
 	TestRenderKeyAndCache();
 	TestPlanMeetingAudio();
 	TestAudioSaveRoundTrip();
+	TestTheDerivation();
+	TestConditionLifecycle();
+	TestMoraleIsReadFromThree();
+	TestSpeciesAreCapabilitiesNotBonuses();
+	TestManner();
+	TestCharacterSaveRoundTrip();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);
