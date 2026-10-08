@@ -33,6 +33,10 @@ echo "==> tools: unit tests"
 python3 -m unittest discover -s tests/tools -q
 
 echo
+echo "==> hooks: the register matches the public surface"
+"$ROOT/scripts/hooks-check.sh"
+
+echo
 echo "==> python: syntax"
 find tools tests -name '*.py' -print0 | PYTHONPYCACHEPREFIX="$WORK/pycache" xargs -0 python3 -m py_compile
 echo "    ok"
