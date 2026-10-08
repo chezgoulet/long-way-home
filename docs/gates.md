@@ -484,6 +484,35 @@ Remaining, and deliberately not begun: the **overlay** (M3), the **async generat
 (M4), **voice out** and the cue track (M5), and **voice in** and the ship's computer (M6). The
 **scenario content** is authored against this frame next, per `docs/programme-meetings-and-voice.md`.
 
+### The audio plumbing, phase two — three sources, one owner each
+
+`docs/staff-meetings.md`, phase two (the audio model and the render queue), implemented 2026-10-08 on
+`feat/the-audio-plumbing` (`docs/evidence/audio-plumbing.md`, `TestTrackOwnership`,
+`TestCueCannotStopALine`, `TestCueSet`, `TestCueEmitSite`, `TestRenderKeyAndCache`, `TestPlanMeetingAudio`,
+`TestAudioSaveRoundTrip`, `PrintVoice`; `scripts/audio-check.sh`; `tools/voice/render.py`). **Save format
+unchanged (52)** — the audio state is host-local and player-local, so nothing new is saved. **No audio
+device, no sound, no model call, no live call**: the overlay, the in-game playback and the live model
+call are phase three.
+
+- **three sources, one owner each**: `TRACK_DIALOGUE` ← the renderer, `TRACK_CUE` ← the cue player,
+  `TRACK_LIVE` ← the live line (named, not built); `TrackOwner` is the invariant, and a non-owner's
+  **write and retirement are refused** ✅
+- **one retirement rule per reply**: `VoiceRetire` is the only path, and it refuses any producer that
+  does not own the reply's track ✅
+- **the cue track cannot stop a dialogue line**: a cue plays and retires, the line plays on ✅
+- **the meeting plays with the queue unfinished**: the skeleton carries it; the plan is a read and
+  deduplicated ✅
+- **the cache key** (`voice, text, delivery`, length-prefixed) makes a second render a **no-op**, and
+  `render.py` skips a clip already on disk ✅; the cache is **pruned with the save** ✅ and the
+  repository stays **clean of audio** ✅
+- **the warm happens in the async window**, and says so in the log ✅
+- **the cue emit site fires in the normal case**, read by its emission and not a count ✅
+- **the delivery direction reaches `synthesize.py --exaggeration`** end to end (order → 0.80) ✅
+- `scripts/test.sh`, `scripts/check.sh`, `scripts/meeting-check.sh` and `scripts/audio-check.sh` exit 0 ✅
+
+Remaining for the meeting lane: the **async generator** and novelty detection (M4), the **overlay**
+(M3), and the **meeting that plays the rendered audio** (the player itself, phase three).
+
 ### Then, in rough order
 
 **First batch done (2026-10-07)** — `docs/evidence/backlog-materials-and-crew.md`, `scripts/backlog-check.sh`,

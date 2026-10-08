@@ -54,6 +54,13 @@ vec3_t glanceAngles = { 0, 0, 0 }; // where the glance test points the player, r
 bool haveGlanceAim = false;
 bool bodyApplied = false;          // S10: the player's model set from the crew record this map
 
+// The audio plumbing (docs/staff-meetings.md, phase two). The mixer and the render queue are
+// host-local, not ship state: the audio is player-local data, derived from the queued briefs and
+// cached beside the save. Nothing here is saved, so the save format is unchanged.
+const char *const VOICE_DIR = "ship/voice"; // the cache, beside the save; never in the repository
+ship::VoiceMixer voiceMixer;
+ship::VoiceRender voiceRender;
+
 void WriteFile( const char *path, const void *data, int len )
 {
 	fileHandle_t f = 0;
@@ -127,6 +134,38 @@ std::string Fmt( const char *fmt, ... )
 	vsnprintf( buf, sizeof( buf ), fmt, ap );
 	va_end( ap );
 	return buf;
+}
+
+// The render manifest the Python worker (tools/voice/render.py) drains: one JSON object per queued
+// line, carrying the key, the voice, the text, the delivery and the exaggeration the delivery asks
+// for. This is the seam: the direction the meeting wrote arrives at the synthesizer's --exaggeration.
+std::string JsonEsc( const std::string &s )
+{
+	std::string o;
+	for ( char c : s )
+	{
+		switch ( c )
+		{
+			case '"': o += "\\\""; break;
+			case '\\': o += "\\\\"; break;
+			case '\n': o += "\\n"; break;
+			case '\r': o += "\\r"; break;
+			case '\t': o += "\\t"; break;
+			default: o += c; break;
+		}
+	}
+	return o;
+}
+
+void VoiceWriteManifest()
+{
+	std::string out;
+	for ( const ship::RenderJob &j : voiceRender.queue )
+		out += Fmt( "{\"key\":\"%s\",\"voice\":\"%s\",\"text\":\"%s\",\"delivery\":\"%s\",\"exaggeration\":%.2f}\n",
+			JsonEsc( j.key ).c_str(), JsonEsc( j.voice ).c_str(), JsonEsc( j.text ).c_str(),
+			ship::DeliveryName( j.delivery ), j.exaggeration );
+	WriteFile( "ship/voice/render.jsonl", out.data(), static_cast<int>( out.size() ) );
+	gi.Printf( "SHIP: voice: wrote ship/voice/render.jsonl (%d job(s))\n", static_cast<int>( voiceRender.queue.size() ) );
 }
 
 // The UI is a separate module and cannot see the ship, so the ship's state is published as cvars
@@ -784,6 +823,93 @@ void RunTest( void )
 			WriteReport( "ship/meeting.txt" );
 			gi.SendConsoleCommand( "quit\n" );
 			step = 2;
+		}
+		return;
+	}
+	if ( g_shipTest->integer == 81 )
+	{//the audio plumbing (docs/staff-meetings.md, phase two): three sources with one owner each, the
+	 //cue track that cannot stop a line, the render queue and its cache, the warm in the async window,
+	 //and the delivery direction carried to --exaggeration. No model is loaded and no sound is played.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		voiceRender.dir = VOICE_DIR;
+		if ( step == 0 && level.time >= 2000 )
+		{//the normal case: the watch change emits a brief, and the async window opens on it
+			vessel.clock = ( std::floor( vessel.clock / ship::SECONDS_PER_WATCH ) + 1.0 ) * ship::SECONDS_PER_WATCH;
+			ship::Tick( vessel, 1.0f );
+			gi.Printf( "SHIP: voice test: %d brief(s) queued at the watch change\n", static_cast<int>( ship::PendingMeetings( vessel ).size() ) );
+			if ( !ship::PendingMeetings( vessel ).empty() )
+			{
+				const ship::MeetingBrief mb = ship::PendingMeetings( vessel ).front();
+				const ship::MeetingSkeleton &sk = ship::AuthoredSkeleton( mb.kind );
+				const bool warmed = ship::WarmVoice( vessel, voiceRender, vessel.clock );
+				const int planned = ship::PlanMeetingAudio( voiceRender, vessel, mb, sk );
+				const int again = ship::PlanMeetingAudio( voiceRender, vessel, mb, sk );
+				gi.Printf( "SHIP: voice test: async window: warmed=%d, planned %d line(s), queue unfinished=%d, second plan=%d\n",
+					warmed ? 1 : 0, planned, static_cast<int>( voiceRender.queue.size() ), again );
+				gi.Printf( "SHIP: voice test: the meeting plays with the queue unfinished: %d outcome(s) in \"%s\"\n",
+					sk.outcomeCount, sk.decision.c_str() );
+			}
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 2600 )
+		{//three sources, one owner each: a non-owner cannot write or retire
+			gi.Printf( "SHIP: voice test: three sources, owner each: dialogue=%s, cue=%s, live=%s\n",
+				ship::VoiceProducerName( ship::TrackOwner( ship::TRACK_DIALOGUE ) ),
+				ship::VoiceProducerName( ship::TrackOwner( ship::TRACK_CUE ) ),
+				ship::VoiceProducerName( ship::TrackOwner( ship::TRACK_LIVE ) ) );
+			const int line = ship::VoiceWrite( voiceMixer, ship::PROD_RENDERER, ship::TRACK_DIALOGUE, "line.wav" );
+			const bool cueWrote = ship::VoiceWrite( voiceMixer, ship::PROD_CUE_PLAYER, ship::TRACK_DIALOGUE, "line.wav" ) < 0;
+			const bool cueRetired = !ship::VoiceRetire( voiceMixer, ship::PROD_CUE_PLAYER, line );
+			const int cue = ship::VoiceWrite( voiceMixer, ship::PROD_CUE_PLAYER, ship::TRACK_CUE, ship::CueClip( ship::CUE_BREATH ), ship::CUE_BREATH );
+			ship::VoiceRetire( voiceMixer, ship::PROD_CUE_PLAYER, cue );
+			const bool survives = ship::TrackBusy( voiceMixer, ship::TRACK_DIALOGUE );
+			gi.Printf( "SHIP: voice test: non-owner write refused=%d, non-owner retire refused=%d, the cue did not stop the line=%d\n",
+				cueWrote ? 1 : 0, cueRetired ? 1 : 0, survives ? 1 : 0 );
+			ship::VoiceRetire( voiceMixer, ship::PROD_RENDERER, line );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 3200 )
+		{//the cue emit site, in the normal case, read by its emission and not a count
+			const int cue = ship::EmitCue( vessel, voiceMixer, ship::CUE_BREATH, "the pause before the answer" );
+			gi.Printf( "SHIP: voice test: cue emitted=%d in the normal case: %s (%s)\n", cue,
+				ship::CueName( ship::CUE_BREATH ), ship::CuePurpose( ship::CUE_BREATH ) );
+			ship::VoiceRetire( voiceMixer, ship::PROD_CUE_PLAYER, cue );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 3800 )
+		{//the cache key: same text, same voice, same delivery, same file; a re-render is a no-op
+			if ( !voiceRender.queue.empty() )
+			{
+				const ship::RenderJob job = voiceRender.queue.front();
+				ship::RenderJob fresh;
+				fresh.voice = "a fresh voice"; fresh.text = "A fresh line, never rendered.";
+				fresh.delivery = ship::DELIVERY_REPORT;
+				fresh.exaggeration = ship::DeliveryExaggeration( ship::DELIVERY_REPORT );
+				fresh.key = ship::RenderKey( fresh.voice, fresh.text, fresh.delivery );
+				const int f1 = ship::QueueRender( voiceRender, fresh ); // newly queued
+				const int f2 = ship::QueueRender( voiceRender, fresh ); // a no-op
+				ship::CacheRendered( voiceRender, job.key, ship::VoiceCachePath( voiceRender, job.key ) );
+				const int q3 = ship::QueueRender( voiceRender, job );   // already cached: a no-op
+				gi.Printf( "SHIP: voice test: cache key %s; fresh queue %d, queue again %d, cached requeue %d (0 = a no-op)\n",
+					job.key.c_str(), f1, f2, q3 );
+			}
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 4400 )
+		{//the manifest the Python renderer drains, and the delivery value end to end
+			VoiceWriteManifest();
+			const ship::MeetingSkeleton &sk = ship::AuthoredSkeleton( ship::MEET_WATCH_CHANGE );
+			ship::SynthesisRequest req;
+			if ( sk.outcomeCount > 0 && sk.outcomes[0].lineCount > 0 && ship::LineToSynthesis( sk.outcomes[0].lines[0], req ) )
+				gi.Printf( "SHIP: voice test: delivery %s -> exaggeration %.2f for \"%s\"\n",
+					ship::DeliveryName( req.delivery ), req.exaggeration, req.text.c_str() );
+			const int dropped = ship::PruneVoiceCache( voiceRender );
+			gi.Printf( "SHIP: voice test: pruned with the save: %d entr(ies) dropped, cache now %d\n",
+				dropped, static_cast<int>( voiceRender.cache.size() ) );
+			WriteReport( "ship/voice.txt" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 5;
 		}
 		return;
 	}
@@ -2946,6 +3072,7 @@ void Ship_Init( void )
 	bodyApplied = false;
 	pendingSave.clear();
 	if ( !active ) return;
+	voiceRender.dir = VOICE_DIR; // the cache, beside the save and never in the repository
 
 	// Taking the turbolift is a level change, and the ship must come through it: the state written
 	// at shutdown is read back here. A new game, or a load, starts from its own source instead.
@@ -3158,6 +3285,30 @@ void Svcmd_Ship_f( void )
 	}
 
 	if ( !Q_stricmp( cmd, "status" ) ) { PrintStatus(); return; }
+	if ( !Q_stricmp( cmd, "voice" ) )
+	{//the audio plumbing's cache (docs/asset-doctrine.md): player-local, beside the save, never in
+	 //the repository. "ship voice" reads it; "ship voice prune" is the prune that goes with the save.
+		if ( !Q_stricmp( a, "prune" ) )
+		{
+			std::vector<std::string> files;
+			for ( const ship::VoiceCacheEntry &e : voiceRender.cache )
+				files.push_back( ship::VoiceCachePath( voiceRender, e.key ) );
+			const int dropped = ship::PruneVoiceCache( voiceRender );
+			char home[512] = "";
+			gi.Cvar_VariableStringBuffer( "fs_homepath", home, sizeof( home ) );
+			int removed = 0;
+			for ( const std::string &f : files )
+				if ( home[0] && ::remove( ( std::string( home ) + "/baseEF/" + f ).c_str() ) == 0 ) ++removed;
+			WriteFile( "ship/voice/render.jsonl", "", 0 );
+			gi.Printf( "SHIP: voice cache pruned: %d entr(ies) dropped, %d file(s) removed%s\n", dropped, removed,
+				home[0] ? "" : " (no home path: the index is cleared, the files are the save's own)" );
+			return;
+		}
+		gi.Printf( "SHIP: voice: warm %d, %d line(s) cached, %d queued, dir %s\n",
+			voiceRender.warm ? 1 : 0, static_cast<int>( voiceRender.cache.size() ),
+			static_cast<int>( voiceRender.queue.size() ), voiceRender.dir.c_str() );
+		return;
+	}
 	if ( !Q_stricmp( cmd, "role" ) )
 	{//take up the role g_shipRole names (0 any post, 1 in command, 2 Munro)
 		ship::SetRole( vessel, g_shipRole->integer == 1 ? ship::ROLE_IN_COMMAND : g_shipRole->integer == 2 ? ship::ROLE_MUNRO : ship::ROLE_ANY_POST );
