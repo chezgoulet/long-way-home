@@ -4639,6 +4639,278 @@ std::string WorkReading(const Ship &s, int crew, SystemId id)
 	return line;
 }
 
+// ---- rising to the occasion: the act, its cost, and the memory it leaves ------------------------
+//
+// docs/rising-to-the-occasion.md. Built from the parts that already exist: the drive realisation is
+// the WORK_DRIVE factor the work-bites pass computes, the roll is the failure rule's own, the cost
+// is damage-and-budgets' severity ladder, and the witness memory is the existing mark system. There
+// is no heroism stat and no courage roll: the act is situational, and the same person does it here
+// and does not do it there.
+
+const char *RisingOutcomeName(uint8_t o)
+{
+	static const char *const N[RISING_OUTCOME_COUNT] = { "none", "refused", "held", "failed", "died" };
+	return o < RISING_OUTCOME_COUNT ? N[o] : "?";
+}
+
+std::string RisingDriveAtStake(const CrewMember &c, uint8_t skill, uint8_t context, float stress)
+{
+	if (skill >= SKILL_COUNT || context >= WORK_CONTEXT_COUNT) return std::string();
+	// The work-bites reading, reused: the same factors, and the drive among them. A fear realised by
+	// the task in front of them comes first; the load-based desire (wanting promotion, and the
+	// captain watching) answers when no fear does.
+	WorkFactor f[WORK_FACTOR_MAX];
+	const int n = WorkFactors(c, skill, context, stress, f, WORK_FACTOR_MAX);
+	for (int i = 0; i < n; ++i)
+		if (f[i].kind == WORK_DRIVE) return f[i].name;
+	return std::string();
+}
+
+// The person in front of a post: the same resolution UseSystemAt makes (the first fit, unbrigged
+// hand posted there), so the offer and the use see the same operator.
+static int RisingOperatorAt(const Ship &s, int post)
+{
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status == CREW_FIT && !c.brigged && !c.away && c.post == post) return i;
+	}
+	return -1;
+}
+
+// When nobody stands at the post, the hand the department would send is the one in front of it.
+static int FirstFitOfDept(const Ship &s, Department d)
+{
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status == CREW_FIT && !c.brigged && !c.away && c.dept == d) return i;
+	}
+	return -1;
+}
+
+// The decision: a choice from the drives and the morale, not a dice roll. The fork is the design's
+// recommendation (docs/rising-to-the-occasion.md): the drive decides what low morale does. The
+// returns are true (they will go) with the reason in the log's own words, false (they will not).
+static bool RisingWouldGo(const CrewMember &c, const RisingOffer &o, std::string &reason)
+{
+	const float m = Morale(c);
+	// The reason they were the one is their drive; when one is realised by the task, it travels with
+	// the reason so the log says so.
+	auto with = [&o](const std::string &base) -> std::string {
+		return o.drive.empty() ? base : base + "; " + o.drive;
+	};
+
+	// Afraid of being useless goes anyway, whatever the morale: being useful is all they have.
+	if (c.fear == FEAR_USELESSNESS) {
+		reason = with("afraid of being useless, and being useful is all they have: goes anyway");
+		return true;
+	}
+	if (m >= 0.5f) {
+		// Morale is not broken: the desire carries them, and the realised drive colours it.
+		switch (c.desire) {
+		case DESIRE_TO_PROVE: reason = with("wants to prove it, and this is the moment"); return true;
+		case DESIRE_HOME: reason = with("wants to go home, and the way home is held here"); return true;
+		case DESIRE_A_PERSON: reason = with("has someone aboard to keep safe, so steps up"); return true;
+		case DESIRE_TO_BE_LEFT_ALONE: reason = with("would rather not, but there is no one else"); return true;
+		default: reason = with("wants promotion, and sees the chance"); return true;
+		}
+	}
+	// Low morale: the drive decides the fork.
+	if (c.fear == FEAR_COWARDICE) {
+		if (m >= 0.25f) { reason = with("afraid of being seen a coward, and rather than be thought one"); return true; }
+		reason = with("afraid of being seen a coward, and frozen"); return false;
+	}
+	switch (c.desire) {
+	case DESIRE_PROMOTION:
+	case DESIRE_TO_PROVE:
+		if (m >= 0.30f) { reason = with("wants the recognition, and has nothing left to lose"); return true; }
+		reason = with("wants promotion, but sees no future to earn it in"); return false;
+	case DESIRE_HOME:
+		reason = with("wants to go home: will not spend themselves on this"); return false;
+	case DESIRE_A_PERSON:
+		reason = with("has someone to get home to, and will not leave them"); return false;
+	default:
+		reason = with("wants to be left alone, and does the minimum"); return false;
+	}
+}
+
+RisingOffer OfferRisingTo(const Ship &s, int post, int crew)
+{
+	RisingOffer o;
+	if (post < 0 || post >= SYS_COUNT) return o;
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return o;
+	const CrewMember &c = s.crew[crew];
+	if (c.status != CREW_FIT || c.brigged || c.away) return o;
+
+	o.post = post;
+	o.skill = DepartmentSkill(Spec(static_cast<SystemId>(post)).dept);
+	o.context = WorkContextOf(static_cast<SystemId>(post));
+	o.condition = SystemCondition(s.systems[post]);
+	o.stress = StressNow(s);
+	o.candidate = crew;
+	o.drive = RisingDriveAtStake(c, o.skill, o.context, o.stress);
+
+	// If the hand in front of it can already hold it, there is no rising: a post a competent person
+	// is standing at does not need a hero.
+	if (EffectiveSkill(c, o.skill) >= RISING_QUALIFIED) { o.qualified = crew; return o; }
+	o.offered = true;
+	if (!RisingWouldGo(c, o, o.reason)) o.choice = RISING_REFUSED;
+	return o;
+}
+
+RisingOffer OfferRising(const Ship &s, int post)
+{
+	if (post < 0 || post >= SYS_COUNT) return RisingOffer();
+	int candidate = RisingOperatorAt(s, post);
+	if (candidate < 0) candidate = FirstFitOfDept(s, Spec(static_cast<SystemId>(post)).dept);
+	return OfferRisingTo(s, post, candidate);
+}
+
+float RisingOdds(const RisingOffer &o, const CrewMember &c, const WorkFactor *f, int n)
+{
+	const float base = WorkOdds(o.condition, f, n);
+	if (base <= 0.0f) return 0.0f; // a nominal post still fails no one, whatever the hand
+	const float shortfall = std::max(0.0f, RISING_QUALIFIED - EffectiveSkill(c, o.skill));
+	const float odds = base * (1.0f + shortfall * RISING_BEYOND_SLOPE);
+	// WORSE than a qualified hand (the shortfall raised it), and success is never impossible: a
+	// heroism that cannot succeed is not a choice, it is a formality.
+	return std::min(1.0f - RISING_MIN_SUCCESS, odds);
+}
+
+// The roll: the odds are checked first, then the severity, exactly as the failure rule says.
+// ANOMALY_NONE means the post held; anything else is how badly it let go.
+static uint8_t RollRising(float condition, float stress, float odds, uint32_t roll)
+{
+	if (odds <= 0.0f) return ANOMALY_NONE;
+	const double u = static_cast<double>(roll) / 4294967296.0;
+	if (u >= static_cast<double>(odds)) return ANOMALY_NONE;
+	return AnomalySeverityFor(condition, stress);
+}
+
+// The witnesses: the crew on the deck where it happened. Presence is the provenance, and a MEM_SAW
+// mark means "saw it myself" (docs/memory-and-consequence.md); telling the rest is Brief's path,
+// and is not this. They remember the hero by name, and their regard moves with it.
+static int RisingWitnesses(Ship &s, int hero, float valence)
+{
+	if (hero < 0 || hero >= static_cast<int>(s.crew.size())) return 0;
+	const int deck = s.crew[hero].deck;
+	if (deck < 1) return 0; // nobody is on a deck we cannot name
+	int seen = 0;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		if (i == hero) continue;
+		CrewMember &w = s.crew[i];
+		if (w.status != CREW_FIT || w.deck != deck) continue;
+		Remember(s, i, MEM_RESCUE, hero, MEM_SAW, valence);
+		// Bond and allegiance move together: holdings is the allegiance read, and the morale read
+		// with it (docs/affinities-and-allegiance.md).
+		w.holdings = std::min(1.0f, w.holdings + RISING_HOLDINGS_RISE);
+		++seen;
+	}
+	return seen;
+}
+
+uint8_t AttemptRising(Ship &s, int post, int crew, uint32_t roll, std::string *out)
+{
+	if (post < 0 || post >= SYS_COUNT) return RISING_NONE;
+	const RisingOffer o = (crew >= 0) ? OfferRisingTo(s, post, crew) : OfferRising(s, post);
+	if (!o.offered || o.candidate < 0) return RISING_NONE;
+	const std::string postName = Spec(static_cast<SystemId>(post)).name;
+
+	// A refusal is a decision, not a bug: the log says why they would not.
+	if (o.choice == RISING_REFUSED) {
+		const std::string line = s.crew[o.candidate].name + " will not hold the " + postName + ": " + o.reason;
+		LogEvent(s, s.crew[o.candidate].name, "crew", line);
+		if (out) *out = line;
+		return RISING_REFUSED;
+	}
+
+	CrewMember &hero = s.crew[o.candidate];
+	WorkFactor factors[WORK_FACTOR_MAX];
+	const int n = WorkFactors(hero, o.skill, o.context, o.stress, factors, WORK_FACTOR_MAX);
+	const float odds = RisingOdds(o, hero, factors, n);
+	const uint8_t sev = RollRising(o.condition, o.stress, odds, roll);
+
+	// The cost, and it is not optional. The strain tells whatever happens: a condition, named and
+	// with a cure. `Sicken` is the same bounded, sourced, visible path everything else uses, so a
+	// cost nobody can see cannot happen.
+	const std::string cause = "held the " + postName;
+	const uint8_t all = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
+	bool costed = Sicken(s, o.candidate, COND_EXHAUSTED, cause, CVAL_DEBUFF, CMAG_CLEAR, CLEAR_REST, all);
+	if (!costed) costed = Sicken(s, o.candidate, COND_HYPOXIC, cause, CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SICKBAY, all);
+	if (!costed && hero.status == CREW_FIT) { hero.status = CREW_INJURED; hero.severity = std::max(hero.severity, 0.3f); }
+
+	// What came of it. A failure is not a wasted attempt: it still cost, and it is still remembered.
+	uint8_t result = RISING_SUCCEEDED;
+	if (sev >= ANOMALY_CATASTROPHIC) result = RISING_DIED;
+	else if (sev != ANOMALY_NONE) result = RISING_FAILED;
+
+	// The post lets go when the attempt fails: it is damaged, and it hurts the one holding it.
+	if (sev != ANOMALY_NONE) {
+		s.systems[post].health = Clamp01(s.systems[post].health
+			- (sev == ANOMALY_DEGRADED ? 0.05f : sev == ANOMALY_ACUTE ? 0.15f : 0.3f));
+		if (sev >= ANOMALY_ACUTE && hero.status != CREW_DEAD) {
+			hero.status = CREW_INJURED;
+			hero.severity = std::max(hero.severity, result == RISING_DIED ? 1.0f : 0.5f);
+		}
+	}
+
+	// The witnesses, and the hero's own record of it. Pride on a held post; the attempt itself on a
+	// failure; and both, with the grief NoteDeath adds, when it kills.
+	const float valence = result == RISING_SUCCEEDED ? RISING_WITNESS_BOND
+		: result == RISING_DIED ? 0.6f : 0.5f;
+	const int seen = RisingWitnesses(s, o.candidate, valence);
+	if (result != RISING_DIED) Remember(s, o.candidate, MEM_RESCUE, o.candidate, MEM_SAW, valence);
+
+	// The record, in the engine's own words: who, why them, what it cost.
+	const int condPct = static_cast<int>(o.condition * 100.0f + 0.5f);
+	const int loadPct = static_cast<int>(Clamp01(o.stress) * 100.0f + 0.5f);
+	const int holdPct = static_cast<int>((1.0f - odds) * 100.0f + 0.5f);
+	char effBuf[32];
+	std::snprintf(effBuf, sizeof(effBuf), "%.1f", EffectiveSkill(hero, o.skill));
+	std::string line = hero.name + " holds the " + postName + " beyond their own "
+		+ SkillName(o.skill) + " (" + effBuf + "): ";
+	line += result == RISING_SUCCEEDED ? "the post holds"
+		: result == RISING_DIED ? "it kills them"
+		: std::string(AnomalyName(sev)) + " -- the post lets go";
+	line += " at " + std::to_string(condPct) + "% condition under " + std::to_string(loadPct)
+		+ "% load, odds it holds " + std::to_string(holdPct) + "%";
+	if (n > 0) line += " -- " + WorkFactorLine(factors, n);
+	// The reason they were the one is their drive, and the reason names it (the realised fear first,
+	// when the work realises one).
+	line += "; the reason they were the one: " + o.reason;
+	LogEvent(s, hero.name, "crew", line);
+
+	if (result == RISING_DIED) KillCrew(s, o.candidate, cause);
+
+	if (seen > 0)
+		LogEvent(s, CommandingOfficer(s), "crew",
+			std::to_string(seen) + " saw it; " + hero.name + " is remembered for it by name");
+	if (out) *out = line;
+	return result;
+}
+
+uint32_t NextRisingRoll(Ship &s)
+{
+	return AnomalyRoll(s.riskRolls++, s.cfg.seed);
+}
+
+int RetellRising(Ship &s, int hero)
+{
+	if (hero < 0 || hero >= static_cast<int>(s.crew.size())) return 0;
+	int reinforced = 0;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		if (i == hero || s.crew[i].status != CREW_FIT) continue;
+		bool holds = false;
+		for (const Memory &m : s.crew[i].memories)
+			if (m.event == MEM_RESCUE && m.person == hero) { holds = true; break; }
+		if (!holds) continue;
+		Remember(s, i, MEM_RESCUE, hero, MEM_SAW, RISING_WITNESS_BOND); // reinforces salience to 1
+		++reinforced;
+	}
+	if (reinforced > 0)
+		LogEvent(s, CommandingOfficer(s), "crew", "the crew speak of " + s.crew[hero].name + " again");
+	return reinforced;
+}
+
 // Name every change of a system's failure state, so the log carries the risk and the consequence.
 static void UpdateSystemStates(Ship &s)
 {

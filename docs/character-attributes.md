@@ -115,6 +115,13 @@ into guessing.
 `scripts/character-check.sh` prints the transcript -- the same task and the same person in two
 conditions, with the reasons -- and the full evidence is `docs/evidence/the-work-bites.md`.
 
+**And the same layer is what a person rises on.** `docs/rising-to-the-occasion.md` builds the act on
+top of this wiring: a post must be held and the hand in front of it is beyond their effective skill,
+the drive the work realises is the lever, the shortfall to a qualified hand worsens the odds, and what
+it costs is the severity the condition and the load set. It adds no stat and no roll of its own -- the
+evidence is `docs/evidence/rising-to-the-occasion.md`, the console `ship rise`, and the check
+`scripts/rising-check.sh`.
+
 ## Species: capabilities, needs and susceptibilities -- never bonuses
 
 The obvious move is a species modifier table: Vulcans +strength, Betazoids +empathy, Klingons +toughness. **Do not

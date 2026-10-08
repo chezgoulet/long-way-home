@@ -1559,6 +1559,42 @@ void RunTest( void )
 		if ( step == 4 && level.time >= 6800 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
 		return;
 	}
+	if ( g_shipTest->integer == 60 )
+	{//rising to the occasion (docs/rising-to-the-occasion.md): a post must be held and the hand in
+	 //front of it is beyond their skill. The transcript is the console's own words -- who, why them,
+	 //what it cost, and what the witnesses carry afterwards.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 )
+		{
+			int who = -1;
+			for ( int i = 0; i < static_cast<int>( vessel.crew.size() ); ++i )
+				if ( vessel.crew[i].status == ship::CREW_FIT && vessel.crew[i].dept == ship::DEPT_ENGINEERING ) { who = i; break; }
+			if ( who >= 0 )
+			{
+				vessel.crew[who].post = ship::SYS_STRUCTURAL_INTEGRITY;
+				vessel.crew[who].skills[ship::SKILL_ENGINEERING] = 0;
+				vessel.crew[who].species = ship::SPECIES_HUMAN;
+				vessel.crew[who].traits = 0;
+				vessel.crew[who].conditionCount = 0;
+				vessel.crew[who].desire = ship::DESIRE_HOME;
+				vessel.crew[who].fear = ship::FEAR_USELESSNESS;
+				vessel.crew[who].deficit = 1.0f; vessel.crew[who].outlook = 0.0f; vessel.crew[who].holdings = 0.0f;
+				vessel.crew[who].deck = ship::Spec( ship::SYS_STRUCTURAL_INTEGRITY ).deck;
+				ship::SetAlert( vessel, ship::ALERT_GREEN );
+				ship::DamageSystem( vessel, ship::SYS_STRUCTURAL_INTEGRITY, 0.6f );
+				vessel.systems[ship::SYS_STRUCTURAL_INTEGRITY].output = 0.4f;
+				gi.Printf( "SHIP: RISING instrument: %s, engineering %d, effective %.1f, at the structural integrity\n",
+					vessel.crew[who].name.c_str(), vessel.crew[who].skills[ship::SKILL_ENGINEERING],
+					ship::EffectiveSkill( vessel.crew[who], ship::SKILL_ENGINEERING ) );
+				gi.SendConsoleCommand( Fmt( "ship rise 1 %d\n", who ).c_str() );
+			}
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3600 ) { gi.SendConsoleCommand( "ship log 16\n" ); step = 2; }
+		if ( step == 2 && level.time >= 5200 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		return;
+	}
 	if ( g_shipTest->integer == 14 )
 	{//the other station panels open the working console, and Sickbay shows the medical state
 		static const struct { int ms; const char *command; } STEPS[] = {
@@ -3284,6 +3320,25 @@ void Svcmd_Ship_f( void )
 		gi.cvar_set( "lwh_ship_refusal", "" );
 	}
 
+	if ( !Q_stricmp( cmd, "rise" ) )
+	{//the rising (docs/rising-to-the-occasion.md): a post must be held and the hand in front of it
+	 //is beyond their skill. The console addresses the post; the simulation resolves it to a person,
+	 //and the record says who, why them, what it cost, and who now carries it.
+		const int post = sys >= 0 ? sys : static_cast<int>( ship::SYS_STRUCTURAL_INTEGRITY );
+		const int who = b[0] ? atoi( b ) : -1;
+		const ship::RisingOffer offer = who >= 0 ? ship::OfferRisingTo( vessel, post, who ) : ship::OfferRising( vessel, post );
+		gi.Printf( "SHIP: RISING %s: %s\n", ship::Spec( static_cast<ship::SystemId>( post ) ).name,
+			offer.offered ? ( offer.choice == ship::RISING_REFUSED ? "offered and refused" : "offered" ) : "no rising here" );
+		if ( !offer.reason.empty() ) gi.Printf( "SHIP: RISING why them: %s\n", offer.reason.c_str() );
+		if ( offer.offered && offer.choice != ship::RISING_REFUSED )
+		{
+			std::string account;
+			const uint8_t rolled = ship::AttemptRising( vessel, post, who, ship::NextRisingRoll( vessel ), &account );
+			gi.Printf( "SHIP: RISING %s: %s\n", ship::RisingOutcomeName( rolled ), account.c_str() );
+		}
+		Publish();
+		return;
+	}
 	if ( !Q_stricmp( cmd, "status" ) ) { PrintStatus(); return; }
 	if ( !Q_stricmp( cmd, "voice" ) )
 	{//the audio plumbing's cache (docs/asset-doctrine.md): player-local, beside the save, never in
