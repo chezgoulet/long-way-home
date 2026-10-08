@@ -70,6 +70,19 @@ Two decisions that go with it:
   maps, saves, configuration and demos behaving as they did — not a byte-identical binary. cMod's
   rendering and limit changes are wanted, not violations.
 
+### The way in — the menu line and the launcher ✅ built 2026-10-08
+
+`docs/the-entry-point.md` Part one (the walkthrough's **G1**) is built on `feat/the-way-in`: the
+main menu carries a **"Long Way Home"** line beside the retail buttons, and a start-state selector
+containing **one entry, the canon default** (the first half of **G2**; the configurator of Part
+three is the next pass). `scripts/run-lwh.sh` is the launcher. The run's values live once, in
+`configs/lwh-start.cfg`, executed by both the launcher and the menu, so there is no second copy to
+drift; `g_shipDeckPitch` is resolved there and is `stitch.py`'s own pitch (`3072 = 3 x 1024`). The
+cvars keep their off-by-default values: with the ship map loaded and the config unset, the
+simulation does not start. The campaign was re-proven (`+map borg1` loads and the player connects).
+Evidence: `docs/evidence/the-way-in.md`, `patches/0020-main-menu-long-way-home.patch`,
+`module/ui/ui_lwh_start.cpp`.
+
 ## G6 — retail single player, including the Expansion Pack ✅ reported working (2026-10-05)
 
 Proven in the owner's session: the retail campaign runs, and Virtual Voyager works (G2's bar met). One

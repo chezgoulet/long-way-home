@@ -51,6 +51,15 @@ includes the retail campaign still starting and playing**, and it is not a forma
 **`g_shipDeckPitch 3072` is a magic number in a launch line.** It should not be a thing a person types. Either
 it earns a default or it belongs in the launcher's own config — **say which, and record the value's source.**
 
+> **Resolved 2026-10-08 (`feat/the-way-in`), and it belongs to the launcher's config.** It does not earn a
+> default: `0` means "an ordinary level", and a non-zero default would turn the deck-scoped name lookup and
+> the crew layer's per-deck arithmetic on for every retail map and every single-deck scenario. It is set once,
+> in `configs/lwh-start.cfg`, which both `scripts/run-lwh.sh` and the menu line execute. **The value's source
+> is the stitcher itself:** `tools/shipmap/stitch.py` places deck *n* at `(n-1) * pitch`, its `--pitch` default
+> is `3072`, and it requires a multiple of 1024 so world-aligned textures land where they were authored —
+> `3072 = 3 x 1024`. The shipped map was built with that default. The record is in
+> `docs/evidence/the-way-in.md`.
+
 ### Acceptance — G1
 
 - **The ship loads from the menu, with no console and no cvars typed**, demonstrated **from the rendered menu**
