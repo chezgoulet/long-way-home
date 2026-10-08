@@ -38,6 +38,7 @@ Home, our own single player and multiplayer, built on the released Raven game so
 - **the Borg** — `docs/borg-incursion.md`
 - **endings and destinations** — `docs/endings.md`
 - **the opening situation, and ranks from ensign to captain** — `docs/start-states.md`
+- **how a run begins: the way in, and where the start state is chosen** — `docs/the-entry-point.md`
 - **how to build a location** — `docs/authoring-a-location.md`, `docs/location-brief-template.md`
 - **every number claiming to describe Voyager, with its source** — `docs/lore-ledger.md`
 - **what to trust, and how far** — `docs/confidence-and-verification.md`
