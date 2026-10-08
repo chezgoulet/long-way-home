@@ -73,6 +73,48 @@ traits, conditions and drives are enough, and an attribute layer on top is how a
 multiplies the authoring surface and adds nothing the conditions layer does not already do. If endurance is
 needed, it is a *trait* plus a fatigue curve, not a stat.
 
+## The wiring: how each kind reaches the work
+
+A layer that only describes a person is decoration. So **the four kinds and morale reach the failure
+roll's odds** -- the roll that decides whether a use is quick, slow, or dangerous
+(`docs/failure-is-content.md`) -- each by its own route, and each named. This is the section the
+brief called for: the four kinds and how each reaches the work, in the document that owns them.
+
+| kind | how it reaches the work | named in the record as |
+|---|---|---|
+| **skill** | what they can do: the department's skill leads, and the one aptitude trait adds; a competent hand lowers the odds, an unskilled one raises them | `skill engineering skill 5.0 -0.30` |
+| **condition** | temporary and situational: a debuff raises the odds while it holds, a buff lowers them, by its magnitude word | `condition afraid (slight) +0.15` |
+| **trait** | durable and behavioural, by **interacting with the moment** rather than as a flat shift: steady under fire helps under load, claustrophobia bites on a tight or hull task, adaptable softens the state drag | `trait steady under fire (under load) -0.30` |
+| **drive** | a motive, **conditionally on the work**: a fear is realised by the task in front of them (decompression on a hull seal), a desire leans in or holds back under load | `drive afraid of decompression (sealing the hull) +0.25` |
+| **morale** | the read from deficit, outlook and holdings; the component most responsible is named | `morale (worn): does not believe the course is worth the cost +0.08` |
+| **capability** | a species capability, **two-sided**: a Betazoid's empathy reads a patient's feeling for good and takes on others' pain for bad; the same faculty is the cost, so it is never a bonus | `capability empathy: reads the feeling, not the thought -0.15` |
+
+The system's condition still sets the base odds and the load still sets the severity (the owner's
+ruling, `docs/failure-is-content.md`); the operator's factors **move the odds multiplicatively**, and
+the top tenth of capability stays nominal whatever the operator, so a well-kept system still does not
+mangle anyone. A factor that does not move the odds is not listed, so **the list is exactly what
+touched the outcome** -- and the log carries it, so a worse outcome names what did it instead of
+reading as a random failure. The mechanism is `WorkFactors` / `WorkOdds` / `RollWork` /
+`WorkFactorLine`, and `WorkReading` is the console's read of one person at one system. The weights are
+ours, small, and marked `[inv]`, recorded so they can be overruled.
+
+The kinds are kept distinct on purpose, and the distinctions are testable:
+
+- **A trait is not a condition.** `steady under fire` does nothing on a quiet watch and helps at
+  battle stations; `afraid` costs the same whether the load is high or low.
+- **A drive is not a flat penalty.** `afraid of decompression` costs on a hull task and costs nothing
+  on a routine one; `wants promotion` *helps* under load; `quick healer` never touches the odds at all
+  -- it shapes recovery.
+- **A capability is not a bonus.** The Betazoid's empathy is the same faculty in both directions:
+  -0.15 reading a patient, +0.15 on a hull full of the hurt.
+
+**No hidden modifiers.** Every factor that moved an outcome is nameable in the log and at the
+console, because a modifier the player cannot see is worse than no modifier at all: it turns command
+into guessing.
+
+`scripts/character-check.sh` prints the transcript -- the same task and the same person in two
+conditions, with the reasons -- and the full evidence is `docs/evidence/the-work-bites.md`.
+
 ## Species: capabilities, needs and susceptibilities -- never bonuses
 
 The obvious move is a species modifier table: Vulcans +strength, Betazoids +empathy, Klingons +toughness. **Do not
@@ -169,6 +211,12 @@ traits and drives are static content; conditions, marks and state are the save.*
 - Every condition names its source and its cure, is visible on the personnel screen, and expires or clears.
 - No character carries more than a handful at once, and the derivation is written down rather than implied.
 - A tired engineer is measurably slower and measurably more likely to fail; a rested one is not.
+- **The four kinds and morale reach the failure roll's odds, each by its own route and each named**; a
+  condition moves the odds while it holds, a trait shapes performance without being a flat penalty, a drive
+  biases behaviour conditionally on the work, and a person who does not believe the course is worth the
+  cost works like one who does not. **Every factor that touched an outcome is recoverable from the
+  outcome** -- the log and the console name it (the wiring above; evidence
+  `docs/evidence/the-work-bites.md`).
 - The Doctor has conditions and no fatigue; a clone diverges; a merge carries two memory sets with their
   provenance intact.
 - And no attribute block is introduced -- if one is ever proposed, the proposal has to argue against the

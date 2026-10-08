@@ -3377,7 +3377,11 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "repair" ) && sys >= 0 && b[0] ) ship::Repair( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "operate" ) && sys >= 0 )
 	{//the player works a console (Stage B): the odds are rolled with the player as the operator, so a
-	 //degraded system lets go at the person holding the controls. Needs the player-in-the-world layer.
+	 //degraded system lets go at the person holding the controls. The console states the operator's
+	 //own factors first, so a bad outcome is attributable (docs/character-attributes.md).
+		const int opCrew = vessel.player;
+		if ( opCrew >= 0 && opCrew < static_cast<int>( vessel.crew.size() ) )
+			gi.Printf( "SHIP: WORK %s\n", ship::WorkReading( vessel, opCrew, static_cast<ship::SystemId>( sys ) ).c_str() );
 		if ( !Crew_PlayerUseSystem( sys ) )
 			gi.Printf( "SHIP: nothing to operate it: g_player is off, or no character is the player\n" );
 		else

@@ -253,6 +253,16 @@ const char *SkillName(uint8_t s)
 		"operations", "command", "flight"};
 	return s < SKILL_COUNT ? N[s] : "skill";
 }
+uint8_t DepartmentSkill(Department d)
+{
+	switch (d) {
+	case DEPT_ENGINEERING: return SKILL_ENGINEERING;
+	case DEPT_MEDICAL: return SKILL_MEDICAL;
+	case DEPT_SCIENCES: return SKILL_SCIENCE;
+	case DEPT_SECURITY: return SKILL_SECURITY;
+	default: return SKILL_COMMAND;
+	}
+}
 
 const char *TraitName(uint8_t t)
 {
@@ -401,10 +411,7 @@ void DeriveCharacter(CrewMember &c, uint32_t &rng)
 {
 	// Skills: the department's own skill leads, rank lifts all of them, and the seed jitters the
 	// rest. Species contributes nothing here -- a capability is a condition, never a multiplier.
-	const uint8_t lead = c.dept == DEPT_ENGINEERING ? SKILL_ENGINEERING
-		: c.dept == DEPT_MEDICAL ? SKILL_MEDICAL
-		: c.dept == DEPT_SCIENCES ? SKILL_SCIENCE
-		: c.dept == DEPT_SECURITY ? SKILL_SECURITY : SKILL_COMMAND;
+	const uint8_t lead = DepartmentSkill(c.dept);
 	for (int i = 0; i < SKILL_COUNT; ++i) {
 		int v = 1 + (c.rank >= 4 ? 2 : c.rank >= 2 ? 1 : 0);
 		if (i == lead) v += 2;
@@ -4315,14 +4322,36 @@ static uint8_t UseSystemAt(Ship &s, SystemId id, float stress, const std::string
 	if (id >= SYS_COUNT) return ANOMALY_NONE;
 	System &sys = s.systems[id];
 	const float condition = SystemCondition(sys);
-	const uint8_t sev = RollAnomaly(condition, stress, AnomalyRoll(s.riskRolls++, s.cfg.seed));
+
+	// The operator: the named person, or the station's own hand. The four kinds and morale reach the
+	// odds through the factors, each named, so a bad outcome says what did it (docs/character-
+	// attributes.md, "the wiring").
+	int op = operatorCrew;
+	if (op < 0) {
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+			const CrewMember &c = s.crew[i];
+			if (c.status == CREW_FIT && !c.brigged && c.post == id) { op = i; break; }
+		}
+	}
+	WorkFactor factors[WORK_FACTOR_MAX];
+	int nFactors = 0;
+	if (op >= 0 && op < static_cast<int>(s.crew.size()))
+		nFactors = WorkFactors(s.crew[op], DepartmentSkill(SPECS[id].dept), WorkContextOf(id),
+			stress, factors, WORK_FACTOR_MAX);
+
+	const uint8_t sev = RollWork(condition, stress, factors, nFactors,
+		AnomalyRoll(s.riskRolls++, s.cfg.seed));
 	if (sev == ANOMALY_NONE) return sev;
 
 	const std::string author = who.empty() ? std::string(AuthorFor(s, SPECS[id].dept, SPECS[id].station)) : who;
 	const int condPct = static_cast<int>(condition * 100.0f + 0.5f);
 	const int loadPct = static_cast<int>(Clamp01(stress) * 100.0f + 0.5f);
-	LogEvent(s, author, "engineering", std::string(SPECS[id].name) + ": " + AnomalyName(sev) + " anomaly at "
-		+ std::to_string(condPct) + "% condition under " + std::to_string(loadPct) + "% load");
+	// The reason travels with the work: the log line names every factor that moved the odds, so the
+	// outcome is attributable rather than reading as a random failure.
+	std::string line = std::string(SPECS[id].name) + ": " + AnomalyName(sev) + " anomaly at "
+		+ std::to_string(condPct) + "% condition under " + std::to_string(loadPct) + "% load";
+	if (nFactors > 0) line += " -- " + WorkFactorLine(factors, nFactors);
+	LogEvent(s, author, "engineering", line);
 	// A scar at the least; a system that has just bitten is worse than it was.
 	sys.health = Clamp01(sys.health - (sev == ANOMALY_DEGRADED ? 0.05f : sev == ANOMALY_ACUTE ? 0.15f : 0.3f));
 	// The visible let-go: the console arcs at whoever is holding the controls, the one place on the
@@ -4330,14 +4359,7 @@ static uint8_t UseSystemAt(Ship &s, SystemId id, float stress, const std::string
 	// a flourish. When the use is named (the player at the panel) it lands on that person; otherwise
 	// it lands on the station's own hand.
 	if (sev >= ANOMALY_ACUTE) {
-		int victim = -1;
-		if (operatorCrew >= 0 && operatorCrew < static_cast<int>(s.crew.size())) victim = operatorCrew;
-		else {
-			for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
-				const CrewMember &c = s.crew[i];
-				if (c.status == CREW_FIT && !c.brigged && c.post == id) { victim = i; break; }
-			}
-		}
+		const int victim = op; // the operator, named or resolved above as the station's own hand
 		if (victim >= 0) {
 			CrewMember &c = s.crew[victim];
 			c.status = CREW_INJURED;
@@ -4427,6 +4449,194 @@ static uint32_t AnomalyRoll(uint32_t counter, uint32_t seed)
 	uint32_t x = counter * 2654435761u + (seed ? seed : 1u);
 	x ^= x >> 16; x *= 2246822519u; x ^= x >> 13; x *= 3266489917u; x ^= x >> 16;
 	return x;
+}
+
+// ---- the four kinds reach the work: the operator's factors, named ---------------------------------
+//
+// docs/character-attributes.md, "the wiring". Each factor is the odds-shift of one kind, kept apart
+// and named; a factor that does not move the odds is not returned, so the list is exactly what
+// touched the outcome. The weights are small and invented [inv], so a condition can be *seen* to
+// matter without any one of them deciding the roll alone.
+
+const float WORK_SKILL_STANDARD = 2.0f;  // effective skill 2 is the competent hand for a use [inv]
+const float WORK_SKILL_SLOPE = 0.10f;    // each point off it moves the odds a tenth [inv]
+const float WORK_COND_SLIGHT = 0.15f;    // a slight debuff [inv]
+const float WORK_COND_CLEAR = 0.30f;     // a clear debuff [inv]
+const float WORK_COND_SHARP = 0.50f;     // a sharp debuff [inv]
+const float WORK_MORALE_SLOPE = 0.40f;   // morale 0.5 is neutral; the shortfall scales the odds [inv]
+const float WORK_MULT_MAX = 4.0f;        // the factor multiplier is bounded: no operator is a wall [inv]
+
+const char *WorkFactorKindName(uint8_t k)
+{
+	static const char *const N[WORK_FACTOR_KIND_COUNT] = {"skill", "condition", "trait", "drive",
+		"morale", "capability"};
+	return k < WORK_FACTOR_KIND_COUNT ? N[k] : "factor";
+}
+
+const char *WorkContextName(uint8_t c)
+{
+	static const char *const N[WORK_CONTEXT_COUNT] = {"routine", "hazardous", "hull", "reclaim",
+		"medical"};
+	return c < WORK_CONTEXT_COUNT ? N[c] : "work";
+}
+
+uint8_t WorkContextOf(SystemId id)
+{
+	switch (id) {
+	case SYS_STRUCTURAL_INTEGRITY: return WORK_HULL;
+	case SYS_SICKBAY: return WORK_MEDICAL;
+	case SYS_TRANSPORTERS: return WORK_HAZARD;
+	default: return WORK_ROUTINE;
+	}
+}
+
+static void AddWorkFactor(WorkFactor *out, int &n, int maxOut, uint8_t kind,
+                          const std::string &name, float delta)
+{
+	if (delta == 0.0f || n >= maxOut) return;
+	out[n].kind = kind; out[n].name = name; out[n].delta = delta; ++n;
+}
+
+int WorkFactors(const CrewMember &c, uint8_t skill, uint8_t context, float stress,
+                WorkFactor *out, int maxOut)
+{
+	if (out == nullptr || maxOut <= 0) return 0;
+	if (skill >= SKILL_COUNT || context >= WORK_CONTEXT_COUNT) return 0;
+	int n = 0;
+	const float s = Clamp01(stress);
+
+	// Skill: what they can do. The rating plus the one aptitude trait that adds to it; the drag that
+	// conditions and deficit impose is named below, so it is not counted twice here.
+	float base = static_cast<float>(c.skills[skill]);
+	if (HasTrait(c, TRAIT_FIRST_CONTACT_TRAINED) && (skill == SKILL_SCIENCE || skill == SKILL_COMMAND))
+		base += 1.0f;
+	{
+		char buf[64];
+		std::snprintf(buf, sizeof(buf), "%s skill %.1f", SkillName(skill), base);
+		AddWorkFactor(out, n, maxOut, WORK_SKILL, buf, (WORK_SKILL_STANDARD - base) * WORK_SKILL_SLOPE);
+	}
+
+	// Conditions: temporary and situational. A debuff raises the odds while it holds; a buff lowers
+	// them, by half as much [inv]. The magnitude word is the design's own; the weight is its number.
+	for (int i = 0; i < c.conditionCount; ++i) {
+		const Condition &k = c.conditions[i];
+		if (k.id == COND_NONE) continue;
+		const float mag = k.magnitude == CMAG_SHARP ? WORK_COND_SHARP
+			: k.magnitude == CMAG_CLEAR ? WORK_COND_CLEAR : WORK_COND_SLIGHT;
+		const float delta = k.valence == CVAL_DEBUFF ? mag : -0.5f * mag;
+		AddWorkFactor(out, n, maxOut, WORK_CONDITION,
+			std::string(ConditionName(k.id)) + " (" + ConditionMagnitudeName(k.magnitude) + ")", delta);
+	}
+
+	// Traits: durable and behavioural, and they reach the work by interacting with the moment rather
+	// than as a flat shift. Steady under fire helps only under load; claustrophobia bites hardest on
+	// a hull or hazardous task; adaptable softens the state drag. The physiological traits (needs
+	// less sleep, quick healer) shape whether and how a person recovers, not the odds of one use.
+	if (HasTrait(c, TRAIT_STEADY_UNDER_FIRE))
+		AddWorkFactor(out, n, maxOut, WORK_TRAIT, "steady under fire (under load)", -0.30f * s);
+	if (HasTrait(c, TRAIT_CLAUSTRAPHOBIC)) {
+		const float tight = (context == WORK_HULL || context == WORK_HAZARD) ? 1.5f : 1.0f;
+		AddWorkFactor(out, n, maxOut, WORK_TRAIT, "claustrophobic (under load)",
+			(0.12f + 0.18f * s) * tight);
+	}
+	if (HasTrait(c, TRAIT_GOOD_WITH_PEOPLE)
+	    && (skill == SKILL_MEDICAL || skill == SKILL_COMMAND || context == WORK_MEDICAL))
+		AddWorkFactor(out, n, maxOut, WORK_TRAIT, "good with people", -0.12f);
+	if (HasTrait(c, TRAIT_POOR_WITH_AUTHORITY))
+		AddWorkFactor(out, n, maxOut, WORK_TRAIT, "poor with authority (under orders)", 0.10f * s);
+	if (HasTrait(c, TRAIT_ADAPTABLE) && c.deficit > 0.05f)
+		AddWorkFactor(out, n, maxOut, WORK_TRAIT, "adaptable", -0.10f);
+
+	// Drives: a motive, and it biases what a person does and how they bear up, conditionally on the
+	// work -- never a flat subtraction. A fear is realised by the task in front of them; a desire
+	// leans in or holds back under load.
+	if (c.fear == FEAR_DECOMPRESSION && context == WORK_HULL)
+		AddWorkFactor(out, n, maxOut, WORK_DRIVE, "afraid of decompression (sealing the hull)", 0.25f);
+	if (c.fear == FEAR_THE_BORG && context == WORK_RECLAIM)
+		AddWorkFactor(out, n, maxOut, WORK_DRIVE, "afraid of the Borg (reclaiming a deck)", 0.25f);
+	if (c.fear == FEAR_DYING_ALONE && context == WORK_HAZARD)
+		AddWorkFactor(out, n, maxOut, WORK_DRIVE, "afraid of dying alone (a hazardous use)", 0.15f);
+	if (s >= 0.5f) {
+		if (c.desire == DESIRE_TO_PROVE || c.desire == DESIRE_PROMOTION)
+			AddWorkFactor(out, n, maxOut, WORK_DRIVE, "wants promotion, and leans in", -0.10f);
+		else if (c.desire == DESIRE_HOME)
+			AddWorkFactor(out, n, maxOut, WORK_DRIVE, "wants to go home, and hesitates", 0.08f);
+		else if (c.desire == DESIRE_TO_BE_LEFT_ALONE)
+			AddWorkFactor(out, n, maxOut, WORK_DRIVE, "wants to be left alone, and does the minimum", 0.10f);
+		if (c.fear == FEAR_USELESSNESS)
+			AddWorkFactor(out, n, maxOut, WORK_DRIVE, "afraid of being useless, and works harder", -0.10f);
+		if (c.fear == FEAR_COWARDICE)
+			AddWorkFactor(out, n, maxOut, WORK_DRIVE, "afraid of being seen a coward (under load)", 0.15f);
+	}
+
+	// Morale: the read from the three components. A person who does not believe the course is worth
+	// the cost works like one who does not; the reason names the component, so the log can say which.
+	const float m = Morale(c);
+	if (std::fabs(m - 0.5f) > 0.02f)
+		AddWorkFactor(out, n, maxOut, WORK_MORALE,
+			std::string("morale (") + MoraleBandName(m) + "): " + MoraleReason(c),
+			(0.5f - m) * WORK_MORALE_SLOPE);
+
+	// A species capability, two-sided. It helps where the faculty fits and costs where it does not;
+	// the same faculty is the cost, so it is never a bonus. A Betazoid reads a patient's feeling for
+	// good, and takes on the pain of a hull full of the hurt for bad.
+	if (c.species == SPECIES_BETAZOID) {
+		if (context == WORK_MEDICAL)
+			AddWorkFactor(out, n, maxOut, WORK_CAPABILITY,
+				"empathy: reads the feeling, not the thought", -0.15f);
+		else if (context == WORK_HULL)
+			AddWorkFactor(out, n, maxOut, WORK_CAPABILITY,
+				"empathy: others' pain arrives uninvited", 0.15f);
+	}
+
+	return n;
+}
+
+float WorkOdds(float condition, const WorkFactor *f, int n)
+{
+	const float base = AnomalyOdds(condition);
+	if (base <= 0.0f) return 0.0f; // the top tenth stays nominal, whatever the operator
+	float mult = 1.0f;
+	for (int i = 0; i < n; ++i) mult += f[i].delta;
+	mult = std::max(0.0f, std::min(WORK_MULT_MAX, mult));
+	return std::min(1.0f, base * mult);
+}
+
+uint8_t RollWork(float condition, float stress, const WorkFactor *f, int n, uint32_t roll)
+{
+	const float odds = WorkOdds(condition, f, n);
+	if (odds <= 0.0f) return ANOMALY_NONE;
+	const double u = static_cast<double>(roll) / 4294967296.0;
+	if (u >= static_cast<double>(odds)) return ANOMALY_NONE;
+	return AnomalySeverityFor(condition, stress);
+}
+
+std::string WorkFactorLine(const WorkFactor *f, int n)
+{
+	std::string line;
+	char buf[96];
+	for (int i = 0; i < n; ++i) {
+		std::snprintf(buf, sizeof(buf), "%s %s %+.2f", WorkFactorKindName(f[i].kind),
+			f[i].name.c_str(), f[i].delta);
+		if (!line.empty()) line += "; ";
+		line += buf;
+	}
+	return line;
+}
+
+std::string WorkReading(const Ship &s, int crew, SystemId id)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size()) || id >= SYS_COUNT) return std::string();
+	const CrewMember &c = s.crew[crew];
+	const uint8_t skill = DepartmentSkill(SPECS[id].dept);
+	WorkFactor factors[WORK_FACTOR_MAX];
+	const int n = WorkFactors(c, skill, WorkContextOf(id), StressNow(s), factors, WORK_FACTOR_MAX);
+	char eff[32];
+	std::snprintf(eff, sizeof(eff), "%.1f", EffectiveSkill(c, skill));
+	std::string line = c.name + " at the " + SPECS[id].name + " (" + WorkContextName(WorkContextOf(id))
+		+ " work; effective " + SkillName(skill) + " " + eff + "): ";
+	line += n > 0 ? WorkFactorLine(factors, n) : "no modifier applies";
+	return line;
 }
 
 // Name every change of a system's failure state, so the log carries the risk and the consequence.
