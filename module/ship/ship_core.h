@@ -243,6 +243,107 @@ struct Stores {
 enum Activity : uint8_t { ACT_ON_DUTY = 0, ACT_MEAL, ACT_RECREATION, ACT_PERSONAL, ACT_SLEEP, ACT_COUNT };
 enum CrewStatus : uint8_t { CREW_FIT = 0, CREW_INJURED, CREW_DEAD, CREW_ASSIMILATED };
 
+// ---- the character layer (O8) -------------------------------------------------------------------
+//
+// docs/character-attributes.md, docs/crew-roster.md, docs/morale.md. The four kinds of modifier,
+// kept apart -- skills, traits, conditions, state -- plus the drives, the species, and the
+// derivation that produces them from the record and the seed. The one-place account is
+// docs/character-derivation.md. Everything here is static content except conditions and the three
+// morale reads, which are the save; a generated crew member is a function of the seed, never a
+// hand-written table entry.
+
+// Skills: seven, rated 0-5. What a person *can* do. They set repair speed and failure risk.
+enum Skill : uint8_t {
+	SKILL_ENGINEERING = 0, SKILL_MEDICAL, SKILL_SCIENCE, SKILL_SECURITY, SKILL_OPERATIONS,
+	SKILL_COMMAND, SKILL_FLIGHT, SKILL_COUNT
+};
+const char *SkillName(uint8_t s);
+const int SKILL_MAX = 5;
+
+// Traits: few, permanent, behavioural -- legible in a log line, never a percentile.
+enum Trait : uint8_t {
+	TRAIT_STEADY_UNDER_FIRE = 0, TRAIT_LIGHT_SLEEPER, TRAIT_GOOD_WITH_PEOPLE,
+	TRAIT_CLAUSTRAPHOBIC, TRAIT_POOR_WITH_AUTHORITY, TRAIT_FIRST_CONTACT_TRAINED, TRAIT_ADAPTABLE,
+	TRAIT_QUICK_HEALER, TRAIT_SCROUNGER, TRAIT_COUNT
+};
+const char *TraitName(uint8_t t);
+
+// Drives, in three parts (docs/crew-roster.md): desire, need, fear.
+enum Desire : uint8_t {
+	DESIRE_PROMOTION = 0, DESIRE_HOME, DESIRE_A_PERSON, DESIRE_TO_PROVE, DESIRE_TO_BE_LEFT_ALONE,
+	DESIRE_COUNT
+};
+const char *DesireName(uint8_t d);
+enum Need : uint8_t { NEED_SLEEP = 0, NEED_FOOD, NEED_COMPANY, NEED_PURPOSE, NEED_MEDICAL, NEED_COUNT };
+const char *NeedName(uint8_t n);
+enum Fear : uint8_t {
+	FEAR_DYING_ALONE = 0, FEAR_DECOMPRESSION, FEAR_THE_BORG, FEAR_USELESSNESS, FEAR_COWARDICE,
+	FEAR_COUNT
+};
+const char *FearName(uint8_t f);
+
+// Conditions -- the missing layer: temporary, sourced, legible. Buffs and debuffs live here.
+// Each names its source, its valence, a small magnitude, when it arrived, what clears it, and who
+// can see it. A modifier nobody can see is a hidden penalty, and hidden penalties feel like bugs.
+enum ConditionId : uint8_t {
+	COND_NONE = 0,
+	COND_EXHAUSTED, COND_HUNGRY, COND_HYPOXIC, COND_IRRADIATED, COND_INFECTED, COND_CONCUSSED,
+	COND_GRIEVING, COND_AFRAID, COND_PON_FARR, COND_MEDITATION_DUE, COND_EMITTER_LOW,
+	COND_HOT_MEAL, COND_COFFEE, COND_SHORE_LEAVE, COND_PROMOTED, COND_SERVICE_HELD, COND_STIMULANT,
+	COND_TRUTH_TOLD, COND_RESTED,
+	COND_ID_COUNT
+};
+const char *ConditionName(uint8_t id);
+enum ConditionValence : uint8_t { CVAL_DEBUFF = 0, CVAL_BUFF };
+const char *ConditionValenceName(uint8_t v);
+// clears-when: rest, sickbay, a meal, the end of the watch, or the passage of salience.
+enum ConditionClear : uint8_t {
+	CLEAR_REST = 0, CLEAR_SICKBAY, CLEAR_MEAL, CLEAR_END_OF_WATCH, CLEAR_SALIENCE, CLEAR_COUNT
+};
+const char *ConditionClearName(uint8_t c);
+// Magnitude: small and legible, not "+7%" -- slower, unreliable, sharper.
+enum ConditionMagnitude : uint8_t { CMAG_SLIGHT = 0, CMAG_CLEAR, CMAG_SHARP, CMAG_COUNT };
+const char *ConditionMagnitudeName(uint8_t m);
+// Visibility bits: whether the player can see it, the crew can, and the log records it. A
+// condition with visibility 0 is refused: it would be exactly the hidden penalty this forbids.
+enum ConditionVisibility : uint8_t { CVIS_PLAYER = 1 << 0, CVIS_CREW = 1 << 1, CVIS_LOG = 1 << 2 };
+const int CONDITION_MAX = 3;        // two or three at a time, never a soup [doc]
+const int CONDITION_SOURCE_MAX = 31; // so one named cause cannot bloat the save [inv]
+struct Condition {
+	uint8_t id = COND_NONE;
+	std::string source;                 // the named cause: "concussed in the coolant bay"
+	int8_t valence = CVAL_DEBUFF;
+	uint8_t magnitude = CMAG_SLIGHT;
+	float onset = 0.0f;                 // ship seconds when it arrived
+	uint8_t clears = CLEAR_REST;
+	uint8_t visible = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
+};
+
+// Species: capabilities, needs and susceptibilities -- never bonuses. The record holds words and
+// the condition ids a species is prone to; there is no multiplier anywhere (docs/character-
+// attributes.md, the two rules). `restNeedHours`, `needsFood` and `sleeps` are requirements, not
+// bonuses: the shape of rest for the watch bill and the galley, not a better one.
+enum Species : uint8_t {
+	SPECIES_HUMAN = 0, SPECIES_VULCAN, SPECIES_BETAZOID, SPECIES_KLINGON, SPECIES_OCAMPA,
+	SPECIES_TALAXIAN, SPECIES_BOLIAN, SPECIES_BORG_RECOVERED, SPECIES_HOLOGRAM, SPECIES_COUNT
+};
+const char *SpeciesName(uint8_t sp);
+const int SPECIES_TRAIT_MAX = 4;
+struct SpeciesRecord {
+	const char *name;
+	const char *capabilities[SPECIES_TRAIT_MAX];     // what they can do that another cannot
+	const char *needs[SPECIES_TRAIT_MAX];            // what they require differently
+	const char *susceptibilities[SPECIES_TRAIT_MAX]; // what can go wrong for them specifically
+	uint8_t prone[SPECIES_TRAIT_MAX];                // condition ids the simulation may derive
+	float restNeedHours;                             // hours of rest the body needs in a day [inv]
+	bool needsFood;                                  // holograms take nothing by mouth [lore]
+	bool sleeps;                                     // false: the rest is a cycle, not sleep
+};
+const SpeciesRecord &SpeciesOf(uint8_t sp);
+const char *SpeciesCapability(uint8_t sp, int i);      // i<0..: null when none
+const char *SpeciesNeed(uint8_t sp, int i);
+const char *SpeciesSusceptibility(uint8_t sp, int i);
+
 // ---- memory and consequence (docs/memory-and-consequence.md) -----------------------------------
 //
 // Every character keeps a bounded set of marks, per thing that happened: what, who it involved, how
@@ -328,7 +429,12 @@ struct CrewMember {
 	uint8_t quartersDeck = 0;
 	uint8_t status = CREW_FIT;
 	float fatigue = 0.0f;    // 0 rested .. 1 exhausted
-	float morale = 1.0f;     // 0 broken, 0.5 going through the motions, 1 heart in it
+	// Morale is a read of three components, never a stored counter (docs/morale.md): deficit
+	// (what they are short of), outlook (what they believe about the situation), and holdings
+	// (who they hold with). Morale() below derives the reading; nothing writes a scalar.
+	float deficit = 0.0f;    // 0 nothing short .. 1 wholly short (sleep, food, care, comfort, company)
+	float outlook = 0.75f;   // 0 despair .. 1 hope: are we getting home, is command competent
+	float holdings = 0.75f;  // 0 alone and blaming .. 1 held: bonds, allegiances
 	float exposure = 0.0f;   // seconds spent on a deck without air; injures, then kills
 	float burn = 0.0f;       // seconds spent in fire (derived each tick, not saved); injures, then kills
 	float radiation = 0.0f;  // seconds of exposure to a failing core on deck 11 (derived, not saved)
@@ -346,10 +452,66 @@ struct CrewMember {
 	bool quartersSealed = false;  // grief: the quarters of a crew member who has died are sealed
 	std::vector<Memory> memories; // bounded marks: what they know, and how they came to know it
 
+	// The character layer (O8). The following are static content, derived from the record and the
+	// seed (DeriveCharacter) and never stored: the same seed produces the same person.
+	uint8_t species = SPECIES_HUMAN;
+	uint8_t skills[SKILL_COUNT] = {1, 1, 1, 1, 1, 1, 1};
+	uint16_t traits = 0;          // bitmask over Trait
+	uint8_t desire = DESIRE_PROMOTION;
+	uint8_t need = NEED_SLEEP;
+	uint8_t fear = FEAR_DYING_ALONE;
+	// Conditions are dynamic, and therefore in the save.
+	Condition conditions[CONDITION_MAX];
+	uint8_t conditionCount = 0;
+
 	// derived each tick
 	uint8_t activity = ACT_SLEEP;
 	uint8_t deck = 0;        // where they are now
 };
+
+// ---- the character layer, read and derived -------------------------------------------------------
+
+bool HasTrait(const CrewMember &c, uint8_t trait);
+// The derivation: given the record (its identity, department, rank and species) and a seed
+// stream, fills the four kinds and the drives. Pure and deterministic; it is a function of the
+// record, not a table of hand-written people. Called from BuildRoster, and again on load, so the
+// static half is never in the save.
+void DeriveCharacter(CrewMember &c, uint32_t &rng);
+// Species for a record: named crew carry theirs; a generated member draws one from the seed.
+uint8_t DeriveSpecies(uint8_t dept, uint32_t &rng);
+
+// Conditions. Add is bounded (CONDITION_MAX, evicting the oldest debuff), deduplicated by id, and
+// refuses a condition with no visibility at all. Find returns null when absent. The Ship-level
+// wrappers record the arrival and the cure in the log, which is what "recorded" means.
+bool AddCondition(CrewMember &c, uint8_t id, const std::string &source, int8_t valence,
+                  uint8_t magnitude, uint8_t clears, float now, uint8_t visible);
+bool ClearCondition(CrewMember &c, uint8_t id);
+const Condition *FindCondition(const CrewMember &c, uint8_t id);
+
+// Morale, the read (docs/morale.md). Never a hidden counter: Morale() is a function of the three
+// components, so a person's morale can always be explained from them, and MoraleReason() names the
+// component most responsible, in words, for the log. The weights are ours (docs/character-
+// derivation.md), small and recorded so they can be overruled.
+float Morale(const CrewMember &c);
+const char *MoraleBandName(float morale);       // fit / worn / strained / at breaking point
+const char *MoraleReason(const CrewMember &c);  // the component most responsible, in words
+
+// Effective skill: base skill + aptitude traits, reduced by conditions, deficits and haste
+// (docs/character-attributes.md, "the derivation"). This is what decides whether a job is quick,
+// slow or dangerous.
+float EffectiveSkill(const CrewMember &c, uint8_t skill);
+
+// The manner (G14's second half): what a person says at the morale they carry. Deterministic, a
+// demonstration for the owner to judge, not a verdict.
+const char *MannerLine(const CrewMember &c);
+
+// The Ship-level condition wrappers: they add or clear the condition on a named person and record
+// the arrival or the cure in the log, so a condition is legible in the record as well as on the
+// person.
+struct Ship;
+bool Sicken(Ship &s, int crew, uint8_t id, const std::string &source, int8_t valence,
+            uint8_t magnitude, uint8_t clears, uint8_t visible);
+bool Cure(Ship &s, int crew, uint8_t id);
 
 // Where a crew member is and what they are doing at a time of day, by their watch alone. The day
 // is eight hours on duty, then a meal, recreation, personal time and eight hours' sleep.
@@ -1841,7 +2003,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 52;  // 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
+const uint16_t SAVE_VERSION = 53;  // 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

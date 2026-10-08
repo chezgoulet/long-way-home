@@ -719,8 +719,10 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   organisation, and the officer of the deck's authority (`docs/crew-manifest.md`).
 - **O7 — the Hazard Team as a standing unit**: two squads, a unit layer above departments
   (`docs/crew-manifest.md`, `docs/crew-roster.md` §6).
-- **O8 — the character layer**: traits, drives, the conditions/buffs-debuffs layer and its derivation, and
-  species capabilities/needs/susceptibilities (`docs/character-attributes.md`, `docs/crew-roster.md`).
+- **O8 — the character layer** *(CLOSED 2026-10-08, PR #72)*: the four kinds, the
+  species capabilities/needs/susceptibilities, the condition record with source/cure/visibility, and
+  the derivation are built (`docs/character-derivation.md`, `docs/evidence/the-character-layer.md`).
+  What remains is the wiring of `EffectiveSkill` into the failure roll, named there, not the layer.
 - **O9 — the shuttle load-screen decision menu** (`docs/shuttles.md`; `docs/evidence/every-screen.md` row 18).
 - **O10 — the in-world control at the panel** (the "glance"), out of console scope and into world work
   (`docs/evidence/every-screen.md` row 12).
