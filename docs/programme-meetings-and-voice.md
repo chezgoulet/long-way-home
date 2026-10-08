@@ -22,6 +22,12 @@ delegation.
 **The plumbing** — the brief generator, the async worker, the cache, the cue track, the overlay, and the log
 integration. It depends on the two above only at the edges.
 
+**The audio plumbing (phase two) is built: `docs/evidence/audio-plumbing.md`, 2026-10-08.** The three
+sources with one named owner each and one retirement rule per reply; the render queue, the cache key and
+its prune; the cue set and its emit site; the warm in the async window; and the delivery direction
+carried to `tools/voice/synthesize.py --exaggeration`. The async generator's novelty detection, the
+overlay, and the player that plays the rendered audio remain.
+
 **The meeting** — the scene, played back from a script generated ahead of time. It depends on all three.
 
 ## What Hermes Vox already paid for, as requirements

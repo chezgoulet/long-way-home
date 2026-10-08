@@ -4955,10 +4955,281 @@ static int PrintMeeting()
 	return failures;
 }
 
+// ---- the audio plumbing (phase two) ------------------------------------------------------------
+//
+// The invariant this phase exists for: ONE PRODUCER PER TRACK, ONE RETIREMENT RULE PER REPLY. A
+// producer that does not own a track cannot write to it, and cannot retire anything on it.
+
+static void TestTrackOwnership()
+{
+	g_test = "three tracks, one owner each: a non-owner cannot write or retire";
+	CHECK(TrackOwner(TRACK_DIALOGUE) == PROD_RENDERER);
+	CHECK(TrackOwner(TRACK_CUE) == PROD_CUE_PLAYER);
+	CHECK(TrackOwner(TRACK_LIVE) == PROD_LIVE);
+	CHECK(OwnsTrack(PROD_RENDERER, TRACK_DIALOGUE));
+	CHECK(!OwnsTrack(PROD_CUE_PLAYER, TRACK_DIALOGUE));
+	CHECK(!OwnsTrack(PROD_LIVE, TRACK_DIALOGUE));
+	CHECK(!OwnsTrack(PROD_RENDERER, TRACK_CUE));
+
+	VoiceMixer m;
+	// The wrong producer cannot write: refused, and the track stays empty.
+	CHECK(VoiceWrite(m, PROD_CUE_PLAYER, TRACK_DIALOGUE, "line.wav") < 0);
+	CHECK(VoiceWrite(m, PROD_LIVE, TRACK_DIALOGUE, "line.wav") < 0);
+	CHECK(VoiceWrite(m, PROD_RENDERER, TRACK_LIVE, "line.wav") < 0);
+	CHECK(!TrackBusy(m, TRACK_DIALOGUE));
+	// The owner can.
+	const int line = VoiceWrite(m, PROD_RENDERER, TRACK_DIALOGUE, "line.wav");
+	CHECK(line >= 0);
+	CHECK(TrackBusy(m, TRACK_DIALOGUE));
+	CHECK(ActiveReply(m, TRACK_DIALOGUE) && ActiveReply(m, TRACK_DIALOGUE)->asset == "line.wav");
+	// The wrong producer cannot retire: refused, and the reply stays.
+	CHECK(!VoiceRetire(m, PROD_CUE_PLAYER, line));
+	CHECK(!VoiceRetire(m, PROD_LIVE, line));
+	CHECK(TrackBusy(m, TRACK_DIALOGUE));
+	// The owner can.
+	CHECK(VoiceRetire(m, PROD_RENDERER, line));
+	CHECK(!TrackBusy(m, TRACK_DIALOGUE));
+	CHECK(!VoiceRetire(m, PROD_RENDERER, line)); // already gone
+}
+
+static void TestCueCannotStopALine()
+{
+	g_test = "the cue track cannot stop a dialogue line";
+	VoiceMixer m;
+	const int line = VoiceWrite(m, PROD_RENDERER, TRACK_DIALOGUE, "line.wav");
+	CHECK(line >= 0);
+	const int cue = VoiceWrite(m, PROD_CUE_PLAYER, TRACK_CUE, CueClip(CUE_BREATH), CUE_BREATH);
+	CHECK(cue >= 0);
+	// The cue player trying to retire the line is refused, and the line plays on.
+	CHECK(!VoiceRetire(m, PROD_CUE_PLAYER, line));
+	CHECK(TrackBusy(m, TRACK_DIALOGUE));
+	// Retiring the cue cannot reach the line either.
+	CHECK(VoiceRetire(m, PROD_CUE_PLAYER, cue));
+	CHECK(!TrackBusy(m, TRACK_CUE));
+	CHECK(TrackBusy(m, TRACK_DIALOGUE));
+	CHECK(ActiveReply(m, TRACK_DIALOGUE) && ActiveReply(m, TRACK_DIALOGUE)->id == line);
+	CHECK(VoiceRetire(m, PROD_RENDERER, line));
+}
+
+static void TestCueSet()
+{
+	g_test = "the cue set is named, small, and each cue has one purpose";
+	for (int c = 0; c < CUE_COUNT; ++c) {
+		CHECK(CueName(static_cast<uint8_t>(c))[0] != '\0');
+		CHECK(CueClip(static_cast<uint8_t>(c))[0] != '\0');
+		CHECK(CuePurpose(static_cast<uint8_t>(c))[0] != '\0');
+	}
+	CHECK(std::strcmp(CueName(CUE_HOLDING), "I have to think about that.") == 0);
+	CHECK(CueIsLexical(CUE_HOLDING));       // the one short spoken line
+	CHECK(!CueIsLexical(CUE_BREATH));       // the rest are non-verbal clips
+	CHECK(!CueIsLexical(CUE_HMM));
+}
+
+static void TestCueEmitSite()
+{
+	g_test = "the cue emit site fires in the normal case, and the log carries it";
+	Ship s = NewShip();
+	VoiceMixer m;
+	const size_t before = s.log.size();
+	const int cue = EmitCue(s, m, CUE_BREATH, "the pause before the answer");
+	CHECK(cue >= 0);
+	CHECK(TrackBusy(m, TRACK_CUE));
+	bool logged = false;
+	for (const LogEntry &e : s.log)
+		if (e.what.find("cue: breath") != std::string::npos) logged = true;
+	CHECK(logged);                       // the emit site wrote the emission down
+	CHECK(s.log.size() > before);
+	// The track is busy: a second cue is refused rather than stacking.
+	CHECK(EmitCue(s, m, CUE_HMM, "another") < 0);
+	CHECK(VoiceRetire(m, PROD_CUE_PLAYER, cue));
+	CHECK(EmitCue(s, m, CUE_HOLDING, "the answer is late") >= 0);
+}
+
+static void TestRenderKeyAndCache()
+{
+	g_test = "the cache key avoids a re-render, and a second render is a no-op";
+	const std::string a = RenderKey("tuvok", "Make it so.", DELIVERY_ORDER);
+	CHECK(a == RenderKey("tuvok", "Make it so.", DELIVERY_ORDER));       // same inputs, same file
+	CHECK(a != RenderKey("tuvok", "Make it so.", DELIVERY_REPORT));      // same text, different direction
+	CHECK(a != RenderKey("janeway", "Make it so.", DELIVERY_ORDER));     // same text, different voice
+	CHECK(a != RenderKey("tuvok", "Make it not so.", DELIVERY_ORDER));   // different text
+	CHECK(a.size() == 16);
+
+	VoiceRender vr;
+	vr.dir = "voice";
+	RenderJob job;
+	job.voice = "tuvok"; job.text = "Make it so."; job.delivery = DELIVERY_ORDER;
+	job.exaggeration = DeliveryExaggeration(DELIVERY_ORDER);
+	job.key = RenderKey(job.voice, job.text, job.delivery);
+	CHECK(QueueRender(vr, job) == 1);       // newly queued
+	CHECK(QueueRender(vr, job) == 0);       // already queued: no-op
+	CHECK(static_cast<int>(vr.queue.size()) == 1);
+	CHECK(!VoiceCached(vr, job.key));
+	const std::string file = VoiceCachePath(vr, job.key);
+	CHECK(CacheRendered(vr, job.key, file));
+	CHECK(VoiceCached(vr, job.key));
+	CHECK(vr.queue.empty());
+	CHECK(QueueRender(vr, job) == 0);       // already cached: a re-render is a no-op
+	CHECK(static_cast<int>(vr.queue.size()) == 0);
+	// A render nobody asked for cannot enter the cache.
+	CHECK(!CacheRendered(vr, RenderKey("k", "x", DELIVERY_FLAT), "x.wav"));
+	// An unmarked line is not rendered at all.
+	RenderJob unmarked; unmarked.voice = "k"; unmarked.text = "?"; unmarked.delivery = DELIVERY_UNMARKED;
+	unmarked.key = RenderKey(unmarked.voice, unmarked.text, unmarked.delivery);
+	CHECK(QueueRender(vr, unmarked) == -1);
+	// Pruned with the save: nothing survives.
+	CHECK(PruneVoiceCache(vr) == 1);
+	CHECK(vr.cache.empty());
+}
+
+static void TestPlanMeetingAudio()
+{
+	g_test = "a meeting's audio is planned and deduplicated; the queue may be unfinished";
+	Ship s = NewShip();
+	s.player = 0;
+	SetAlert(s, ALERT_YELLOW);
+	const MeetingBrief b = BuildBrief(s, MEET_WATCH_CHANGE);
+	const MeetingSkeleton &sk = AuthoredSkeleton(MEET_WATCH_CHANGE);
+	VoiceRender vr;
+	vr.dir = "voice";
+	const std::vector<uint8_t> before = Pack(s);
+	const int first = PlanMeetingAudio(vr, s, b, sk);
+	CHECK(first > 0);
+	CHECK(Pack(s) == before);               // planning is a read
+	const int second = PlanMeetingAudio(vr, s, b, sk);
+	CHECK(second == 0);                     // the same lines are not queued twice
+	// The unmarked line is marked, not rendered: count the skeleton's known lines.
+	int known = 0, unmarked = 0;
+	for (int i = 0; i < sk.outcomeCount; ++i)
+		for (int l = 0; l < sk.outcomes[i].lineCount; ++l) {
+			if (DeliveryKnown(sk.outcomes[i].lines[l].delivery)) ++known; else ++unmarked;
+		}
+	CHECK(unmarked > 0);
+	CHECK(static_cast<int>(vr.queue.size()) == known);
+	// The meeting can start with the queue unfinished: the skeleton is still there and legible.
+	CHECK(!vr.queue.empty());
+	CHECK(sk.outcomeCount > 0 && sk.outcomes[0].lineCount > 0);
+
+	// Warming happens in the async window, once, and is written down.
+	CHECK(!vr.warm);
+	CHECK(WarmVoice(s, vr, 0.0));
+	CHECK(vr.warm);
+	CHECK(!WarmVoice(s, vr, 0.0));          // already warm: nothing to do
+	bool logged = false;
+	for (const LogEntry &e : s.log)
+		if (e.what.find("warmed in the async window") != std::string::npos) logged = true;
+	CHECK(logged);
+}
+
+static void TestAudioSaveRoundTrip()
+{
+	g_test = "the audio model adds nothing to the save: the blob round-trips unchanged";
+	Ship s = NewShip();
+	const std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(Pack(back) == blob);
+}
+
+// `test_ship_core --voice` prints the audio plumbing as evidence (docs/evidence/audio-plumbing.md):
+// the three sources and their owners, the cue set, the cache key and the no-op, the queue unfinished,
+// the warm in the async window, and the delivery direction end to end.
+static int PrintVoice()
+{
+	int failures = 0;
+	auto bad = [&failures](bool ok) { if (!ok) ++failures; };
+
+	std::printf("== three sources, one owner each\n");
+	for (int t = 0; t < TRACK_COUNT; ++t)
+		std::printf("  track %-8s  owner: %s\n", VoiceTrackName(static_cast<uint8_t>(t)),
+			VoiceProducerName(TrackOwner(static_cast<uint8_t>(t))));
+	{
+		VoiceMixer m;
+		const int line = VoiceWrite(m, PROD_RENDERER, TRACK_DIALOGUE, "line.wav");
+		bad(line >= 0);
+		const bool cueWroteLine = VoiceWrite(m, PROD_CUE_PLAYER, TRACK_DIALOGUE, "line.wav") < 0;
+		const bool cueRetiredLine = !VoiceRetire(m, PROD_CUE_PLAYER, line);
+		bad(cueWroteLine && cueRetiredLine);
+		bad(TrackBusy(m, TRACK_DIALOGUE));
+		std::printf("  the cue player writes to the dialogue track: %s\n", cueWroteLine ? "refused" : "ACCEPTED (a defect)");
+		std::printf("  the cue player retires the dialogue line:   %s\n", cueRetiredLine ? "refused" : "ACCEPTED (a defect)");
+		const int cue = VoiceWrite(m, PROD_CUE_PLAYER, TRACK_CUE, CueClip(CUE_BREATH), CUE_BREATH);
+		bad(VoiceRetire(m, PROD_CUE_PLAYER, cue));
+		const bool lineSurvives = TrackBusy(m, TRACK_DIALOGUE);
+		bad(lineSurvives);
+		std::printf("  a cue plays and retires: the dialogue line is %s\n", lineSurvives ? "still playing" : "STOPPED (a defect)");
+	}
+
+	std::printf("== the cue set: clips, never text, each for one thing\n");
+	for (int c = 0; c < CUE_COUNT; ++c)
+		std::printf("  %-30s  %-16s  %s\n", CueName(static_cast<uint8_t>(c)), CueClip(static_cast<uint8_t>(c)),
+			CuePurpose(static_cast<uint8_t>(c)));
+	{
+		Ship s = NewShip();
+		VoiceMixer m;
+		const int cue = EmitCue(s, m, CUE_HOLDING, "the answer is late");
+		bad(cue >= 0);
+		bool logged = false;
+		for (const LogEntry &e : s.log) if (e.what.find("cue: I have to think about that.") != std::string::npos) logged = true;
+		bad(logged);
+		std::printf("  the emit site, in the normal case: %s\n", logged ? "wrote the cue emission to the log" : "SILENT (a defect)");
+	}
+
+	std::printf("== the cache key, and a second render is a no-op\n");
+	{
+		VoiceRender vr;
+		vr.dir = "voice";
+		RenderJob job;
+		job.voice = "tuvok"; job.text = "Make it so."; job.delivery = DELIVERY_ORDER;
+		job.key = RenderKey(job.voice, job.text, job.delivery);
+		const int q1 = QueueRender(vr, job);
+		const int q2 = QueueRender(vr, job);
+		std::printf("  key \"%s\" -> %s.wav\n", job.key.c_str(), job.key.c_str());
+		std::printf("  first queue: %d; second queue: %d (0 = already queued, not rendered twice)\n", q1, q2);
+		bad(q1 == 1 && q2 == 0);
+		CacheRendered(vr, job.key, VoiceCachePath(vr, job.key));
+		const int q3 = QueueRender(vr, job);
+		std::printf("  after it is cached, queue again: %d (0 = cached, a re-render is a no-op)\n", q3);
+		bad(q3 == 0);
+		const int dropped = PruneVoiceCache(vr);
+		std::printf("  pruned with the save: %d entr(ies) dropped, cache now %d\n", dropped,
+			static_cast<int>(vr.cache.size()));
+	}
+
+	std::printf("== the meeting plays with the queue unfinished; the skeleton carries it\n");
+	{
+		Ship s = NewShip();
+		s.player = 0;
+		const MeetingBrief b = BuildBrief(s, MEET_WATCH_CHANGE);
+		const MeetingSkeleton &sk = AuthoredSkeleton(MEET_WATCH_CHANGE);
+		VoiceRender vr;
+		vr.dir = "voice";
+		const int queued = PlanMeetingAudio(vr, s, b, sk);
+		std::printf("  planned %d line(s); queue unfinished: %d\n", queued, static_cast<int>(vr.queue.size()));
+		std::printf("  the skeleton, played with the queue unfinished: %d outcome(s) in \"%s\"\n", sk.outcomeCount, sk.decision.c_str());
+		bad(queued > 0 && sk.outcomeCount > 0);
+		bad(WarmVoice(s, vr, 0.0));
+		std::printf("  warm: happens in the async window, off the critical path (the queue is not the player)\n");
+	}
+
+	std::printf("== the delivery direction reaches the synthesizer's --exaggeration\n");
+	{
+		const MeetingSkeleton &sk = AuthoredSkeleton(MEET_WATCH_CHANGE);
+		const MeetingLine &line = sk.outcomes[0].lines[0];
+		SynthesisRequest req;
+		bad(LineToSynthesis(line, req));
+		std::printf("  line: \"%s\"\n", line.text.c_str());
+		std::printf("  delivery %s -> RenderJob.exaggeration %.2f -> synthesize.py --exaggeration %.2f\n",
+			DeliveryName(req.delivery), req.exaggeration, req.exaggeration);
+	}
+	return failures;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--power")) return PrintPower();
 	if (argc > 1 && !std::strcmp(argv[1], "--meeting")) return PrintMeeting();
+	if (argc > 1 && !std::strcmp(argv[1], "--voice")) return PrintVoice();
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
@@ -5055,6 +5326,13 @@ int main(int argc, char **argv)
 	TestMeetingAllocationSeam();
 	TestMeetingBriefPerParticipant();
 	TestMeetingSaveRoundTrip();
+	TestTrackOwnership();
+	TestCueCannotStopALine();
+	TestCueSet();
+	TestCueEmitSite();
+	TestRenderKeyAndCache();
+	TestPlanMeetingAudio();
+	TestAudioSaveRoundTrip();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

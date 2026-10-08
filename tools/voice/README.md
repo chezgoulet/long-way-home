@@ -10,6 +10,9 @@ the retail assets are, what was installed, and the numbers behind the one clip t
 - `analyze.py` — find the retail voice assets and distil one clean reference clip from a character's
   lines. It reads the game the player owns and writes only to a path you name.
 - `synthesize.py` — clone that voice and speak one new line, using Chatterbox.
+- `render.py` — drain a meeting's render manifest (module/ship, phase two) through `synthesize.py`,
+  carrying each line's delivery direction to `--exaggeration`. It refuses an unmarked line, skips a
+  clip already on disk, and refuses a cache inside the repository. `--dry-run` prints the commands.
 
 ## What stage one found, in one line
 

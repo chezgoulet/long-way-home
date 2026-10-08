@@ -729,6 +729,135 @@ struct SynthesisRequest {
 };
 bool LineToSynthesis(const MeetingLine &line, SynthesisRequest &out);
 
+// ---- the audio plumbing: three sources, one owner each (docs/staff-meetings.md) ------------------
+//
+// Phase two. A meeting has THREE audio producers where a conversation had one: the pre-rendered
+// dialogue lines, the pre-generated non-lexical cues, and a live line on the novel-answer path. That
+// is exactly the configuration that cost Hermes Vox a month (docs/programme-meetings-and-voice.md,
+// lesson 1), so the ownership is written down here before any of it is built -- and it is testable:
+//
+//   ONE PRODUCER PER TRACK. A track is a source. Each track has exactly ONE owner (TrackOwner). A
+//   producer that does not own a track CANNOT write to it, and CANNOT retire anything on it.
+//   ONE RETIREMENT RULE PER REPLY. A reply is retired by the owner of the track it is on, through
+//   VoiceRetire, and by no other path. A cue therefore can never stop a dialogue line: the cue track
+//   is a different track, and its owner cannot reach a reply on the dialogue track.
+//
+// Nothing here owns a sound or opens an audio device: this is the model the player (phase three)
+// drives. The live producer exists and is named now; phase three fills its track.
+
+enum VoiceTrack : uint8_t { TRACK_DIALOGUE = 0, TRACK_CUE, TRACK_LIVE, TRACK_COUNT };
+const char *VoiceTrackName(uint8_t track);
+
+// The producers. Exactly one owns each track.
+enum VoiceProducer : uint8_t {
+	PROD_RENDERER = 0, // owns TRACK_DIALOGUE: the pre-rendered dialogue lines
+	PROD_CUE_PLAYER,   // owns TRACK_CUE: the pre-generated non-lexical cues
+	PROD_LIVE,         // owns TRACK_LIVE: the live line (phase three)
+	PROD_COUNT
+};
+const char *VoiceProducerName(uint8_t producer);
+uint8_t TrackOwner(uint8_t track);              // the one owner, as an invariant
+bool OwnsTrack(uint8_t producer, uint8_t track);
+
+const int VOICE_REPLY_MAX = 1; // one player per source: a track holds one reply at a time
+struct VoiceReply {
+	int id = -1;           // >= 0 while active; unique within the mixer
+	uint8_t track = TRACK_DIALOGUE;
+	std::string asset;     // the clip being played
+	int cue = -1;          // for TRACK_CUE: the CueId; else -1
+};
+struct VoiceTrackState {
+	VoiceReply replies[VOICE_REPLY_MAX];
+	int replyCount = 0;
+	int retires = 0;       // how many this track has retired (for tests; never the evidence)
+};
+struct VoiceMixer {
+	VoiceTrackState tracks[TRACK_COUNT];
+	int nextId = 0;
+};
+
+// Start a reply on `track` as `producer`. Returns a reply id (>= 0), or -1 and changes nothing if the
+// producer does not own the track, or the track already has a reply (one player per source).
+int VoiceWrite(VoiceMixer &m, uint8_t producer, uint8_t track, const std::string &asset, int cue = -1);
+// Retire a reply. THE ONLY retirement rule: the producer must own the track the reply is on. Returns
+// false and changes nothing otherwise -- so a cue player cannot retire a dialogue reply, and the
+// renderer cannot retire a cue.
+bool VoiceRetire(VoiceMixer &m, uint8_t producer, int replyId);
+bool TrackBusy(const VoiceMixer &m, uint8_t track);
+const VoiceReply *ActiveReply(const VoiceMixer &m, uint8_t track);
+
+// The cue set: small, and clips, never text. A sentence-prosody TTS reading "Mm?" is its worst case
+// (lesson 3), so these are PCM clips on their own track, and only real dialogue goes to the
+// synthesizer. Each cue has exactly one purpose, and the cue track's owner retires them.
+enum CueId : uint8_t {
+	CUE_BREATH = 0,  // a breath: the pause is a person, not a machine
+	CUE_CHAIR,       // a chair shifting: someone changes posture -- attention, or discomfort
+	CUE_PADD_TAP,    // a PADD tap: the room thinking, a beat filled by a hand
+	CUE_HMM,         // "Hmm.": acknowledgement while the answer is late
+	CUE_HOLDING,     // "I have to think about that.": the short holding line the design names
+	CUE_COUNT
+};
+const char *CueName(uint8_t cue);
+const char *CueClip(uint8_t cue);     // the clip in the player-local cue set
+const char *CuePurpose(uint8_t cue);  // what it is for, in words
+bool CueIsLexical(uint8_t cue);       // the one cue that is a spoken line rather than non-verbal
+
+// THE CUE EMIT SITE. A cue is played here and nowhere else. The cue track's owner retires it; no
+// other path may. It writes the emission to the log (scope "meeting") so the emit site can be grepped
+// -- never a counter -- and returns the reply id, or -1 if the cue track is already busy.
+int EmitCue(Ship &s, VoiceMixer &m, uint8_t cue, const std::string &reason);
+
+// The render queue and the cache. Rendering happens off the critical path, in the async window the
+// design already has: the player never waits on it, and a meeting can start with the queue unfinished
+// because the skeleton always exists. The cache is keyed so a re-render is avoided -- same text, same
+// voice, same delivery direction, same file -- and it lives beside the save, pruned with it, never in
+// the repository.
+const int VOICE_CACHE_MAX = 64;
+const int VOICE_QUEUE_MAX = 32;
+
+// The cache key. Length-prefixed so no text can forge another key's boundary.
+std::string RenderKey(const std::string &voice, const std::string &text, uint8_t delivery);
+
+struct RenderJob {
+	std::string key;           // RenderKey(voice, text, delivery)
+	std::string voice;         // who is cast (the reference the renderer uses)
+	std::string text;
+	uint8_t delivery = DELIVERY_UNMARKED;
+	float exaggeration = 0.5f; // carried from the delivery to the synthesizer's own knob
+	int speaker = SPEAK_ROOM;  // resolved against the room
+};
+struct VoiceCacheEntry { std::string key; std::string file; };
+struct VoiceRender {
+	std::string dir;                    // beside the save; the host supplies it. Never the repository.
+	std::vector<VoiceCacheEntry> cache; // rendered keys -> file
+	std::vector<RenderJob> queue;       // queued, not yet rendered (the async worker drains it)
+	bool warm = false;                  // the model has been warmed in the async window
+	double warmedAt = 0.0;
+};
+
+// Where a key's clip lives: <dir>/<key>.wav (the synthesizer's output; never the repository).
+std::string VoiceCachePath(const VoiceRender &vr, const std::string &key);
+bool VoiceCached(const VoiceRender &vr, const std::string &key);
+bool VoiceQueued(const VoiceRender &vr, const std::string &key);
+// Enqueue a render. 1 = newly queued; 0 = already cached or already queued (a re-render is a no-op);
+// -1 = the delivery is UNMARKED, so the line is not rendered; -2 = the queue is full. A key already
+// queued or cached is never enqueued twice.
+int QueueRender(VoiceRender &vr, const RenderJob &job);
+// A line the renderer finished: it enters the cache and leaves the queue. False if it was not queued
+// (so a render nobody asked for cannot enter the cache).
+bool CacheRendered(VoiceRender &vr, const std::string &key, const std::string &file);
+// The cache is pruned with the save: the index is emptied and the host deletes the directory.
+// Returns the number of entries dropped.
+int PruneVoiceCache(VoiceRender &vr);
+// Plan a meeting's audio: every line of every outcome of its skeleton, on the dialogue track, keyed
+// and deduplicated. Resolves each speaker against the room, and marks the unmarked line rather than
+// rendering it. Returns the number newly queued. A read: the ship is unchanged.
+int PlanMeetingAudio(VoiceRender &vr, const Ship &s, const MeetingBrief &brief, const MeetingSkeleton &sk);
+// Warm the model in the async window, off the critical path (lesson 4), so the first meeting anyone
+// sees is never the cold one. Where it happens is the async phase, when the worker opens. Returns
+// false if it was already warm. Writes the warm to the log.
+bool WarmVoice(Ship &s, VoiceRender &vr, double now);
+
 // ---- what the ship has given up (docs/damage-and-budgets.md, docs/story-and-semantics.md) --------
 //
 // Because there is never enough crew to fix everything, the player chooses what to write off: a deck

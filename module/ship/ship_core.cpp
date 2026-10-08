@@ -5474,6 +5474,232 @@ bool ApplyMeetingOutcome(Ship &s, const MeetingBrief &brief, int outcome, int de
 	return ok;
 }
 
+// ---- the audio plumbing: three sources, one owner each (docs/staff-meetings.md) ----------------
+//
+// ONE PRODUCER PER TRACK, ONE RETIREMENT RULE PER REPLY. The ownership is a function (TrackOwner),
+// and every write and every retirement goes through the checks below, so a non-owner is refused by
+// construction rather than by convention. The cue track is not the dialogue track: EmitCue never
+// touches a line, and VoiceRetire(PROD_CUE_PLAYER, <a line>) is refused.
+//
+// No sound is owned here and no device is opened. This is the model phase two builds and phase three
+// drives.
+
+const char *VoiceTrackName(uint8_t track)
+{
+	static const char *const NAMES[TRACK_COUNT] = { "dialogue", "cue", "live" };
+	return track < TRACK_COUNT ? NAMES[track] : "?";
+}
+
+const char *VoiceProducerName(uint8_t producer)
+{
+	static const char *const NAMES[PROD_COUNT] = { "the renderer", "the cue player", "the live line" };
+	return producer < PROD_COUNT ? NAMES[producer] : "?";
+}
+
+uint8_t TrackOwner(uint8_t track)
+{
+	switch (track) {
+		case TRACK_DIALOGUE: return PROD_RENDERER;
+		case TRACK_CUE: return PROD_CUE_PLAYER;
+		case TRACK_LIVE: return PROD_LIVE;
+		default: return PROD_COUNT;
+	}
+}
+
+bool OwnsTrack(uint8_t producer, uint8_t track) { return producer == TrackOwner(track); }
+
+int VoiceWrite(VoiceMixer &m, uint8_t producer, uint8_t track, const std::string &asset, int cue)
+{
+	if (track >= TRACK_COUNT || !OwnsTrack(producer, track)) return -1; // not yours to write
+	VoiceTrackState &ts = m.tracks[track];
+	if (ts.replyCount >= VOICE_REPLY_MAX) return -1; // one player per source: the track is busy
+	VoiceReply &r = ts.replies[ts.replyCount++];
+	r.id = m.nextId++;
+	r.track = track;
+	r.asset = asset;
+	r.cue = cue;
+	return r.id;
+}
+
+bool VoiceRetire(VoiceMixer &m, uint8_t producer, int replyId)
+{
+	for (int t = 0; t < TRACK_COUNT; ++t) {
+		VoiceTrackState &ts = m.tracks[t];
+		for (int i = 0; i < ts.replyCount; ++i) {
+			if (ts.replies[i].id != replyId) continue;
+			if (!OwnsTrack(producer, ts.replies[i].track)) return false; // not yours to retire
+			for (int j = i; j + 1 < ts.replyCount; ++j) ts.replies[j] = ts.replies[j + 1];
+			--ts.replyCount;
+			++ts.retires;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool TrackBusy(const VoiceMixer &m, uint8_t track)
+{
+	return track < TRACK_COUNT && m.tracks[track].replyCount > 0;
+}
+
+const VoiceReply *ActiveReply(const VoiceMixer &m, uint8_t track)
+{
+	if (track >= TRACK_COUNT || m.tracks[track].replyCount == 0) return nullptr;
+	return &m.tracks[track].replies[0];
+}
+
+const char *CueName(uint8_t cue)
+{
+	static const char *const NAMES[CUE_COUNT] = { "breath", "chair", "PADD tap", "Hmm.", "I have to think about that." };
+	return cue < CUE_COUNT ? NAMES[cue] : "?";
+}
+
+const char *CueClip(uint8_t cue)
+{
+	static const char *const CLIPS[CUE_COUNT] = {
+		"cue/breath.wav", "cue/chair.wav", "cue/padd_tap.wav", "cue/hmm.wav", "cue/holding.wav"
+	};
+	return cue < CUE_COUNT ? CLIPS[cue] : "";
+}
+
+const char *CuePurpose(uint8_t cue)
+{
+	static const char *const PURPOSES[CUE_COUNT] = {
+		"the pause is a person, not a machine",
+		"someone changes posture: attention, or discomfort",
+		"the room thinking, a beat filled by a hand",
+		"acknowledgement while the answer is late",
+		"the short holding line the design names, before a deferral"
+	};
+	return cue < CUE_COUNT ? PURPOSES[cue] : "";
+}
+
+bool CueIsLexical(uint8_t cue) { return cue == CUE_HOLDING; }
+
+int EmitCue(Ship &s, VoiceMixer &m, uint8_t cue, const std::string &reason)
+{
+	if (cue >= CUE_COUNT) return -1;
+	const int id = VoiceWrite(m, PROD_CUE_PLAYER, TRACK_CUE, CueClip(cue), cue);
+	if (id < 0) return -1; // the cue track is busy: nothing is written, and nothing else plays
+	LogEvent(s, "the room", "meeting", std::string("cue: ") + CueName(cue) + " -- " + reason);
+	return id;
+}
+
+std::string RenderKey(const std::string &voice, const std::string &text, uint8_t delivery)
+{
+	uint64_t h = 1469598103934665603ULL; // FNV-1a, 64-bit
+	const uint8_t *vb = reinterpret_cast<const uint8_t *>(voice.data());
+	const uint8_t *tb = reinterpret_cast<const uint8_t *>(text.data());
+	const uint32_t vl = static_cast<uint32_t>(voice.size());
+	const uint32_t tl = static_cast<uint32_t>(text.size());
+	// Length prefixes first, so "ab"+"c" and "a"+"bc" cannot collide through the concatenation.
+	for (int i = 0; i < 4; ++i) { h ^= (vl >> (8 * i)) & 0xFF; h *= 1099511628211ULL; }
+	for (size_t i = 0; i < voice.size(); ++i) { h ^= vb[i]; h *= 1099511628211ULL; }
+	for (int i = 0; i < 4; ++i) { h ^= (tl >> (8 * i)) & 0xFF; h *= 1099511628211ULL; }
+	for (size_t i = 0; i < text.size(); ++i) { h ^= tb[i]; h *= 1099511628211ULL; }
+	h ^= delivery; h *= 1099511628211ULL;
+	char buf[17];
+	std::snprintf(buf, sizeof(buf), "%016llx", static_cast<unsigned long long>(h));
+	return std::string(buf);
+}
+
+std::string VoiceCachePath(const VoiceRender &vr, const std::string &key)
+{
+	return vr.dir.empty() ? key + ".wav" : vr.dir + "/" + key + ".wav";
+}
+
+bool VoiceCached(const VoiceRender &vr, const std::string &key)
+{
+	for (const VoiceCacheEntry &e : vr.cache) if (e.key == key) return true;
+	return false;
+}
+
+bool VoiceQueued(const VoiceRender &vr, const std::string &key)
+{
+	for (const RenderJob &j : vr.queue) if (j.key == key) return true;
+	return false;
+}
+
+int QueueRender(VoiceRender &vr, const RenderJob &job)
+{
+	if (!DeliveryKnown(job.delivery)) return -1; // UNMARKED: marked, not guessed, and not rendered
+	if (VoiceCached(vr, job.key) || VoiceQueued(vr, job.key)) return 0; // a re-render is a no-op
+	if (static_cast<int>(vr.queue.size()) >= VOICE_QUEUE_MAX) return -2;
+	vr.queue.push_back(job);
+	return 1;
+}
+
+bool CacheRendered(VoiceRender &vr, const std::string &key, const std::string &file)
+{
+	bool queued = false;
+	for (size_t i = 0; i < vr.queue.size(); ++i)
+		if (vr.queue[i].key == key) { vr.queue.erase(vr.queue.begin() + i); queued = true; break; }
+	if (!queued) return false; // a render nobody asked for does not enter the cache
+	if (VoiceCached(vr, key)) return true;
+	if (static_cast<int>(vr.cache.size()) >= VOICE_CACHE_MAX) vr.cache.erase(vr.cache.begin());
+	VoiceCacheEntry e;
+	e.key = key;
+	e.file = file.empty() ? VoiceCachePath(vr, key) : file;
+	vr.cache.push_back(e);
+	return true;
+}
+
+int PruneVoiceCache(VoiceRender &vr)
+{
+	const int n = static_cast<int>(vr.cache.size());
+	vr.cache.clear(); // the host deletes the directory: nothing survives a prune
+	return n;
+}
+
+// The name a line's role resolves to when no one in the room fills it. For the renderer's benefit,
+// not the player's: it is the casting identity, and phase three casts our own crew.
+static const char *SpeakerRoleName(int speaker)
+{
+	switch (speaker) {
+		case SPEAK_COMMAND: return "the commanding officer";
+		case SPEAK_ENGINEERING: return "the chief engineer";
+		case SPEAK_SECURITY: return "the security chief";
+		case SPEAK_SCIENCES: return "the science officer";
+		case SPEAK_MEDICAL: return "the chief medical officer";
+		default: return "the room";
+	}
+}
+
+int PlanMeetingAudio(VoiceRender &vr, const Ship &s, const MeetingBrief &brief, const MeetingSkeleton &sk)
+{
+	int added = 0;
+	for (int i = 0; i < sk.outcomeCount; ++i) {
+		const MeetingOutcome &oc = sk.outcomes[i];
+		for (int l = 0; l < oc.lineCount; ++l) {
+			const MeetingLine &line = oc.lines[l];
+			SynthesisRequest req;
+			if (!LineToSynthesis(line, req)) continue; // the unmarked line is marked, not rendered
+			const int who = ResolveSpeaker(s, brief, line.speaker);
+			RenderJob job;
+			job.voice = (who >= 0 && who < static_cast<int>(s.crew.size())) ? s.crew[who].name
+				: SpeakerRoleName(line.speaker);
+			job.text = req.text;
+			job.delivery = req.delivery;
+			job.exaggeration = req.exaggeration;
+			job.speaker = line.speaker;
+			job.key = RenderKey(job.voice, job.text, job.delivery);
+			if (QueueRender(vr, job) == 1) ++added;
+		}
+	}
+	return added;
+}
+
+bool WarmVoice(Ship &s, VoiceRender &vr, double now)
+{
+	if (vr.warm) return false;
+	vr.warm = true;
+	vr.warmedAt = now;
+	// Where the warm happens is the async phase, when the worker opens -- off the critical path, so
+	// the first meeting anyone sees is never the cold one (lesson 4).
+	LogEvent(s, "the computer", "meeting", "voice: the model is warmed in the async window, before the meeting plays");
+	return true;
+}
+
 // ---- persistence ------------------------------------------------------------------------------
 
 namespace {
