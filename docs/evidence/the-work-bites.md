@@ -117,6 +117,18 @@ operator's factors and requires every one of their names in the anomaly line the
 carries. **A modifier the player cannot see would be worse than none**, which is why nothing here is
 hidden: the factor list is complete and the weights are printed.
 
+**And in the engine, on the real crew.** `scripts/condition-check.sh` is the existing check for the
+condition-sets-the-odds ruling, and it passes unchanged (exit 0) -- the factors are appended, so its
+regex still matches -- and now carries a named crew member's factors:
+
+```
+SHIP: day 0 08:17  [engineering] B'Elanna Torres: transporters: catastrophic anomaly at 40% condition under 100% load -- skill engineering skill 4.0 -0.20; trait poor with authority (under orders) +0.10; drive wants promotion, and leans in -0.10; drive afraid of being useless, and works harder -0.10; morale morale (fit): carrying on -0.12
+```
+
+That is the requirement met on a named crew member in a real run: the chief engineer's own skill, her
+`poor with authority` trait, her `wants promotion` and `afraid of being useless` drives, and her
+morale, all named on the outcome.
+
 At the console, `ship operate` now states the operator's own picture before the use
 (`module/ship/g_ship.cpp`), so a player who has just had a console go off in their face can see why
 they were working badly. **What is drawn**: the console command output. **What is not drawn**: a
@@ -222,6 +234,12 @@ scripts/character-check.sh
 scripts/check.sh --source-map build/gdk/maps/eliteforce_voyager_maps/voy1.map --script-corpus build/gdk/scripts
   -> entity dictionary 318 classes; validator negative tests ALL PASS;
      2,024 files: 2,016 compiled and read back, 8 rejected -- exactly the known, documented set;
+     exit 0
+
+scripts/condition-check.sh
+  -> PASS  a nominal system is beamed fifty times with no anomaly; the console states the condition
+     before the act; the same system degraded and at battle stations lets go, writes the chain to the
+     log, and changes or hurts a record -- now with the operator's factors named on the anomaly line;
      exit 0
 
 module build
