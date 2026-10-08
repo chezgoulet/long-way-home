@@ -221,3 +221,87 @@ traits and drives are static content; conditions, marks and state are the save.*
   provenance intact.
 - And no attribute block is introduced -- if one is ever proposed, the proposal has to argue against the
   refusal above.
+
+---
+
+## Appearance: the face is part of the person, so it comes from the same seed
+
+**The owner's question, 2026-10-08:** *how do we approach the visuals for each character in the crew? Does
+changing the seed remix the character attributes and assets based on how they were rolled?*
+
+**Checked against the code. The answer splits in two, and the halves differ.**
+
+### Attributes: already true, and stronger than the question assumes
+
+`DeriveCharacter(CrewMember&, uint32_t &rng)` is *"a function of the record, not a table of hand-written
+people"* — **pure and deterministic**, called from `BuildRoster` **and again on load**, so **the static half is
+never in the save.** The field comment says it plainly: *"the same seed produces the same person."*
+
+**So changing the seed remixes the attributes, and the seed is not a flavour on top of the character — it is
+the character.** And `DeriveSpecies` already draws a species from the seed for a *generated* member while
+**named crew carry theirs.** So the two-tier split is not a proposal here; it is built, for species.
+
+### Assets: not yet, and that is the gap
+
+**A crew record carries `std::string type` — "the game's NPC type used to embody them (an existing character)."**
+That is an **assigned** string, not a derived one. And there is exactly one record-to-model path in the engine
+host: `ApplyPlayerBody`, *"the player's model set from the crew record this department"* — **one person, for the
+player.**
+
+**So today the seed does not touch a face.** The body is a field somebody set.
+
+### What it should be, in one line
+
+**The face is part of the person, so it should come from the same derivation.**
+
+Add `DeriveAppearance(record, seed)` beside `DeriveCharacter`, filling **which parts were chosen** — and **not
+stored**, exactly as the character layer is not stored, recomputed on load. Then the seed remixes the whole
+person together: traits and face from one stream, and **a save replays identically, face and all.** Two
+derivations over one seed is the whole principle; anything else would let a person's face drift from their
+record.
+
+### How the parts are chosen — and this is already the doctrine
+
+`docs/asset-doctrine.md` rules on it, and the ruling is decisive:
+
+- ***"Characters are parts."*** Mixing and matching the shipped character assets *"produces faces and bodies we
+  do not have"*, and the crew are drawn from the game's own bots *"because those bots have models, skins and a
+  place in the fiction."*
+- ***"Whole-cloth generation is in scope for our own content."*** A mesh-and-skin generator is *"a legitimate way
+  to make the anonymous crew particular"* — **and it is a later step, not this one.**
+- **And the boundary, which is sharp:** *"an original face for an original ensign is ours; **a generated likeness
+  of a lore character is not**, and lore characters use the shipped assets they already have."*
+
+**So: composition from named, shipped parts — a cast list per slot (head, hair, tone, build, uniform,
+department colour), and the seed selects.** Hundreds of distinct people out of the existing assets, no new art,
+every one of them reproducible from a seed. **It is the same trick the decks used: re-dress from named
+sources, and say which.**
+
+### Three rules the derivation must obey
+
+1. **Species constrains the pool.** A Vulcan draws from Vulcan parts; a Betazoid from Betazoid ones. **This is
+   the visual corollary of *"species are capabilities and needs, never bonuses"*** — the species is *visible*
+   and it is *not a stat*. Nonsense results otherwise, and nonsense is what tells the player the roster is a
+   slot machine.
+2. **The generated pool excludes the canon faces — in code, not in a note.** The boundary above is the voice
+   rule in another medium: **we may not generate a likeness of a named character, so the derivation must be
+   unable to produce one.** A comment saying it does not is not a mechanism.
+3. **Named crew are never re-rolled and never generated.** They use their shipped model, as they do now. **The
+   derivation applies to the crew the game invented**, which is what the owner's start-state ruling made
+   possible in the first place.
+
+### And the judgement, which is the owner's
+
+**The failure mode of slot-rolling is a crew that reads as a selection of parts rather than as people** — the
+same failure as *"a plausible table of numbers"*, one level up. So the acceptance is **his eye on a group, not
+on one body**: four or five generated crew, on a deck, at their posts.
+
+**And this is not decoration.** *"Does the crew read as inhabited"* is the gate that has been open since the
+crew was first measured — and faces are a large part of that answer.
+
+### And what it costs, which must be measured rather than assumed
+
+Skins and models are a finite allowance, and the performance survey measured the *ship*, not a derived crew.
+**A full crew of derived bodies must be counted against the ceiling before it is promised** — the survey's own
+lesson is that an allowance nobody measured is an allowance already spent.
+
