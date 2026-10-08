@@ -77,8 +77,8 @@ needed, it is a *trait* plus a fatigue curve, not a stat.
 
 A layer that only describes a person is decoration. So **the four kinds and morale reach the failure
 roll's odds** -- the roll that decides whether a use is quick, slow, or dangerous
-(`docs/failure-is-content.md`) -- each by its own route, and each named. This is the section the
-brief called for: the four kinds and how each reaches the work, in the document that owns them.
+(`docs/failure-is-content.md`) -- each by its own route, and each named. This section owns that
+wiring: the four kinds, and how each reaches the work.
 
 | kind | how it reaches the work | named in the record as |
 |---|---|---|
