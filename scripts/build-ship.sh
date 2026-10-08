@@ -73,6 +73,12 @@ python3 "$ROOT/tools/shipmap/parts_census.py" --map "$ROOT/build/ship/generated/
 # it must override the retail ext_data/sp_turbolift.dat in the pak search order.
 mkdir -p "$ROOT/build/ship/files/ext_data"
 cp "$ROOT/tools/shipmap/data/sp_turbolift.dat" "$ROOT/build/ship/files/ext_data/"
+# The one config a Long Way Home run needs (gate G1). It goes into the pak so that any installation
+# carrying the ship also carries the way in: the main menu's "Long Way Home" line execs it, and so
+# does scripts/run-lwh.sh, and its values therefore live in exactly one place.
+mkdir -p "$ROOT/build/ship/files"
+cp "$ROOT/configs/lwh-start.cfg" "$ROOT/build/ship/files/"
+
 # The status panel's shader and its placeholder image: the ship's live state is drawn onto this
 # surface (gi.UpdatePanelImage), so the shader and a real image at the same size must be present.
 mkdir -p "$ROOT/build/ship/files/scripts" "$ROOT/build/ship/files/gfx/lwh"

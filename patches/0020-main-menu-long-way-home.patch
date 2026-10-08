@@ -1,0 +1,61 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 20/20] main menu: the Long Way Home line, and a menu that finishes opening
+
+Gate G1 and the first half of G2 (docs/the-entry-point.md): the game has no way in from its menus,
+and this is the one attach point the main menu needs. The line itself -- the button, its callback,
+and the start-state selector it opens -- lives in module/ui/ui_lwh_start.cpp and is compiled in from
+LWH_MODULE_DIR like every other piece of our logic. This patch only calls it.
+
+`LWH_UI_MainMenuAdd` is called after the eight retail buttons are added, so the new item is the
+menu's last and renders in the retail grid's one free cell. With LWH_UI unset the call and its
+inline no-op collapse to nothing and the menu is exactly upstream's, which is what keeps mode 1
+unmodified in behaviour.
+
+The second hunk is a robustness fix that a menu with an added line forces into the open: the opening
+animation ended only on a frame where its per-frame counter was exactly buttonCnt-1 (7). At a low
+frame rate one frame can step the counter from 6 to 8 and skip 7, and the menu then sits in its
+opening animation forever -- the buttons are never drawn, so any line added to them never appears.
+`>=` completes the opening on the frame it reaches the last-but-one button, which is what the
+normal case does; the only behaviour it changes is the hang.
+
+diff --git a/efgame/src/ui/ui_menu.cpp b/efgame/src/ui/ui_menu.cpp
+index 169d942..91e9911 100755
+--- a/efgame/src/ui/ui_menu.cpp
++++ b/efgame/src/ui/ui_menu.cpp
+@@ -1,4 +1,11 @@
+ #include "ui_local.h"
++#include "lwh_ui_hooks.h"
++
++#ifndef LWH_UI
++// Without our UI module (LWH_UI unset) the main menu is exactly upstream's: the attach point below
++// compiles to nothing. With it set, lwh_ui.h declares the real one.
++inline void LWH_UI_MainMenuAdd( void * ) {}
++#endif
+ 
+ void UI_VirtualSaveMenu(int from);
+ 
+@@ -2823,7 +2830,12 @@ void M_Main_Opening (void)
+ 
+ 		ui.R_SetColor( NULL );
+ 
+-		if (iMax == (buttonCnt - 1))	// End of menu opening
++		// End of menu opening. `>=` and not `==`: at a low frame rate a single frame can step
++		// iMax from 6 to 8 and skip 7, and `== 7` then never fires -- the menu sits in its opening
++		// animation forever and the buttons (and any line added to them) are never drawn. With
++		// `>=` the opening completes on the first frame it reaches the last-but-one button, which
++		// is what the normal case does; it changes nothing except that the hang cannot happen.
++		if (iMax >= (buttonCnt - 1))	// End of menu opening
+ 		{
+ 			iMaxHold = 0;
+ 
+@@ -3633,6 +3645,10 @@ void MainMenu_Init( void )
+ 	Menu_AddItem( &s_main_menu,	&s_wormhole_label );
+ 	Menu_AddItem( &s_main_menu,	&s_core_label );
+ 
++	// Long Way Home: the third mode's own line, beside the retail ones (docs/client-modes.md). The
++	// line itself is ours (module/ui/ui_lwh_start.cpp); this is only the attach point.
++	LWH_UI_MainMenuAdd( &s_main_menu );
++
+ 	s_main_menu.initialized = qtrue;
+ 
+ 
