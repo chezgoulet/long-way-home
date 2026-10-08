@@ -548,6 +548,28 @@ Still to do, in order:
   line drawn from their strongest mark (`scripts/speech-check.sh`)
 - **time travel explicitly refused**
 
+## The voice mechanism — built and accepted (2026-10-08)
+
+The owner's instruction was to ship **the mechanism and never the output**: an analyzer and a synthesizer, pointed
+at the retail voice assets the player owns, generating on the player's own machine (`docs/asset-doctrine.md`,
+`docs/staff-meetings.md`).
+
+**It works.** `tools/voice/analyze.py` and `tools/voice/synthesize.py`; four characters proven; the owner's ear
+on every clip; two artefacts found (a reverb and an accent drift), both diagnosed, both fixed, both heard gone.
+
+- Six characters rendered across four passes; **Tuvok perfect**, the computer fixed, Janeway fixed twice.
+- **The reference rule:** one line, one speaker, one recording condition, as dry as the source allows. A
+  concatenation buys duration at the cost of the room.
+- **Line length is a rendering constraint.** Condition per line; never render a passage in one call.
+- **Delivery direction belongs in the meeting brief, per line** — `exaggeration` is the emotion control and it
+  defaults to 0.5 whatever the text says.
+- **The prosody proxy screens; the owner's ear decides.**
+- The mechanism ships; **no generated audio is in this repository, ever.** The venv and model cache are kept in
+  the gitignored scratch on the build host.
+
+Evidence: `docs/evidence/voice-spike.md`, `voice-examples.md`, `janeway-cheeseburger.md`, `voice-review.md`,
+`voice-fixes.md`. **What remains is the plumbing that calls it and the meeting that uses it.**
+
 ## Residuals (named, queued, not forgotten)
 
 - ~~**The Game Development Kit was no longer on the playtest host**~~ **Closed 2026-10-05** — it had

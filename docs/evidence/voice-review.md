@@ -106,3 +106,34 @@ The owner's note, read that way, is a reason the split is right.
 2. **Line length is a rendering constraint.** Render per line, condition per line; never one long call.
 3. **The brief carries delivery direction per line**, and the synthesizer takes it as `exaggeration`.
 4. **The prosody proxy screens; the ear decides.**
+
+---
+
+## The fix pass, and the verdict (2026-10-08)
+
+`docs/evidence/voice-fixes.md` rendered **three clips, each changing exactly one thing**, and the owner heard
+them:
+
+> **"Those are much, much better."**
+
+**Three of three. The voice question is closed.**
+
+- **The computer** — the same line, rebuilt from a **single** reference with **the join removed**. The old
+  reference was the concatenation of two lines and the new one is one of those two alone, so the only
+  difference was the seam. **The reverb left.** → *the reference rule is confirmed rather than proposed.*
+- **The cheeseburger** — `cfg_weight` 0.5 → 0.8 and nothing else. **The British tail left.** And the knob did
+  it structurally: the clip **shortened** from 4.78 s to 4.10 s, so the model spent less time past the end of
+  the text, which is where the drift lived. → *drift is prompt decay, and `cfg_weight` is its lever.*
+- **The urgency line** — `exaggeration` 0.5 → 0.8 and nothing else. **The immediacy arrived**, and the number
+  agrees: pitch range 54 → 85 Hz and rate 2.5 → 3.5 words per second, where the previous render had been
+  *narrower and slower* than the cheeseburger. → *the missing immediacy was a missing control, not a missing
+  capability.*
+
+**So the four rules above are earned rather than inferred.** And one more, from the shape of this pass rather
+than its content: **change one thing per render.** Three clips, three attributable causes. A pass that moved
+all three knobs at once would have proved that *something* worked and nothing at all about which.
+
+**What is still unverified, and it is not small:** every clip so far is a **single short line.** Nothing here
+tests a **long passage** — and rule 2 says line length is a rendering constraint, which means the risk was
+*designed around* rather than *measured*. A meeting renders per line, so the design is safe; but if a line ever
+grows long, nobody has yet heard what happens.
