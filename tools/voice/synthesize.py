@@ -9,6 +9,13 @@ never the audio — see docs/asset-doctrine.md.
 
     synthesize.py --reference ref.wav --text "..." --out line.wav
 
+The model's own delivery controls are exposed and default to the model's own
+defaults, so an invocation that names none of them behaves exactly as before:
+
+    --exaggeration  0.5  (emotion_adv: the emotion control; up for urgency)
+    --cfg-weight    0.5  (prompt adherence against fluency; up to hold the reference)
+    --temperature   0.8  (sampling variety; lower for consistency)
+
 Dependencies (checked against their own LICENSE files): chatterbox-tts (MIT),
 torch (BSD-3). Install them in a throwaway virtualenv; do not vendor them.
 """
@@ -27,6 +34,12 @@ def main():
     ap.add_argument("--reference", required=True, help="the reference wav to clone from")
     ap.add_argument("--text", required=True, help="the line to speak")
     ap.add_argument("--out", required=True, help="where to write the wav (never in the repo)")
+    ap.add_argument("--exaggeration", type=float, default=0.5,
+                    help="model emotion control (emotion_adv); model default 0.5")
+    ap.add_argument("--cfg-weight", type=float, default=0.5,
+                    help="prompt adherence against fluency; model default 0.5")
+    ap.add_argument("--temperature", type=float, default=0.8,
+                    help="sampling variety; model default 0.8")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
 
@@ -35,12 +48,17 @@ def main():
     t0 = time.time()
     model = ChatterboxTTS.from_pretrained(device=args.device)
     loaded = time.time()
-    wav = model.generate(args.text, audio_prompt_path=args.reference)
+    wav = model.generate(args.text, audio_prompt_path=args.reference,
+                         exaggeration=args.exaggeration,
+                         cfg_weight=args.cfg_weight,
+                         temperature=args.temperature)
     generated = time.time()
     torchaudio.save(args.out, wav, model.sr)
     secs = wav.shape[-1] / model.sr
 
     print(f"device    : {args.device}")
+    print(f"knobs     : exaggeration={args.exaggeration} cfg_weight={args.cfg_weight} "
+          f"temperature={args.temperature}")
     print(f"load      : {loaded - t0:.1f}s")
     print(f"generate  : {generated - loaded:.1f}s for {secs:.2f}s audio "
           f"({secs / (generated - loaded):.2f}x realtime)")
