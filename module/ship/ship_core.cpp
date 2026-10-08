@@ -2546,6 +2546,10 @@ Ship NewShip(const Config &cfg)
 	BuildShuttles(s);
 	BuildSector(s, 0);
 	Tick(s, 0.0f); // so a new ship is already in a consistent state: powered, manned, located
+	// The meeting clock starts settled: the first watch-change brief is the next watch, not the one
+	// already in progress, and the first departmental meeting is tomorrow (docs/staff-meetings.md).
+	s.lastWatchMeeting = s.Day() * WATCHES + s.Watch();
+	s.lastDeptMeetingDay = s.Day();
 	// The navigation counter's baseline starts at the opening figure, so the first entry's change is
 	// measured from the beginning of the run rather than from zero (docs/navigation-counter.md).
 	s.navCounterLast = NavigationCounter(s).currentYears;
@@ -4063,6 +4067,10 @@ static void Advance(Ship &s, double shipSecondsTotal)
 		}
 		shipSeconds -= step;
 	} while (shipSeconds > 0.0);
+	// The meeting clock (docs/staff-meetings.md): with time actually passing, the simulation emits any
+	// brief that has fallen due. This is the emit site's caller -- every meeting produces a brief, the
+	// ordinary ones as much as the dramatic. A zero-length tick (a load, a console read) emits nothing.
+	if (shipSecondsTotal > 0.0) EmitDueMeetings(s);
 }
 
 void SetAlert(Ship &s, Alert a)
@@ -4851,6 +4859,621 @@ static void UpdateJobs(Ship &s)
 	s.jobs = next;
 }
 
+// ---- the meeting: the brief, the skeleton, and the seams (docs/staff-meetings.md) ---------------
+//
+// Phase one: text and state. No model is called, no sound is owned, no audio player is built. The
+// simulation enqueues a brief (a read); every kind of meeting has an authored skeleton (the floor); and
+// a chosen option resolves to one enumerated outcome the simulation applies. The invariant holds
+// throughout: the simulation decides, and any model only speaks.
+
+const char *MeetingKindName(uint8_t kind)
+{
+	static const char *const NAMES[MEET_KIND_COUNT] = {
+		"watch-change", "departmental", "allocation", "dilithium", "casualties", "Borg", "deferred"
+	};
+	return kind < MEET_KIND_COUNT ? NAMES[kind] : "?";
+}
+
+const char *MeetingEffectName(uint8_t e)
+{
+	static const char *const NAMES[EFFECT_COUNT] = {
+		"record", "set allocation", "automatic mode", "accept the chief's plan", "refuse the chief's plan",
+		"triage order", "security to a deck", "evacuate a deck", "set the alert", "recomposite", "keep a promise"
+	};
+	return e < EFFECT_COUNT ? NAMES[e] : "?";
+}
+
+const char *DeliveryName(uint8_t d)
+{
+	static const char *const NAMES[DELIVERY_COUNT] = {
+		"order", "report", "confession", "condolence", "flat", "unmarked"
+	};
+	return d < DELIVERY_COUNT ? NAMES[d] : "?";
+}
+
+// The review's own knob (docs/evidence/voice-review.md, finding three): `exaggeration` enters the
+// model as `emotion_adv`. Up for urgency, down for the flat and procedural. UNMARKED asks for nothing.
+float DeliveryExaggeration(uint8_t d)
+{
+	switch (d) {
+		case DELIVERY_ORDER: return 0.8f;
+		case DELIVERY_REPORT: return 0.5f;
+		case DELIVERY_CONFESSION: return 0.35f;
+		case DELIVERY_CONDOLENCE: return 0.3f;
+		case DELIVERY_FLAT: return 0.2f;
+		default: return -1.0f; // UNMARKED, or out of range: there is no value to ask for
+	}
+}
+
+bool DeliveryKnown(uint8_t d) { return d < DELIVERY_UNMARKED; }
+
+bool LineToSynthesis(const MeetingLine &line, SynthesisRequest &out)
+{
+	if (!DeliveryKnown(line.delivery)) return false; // marked, not guessed: refuse rather than default
+	out.text = line.text;
+	out.delivery = line.delivery;
+	out.exaggeration = DeliveryExaggeration(line.delivery);
+	return true;
+}
+
+int ResolveSpeaker(const Ship &s, const MeetingBrief &brief, int speaker)
+{
+	if (speaker >= 0) return speaker < static_cast<int>(s.crew.size()) ? speaker : -1;
+	Department want = DEPT_COUNT;
+	switch (speaker) {
+		case SPEAK_COMMAND: want = DEPT_COMMAND; break;
+		case SPEAK_ENGINEERING: want = DEPT_ENGINEERING; break;
+		case SPEAK_SECURITY: want = DEPT_SECURITY; break;
+		case SPEAK_SCIENCES: want = DEPT_SCIENCES; break;
+		case SPEAK_MEDICAL: want = DEPT_MEDICAL; break;
+		default: break; // SPEAK_ROOM
+	}
+	if (want < DEPT_COUNT) {
+		for (int i = 0; i < brief.presentCount; ++i) {
+			const int c = brief.present[i].crew;
+			if (c >= 0 && c < static_cast<int>(s.crew.size()) && s.crew[c].dept == want) return c;
+		}
+		return DepartmentHead(s, want);
+	}
+	if (brief.presentCount > 0) return brief.present[0].crew; // the room: the senior person present
+	return -1;
+}
+
+// ---- the authored skeleton, which is the floor --------------------------------------------------
+//
+// For every kind of meeting: the enumerated outcomes, their costs, and minimal dialogue for each --
+// enough that the scene plays and the decision is legible with nothing generated at all. The intents
+// are the branch descriptors the pills and novelty matching share. The speaker is a role, resolved
+// against the room at play time.
+
+static MeetingOption Opt(uint8_t intent, const char *label, const char *cost, uint8_t effect = EFFECT_RECORD,
+	int amount = 0, bool on = true)
+{
+	MeetingOption o;
+	o.intent = intent;
+	o.label = label;
+	o.cost = cost;
+	o.effect = effect;
+	o.amount = amount;
+	o.on = on;
+	return o;
+}
+
+static void SetAlloc(MeetingOption &o, int slot, SystemId system, int percent)
+{
+	if (slot < 0 || slot >= MEETING_ALLOC_MAX) return;
+	o.alloc[slot].system = static_cast<uint8_t>(system);
+	o.alloc[slot].percent = percent;
+}
+
+static void AddOutcome(MeetingSkeleton &sk, const MeetingOption &o)
+{
+	if (sk.outcomeCount >= MEETING_OUTCOME_MAX) return;
+	sk.outcomes[sk.outcomeCount].option = o;
+	sk.outcomes[sk.outcomeCount].lineCount = 0;
+	++sk.outcomeCount;
+}
+
+static MeetingOutcome &LastOutcome(MeetingSkeleton &sk)
+{
+	return sk.outcomes[sk.outcomeCount > 0 ? sk.outcomeCount - 1 : 0];
+}
+
+static void AddLine(MeetingSkeleton &sk, int speaker, const char *text, uint8_t delivery)
+{
+	MeetingOutcome &oc = LastOutcome(sk);
+	if (oc.lineCount >= MEETING_LINE_MAX) return;
+	MeetingLine &l = oc.lines[oc.lineCount++];
+	l.speaker = speaker;
+	l.text = text;
+	l.delivery = delivery;
+}
+
+static void BuildSkeletons(MeetingSkeleton (&sk)[MEET_KIND_COUNT])
+{
+	{ // the watch change: the normal case, and it always produces a brief
+		MeetingSkeleton &m = sk[MEET_WATCH_CHANGE];
+		m.kind = MEET_WATCH_CHANGE;
+		m.decision = "the watch handover, and what the incoming watch carries";
+		AddOutcome(m, Opt(1, "Carry on as briefed", "nothing"));
+		AddLine(m, SPEAK_COMMAND, "You have the watch. Carry on.", DELIVERY_ORDER);
+		AddLine(m, SPEAK_ENGINEERING, "Engineering holds at the allocation we set.", DELIVERY_REPORT);
+		AddOutcome(m, Opt(2, "Watch the reserve", "Engineering's attention this watch"));
+		AddLine(m, SPEAK_ENGINEERING, "I will watch the dilithium reserve and report any fall.", DELIVERY_REPORT);
+		AddLine(m, SPEAK_COMMAND, "Do that.", DELIVERY_ORDER);
+		AddOutcome(m, Opt(3, "Bring her to yellow", "the watch runs hot and the plant draws harder",
+			EFFECT_SET_ALERT, ALERT_YELLOW));
+		AddLine(m, SPEAK_SECURITY, "Condition yellow, ship-wide.", DELIVERY_REPORT);
+		AddLine(m, SPEAK_COMMAND, "Make it so.", DELIVERY_ORDER);
+		AddOutcome(m, Opt(4, "Note what the department raised", "nothing yet"));
+		AddLine(m, SPEAK_SCIENCES, "The reading is not something I can call yet.", DELIVERY_UNMARKED);
+	}
+	{ // the ordinary departmental meeting: it resolves nothing and still produces a brief
+		MeetingSkeleton &m = sk[MEET_DEPARTMENTAL];
+		m.kind = MEET_DEPARTMENTAL;
+		m.decision = "the department's business this watch";
+		AddOutcome(m, Opt(1, "No change", "nothing"));
+		AddLine(m, SPEAK_ENGINEERING, "Nothing here needs the captain. No change.", DELIVERY_REPORT);
+		AddOutcome(m, Opt(2, "Take the backlog in hand", "the department's hours this watch"));
+		AddLine(m, SPEAK_ENGINEERING, "We will work the backlog and report at the next watch.", DELIVERY_REPORT);
+		AddOutcome(m, Opt(3, "Raise it to the staff", "a place on the staff's agenda"));
+		AddLine(m, SPEAK_ENGINEERING, "Then I will bring it to the staff myself.", DELIVERY_REPORT);
+	}
+	{ // the allocation meeting: where the FTL argument and the allocation seam live
+		MeetingSkeleton &m = sk[MEET_ALLOCATION];
+		m.kind = MEET_ALLOCATION;
+		m.decision = "where the ship's power goes";
+		AddOutcome(m, Opt(1, "The chief's plan", "adopted as set", EFFECT_ACCEPT_RECOMMENDATION));
+		AddLine(m, SPEAK_ENGINEERING, "The plan holds every system the plant can feed.", DELIVERY_REPORT);
+		AddLine(m, SPEAK_COMMAND, "Adopted. Set it.", DELIVERY_ORDER);
+		AddOutcome(m, Opt(2, "Refuse the chief", "he notes who refused, and the argument stands",
+			EFFECT_REFUSE_RECOMMENDATION));
+		AddLine(m, SPEAK_ENGINEERING, "Then the plant is short, and it is on the record who chose it.", DELIVERY_REPORT);
+		AddLine(m, SPEAK_COMMAND, "Noted.", DELIVERY_FLAT);
+		AddOutcome(m, Opt(3, "Run the ship's own ladder", "automatic mode: the ship decides the unset systems",
+			EFFECT_SET_POWER_AUTO, 0, true));
+		AddLine(m, SPEAK_ENGINEERING, "The computer will keep the cheapest and give up the rest.", DELIVERY_REPORT);
+		AddOutcome(m, Opt(4, "The holodecks full, the shields dark", "no shields while the holodecks run",
+			EFFECT_SET_ALLOCATION));
+		{
+			MeetingOption &o = LastOutcome(m).option;
+			SetAlloc(o, 0, SYS_HOLODECKS, 100);
+			SetAlloc(o, 1, SYS_SHIELDS, 0);
+		}
+		AddLine(m, SPEAK_ENGINEERING, "That is the choice, then, and it is yours to make.", DELIVERY_REPORT);
+		AddLine(m, SPEAK_COMMAND, "Do it.", DELIVERY_ORDER);
+	}
+	{ // the crystal ages: the dilithium threshold
+		MeetingSkeleton &m = sk[MEET_DILITHIUM];
+		m.kind = MEET_DILITHIUM;
+		m.decision = "what to do as the crystal ages";
+		AddOutcome(m, Opt(1, "Recomposite at the next quiet watch", "Engineering's hours and material", EFFECT_RECOMPOSITE));
+		AddLine(m, SPEAK_ENGINEERING, "The frame can take another recomposition, if we spend the hours.", DELIVERY_REPORT);
+		AddOutcome(m, Opt(2, "Make for the nearest source", "a detour from the route home"));
+		AddLine(m, SPEAK_COMMAND, "Then we detour. Set the course.", DELIVERY_ORDER);
+		AddOutcome(m, Opt(3, "Run the crystal to the end", "no warp when it fails"));
+		AddLine(m, SPEAK_ENGINEERING, "We will get every light year out of it before it goes.", DELIVERY_REPORT);
+	}
+	{ // more casualties than beds: the triage gap as a decision
+		MeetingSkeleton &m = sk[MEET_CASUALTIES];
+		m.kind = MEET_CASUALTIES;
+		m.decision = "who gets the beds";
+		AddOutcome(m, Opt(1, "Treat the worst first", "a senior case may wait", EFFECT_ORDER_TRIAGE, 0));
+		AddLine(m, SPEAK_MEDICAL, "Worst first. I will not rank them.", DELIVERY_REPORT);
+		AddOutcome(m, Opt(2, "Treat rank first", "a critical junior may be lost", EFFECT_ORDER_TRIAGE, 1));
+		AddLine(m, SPEAK_MEDICAL, "Rank first. That is on your head, not mine.", DELIVERY_REPORT);
+		AddOutcome(m, Opt(3, "Raise the surgical field", "it holds one case and heals none"));
+		AddLine(m, SPEAK_MEDICAL, "The field will hold the gravest, and nothing more than that.", DELIVERY_REPORT);
+	}
+	{ // Borg pressure rising
+		MeetingSkeleton &m = sk[MEET_BORG];
+		m.kind = MEET_BORG;
+		m.decision = "how to meet the Borg pressure";
+		AddOutcome(m, Opt(1, "Send security", "the squad is committed", EFFECT_SECURITY_TO_DECK, 0));
+		AddLine(m, SPEAK_SECURITY, "We will hold the deck. Nobody gets behind us.", DELIVERY_ORDER);
+		AddOutcome(m, Opt(2, "Evacuate the deck", "the deck's work stops", EFFECT_EVACUATE_DECK, 0));
+		AddLine(m, SPEAK_SECURITY, "Evacuate. Nobody stays on that deck.", DELIVERY_ORDER);
+		AddOutcome(m, Opt(3, "Withdraw and seal it", "the deck is given up"));
+		AddLine(m, SPEAK_COMMAND, "Seal it. We will take it back when we can.", DELIVERY_ORDER);
+	}
+	{ // a promise has come due: a decision the player has been deferring
+		MeetingSkeleton &m = sk[MEET_DEFERRED];
+		m.kind = MEET_DEFERRED;
+		m.decision = "the promise that has come due";
+		AddOutcome(m, Opt(1, "Make it good now", "what it takes, now", EFFECT_PROMISE_KEPT));
+		AddLine(m, SPEAK_COMMAND, "It is owed. Do it.", DELIVERY_ORDER);
+		AddOutcome(m, Opt(2, "Let it stand", "the promise is broken, and remembered"));
+		AddLine(m, SPEAK_COMMAND, "I cannot do it. Note it, and let it stand.", DELIVERY_CONFESSION);
+		AddOutcome(m, Opt(3, "Attend to it later", "a deferred decision, and a mark that waits"));
+		AddLine(m, SPEAK_COMMAND, "Not yet. It waits.", DELIVERY_FLAT);
+	}
+}
+
+const MeetingSkeleton &AuthoredSkeleton(uint8_t kind)
+{
+	static MeetingSkeleton sk[MEET_KIND_COUNT];
+	static bool built = false;
+	if (!built) { built = true; BuildSkeletons(sk); }
+	return sk[kind < MEET_KIND_COUNT ? static_cast<int>(kind) : static_cast<int>(MEET_WATCH_CHANGE)];
+}
+
+// ---- the brief generator: a pure read ------------------------------------------------------------
+
+// The log scope a post reads (access and authority: a post reads its own scope, command reads all).
+static const char *ScopeForDept(Department d)
+{
+	switch (d) {
+		case DEPT_COMMAND: return "command";
+		case DEPT_ENGINEERING: return "engineering";
+		case DEPT_SECURITY: return "security";
+		case DEPT_SCIENCES: return "outside";
+		case DEPT_MEDICAL: return "sickbay";
+		default: return "crew";
+	}
+}
+
+static int WatchToken(const Ship &s) { return s.Day() * WATCHES + s.Watch(); }
+
+static int CasualtyCount(const Ship &s)
+{
+	int n = 0;
+	for (const CrewMember &c : s.crew) if (c.status == CREW_INJURED) ++n;
+	return n;
+}
+
+// The deck the simulation names when the room does not name one: the most contested, lowest first.
+static int MostThreatenedDeck(const Ship &s)
+{
+	int best = 0, bestN = 0;
+	for (int d = 0; d < DECKS; ++d) {
+		const int n = static_cast<int>(std::ceil(s.decks[d].intruders));
+		if (n > bestN) { bestN = n; best = d + 1; }
+	}
+	return best;
+}
+
+// The oldest open promise whose deadline is within a day (or past): the decision deferred.
+static int DuePromise(const Ship &s)
+{
+	int best = -1;
+	double bestMade = 0.0;
+	for (int i = 0; i < static_cast<int>(s.promises.size()); ++i) {
+		const Promise &p = s.promises[i];
+		if (p.state != PROMISE_OPEN || p.deadline < 0.0) continue;
+		if (s.clock < p.deadline - SECONDS_PER_DAY) continue;
+		if (best < 0 || p.made < bestMade) { best = i; bestMade = p.made; }
+	}
+	return best;
+}
+
+// A stable digest of the facts a brief was built from, so a stale script can be detected.
+static uint32_t StateDigest(const Ship &s)
+{
+	uint32_t h = 2166136261u;
+	auto mix = [&h](uint32_t v) { h ^= v; h *= 16777619u; };
+	mix(static_cast<uint32_t>(std::llround(s.clock)));
+	mix(s.alert);
+	mix(static_cast<uint32_t>(PowerCommitted(s)));
+	mix(static_cast<uint32_t>(s.PowerAvailable()));
+	mix(static_cast<uint32_t>(std::llround(s.dilithium * 1000.0f)));
+	mix(static_cast<uint32_t>(CasualtyCount(s)));
+	mix(static_cast<uint32_t>(Intruders(s)));
+	mix(static_cast<uint32_t>(std::llround(s.borgAwareness * 1000.0f)));
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		mix(static_cast<uint32_t>(std::llround(s.systems[i].health * 1000.0f)));
+		mix(static_cast<uint32_t>(s.systems[i].allocated));
+	}
+	return h;
+}
+
+static std::vector<LogEntry> LogForParticipant(const Ship &s, int crew)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return {};
+	const CrewMember &c = s.crew[crew];
+	if (MayCommand(c)) return ReadOfficialLog(s, MEETING_VIEW_MAX, std::string());
+	return ReadOfficialLog(s, MEETING_VIEW_MAX, std::string(ScopeForDept(c.dept)));
+}
+
+static bool AddParticipant(MeetingBrief &b, const Ship &s, int crew)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return false;
+	const CrewMember &c = s.crew[crew];
+	if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) return false;
+	for (int i = 0; i < b.presentCount; ++i) if (b.present[i].crew == crew) return false;
+	if (b.presentCount >= MEETING_PARTICIPANT_MAX) return false;
+	BriefParticipant &p = b.present[b.presentCount++];
+	p.crew = crew;
+	p.name = c.name;
+	p.post = c.post;
+	p.watch = c.watch;
+	p.mood = c.morale;
+	// What this person knows: their marks, most salient first.
+	int idx[MEMORY_MAX];
+	int n = 0;
+	for (int i = 0; i < static_cast<int>(c.memories.size()) && n < MEMORY_MAX; ++i) idx[n++] = i;
+	std::stable_sort(idx, idx + n, [&c](int a, int bb) { return c.memories[a].salience > c.memories[bb].salience; });
+	for (int i = 0; i < n && p.markCount < MEETING_VIEW_MAX; ++i) {
+		const Memory &m = c.memories[idx[i]];
+		BriefMark bm;
+		bm.event = m.event; bm.person = m.person; bm.source = m.source;
+		bm.valence = m.valence; bm.salience = m.salience;
+		p.marks[p.markCount++] = bm;
+	}
+	// The open claims they carry.
+	for (const Promise &pr : s.promises) {
+		if (pr.state != PROMISE_OPEN) continue;
+		if (pr.promiser != crew && pr.beneficiary != crew) continue;
+		if (p.promiseCount >= MEETING_VIEW_MAX) break;
+		BriefPromise &bp = p.promises[p.promiseCount++];
+		bp.kind = pr.kind; bp.promiser = pr.promiser; bp.beneficiary = pr.beneficiary;
+		bp.what = pr.what; bp.deadline = pr.deadline;
+	}
+	// The log they can read.
+	for (const LogEntry &e : LogForParticipant(s, crew)) {
+		if (p.logCount >= MEETING_VIEW_MAX) break;
+		p.log[p.logCount++] = e;
+	}
+	return true;
+}
+
+static void ParticipantsFor(const Ship &s, uint8_t kind, MeetingBrief &b)
+{
+	std::vector<int> ids;
+	auto add = [&ids](int id) { if (id >= 0) ids.push_back(id); };
+	if (s.player >= 0) add(s.player); // the player is in the room
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].status == CREW_FIT && s.crew[i].rank >= 5) { add(i); break; } // whoever commands
+	switch (kind) {
+		case MEET_ALLOCATION:
+			add(DepartmentHead(s, DEPT_ENGINEERING));
+			break;
+		case MEET_DILITHIUM:
+			add(DepartmentHead(s, DEPT_ENGINEERING));
+			add(DepartmentHead(s, DEPT_SCIENCES));
+			break;
+		case MEET_CASUALTIES:
+			add(DepartmentHead(s, DEPT_MEDICAL));
+			break;
+		case MEET_BORG:
+			add(DepartmentHead(s, DEPT_SECURITY));
+			add(DepartmentHead(s, DEPT_ENGINEERING));
+			break;
+		case MEET_DEFERRED:
+			for (const Promise &p : s.promises) if (p.state == PROMISE_OPEN) { add(p.promiser); add(p.beneficiary); }
+			break;
+		case MEET_DEPARTMENTAL: {
+			int best = -1, bestN = -1;
+			for (int d = 0; d < DEPT_COUNT; ++d) {
+				int cnt = 0;
+				for (const CrewMember &c : s.crew)
+					if (c.status == CREW_FIT && !c.brigged && c.dept == d && c.activity == ACT_ON_DUTY) ++cnt;
+				if (cnt > bestN) { bestN = cnt; best = d; }
+			}
+			for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+				const CrewMember &c = s.crew[i];
+				if (c.status == CREW_FIT && !c.brigged && c.dept == best) add(i);
+			}
+			break;
+		}
+		case MEET_WATCH_CHANGE:
+		default:
+			for (int d = 0; d < DEPT_COUNT; ++d) add(DepartmentHead(s, static_cast<Department>(d)));
+			break;
+	}
+	for (int id : ids) {
+		if (b.presentCount >= MEETING_PARTICIPANT_MAX) break;
+		AddParticipant(b, s, id);
+	}
+}
+
+static std::string TriggerFor(const Ship &s, uint8_t kind)
+{
+	char buf[160];
+	switch (kind) {
+		case MEET_WATCH_CHANGE:
+			std::snprintf(buf, sizeof(buf), "the watch changes: day %d, %s watch", s.Day(), s.Watch() == 0 ? "alpha" : s.Watch() == 1 ? "beta" : "gamma");
+			return buf;
+		case MEET_DEPARTMENTAL:
+			std::snprintf(buf, sizeof(buf), "the day's departmental meeting (day %d)", s.Day());
+			return buf;
+		case MEET_ALLOCATION:
+			std::snprintf(buf, sizeof(buf), "the commitments exceed the plant by %d EPS", PowerShortfall(s));
+			return buf;
+		case MEET_DILITHIUM:
+			std::snprintf(buf, sizeof(buf), "the crystal is at %d%%", static_cast<int>(s.dilithium * 100.0f + 0.5f));
+			return buf;
+		case MEET_CASUALTIES:
+			std::snprintf(buf, sizeof(buf), "%d casualties for %d beds", CasualtyCount(s), SICKBAY_BEDS);
+			return buf;
+		case MEET_BORG:
+			std::snprintf(buf, sizeof(buf), "%d intruders aboard, Borg awareness %d%%", Intruders(s), static_cast<int>(s.borgAwareness * 100.0f + 0.5f));
+			return buf;
+		case MEET_DEFERRED: {
+			const int i = DuePromise(s);
+			if (i >= 0 && i < static_cast<int>(s.promises.size())) {
+				const Promise &p = s.promises[i];
+				const std::string who = (p.beneficiary >= 0 && p.beneficiary < static_cast<int>(s.crew.size())) ? s.crew[p.beneficiary].name : "a crew member";
+				return "a promise to " + who + " has come due";
+			}
+			return "a decision has been deferred";
+		}
+		default:
+			return "a meeting is due";
+	}
+}
+
+MeetingBrief BuildBrief(const Ship &s, uint8_t kind)
+{
+	MeetingBrief b;
+	if (kind >= MEET_KIND_COUNT) kind = MEET_WATCH_CHANGE;
+	b.kind = kind;
+	b.time = s.clock;
+	const MeetingSkeleton &sk = AuthoredSkeleton(kind);
+	b.decision = sk.decision;
+	b.optionCount = std::min(sk.outcomeCount, MEETING_OPTION_MAX);
+	for (int i = 0; i < b.optionCount; ++i) b.options[i] = sk.outcomes[i].option;
+	ParticipantsFor(s, kind, b);
+	b.powerCommitted = PowerCommitted(s);
+	b.powerAvailable = s.PowerAvailable();
+	b.powerShortfall = PowerShortfall(s);
+	b.alert = s.alert;
+	b.dilithium = s.dilithium;
+	b.casualties = CasualtyCount(s);
+	b.beds = SICKBAY_BEDS;
+	b.borgPressure = Intruders(s) > 0 || s.borgAwareness > 0.5f;
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		b.systems[i].allocated = s.systems[i].allocated;
+		b.systems[i].output = s.systems[i].output;
+		b.systems[i].allocBy = AllocationSource(s, static_cast<SystemId>(i));
+		b.systems[i].online = s.systems[i].enabled;
+	}
+	b.trigger = TriggerFor(s, kind);
+	b.stateDigest = StateDigest(s);
+	return b;
+}
+
+// The raw threshold, without the latch: whether a fact still calls for this meeting. Used to clear a
+// latch when its episode passes, so a later episode can call a meeting of its own.
+static bool ThresholdHolds(const Ship &s, uint8_t kind)
+{
+	switch (kind) {
+		case MEET_ALLOCATION: return PowerShortfall(s) > 0;
+		case MEET_DILITHIUM: return s.dilithium < 0.25f;
+		case MEET_CASUALTIES: return CasualtyCount(s) > SICKBAY_BEDS;
+		case MEET_BORG: return Intruders(s) > 0 || s.borgAwareness > 0.5f;
+		case MEET_DEFERRED: return DuePromise(s) >= 0;
+		default: return false;
+	}
+}
+
+bool MeetingDue(const Ship &s, uint8_t kind)
+{
+	if (kind >= MEET_KIND_COUNT) return false;
+	const uint16_t bit = static_cast<uint16_t>(1u << kind);
+	switch (kind) {
+		case MEET_WATCH_CHANGE: return WatchToken(s) != s.lastWatchMeeting;
+		case MEET_DEPARTMENTAL: return s.Day() != s.lastDeptMeetingDay;
+		default: return !(s.meetingLatches & bit) && ThresholdHolds(s, kind);
+	}
+}
+
+// THE EMIT SITE. A brief is enqueued here and nowhere else. Called by the simulation's own clock, so
+// every meeting -- the ordinary ones included -- generates a brief. Grep this function, not a count.
+int EmitDueMeetings(Ship &s)
+{
+	// A threshold episode that has passed releases its latch, so the next one can call a meeting.
+	for (int k = MEET_ALLOCATION; k < MEET_KIND_COUNT; ++k) {
+		const uint16_t bit = static_cast<uint16_t>(1u << k);
+		if ((s.meetingLatches & bit) && !ThresholdHolds(s, static_cast<uint8_t>(k)))
+			s.meetingLatches = static_cast<uint16_t>(s.meetingLatches & ~bit);
+	}
+	int emitted = 0;
+	for (int k = 0; k < MEET_KIND_COUNT; ++k) {
+		if (!MeetingDue(s, static_cast<uint8_t>(k))) continue;
+		// One at a time: the async worker drains the queue; a full queue waits for it.
+		if (static_cast<int>(s.pendingMeetings.size()) >= MEETING_QUEUE_MAX) break;
+		MeetingBrief b = BuildBrief(s, static_cast<uint8_t>(k));
+		s.pendingMeetings.push_back(b);
+		s.meetingLatches = static_cast<uint16_t>(s.meetingLatches | (1u << k));
+		if (k == MEET_WATCH_CHANGE) s.lastWatchMeeting = WatchToken(s);
+		if (k == MEET_DEPARTMENTAL) s.lastDeptMeetingDay = s.Day();
+		LogEvent(s, "the bridge", "command",
+			std::string("a ") + MeetingKindName(static_cast<uint8_t>(k)) + " meeting is called: " + b.decision);
+		++emitted;
+	}
+	if (static_cast<int>(s.pendingMeetings.size()) > MEETING_QUEUE_MAX)
+		s.pendingMeetings.resize(MEETING_QUEUE_MAX);
+	return emitted;
+}
+
+const std::vector<MeetingBrief> &PendingMeetings(const Ship &s) { return s.pendingMeetings; }
+
+bool TakeBrief(Ship &s)
+{
+	if (s.pendingMeetings.empty()) return false;
+	s.pendingMeetings.erase(s.pendingMeetings.begin());
+	return true;
+}
+
+// The simulation applies a chosen outcome. A person in the room decided it (decidedBy), or the ship
+// did (automatic). The model never applies anything.
+bool ApplyMeetingOutcome(Ship &s, const MeetingBrief &brief, int outcome, int decidedBy, bool automatic)
+{
+	const MeetingSkeleton &sk = AuthoredSkeleton(brief.kind);
+	if (outcome < 0 || outcome >= sk.outcomeCount) return false;
+	const MeetingOption &o = sk.outcomes[outcome].option;
+	const std::string who = (decidedBy >= 0 && decidedBy < static_cast<int>(s.crew.size()))
+		? s.crew[decidedBy].name : CommandingOfficer(s);
+	bool ok = false;
+	switch (o.effect) {
+		case EFFECT_RECORD:
+			ok = true; // minuted; nothing in the ship changes
+			break;
+		case EFFECT_SET_ALLOCATION: {
+			// The ruling (docs/power-assignment.md): the player and the crew decide. The meeting cannot
+			// set an allocation as the ship -- that is automatic mode -- and an officer without the
+			// authority to decide the band cannot set one either.
+			if (automatic) {
+				LogEvent(s, who, "command",
+					"the meeting will not set an allocation as the ship; a person must decide it, or automatic mode must be granted");
+				return false;
+			}
+			if (decidedBy < 0 || decidedBy >= static_cast<int>(s.crew.size())) return false;
+			const bool isPlayer = decidedBy == s.player || s.player < 0;
+			// Decreases first, so an increase is measured against the power they free.
+			for (int pass = 0; pass < 2; ++pass) {
+				for (int i = 0; i < MEETING_ALLOC_MAX; ++i) {
+					const MeetingAlloc &a = o.alloc[i];
+					if (a.system >= SYS_COUNT || a.percent < 0) continue;
+					const int cur = AllocationPercent(s, static_cast<SystemId>(a.system));
+					if ((pass == 0) != (a.percent <= cur)) continue;
+					const bool done = isPlayer
+						? SetAllocation(s, static_cast<SystemId>(a.system), a.percent)
+						: SetAllocationBy(s, static_cast<SystemId>(a.system), a.percent, decidedBy);
+					ok = ok || done;
+				}
+			}
+			break;
+		}
+		case EFFECT_SET_POWER_AUTO:
+			SetPowerAuto(s, o.on);
+			ok = true;
+			break;
+		case EFFECT_ACCEPT_RECOMMENDATION:
+			ok = AcceptRecommendation(s);
+			break;
+		case EFFECT_REFUSE_RECOMMENDATION:
+			ok = RefuseRecommendation(s);
+			break;
+		case EFFECT_ORDER_TRIAGE:
+			ok = OrderTriage(s, o.amount);
+			break;
+		case EFFECT_SECURITY_TO_DECK:
+			ok = OrderSecurityTo(s, o.amount > 0 ? o.amount : MostThreatenedDeck(s));
+			break;
+		case EFFECT_EVACUATE_DECK:
+			ok = OrderEvacuate(s, o.amount > 0 ? o.amount : MostThreatenedDeck(s));
+			break;
+		case EFFECT_SET_ALERT:
+			if (o.amount >= 0 && o.amount < 3) { SetAlert(s, static_cast<Alert>(o.amount)); ok = true; }
+			break;
+		case EFFECT_RECOMPOSITE:
+			ok = Recomposite(s);
+			break;
+		case EFFECT_PROMISE_KEPT: {
+			const int i = DuePromise(s);
+			if (i >= 0) ok = ResolvePromise(s, i, true);
+			break;
+		}
+		default:
+			ok = false;
+			break;
+	}
+	LogEvent(s, who, "command", std::string("the meeting decided: ") + o.label);
+	Tick(s, 0.0f); // the console reads the result immediately
+	return ok;
+}
+
 // ---- persistence ------------------------------------------------------------------------------
 
 namespace {
@@ -5136,6 +5759,72 @@ std::vector<uint8_t> Pack(const Ship &s)
 		w.U16(static_cast<uint16_t>(g.grantor + 1)); w.U16(static_cast<uint16_t>(g.grantee + 1));
 		w.U8(g.band);
 		w.U64(static_cast<uint64_t>(std::llround(g.granted * 1000.0)));
+	}
+	// The meeting (version 52, docs/staff-meetings.md): the queued briefs and the schedule they fall on.
+	w.U16(static_cast<uint16_t>(s.lastWatchMeeting + 1));
+	w.U16(static_cast<uint16_t>(s.lastDeptMeetingDay + 1));
+	w.U16(s.meetingLatches);
+	const int nMeetings = std::min(static_cast<int>(s.pendingMeetings.size()), MEETING_QUEUE_MAX);
+	w.U8(static_cast<uint8_t>(nMeetings));
+	for (int i = 0; i < nMeetings; ++i) {
+		const MeetingBrief &b = s.pendingMeetings[i];
+		w.U8(b.kind);
+		w.U64(static_cast<uint64_t>(std::llround(b.time * 1000.0)));
+		WriteStr(w, b.trigger);
+		WriteStr(w, b.decision);
+		const int np = std::min(b.presentCount, MEETING_PARTICIPANT_MAX);
+		w.U8(static_cast<uint8_t>(np));
+		for (int k = 0; k < np; ++k) {
+			const BriefParticipant &p = b.present[k];
+			w.U16(static_cast<uint16_t>(p.crew + 1));
+			WriteStr(w, p.name);
+			w.U8(p.post); w.U8(p.watch); w.F(p.mood);
+			const int nm = std::min(p.markCount, MEETING_VIEW_MAX);
+			w.U8(static_cast<uint8_t>(nm));
+			for (int m = 0; m < nm; ++m) {
+				const BriefMark &mk = p.marks[m];
+				w.U16(mk.event); w.U16(static_cast<uint16_t>(mk.person + 1)); w.U8(mk.source);
+				w.F(mk.valence); w.F(mk.salience);
+			}
+			const int npr = std::min(p.promiseCount, MEETING_VIEW_MAX);
+			w.U8(static_cast<uint8_t>(npr));
+			for (int m = 0; m < npr; ++m) {
+				const BriefPromise &pr = p.promises[m];
+				w.U8(pr.kind);
+				w.U16(static_cast<uint16_t>(pr.promiser + 1));
+				w.U16(static_cast<uint16_t>(pr.beneficiary + 1));
+				w.F(static_cast<float>(pr.deadline));
+				WriteStr(w, pr.what);
+			}
+			const int nl = std::min(p.logCount, MEETING_VIEW_MAX);
+			w.U8(static_cast<uint8_t>(nl));
+			for (int m = 0; m < nl; ++m) {
+				const LogEntry &e = p.log[m];
+				w.U64(static_cast<uint64_t>(std::llround(e.time * 1000.0)));
+				WriteStr(w, e.who); WriteStr(w, e.scope); WriteStr(w, e.what);
+			}
+		}
+		const int no = std::min(b.optionCount, MEETING_OPTION_MAX);
+		w.U8(static_cast<uint8_t>(no));
+		for (int k = 0; k < no; ++k) {
+			const MeetingOption &o = b.options[k];
+			w.U8(o.intent); WriteStr(w, o.label); WriteStr(w, o.cost); w.U8(o.effect);
+			for (int a = 0; a < MEETING_ALLOC_MAX; ++a) { w.U8(o.alloc[a].system); w.U16(static_cast<uint16_t>(o.alloc[a].percent + 1)); }
+			w.U16(static_cast<uint16_t>(o.amount + 0x8000)); w.U8(o.on ? 1 : 0);
+		}
+		w.U32(static_cast<uint32_t>(b.powerCommitted));
+		w.U32(static_cast<uint32_t>(b.powerAvailable));
+		w.U32(static_cast<uint32_t>(b.powerShortfall));
+		w.U8(b.alert); w.F(b.dilithium);
+		w.U16(static_cast<uint16_t>(b.casualties)); w.U16(static_cast<uint16_t>(b.beds));
+		w.U8(b.borgPressure ? 1 : 0); w.U32(b.stateDigest);
+		for (int k = 0; k < SYS_COUNT; ++k) {
+			const BriefSystem &sys = b.systems[k];
+			w.U16(static_cast<uint16_t>(sys.allocated));
+			w.F(sys.output);
+			w.U8(sys.allocBy);
+			w.U8(sys.online ? 1 : 0);
+		}
 	}
 	return w.b;
 }
@@ -5482,6 +6171,94 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		if (g.grantor < 0 || g.grantor >= static_cast<int>(count)) return false;
 		if (g.grantee < 0 || g.grantee >= static_cast<int>(count)) return false;
 		s.bandGrants.push_back(g);
+	}
+	// The meeting (version 52): the schedule and the queued briefs.
+	s.lastWatchMeeting = static_cast<int>(r.U16()) - 1;
+	s.lastDeptMeetingDay = static_cast<int>(r.U16()) - 1;
+	s.meetingLatches = r.U16();
+	s.pendingMeetings.clear();
+	const int meetingCount = r.U8();
+	if (meetingCount > MEETING_QUEUE_MAX) return false;
+	for (int i = 0; i < meetingCount && r.ok; ++i) {
+		MeetingBrief b;
+		b.kind = r.U8();
+		b.time = static_cast<double>(r.U64()) / 1000.0;
+		b.trigger = ReadStr(r);
+		b.decision = ReadStr(r);
+		const int np = r.U8();
+		if (np > MEETING_PARTICIPANT_MAX) return false;
+		b.presentCount = np;
+		for (int k = 0; k < np && r.ok; ++k) {
+			BriefParticipant &p = b.present[k];
+			p.crew = static_cast<int16_t>(r.U16()) - 1;
+			if (p.crew < 0 || p.crew >= static_cast<int>(count)) return false;
+			p.name = ReadStr(r);
+			p.post = r.U8(); p.watch = r.U8(); p.mood = r.F();
+			if (p.post > SYS_COUNT || p.watch >= WATCHES) return false;
+			const int nm = r.U8();
+			if (nm > MEETING_VIEW_MAX) return false;
+			p.markCount = nm;
+			for (int m = 0; m < nm && r.ok; ++m) {
+				BriefMark &mk = p.marks[m];
+				mk.event = r.U16();
+				mk.person = static_cast<int16_t>(r.U16()) - 1;
+				mk.source = r.U8(); mk.valence = r.F(); mk.salience = r.F();
+				if (mk.source >= MEM_SOURCE_COUNT) return false;
+			}
+			const int npr = r.U8();
+			if (npr > MEETING_VIEW_MAX) return false;
+			p.promiseCount = npr;
+			for (int m = 0; m < npr && r.ok; ++m) {
+				BriefPromise &pr = p.promises[m];
+				pr.kind = r.U8();
+				pr.promiser = static_cast<int16_t>(r.U16()) - 1;
+				pr.beneficiary = static_cast<int16_t>(r.U16()) - 1;
+				pr.deadline = r.F();
+				pr.what = ReadStr(r);
+				if (pr.kind >= PROMISE_KIND_COUNT) return false;
+				if (pr.promiser < -1 || pr.promiser >= static_cast<int>(count)) return false;
+				if (pr.beneficiary < -1 || pr.beneficiary >= static_cast<int>(count)) return false;
+			}
+			const int nl = r.U8();
+			if (nl > MEETING_VIEW_MAX) return false;
+			p.logCount = nl;
+			for (int m = 0; m < nl && r.ok; ++m) {
+				LogEntry &e = p.log[m];
+				e.time = static_cast<double>(r.U64()) / 1000.0;
+				e.who = ReadStr(r); e.scope = ReadStr(r); e.what = ReadStr(r);
+			}
+		}
+		const int no = r.U8();
+		if (no > MEETING_OPTION_MAX) return false;
+		b.optionCount = no;
+		for (int k = 0; k < no && r.ok; ++k) {
+			MeetingOption &o = b.options[k];
+			o.intent = r.U8(); o.label = ReadStr(r); o.cost = ReadStr(r); o.effect = r.U8();
+			for (int a = 0; a < MEETING_ALLOC_MAX; ++a) {
+				o.alloc[a].system = r.U8();
+				o.alloc[a].percent = static_cast<int>(r.U16()) - 1;
+			}
+			o.amount = static_cast<int>(r.U16()) - 0x8000;
+			o.on = r.U8() != 0;
+			if (o.effect >= EFFECT_COUNT) return false;
+		}
+		b.powerCommitted = static_cast<int>(r.U32());
+		b.powerAvailable = static_cast<int>(r.U32());
+		b.powerShortfall = static_cast<int>(r.U32());
+		b.alert = r.U8();
+		b.dilithium = r.F();
+		b.casualties = r.U16(); b.beds = r.U16();
+		b.borgPressure = r.U8() != 0;
+		b.stateDigest = r.U32();
+		for (int k = 0; k < SYS_COUNT; ++k) {
+			b.systems[k].allocated = r.U16();
+			b.systems[k].output = r.F();
+			b.systems[k].allocBy = r.U8();
+			b.systems[k].online = r.U8() != 0;
+			if (b.systems[k].allocBy >= ALLOC_BY_COUNT) return false;
+		}
+		if (b.kind >= MEET_KIND_COUNT || b.alert >= 3) return false;
+		s.pendingMeetings.push_back(b);
 	}
 	if (!r.ok || r.left != 0) return false;
 

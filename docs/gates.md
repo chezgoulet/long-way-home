@@ -339,10 +339,9 @@ since version 18; this is its missing wiring, not a rebuild.
   them ✅
 - save and load carry the report, its diff, the promises and the orphaned mark byte-for-byte ✅
 
-Remaining (specified, not built): the meeting brief built per participant from marks and log;
-assimilation taking the personal log **and** the access levels, with the Collective speaking in the
-assimilated person's voice. (The two logs as separate stores are now built — see *The two logs*,
-below.)
+Remaining (specified, not built): assimilation taking the personal log **and** the access levels, with the
+Collective speaking in the assimilated person's voice. (**The meeting brief built per participant from
+marks and log is now built** — see *The meeting, phase one*, below.)
 
 ### The two logs — the official record and the private one
 
@@ -363,9 +362,9 @@ already in; this is the **second store**, not a rebuild of it.
 - both stores survive save and load byte-for-byte ✅
 - a unit test, and `scripts/test.sh` and `scripts/check.sh` both exit 0 ✅
 
-Remaining (specified, not built): the meeting brief built per participant from marks and log;
-assimilation taking the personal log **and** the access levels, with the Collective speaking in the
-assimilated person's voice.
+Remaining (specified, not built): assimilation taking the personal log **and** the access levels, with the
+Collective speaking in the assimilated person's voice. (**The meeting brief built per participant from
+marks and log is now built** — see *The meeting, phase one*, below.)
 
 ### The navigation counter
 
@@ -443,13 +442,47 @@ mechanism, which decides before the player arrives. That is the failure the owne
 - the chief engineer's **recommendation** appears with his reasoning; accepting adopts it, refusing is recorded
   and he takes a `MEM_OVERRULED` mark ✅; a **band delegation** is grantable, held by a name, and revocable
   immediately ✅
-- the **meeting is not built** (the brief reserves it): its seam is `SetAllocation`, `RecommendAllocation`,
-  `AcceptRecommendation`, `RefuseRecommendation`, `GrantBand`, `RevokeBand`, reading `PowerCommitted`,
-  `PowerAvailable` and `PowerShortfall` ✅
+- the **meeting seam** is `SetAllocation`, `RecommendAllocation`, `AcceptRecommendation`,
+  `RefuseRecommendation`, `GrantBand`, `RevokeBand`, reading `PowerCommitted`, `PowerAvailable` and
+  `PowerShortfall` ✅ — and it is now **consumed** by the meeting (see *The meeting, phase one*, below) ✅
 - `scripts/test.sh`, `scripts/check.sh`, `scripts/s2-check.sh` and `scripts/power-check.sh` exit 0 ✅
 
 Remaining: the owner's walkthrough (whether choosing feels like command rather than bookkeeping), and the staff
-meeting as a scene, which the brief reserves for later.
+meeting as a **scene** and its overlay, which belong to the meeting lane (phase two/three) — the brief, the
+skeleton and the seams are built (see below).
+
+### The meeting, phase one — the brief, the skeleton, and the seams
+
+`docs/staff-meetings.md`, phase one (text and state), implemented 2026-10-08 on `feat/the-meeting-brief`
+(`docs/evidence/meeting-brief.md`, `TestMeetingBriefIsARead`, `TestEveryMeetingEmitsABrief`,
+`TestSkeletonPlaysWithoutAModel`, `TestMeetingAllocationSeam`, `TestMeetingBriefPerParticipant`,
+`TestMeetingSaveRoundTrip`; `scripts/meeting-check.sh`; `test_ship_core --meeting`). Save format **52**.
+**No audio and no model call were built** — the seams for them are named and left.
+
+- a **brief** exists for each kind the design names (watch change, departmental, allocation, dilithium,
+  casualties, Borg, deferred), carrying the participants, the decision, the enumerated options with their
+  costs, and the current state ✅
+- **every meeting emits a brief**, in the normal case and not only a dramatic one: the watch change and the
+  ordinary departmental meeting fall on the clock, and the emit site is one function (`EmitDueMeetings`,
+  called by `Advance`), read by its **emission** and its log line, not a count ✅
+- a brief is a **read**: building all seven leaves the ship's blob byte-identical ✅
+- a brief is built **per participant from their marks and the log** — a post reads its own scope, command
+  reads all — so the room does not all know the same thing ✅
+- the **authored skeleton** plays with **no model present**, for every kind: the outcomes, their costs, and
+  minimal dialogue for each ✅
+- **every line carries a delivery direction** (order / report / confession / condolence / flat), the
+  vocabulary is written down with its `exaggeration` values, and the seam to synthesis
+  (`LineToSynthesis`) carries the annotation with the text; where the brief cannot know a direction the
+  line is **marked**, not guessed, and the seam refuses it ✅
+- a **meeting outcome sets an allocation end to end** (`ApplyMeetingOutcome`); a person's set carries that
+  person's provenance, the ship's own answer is **automatic mode** (`SetPowerAuto`), and the meeting is
+  **refused** when it tries to set an allocation as the ship ✅
+- the schedule and the queued briefs round-trip; `scripts/test.sh`, `scripts/check.sh`,
+  `scripts/meeting-check.sh`, `scripts/power-check.sh` and `scripts/s2-check.sh` exit 0 ✅
+
+Remaining, and deliberately not begun: the **overlay** (M3), the **async generator** and novelty detection
+(M4), **voice out** and the cue track (M5), and **voice in** and the ship's computer (M6). The
+**scenario content** is authored against this frame next, per `docs/programme-meetings-and-voice.md`.
 
 ### Then, in rough order
 
@@ -568,7 +601,9 @@ on every clip; two artefacts found (a reverb and an accent drift), both diagnose
   the gitignored scratch on the build host.
 
 Evidence: `docs/evidence/voice-spike.md`, `voice-examples.md`, `janeway-cheeseburger.md`, `voice-review.md`,
-`voice-fixes.md`. **What remains is the plumbing that calls it and the meeting that uses it.**
+`voice-fixes.md`. **The meeting's brief and skeleton now feed this seam** (the delivery direction per line,
+`docs/evidence/meeting-brief.md`); what remains is the plumbing that renders the lines to audio and the
+meeting that plays them.
 
 ## Residuals (named, queued, not forgotten)
 

@@ -521,6 +521,214 @@ bool PersonalVisibleTo(const PersonalLogEntry &e, int reader);
 // optionally filtered to one `scope` (empty = all of them). Personal entries are never returned here.
 std::vector<LogEntry> ReadOfficialLog(const Ship &s, int count, const std::string &scope);
 
+// ---- the meeting: the brief, the skeleton, and the seams (docs/staff-meetings.md) ----------------
+//
+// Phase one of the meeting system is text and state. The simulation enqueues a *meeting brief* and it
+// is a read: it never writes (docs/staff-meetings.md, docs/programme-meetings-and-voice.md). A brief
+// carries who is present, what is being decided and the enumerated options with their costs, and the
+// ship and the people as they are right now. The meeting works with the model absent: every kind has
+// an authored **skeleton** -- the outcomes, their costs, and minimal dialogue for each -- which is the
+// floor, not a fallback. Every line carries its **delivery direction**, and the seam that hands a line
+// to the synthesizer carries that annotation with the text. Nothing here calls a model, owns a sound,
+// or builds an audio player: those are phase two and three, named and left.
+//
+// The invariant: the simulation decides; any model only speaks. A chosen option resolves to one
+// enumerated outcome, and the simulation applies it. Nothing that generates text may choose a result.
+
+// The kinds of meeting the design names. The first two are the normal case: a brief is generated for
+// every meeting, not only the dramatic ones (the dead-layer rule, docs/programme-meetings-and-voice.md
+// lesson 6). A watch change always produces one, and an ordinary departmental meeting that resolves
+// nothing still produces one.
+enum MeetingKind : uint8_t {
+	MEET_WATCH_CHANGE = 0, // scheduled: the watch change (every watch; the normal case)
+	MEET_DEPARTMENTAL,     // routine: daily, and it may resolve nothing
+	MEET_ALLOCATION,       // power is argued and set (docs/power-assignment.md)
+	MEET_DILITHIUM,        // the reserve crosses its threshold (docs/exploration-and-science.md)
+	MEET_CASUALTIES,       // casualties exceed the beds (docs/gap-triage-and-sickbay.md)
+	MEET_BORG,             // Borg pressure rising (docs/borg-incursion.md)
+	MEET_DEFERRED,         // an open promise has come due: a decision deferred (docs/memory-and-consequence.md)
+	MEET_KIND_COUNT
+};
+const char *MeetingKindName(uint8_t kind);
+
+// Delivery direction (docs/evidence/voice-review.md, finding three). The synthesizer's `exaggeration`
+// defaults to 0.5 whatever the text says, so an emergency order and a request for lunch arrive at the
+// same emotional temperature until something asks for a difference. Every line carries one of these,
+// and the seam to synthesis carries it with the text. The vocabulary is small on purpose; the values
+// are the review's own knob (`exaggeration` / `emotion_adv`).
+//
+// UNMARKED is a line whose delivery the brief cannot know: it is *marked* rather than guessed, and the
+// seam refuses it until a direction is set. It is never silently defaulted to flat.
+enum Delivery : uint8_t {
+	DELIVERY_ORDER = 0,   // an order or a warning: urgency. exaggeration 0.8 (the review's fix pass)
+	DELIVERY_REPORT,      // a factual report or an answer: neutral. 0.5
+	DELIVERY_CONFESSION,  // something admitted against interest: low and close. 0.35
+	DELIVERY_CONDOLENCE,  // grief said to someone: low and slow. 0.3
+	DELIVERY_FLAT,        // procedural, the log read aloud: flat. 0.2
+	DELIVERY_UNMARKED,    // the brief cannot know it: marked, not guessed
+	DELIVERY_COUNT
+};
+const char *DeliveryName(uint8_t d);
+// What the delivery asks the synthesizer for, in the review's own knob. Negative for UNMARKED: there
+// is no value to ask for, and the seam refuses the line.
+float DeliveryExaggeration(uint8_t d);
+bool DeliveryKnown(uint8_t d);
+
+// A line of the meeting: who says it, what is said, and how it is delivered. The delivery travels with
+// the text through the seam to synthesis (Task C).
+//
+// The authored skeleton cannot name a generated crew member's index, so a speaker is either a roster
+// index (>= 0) or one of the roles below, resolved against the room at play time. ResolveSpeaker does
+// that, preferring someone already present.
+enum MeetingSpeaker : int16_t {
+	SPEAK_ROOM = -1,       // the room, or the person the line is answering
+	SPEAK_COMMAND = -2,
+	SPEAK_ENGINEERING = -3,
+	SPEAK_SECURITY = -4,
+	SPEAK_SCIENCES = -5,
+	SPEAK_MEDICAL = -6,
+};
+struct MeetingLine {
+	int speaker = SPEAK_ROOM;              // roster index, or a MeetingSpeaker role
+	std::string text;
+	uint8_t delivery = DELIVERY_UNMARKED;  // carried with the text
+};
+
+// What an option asks the simulation to do. The options are the enumerated outcomes made visible; the
+// simulation applies the chosen one -- the script and any model never do. The model speaks only.
+enum MeetingEffect : uint8_t {
+	EFFECT_RECORD = 0,      // the decision is minuted; no state changes
+	EFFECT_SET_ALLOCATION,  // a person's allocation, with that person's provenance
+	EFFECT_SET_POWER_AUTO,  // the ship's own answer: automatic mode on or off
+	EFFECT_ACCEPT_RECOMMENDATION,
+	EFFECT_REFUSE_RECOMMENDATION,
+	EFFECT_ORDER_TRIAGE,    // sickbay: 0 worst first, 1 rank first
+	EFFECT_SECURITY_TO_DECK,// 0 = the deck the simulation names (most contested)
+	EFFECT_EVACUATE_DECK,   // 0 = the deck the simulation names
+	EFFECT_SET_ALERT,       // amount = Alert
+	EFFECT_RECOMPOSITE,     // Engineering buys back life in the crystal
+	EFFECT_PROMISE_KEPT,    // make good the promise that has come due
+	EFFECT_COUNT
+};
+const char *MeetingEffectName(uint8_t e);
+
+const int MEETING_ALLOC_MAX = 2;
+struct MeetingAlloc { uint8_t system = 0xFF; int percent = 100; };
+
+struct MeetingOption {
+	uint8_t intent = 0;                    // the intent descriptor: novelty matching and the pill share it
+	std::string label;                     // the pill's short description
+	std::string cost;                      // what it costs, in words, shown at the choice
+	uint8_t effect = EFFECT_RECORD;
+	MeetingAlloc alloc[MEETING_ALLOC_MAX]; // EFFECT_SET_ALLOCATION
+	int amount = 0;                        // kind-specific magnitude (triage policy, a deck, an alert)
+	bool on = true;                        // EFFECT_SET_POWER_AUTO
+};
+
+const int MEETING_LINE_MAX = 4;
+struct MeetingOutcome {
+	MeetingOption option;
+	MeetingLine lines[MEETING_LINE_MAX];
+	int lineCount = 0;
+};
+
+const int MEETING_OUTCOME_MAX = 6;
+struct MeetingSkeleton {
+	uint8_t kind = MEET_WATCH_CHANGE;
+	std::string decision;                  // what is being decided, in one line
+	MeetingOutcome outcomes[MEETING_OUTCOME_MAX];
+	int outcomeCount = 0;
+};
+// The authored skeleton for a kind: the outcomes, their costs, and minimal dialogue for each. The
+// static floor every meeting sits on. Never null: an unknown kind gets the watch-change skeleton.
+const MeetingSkeleton &AuthoredSkeleton(uint8_t kind);
+
+// The brief's per-participant view. A brief is built per participant from that person's marks and the
+// log, and from nothing else (docs/the-record-and-the-log.md): what this person knows, the open claims
+// they carry, and the log they can read. This is what keeps a meeting from being a room where everyone
+// already knows the truth.
+const int MEETING_VIEW_MAX = 6;
+struct BriefMark { uint16_t event = 0; int person = -1; uint8_t source = 0; float valence = 0.0f; float salience = 0.0f; };
+struct BriefPromise { uint8_t kind = 0; int promiser = -1; int beneficiary = -1; std::string what; double deadline = -1.0; };
+struct BriefParticipant {
+	int crew = -1;
+	std::string name;
+	uint8_t post = 0;      // SystemId, or SYS_COUNT for department duties
+	uint8_t watch = 0;
+	float mood = 0.0f;     // morale, so the speaker rail can show it
+	BriefMark marks[MEETING_VIEW_MAX]; int markCount = 0;
+	BriefPromise promises[MEETING_VIEW_MAX]; int promiseCount = 0;
+	LogEntry log[MEETING_VIEW_MAX]; int logCount = 0;
+};
+
+const int MEETING_PARTICIPANT_MAX = 6;
+const int MEETING_OPTION_MAX = 6;
+const int MEETING_QUEUE_MAX = 2;
+// One system as it is right now: the commitments the room argues over (docs/power-assignment.md).
+struct BriefSystem {
+	int allocated = 0;      // EPS granted this tick
+	float output = 0.0f;    // 0..1 what it is delivering
+	uint8_t allocBy = 0;    // AllocationSource: unset, the player, an officer, automatic
+	bool online = true;
+};
+struct MeetingBrief {
+	uint8_t kind = MEET_WATCH_CHANGE;
+	double time = 0.0;       // ship seconds when it was emitted
+	std::string trigger;     // why this meeting exists, in words
+	std::string decision;    // what is being decided
+	BriefParticipant present[MEETING_PARTICIPANT_MAX]; int presentCount = 0;
+	MeetingOption options[MEETING_OPTION_MAX]; int optionCount = 0; // the enumerated options and their costs
+	// The ship and the people as they are right now: instruments (reads that never lie).
+	int powerCommitted = 0, powerAvailable = 0, powerShortfall = 0;
+	uint8_t alert = 0;
+	float dilithium = 0.0f;
+	int casualties = 0, beds = 0;
+	bool borgPressure = false;
+	BriefSystem systems[SYS_COUNT]; // every system, in the order power is given to it
+
+	// A digest of the ship state the brief was built from, so a stale script can be detected
+	// (docs/staff-meetings.md: "the script can go stale"). Purely a read.
+	uint32_t stateDigest = 0;
+};
+
+// Who says a line: a roster index if the skeleton named one, otherwise the participant (or officer) of
+// that role. Returns -1 if nobody fits. Resolved against the room at play time.
+int ResolveSpeaker(const Ship &s, const MeetingBrief &brief, int speaker);
+
+// The brief generator. A pure read: it writes nothing, and generating a brief leaves the ship's state
+// byte-identical (Task A; the acceptance that matters). `kind` is a MeetingKind.
+MeetingBrief BuildBrief(const Ship &s, uint8_t kind);
+
+// Is a meeting of this kind due right now? The watch change and the daily departmental meeting are the
+// normal-case triggers; the rest are thresholds, latched so one episode produces one meeting.
+bool MeetingDue(const Ship &s, uint8_t kind);
+
+// THE EMIT SITE. The simulation enqueues a meeting brief here and nowhere else: for every meeting that
+// is due, it builds the brief (BuildBrief) and appends it to the queue the async worker would drain.
+// Returns the number emitted. Grep this function, never a bare count (docs/programme-meetings-and-voice.md
+// lesson 6). Called by the simulation's own clock, so every meeting -- dramatic or not -- produces one.
+int EmitDueMeetings(Ship &s);
+const std::vector<MeetingBrief> &PendingMeetings(const Ship &s);
+// Drop the oldest queued brief: the worker has taken it. Returns false if the queue is empty.
+bool TakeBrief(Ship &s);
+
+// The decision the room reached: which enumerated outcome, who decided it, and whether it was the
+// ship's own answer (automatic mode) or a person's. The simulation applies it.
+bool ApplyMeetingOutcome(Ship &s, const MeetingBrief &brief, int outcome, int decidedBy, bool automatic);
+
+// ---- the seam to synthesis (docs/evidence/voice-review.md) ---------------------------------------
+//
+// Named and left: phase two builds the audio player. Nothing here owns a sound. The seam that hands a
+// line to the synthesizer carries the delivery annotation with the text, so the line arrives with the
+// emotional temperature it was written for. A line whose delivery is UNMARKED is refused rather than
+// defaulted, so a missing direction is visible rather than silently flat.
+struct SynthesisRequest {
+	std::string text;
+	float exaggeration = 0.5f;             // the review's knob: `exaggeration` / `emotion_adv`
+	uint8_t delivery = DELIVERY_UNMARKED;
+};
+bool LineToSynthesis(const MeetingLine &line, SynthesisRequest &out);
+
 // ---- what the ship has given up (docs/damage-and-budgets.md, docs/story-and-semantics.md) --------
 //
 // Because there is never enough crew to fix everything, the player chooses what to write off: a deck
@@ -747,6 +955,16 @@ struct Ship {
 	bool powerAuto = false;
 	std::vector<BandGrant> bandGrants;
 	int lastShortfall = 0;          // the shortfall last written to the log (derived; not saved)
+
+	// The meeting (docs/staff-meetings.md). The queue of briefs the simulation has enqueued and the
+	// async worker has not yet taken; the schedulers that decide when the normal-case briefs fall
+	// (the watch change, and the daily departmental meeting); and the latch that keeps one threshold
+	// episode to one meeting. A brief is a read, but the schedule it is queued on is the simulation's
+	// own decision, and it persists.
+	std::vector<MeetingBrief> pendingMeetings;
+	int lastWatchMeeting = -1;      // day*WATCHES+watch of the last watch-change brief
+	int lastDeptMeetingDay = -1;    // the day of the last routine departmental meeting
+	uint16_t meetingLatches = 0;    // one bit per MeetingKind: a threshold episode that already met
 
 	// the player
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
@@ -1494,7 +1712,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 51;  // 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
+const uint16_t SAVE_VERSION = 52;  // 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

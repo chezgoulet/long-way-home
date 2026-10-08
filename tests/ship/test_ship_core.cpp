@@ -4555,6 +4555,226 @@ static void TestTorpedoComplement()
 	CHECK(!FireTorpedo(s));                          // none left
 }
 
+// ---- the meeting (docs/staff-meetings.md) --------------------------------------------------------
+
+// Advance the ship by ship-seconds (Tick takes simulated seconds, scaled by the clock).
+static void AdvanceShip(Ship &s, double shipSeconds)
+{
+	Tick(s, static_cast<float>(shipSeconds / s.cfg.dayScale));
+}
+
+// A brief for every kind the design names, carrying participants, the decision, the enumerated options
+// with their costs, and the current state -- and generating one changes nothing (Task A).
+static void TestMeetingBriefIsARead()
+{
+	g_test = "every kind of meeting has a brief, and generating one is a read";
+	Ship s = NewShip();
+	LogEvent(s, "the bridge", "command", "a command entry a command seat can read");
+	Remember(s, 3, MEM_DEATH, 7, MEM_SAW, -0.8f); // a mark on a crew member who may be in the room
+	const std::vector<uint8_t> before = Pack(s);
+	for (int k = 0; k < MEET_KIND_COUNT; ++k) {
+		const MeetingBrief b = BuildBrief(s, static_cast<uint8_t>(k));
+		CHECK(b.kind == k);
+		CHECK(!b.decision.empty());
+		CHECK(b.presentCount > 0);
+		CHECK(b.optionCount > 0);
+		for (int i = 0; i < b.optionCount; ++i) {
+			CHECK(!b.options[i].label.empty());
+			CHECK(!b.options[i].cost.empty());
+		}
+		CHECK(b.powerAvailable == s.PowerAvailable());
+		CHECK(b.powerCommitted == PowerCommitted(s));
+		CHECK(b.systems[SYS_LIFE_SUPPORT].allocated == s.systems[SYS_LIFE_SUPPORT].allocated);
+		CHECK(b.systems[SYS_LIFE_SUPPORT].allocBy == AllocationSource(s, SYS_LIFE_SUPPORT));
+	}
+	CHECK(Pack(s) == before); // a read: the ship's state is untouched
+}
+
+// The dead-layer rule (docs/programme-meetings-and-voice.md, lesson 6): every meeting generates a
+// brief, demonstrated in the normal case and not only a dramatic one. The check reads the emission --
+// the queued brief itself -- not a count.
+static void TestEveryMeetingEmitsABrief()
+{
+	g_test = "the normal case emits a brief: the watch change and the ordinary departmental meeting";
+	Ship s = NewShip();
+	CHECK(PendingMeetings(s).empty());
+
+	// The watch change. No threshold, no drama: the simulation's own clock calls the meeting.
+	const double toWatch = static_cast<double>(SECONDS_PER_WATCH) - std::fmod(s.clock, static_cast<double>(SECONDS_PER_WATCH));
+	AdvanceShip(s, toWatch + 1.0);
+	CHECK(!PendingMeetings(s).empty());
+	if (!PendingMeetings(s).empty()) {
+		const MeetingBrief &b = PendingMeetings(s).back();
+		CHECK(b.kind == MEET_WATCH_CHANGE);
+		CHECK(b.presentCount > 0);
+		CHECK(b.optionCount > 0);
+	}
+	bool logged = false;
+	for (const LogEntry &e : s.log) if (e.what.find("meeting is called") != std::string::npos) logged = true;
+	CHECK(logged); // the emit site wrote the emission down
+
+	// Drain, then a day: the ordinary departmental meeting, which resolves nothing, still produces one.
+	while (TakeBrief(s)) {}
+	const double toDay = static_cast<double>(SECONDS_PER_DAY) - std::fmod(s.clock, static_cast<double>(SECONDS_PER_DAY));
+	AdvanceShip(s, toDay + 1.0);
+	bool sawDept = false, sawWatch = false;
+	for (const MeetingBrief &b : PendingMeetings(s)) {
+		if (b.kind == MEET_DEPARTMENTAL) sawDept = true;
+		if (b.kind == MEET_WATCH_CHANGE) sawWatch = true;
+	}
+	CHECK(sawWatch);
+	CHECK(sawDept);
+}
+
+// The skeleton is the floor: with no model present the meeting still plays and resolves (Task B). Every
+// outcome has dialogue; every line carries a delivery direction; and where the brief cannot know it,
+// the line is marked rather than guessed and the seam refuses it (Task C).
+static void TestSkeletonPlaysWithoutAModel()
+{
+	g_test = "the authored skeleton plays with no model, and every line carries its delivery";
+	int unmarked = 0;
+	for (int k = 0; k < MEET_KIND_COUNT; ++k) {
+		const MeetingSkeleton &sk = AuthoredSkeleton(static_cast<uint8_t>(k));
+		CHECK(sk.kind == k);
+		CHECK(sk.outcomeCount > 0);
+		for (int i = 0; i < sk.outcomeCount; ++i) {
+			const MeetingOutcome &oc = sk.outcomes[i];
+			CHECK(oc.lineCount > 0);                       // each outcome is legible
+			CHECK(!oc.option.label.empty());
+			CHECK(!oc.option.cost.empty());
+			for (int l = 0; l < oc.lineCount; ++l) {
+				CHECK(oc.lines[l].delivery < DELIVERY_COUNT); // a direction, always
+				if (oc.lines[l].delivery == DELIVERY_UNMARKED) ++unmarked;
+			}
+		}
+	}
+	CHECK(unmarked > 0); // the marked case exists: the brief says it cannot know, rather than guessing
+
+	// The seam carries the annotation with the text, and refuses a line whose delivery is unmarked.
+	MeetingLine flat; flat.text = "the log is read aloud"; flat.delivery = DELIVERY_FLAT;
+	SynthesisRequest req;
+	CHECK(LineToSynthesis(flat, req));
+	CHECK(req.text == flat.text && req.delivery == DELIVERY_FLAT);
+	CHECK(req.exaggeration == DeliveryExaggeration(DELIVERY_FLAT));
+	MeetingLine unknown; unknown.text = "something the brief cannot call"; unknown.delivery = DELIVERY_UNMARKED;
+	CHECK(!LineToSynthesis(unknown, req));
+	CHECK(!DeliveryKnown(DELIVERY_UNMARKED));
+
+	// The vocabulary, small and named: an order up, the flat down, the rest between.
+	CHECK(DeliveryExaggeration(DELIVERY_ORDER) > DeliveryExaggeration(DELIVERY_REPORT));
+	CHECK(DeliveryExaggeration(DELIVERY_REPORT) > DeliveryExaggeration(DELIVERY_FLAT));
+	CHECK(std::strcmp(DeliveryName(DELIVERY_CONDOLENCE), "condolence") == 0);
+}
+
+// Task D: a meeting outcome sets an allocation, end to end -- and the automatic-versus-person
+// distinction is obeyed. The player and the crew decide; the ship's own answer is automatic mode; the
+// meeting cannot override a person's decision by itself.
+static void TestMeetingAllocationSeam()
+{
+	g_test = "a meeting outcome sets an allocation, and the meeting cannot override a person";
+	Ship s = NewShip();
+	s.player = 0; // the player is in the room, and decides
+	SetAlert(s, ALERT_YELLOW); // the shields are not suppressed: the proving option is reachable
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+	const MeetingSkeleton &sk = AuthoredSkeleton(MEET_ALLOCATION);
+	int allocOpt = -1, autoOpt = -1;
+	for (int i = 0; i < sk.outcomeCount; ++i) {
+		if (sk.outcomes[i].option.effect == EFFECT_SET_ALLOCATION && allocOpt < 0) allocOpt = i;
+		if (sk.outcomes[i].option.effect == EFFECT_SET_POWER_AUTO) autoOpt = i;
+	}
+	CHECK(allocOpt >= 0);
+	CHECK(autoOpt >= 0);
+
+	// A person in the room decides: the allocation is theirs, with their provenance.
+	CHECK(ApplyMeetingOutcome(s, b, allocOpt, s.player, false));
+	CHECK(AllocationPercent(s, SYS_HOLODECKS) == 100);
+	CHECK(AllocationPercent(s, SYS_SHIELDS) == 0);
+	CHECK(AllocationSource(s, SYS_HOLODECKS) == ALLOC_PLAYER);
+
+	// The meeting cannot set an allocation *as the ship*: that is automatic mode, and it is refused.
+	const int holodecksWas = AllocationPercent(s, SYS_HOLODECKS);
+	CHECK(!ApplyMeetingOutcome(s, b, allocOpt, -1, true));
+	CHECK(AllocationPercent(s, SYS_HOLODECKS) == holodecksWas);
+
+	// An officer with no authority over the band cannot set it either.
+	const int officer = DepartmentHead(s, DEPT_SECURITY);
+	CHECK(officer >= 0);
+	const int before = AllocationPercent(s, SYS_HOLODECKS);
+	CHECK(!ApplyMeetingOutcome(s, b, allocOpt, officer, false));
+	CHECK(AllocationPercent(s, SYS_HOLODECKS) == before);
+
+	// The ship's own answer is automatic mode, and it is granted by the room.
+	CHECK(ApplyMeetingOutcome(s, b, autoOpt, -1, true));
+	CHECK(PowerAuto(s));
+}
+
+// A brief is built per participant from that person's marks and the log -- not from the record, so the
+// room does not all know the same thing (docs/the-record-and-the-log.md).
+static void TestMeetingBriefPerParticipant()
+{
+	g_test = "a brief is built per participant from marks and the log";
+	Ship s = NewShip();
+	LogEvent(s, "engineering", "engineering", "a coolant line was replaced");
+	LogEvent(s, "sickbay", "sickbay", "a patient was admitted");
+	Remember(s, 3, MEM_DEATH, 7, MEM_SAW, -0.8f);
+	const MeetingBrief b = BuildBrief(s, MEET_WATCH_CHANGE);
+	int engineer = -1, medic = -1;
+	for (int i = 0; i < b.presentCount; ++i) {
+		const int c = b.present[i].crew;
+		if (s.crew[c].dept == DEPT_ENGINEERING) engineer = i;
+		if (s.crew[c].dept == DEPT_MEDICAL) medic = i;
+	}
+	CHECK(engineer >= 0);
+	CHECK(medic >= 0);
+	if (engineer >= 0) {
+		bool sawEngineering = false, sawSickbay = false;
+		for (int i = 0; i < b.present[engineer].logCount; ++i) {
+			if (b.present[engineer].log[i].what.find("coolant") != std::string::npos) sawEngineering = true;
+			if (b.present[engineer].log[i].what.find("patient") != std::string::npos) sawSickbay = true;
+		}
+		CHECK(sawEngineering);
+		CHECK(!sawSickbay); // a post reads its own scope
+	}
+	if (medic >= 0) {
+		bool sawEngineering = false;
+		for (int i = 0; i < b.present[medic].logCount; ++i)
+			if (b.present[medic].log[i].what.find("coolant") != std::string::npos) sawEngineering = true;
+		CHECK(!sawEngineering);
+	}
+
+	// A participant's marks and open promises travel with their view.
+	Ship p = NewShip();
+	const int officer = 1, beneficiary = 20;
+	const int promise = MakePromise(p, officer, beneficiary, PROMISE_REPAIR, "the coolant line", p.clock + SECONDS_PER_DAY);
+	CHECK(promise >= 0);
+	const MeetingBrief pb = BuildBrief(p, MEET_DEFERRED);
+	bool found = false;
+	for (int i = 0; i < pb.presentCount; ++i) {
+		if (pb.present[i].crew != beneficiary) continue;
+		if (pb.present[i].promiseCount > 0 && pb.present[i].promises[0].what == "the coolant line") found = true;
+	}
+	CHECK(found);
+}
+
+// The meeting round-trips: the schedule and the queued briefs survive save and load byte-for-byte, and
+// a load does not re-emit a meeting that has already been called.
+static void TestMeetingSaveRoundTrip()
+{
+	g_test = "the meeting schedule and its queued briefs round-trip";
+	Ship s = NewShip();
+	const double toWatch = static_cast<double>(SECONDS_PER_WATCH) - std::fmod(s.clock, static_cast<double>(SECONDS_PER_WATCH));
+	AdvanceShip(s, toWatch + 1.0);
+	CHECK(!PendingMeetings(s).empty());
+	const std::vector<uint8_t> blob = Pack(s);
+	CHECK(blob.size() < 65536);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(Pack(back) == blob);
+	CHECK(PendingMeetings(back).size() == PendingMeetings(s).size());
+	// The load is a zero-length tick: it must not emit a second watch-change brief.
+	CHECK(PendingMeetings(back).size() == PendingMeetings(s).size());
+}
+
 // `test_ship_core --power` prints the allocation model as evidence (docs/evidence/power-assignment.md):
 // the proving case, the ladder only in automatic mode, oversubscription reported, the chief engineer's
 // recommendation, and a band delegation.
@@ -4627,14 +4847,118 @@ static int PrintPower()
 		std::printf("  revoke: %s; then the officer's set is %s\n", revoked ? "immediate" : "refused",
 			afterRevoke ? "accepted (a defect)" : "refused (the authority is gone)");
 	}
-	std::printf("== the meeting seam (not built): a staff meeting would call SetAllocation, RecommendAllocation,\n"
-		"   GrantBand and RevokeBand, and read PowerCommitted/PowerAvailable/PowerShortfall (docs/power-assignment.md)\n");
+	std::printf("== the meeting now consumes this seam (built, docs/staff-meetings.md): ApplyMeetingOutcome calls\n"
+		"   SetAllocation/SetAllocationBy, AcceptRecommendation/RefuseRecommendation, SetPowerAuto, and reads\n"
+		"   PowerCommitted/PowerAvailable/PowerShortfall (test_ship_core --meeting)\n");
 	return 0;
+}
+
+// `test_ship_core --meeting` prints the meeting as evidence (docs/evidence/meeting-brief.md): the brief
+// for each kind, the normal-case emission, the skeleton with no model, the delivery vocabulary, and the
+// allocation seam.
+static int PrintMeeting()
+{
+	int failures = 0;
+	auto bad = [&failures](bool ok) { if (!ok) ++failures; };
+
+	std::printf("== the delivery vocabulary (docs/evidence/voice-review.md, finding three)\n");
+	{
+		static const uint8_t ORDER[] = { DELIVERY_ORDER, DELIVERY_REPORT, DELIVERY_CONFESSION, DELIVERY_CONDOLENCE,
+			DELIVERY_FLAT, DELIVERY_UNMARKED };
+		for (uint8_t d : ORDER) {
+			if (DeliveryKnown(d)) std::printf("  %-11s exaggeration %.2f\n", DeliveryName(d), DeliveryExaggeration(d));
+			else std::printf("  %-11s unset (the seam refuses it)\n", DeliveryName(d));
+		}
+		MeetingLine line; line.text = "Make it so."; line.delivery = DELIVERY_ORDER;
+		SynthesisRequest req;
+		bad(LineToSynthesis(line, req));
+		std::printf("  seam: \"%s\" -> exaggeration %.2f, delivery %s\n", req.text.c_str(), req.exaggeration, DeliveryName(req.delivery));
+	}
+
+	std::printf("== a brief for each kind the design names\n");
+	for (int k = 0; k < MEET_KIND_COUNT; ++k) {
+		Ship s = NewShip();
+		s.player = 0;
+		SetAlert(s, ALERT_YELLOW);
+		LogEvent(s, "engineering", "engineering", "a coolant line was replaced"); // so a view has a log
+		const MeetingBrief b = BuildBrief(s, static_cast<uint8_t>(k));
+		bad(b.presentCount > 0 && b.optionCount > 0 && !b.decision.empty());
+		std::printf("  %-12s  present %d, decision: %s\n", MeetingKindName(b.kind), b.presentCount, b.decision.c_str());
+		std::printf("               trigger: %s; plant %d of %d (%d short), crystal %d%%, casualties %d/%d\n",
+			b.trigger.c_str(), b.powerCommitted, b.powerAvailable, b.powerShortfall,
+			static_cast<int>(b.dilithium * 100 + 0.5f), b.casualties, b.beds);
+		for (int i = 0; i < b.optionCount; ++i)
+			std::printf("               option %d: %s  [cost: %s]  (%s)\n", i + 1, b.options[i].label.c_str(),
+				b.options[i].cost.c_str(), MeetingEffectName(b.options[i].effect));
+	}
+
+	std::printf("== every meeting emits a brief, in the normal case (the emit site, not a count)\n");
+	{
+		Ship s = NewShip();
+		const double toWatch = static_cast<double>(SECONDS_PER_WATCH) - std::fmod(s.clock, static_cast<double>(SECONDS_PER_WATCH));
+		AdvanceShip(s, toWatch + 1.0);
+		std::printf("  at the watch change: %d brief(s) queued\n", static_cast<int>(PendingMeetings(s).size()));
+		bad(!PendingMeetings(s).empty());
+		for (const MeetingBrief &b : PendingMeetings(s)) {
+			std::printf("    %-12s  %s\n", MeetingKindName(b.kind), b.trigger.c_str());
+			for (int i = 0; i < b.presentCount; ++i) {
+				const SystemId post = static_cast<SystemId>(b.present[i].post);
+				std::printf("      present: %s (%s)\n", b.present[i].name.c_str(),
+					post < SYS_COUNT ? Spec(post).name : "department duties");
+			}
+		}
+	}
+
+	std::printf("== the skeleton plays with no model present\n");
+	for (int k = 0; k < MEET_KIND_COUNT; ++k) {
+		const MeetingSkeleton &sk = AuthoredSkeleton(static_cast<uint8_t>(k));
+		bad(sk.outcomeCount > 0);
+		std::printf("  %-12s  %s\n", MeetingKindName(sk.kind), sk.decision.c_str());
+		for (int i = 0; i < sk.outcomeCount; ++i) {
+			const MeetingOutcome &oc = sk.outcomes[i];
+			std::printf("    %s  [cost: %s]\n", oc.option.label.c_str(), oc.option.cost.c_str());
+			for (int l = 0; l < oc.lineCount; ++l)
+				std::printf("      (%s) %s\n", DeliveryName(oc.lines[l].delivery), oc.lines[l].text.c_str());
+		}
+	}
+
+	std::printf("== a meeting outcome sets an allocation, end to end (Task D)\n");
+	{
+		Ship s = NewShip();
+		s.player = 0;
+		SetAlert(s, ALERT_YELLOW);
+		const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+		const MeetingSkeleton &sk = AuthoredSkeleton(MEET_ALLOCATION);
+		int allocOpt = -1;
+		for (int i = 0; i < sk.outcomeCount; ++i) if (sk.outcomes[i].option.effect == EFFECT_SET_ALLOCATION && allocOpt < 0) allocOpt = i;
+		const bool applied = allocOpt >= 0 && ApplyMeetingOutcome(s, b, allocOpt, s.player, false);
+		bad(applied);
+		std::printf("  a person decides \"%s\": holodecks %d%%, shields %d%% (provenance: %s)\n",
+			allocOpt >= 0 ? sk.outcomes[allocOpt].option.label.c_str() : "?", AllocationPercent(s, SYS_HOLODECKS),
+			AllocationPercent(s, SYS_SHIELDS), AllocationProvenance(s, SYS_HOLODECKS).c_str());
+		const bool asShip = ApplyMeetingOutcome(s, b, allocOpt, -1, true);
+		std::printf("  the meeting tries to set it as the ship: %s\n", asShip ? "accepted (a defect)" : "refused (automatic mode is the ship's own answer)");
+		bad(!asShip);
+	}
+
+	std::printf("== a brief is a read: the ship's state is unchanged\n");
+	{
+		Ship s = NewShip();
+		const std::vector<uint8_t> before = Pack(s);
+		for (int k = 0; k < MEET_KIND_COUNT; ++k) BuildBrief(s, static_cast<uint8_t>(k));
+		const bool same = Pack(s) == before;
+		std::printf("  %d briefs built; the ship's blob is %s\n", static_cast<int>(MEET_KIND_COUNT),
+			same ? "unchanged" : "CHANGED (a defect)");
+		bad(same);
+	}
+
+	return failures;
 }
 
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--power")) return PrintPower();
+	if (argc > 1 && !std::strcmp(argv[1], "--meeting")) return PrintMeeting();
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
@@ -4725,6 +5049,12 @@ int main(int argc, char **argv)
 	TestHolodeckTrap();
 	TestCrystalCeilingScalesOutput();
 	TestTorpedoComplement();
+	TestMeetingBriefIsARead();
+	TestEveryMeetingEmitsABrief();
+	TestSkeletonPlaysWithoutAModel();
+	TestMeetingAllocationSeam();
+	TestMeetingBriefPerParticipant();
+	TestMeetingSaveRoundTrip();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);
