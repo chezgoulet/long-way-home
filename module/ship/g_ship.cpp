@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -734,6 +735,56 @@ void RunTest( void )
 			ship::PowerCommitted( vessel ), vessel.PowerAvailable(), ship::PowerShortfall( vessel ) );
 		WriteReport( "ship/power.txt" );
 		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 80 )
+	{//the meeting (docs/staff-meetings.md): a brief emitted in the normal case at the watch change,
+	 //and an allocation decision the simulation applies end to end. No model is referenced anywhere.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{//advance the clock to the next watch change: the normal-case trigger, no drama required
+			vessel.clock = ( std::floor( vessel.clock / ship::SECONDS_PER_WATCH ) + 1.0 ) * ship::SECONDS_PER_WATCH;
+			ship::Tick( vessel, 1.0f );
+			const std::vector<ship::MeetingBrief> &q = ship::PendingMeetings( vessel );
+			gi.Printf( "SHIP: meeting test: %d brief(s) queued at the watch change\n", static_cast<int>( q.size() ) );
+			if ( !q.empty() )
+			{
+				const ship::MeetingBrief &mb = q.front();
+				gi.Printf( "SHIP: meeting test: %s: %s\n", ship::MeetingKindName( mb.kind ), mb.decision.c_str() );
+				gi.Printf( "SHIP: meeting test: trigger: %s; present %d, options %d\n", mb.trigger.c_str(), mb.presentCount, mb.optionCount );
+				if ( mb.optionCount > 0 )
+					gi.Printf( "SHIP: meeting test: first option: %s [cost: %s]\n", mb.options[0].label.c_str(), mb.options[0].cost.c_str() );
+				const ship::MeetingSkeleton &sk = ship::AuthoredSkeleton( mb.kind );
+				if ( sk.outcomeCount > 0 && sk.outcomes[0].lineCount > 0 )
+				{
+					ship::SynthesisRequest req;
+					const bool ok = ship::LineToSynthesis( sk.outcomes[0].lines[0], req );
+					gi.Printf( "SHIP: meeting test: line -> synthesis: delivery %s, known %d, exaggeration %.2f\n",
+						ship::DeliveryName( req.delivery ), ok ? 1 : 0, req.exaggeration );
+				}
+			}
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3200 )
+		{//the allocation seam, end to end: a person in the room decides the holodecks/shields option
+			ship::SetAlert( vessel, ship::ALERT_YELLOW ); // the shields are not suppressed
+			const ship::MeetingBrief mb = ship::BuildBrief( vessel, ship::MEET_ALLOCATION );
+			const ship::MeetingSkeleton &sk = ship::AuthoredSkeleton( ship::MEET_ALLOCATION );
+			int outcome = -1;
+			for ( int i = 0; i < sk.outcomeCount; ++i )
+				if ( sk.outcomes[i].option.effect == ship::EFFECT_SET_ALLOCATION ) { outcome = i; break; }
+			const int decider = vessel.player >= 0 ? vessel.player : 0;
+			const bool applied = outcome >= 0 && ship::ApplyMeetingOutcome( vessel, mb, outcome, decider, false );
+			gi.Printf( "SHIP: meeting test: allocation outcome applied=%d; holodecks %d%%, shields %d%% (provenance %s)\n",
+				applied ? 1 : 0, ship::AllocationPercent( vessel, ship::SYS_HOLODECKS ),
+				ship::AllocationPercent( vessel, ship::SYS_SHIELDS ), ship::AllocationProvenance( vessel, ship::SYS_HOLODECKS ).c_str() );
+			const bool asShip = ship::ApplyMeetingOutcome( vessel, mb, outcome, -1, true );
+			gi.Printf( "SHIP: meeting test: set as the ship (automatic) applied=%d (0 = refused, as designed)\n", asShip ? 1 : 0 );
+			WriteReport( "ship/meeting.txt" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 2;
+		}
 		return;
 	}
 	if ( g_shipTest->integer == 11 )
@@ -3596,6 +3647,60 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "bond" ) && a[0] && b[0] )
 	{
 		gi.Printf( "SHIP: bond %d -> %d: %.2f\n", atoi( a ), atoi( b ), ship::Bond( vessel, atoi( a ), atoi( b ) ) );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "meeting" ) )
+	{//the meeting (docs/staff-meetings.md): the brief, and the decision the simulation applies.
+	 //A brief is a read; deciding applies exactly one enumerated outcome.
+		static const char *const KINDS[] = { "watch", "departmental", "allocation", "dilithium", "casualties", "borg", "deferred" };
+		auto kindOf = []( const char *name ) -> int {
+			if ( name[0] >= '0' && name[0] <= '9' ) return atoi( name );
+			for ( int i = 0; i < ship::MEET_KIND_COUNT; ++i )
+				if ( !Q_stricmpn( name, KINDS[i], static_cast<int>( strlen( KINDS[i] ) ) ) ) return i;
+			return -1;
+		};
+		if ( !a[0] || !Q_stricmp( a, "list" ) )
+		{
+			const std::vector<ship::MeetingBrief> &q = ship::PendingMeetings( vessel );
+			gi.Printf( "SHIP: %d meeting brief(s) queued\n", static_cast<int>( q.size() ) );
+			for ( const ship::MeetingBrief &mb : q )
+				gi.Printf( "SHIP:   %s: %s (present %d, options %d)\n", ship::MeetingKindName( mb.kind ),
+					mb.decision.c_str(), mb.presentCount, mb.optionCount );
+			return;
+		}
+		if ( !Q_stricmp( a, "drain" ) ) { gi.Printf( "SHIP: %s\n", ship::TakeBrief( vessel ) ? "one brief taken" : "the queue is empty" ); return; }
+		const int kind = kindOf( b );
+		if ( kind < 0 || kind >= ship::MEET_KIND_COUNT )
+		{
+			gi.Printf( "SHIP: meeting [list|drain|brief <kind>|decide <kind> <outcome>]\n" );
+			return;
+		}
+		if ( !Q_stricmp( a, "brief" ) )
+		{
+			const ship::MeetingBrief mb = ship::BuildBrief( vessel, static_cast<uint8_t>( kind ) );
+			gi.Printf( "SHIP: meeting brief: %s: %s\n", ship::MeetingKindName( mb.kind ), mb.decision.c_str() );
+			gi.Printf( "SHIP:   trigger: %s\n", mb.trigger.c_str() );
+			for ( int i = 0; i < mb.presentCount; ++i )
+				gi.Printf( "SHIP:   present: %s (%s, %s watch, mood %d%%)\n", mb.present[i].name.c_str(),
+					mb.present[i].post < ship::SYS_COUNT ? ship::Spec( static_cast<ship::SystemId>( mb.present[i].post ) ).name : "department duties",
+					mb.present[i].watch == 0 ? "alpha" : mb.present[i].watch == 1 ? "beta" : "gamma",
+					static_cast<int>( mb.present[i].mood * 100.0f + 0.5f ) );
+			for ( int i = 0; i < mb.optionCount; ++i )
+				gi.Printf( "SHIP:   option %d: %s [cost: %s] (%s)\n", i + 1, mb.options[i].label.c_str(),
+					mb.options[i].cost.c_str(), ship::MeetingEffectName( mb.options[i].effect ) );
+			return;
+		}
+		if ( !Q_stricmp( a, "decide" ) )
+		{
+			const int outcome = gi.argc() > first + 3 ? atoi( gi.argv( first + 3 ) ) : 0;
+			const ship::MeetingBrief mb = ship::BuildBrief( vessel, static_cast<uint8_t>( kind ) );
+			const bool ok = ship::ApplyMeetingOutcome( vessel, mb, outcome, vessel.player, false );
+			gi.Printf( "SHIP: meeting decided: %s outcome %d %s\n", ship::MeetingKindName( static_cast<uint8_t>( kind ) ),
+				outcome, ok ? "applied" : "refused" );
+			Publish();
+			return;
+		}
+		gi.Printf( "SHIP: meeting [list|drain|brief <kind>|decide <kind> <outcome>]\n" );
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "mine" ) )

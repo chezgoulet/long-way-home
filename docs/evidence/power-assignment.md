@@ -165,10 +165,10 @@ Each unit test, and the assertion it carries:
    than being attributed to the player. The three authors the brief names are the player, an officer under
    standing orders, and automatic mode; a default has no author.
 
-## The seam a staff meeting would call
+## The seam a staff meeting calls
 
-The meeting is deliberately **not built** (the brief, Task C3). Its seam is these calls and reads, and nothing
-else:
+The meeting **now consumes this seam** (`docs/evidence/meeting-brief.md`, phase one): `ApplyMeetingOutcome`
+calls the calls below, and the calling shape is exactly this and nothing else:
 
 - `RecommendAllocation(s)` — the chief engineer's allocation and reasoning, per system
 - `SetAllocation(s, id, percent)` and `SetAllocationBy(s, id, percent, officer)` — a decision, with provenance
