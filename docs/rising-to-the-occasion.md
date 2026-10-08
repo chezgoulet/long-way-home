@@ -101,6 +101,13 @@ two together are what make a crew a cast rather than a table.
 who rises — does not exist yet.** It is the same shape of gap as `EffectiveSkill` (computed, unwired), and it is
 one step past the pass in flight, not a parallel system.
 
+> **Built 2026-10-08 (`feat/rising`), and this paragraph is corrected rather than left to rot.** The lever now
+> exists: `RisingDriveAtStake` reads the `WORK_DRIVE` factor `WorkFactors` already computes, and the whole act
+> — offer, exceeding, cost, witness memory and refusal — is built as a rule over the character layer. The
+> account is `docs/evidence/rising-to-the-occasion.md`; the console is `ship rise`, the transcript
+> `test_ship_core --rising`, and the check `scripts/rising-check.sh`. No save version changed, because nothing
+> new is stored.
+
 **One thing the design gets for free, and it was not planned by anyone.** A mark's `salience` **decays unless
 reinforced.** So a heroism that nobody talks about *fades*, and one the crew keep telling persists. **Heroism
 survives only if it is retold** — which is the behaviour this document asks for, already in the model.

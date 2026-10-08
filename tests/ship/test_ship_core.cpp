@@ -5661,6 +5661,286 @@ static void TestBetazoidEmpathyTwoSided()
 	CHECK(MeasureWork(0.40f, 0.15f, bh, bhn) > MeasureWork(0.40f, 0.15f, hh, hhn));
 }
 
+// ---- rising to the occasion (docs/rising-to-the-occasion.md) ------------------------------------
+
+// A controlled rising: one unqualified hand at one post, and two crew who can see it from the same
+// deck. The post is structural integrity (a hull job, engineering), the department's skill. Nothing
+// here is posed that a tick would overwrite: the condition, the alert and the decks are set, and no
+// tick runs after.
+struct RisingFixture { Ship s; int hero; int post; int w1; int w2; };
+static RisingFixture MakeRising()
+{
+	RisingFixture f;
+	f.s = NewShip();
+	f.post = SYS_STRUCTURAL_INTEGRITY;
+	f.hero = 30; f.w1 = 40; f.w2 = 41;
+	CrewMember &h = f.s.crew[f.hero];
+	h.status = CREW_FIT; h.brigged = false; h.away = false;
+	h.post = static_cast<uint8_t>(f.post); h.dept = DEPT_ENGINEERING; h.deck = 11;
+	h.species = SPECIES_HUMAN; h.traits = 0; h.conditionCount = 0;
+	h.fatigue = 0.0f; h.deficit = 0.0f; h.outlook = 0.8f; h.holdings = 0.8f;
+	for (int k = 0; k < SKILL_COUNT; ++k) h.skills[k] = 0;
+	h.desire = DESIRE_A_PERSON; h.fear = FEAR_DYING_ALONE;
+	f.s.systems[f.post].health = 0.4f;
+	f.s.systems[f.post].output = 0.4f;
+	f.s.alert = ALERT_GREEN;
+	f.s.crew[f.w1].status = CREW_FIT; f.s.crew[f.w1].deck = 11;
+	f.s.crew[f.w2].status = CREW_FIT; f.s.crew[f.w2].deck = 11;
+	f.s.crew[50].deck = 5; // a hand elsewhere: not a witness
+	return f;
+}
+
+// The mark a person holds about a hero, or 0.
+static float SalienceOf(const CrewMember &w, int hero)
+{
+	for (const Memory &m : w.memories)
+		if (m.event == MEM_RESCUE && m.person == hero) return m.salience;
+	return 0.0f;
+}
+
+// Task B trigger: a rising is offered only when the hand in front of the post is beyond their
+// effective skill -- nobody who can hold it is available. Effective skill, not the raw rating, so a
+// rated hand whom conditions have taken below the post is still beyond it.
+static void TestRisingOfferRequiresBeyondSkill()
+{
+	g_test = "a rising is offered only when the hand in front of the post is beyond their skill";
+	RisingFixture f = MakeRising();
+	RisingOffer o = OfferRisingTo(f.s, f.post, f.hero);
+	CHECK(o.offered);
+	CHECK(o.candidate == f.hero);
+	CHECK(o.context == WORK_HULL);
+	CHECK(o.skill == SKILL_ENGINEERING);
+	// A qualified hand at the same post: no rising. There is someone who can hold it.
+	f.s.crew[f.hero].skills[SKILL_ENGINEERING] = 5;
+	RisingOffer q = OfferRisingTo(f.s, f.post, f.hero);
+	CHECK(!q.offered);
+	CHECK(q.qualified == f.hero);
+	// Effective skill, not the rating: a rated hand dragged below the post by what they carry.
+	f.s.crew[f.hero].skills[SKILL_ENGINEERING] = 3;
+	f.s.crew[f.hero].deficit = 1.0f;
+	f.s.crew[f.hero].fatigue = 1.0f;
+	CHECK(EffectiveSkill(f.s.crew[f.hero], SKILL_ENGINEERING) < RISING_QUALIFIED);
+	CHECK(OfferRisingTo(f.s, f.post, f.hero).offered);
+}
+
+// Tasks A and E: the drive is the lever, and whether they go is a decision from the drives and the
+// morale -- the same person does it here and does not do it there.
+static void TestRisingDriveDecides()
+{
+	g_test = "the drive decides whether they rise, and the log says why";
+	RisingFixture f = MakeRising();
+	CrewMember &h = f.s.crew[f.hero];
+	// The work realises a fear: a hull job and a fear of decompression. The reason they are the one
+	// names the drive, and it is the work-bites realisation, not a second reading.
+	h.fear = FEAR_DECOMPRESSION;
+	RisingOffer o = OfferRisingTo(f.s, f.post, f.hero);
+	CHECK(o.offered);
+	CHECK(o.drive.find("decompression") != std::string::npos);
+	// At good morale the desire carries them, and the drive still colours it.
+	h.deficit = 0.0f; h.outlook = 0.9f; h.holdings = 0.9f;
+	CHECK(o.choice != RISING_REFUSED);
+	// The same person, low morale and wanting home: they will not spend themselves.
+	h.deficit = 1.0f; h.outlook = 0.0f; h.holdings = 0.0f; h.desire = DESIRE_HOME;
+	RisingOffer r = OfferRisingTo(f.s, f.post, f.hero);
+	CHECK(r.choice == RISING_REFUSED);
+	CHECK(r.reason.find("go home") != std::string::npos);
+	CHECK(r.reason.find("decompression") != std::string::npos); // the drive is still named: why them
+	// A refusal is legible: the attempt writes why, and it costs nothing and changes nothing.
+	const int conds = h.conditionCount;
+	std::string account;
+	CHECK(AttemptRising(f.s, f.post, f.hero, 0u, &account) == RISING_REFUSED);
+	CHECK(account.find("will not hold") != std::string::npos);
+	CHECK(h.status == CREW_FIT);
+	CHECK(h.conditionCount == conds);
+	bool logged = false;
+	for (const LogEntry &e : f.s.log) if (e.what.find("will not hold") != std::string::npos) logged = true;
+	CHECK(logged);
+	// Afraid of being useless goes anyway: being useful is all they have.
+	h.fear = FEAR_USELESSNESS;
+	RisingOffer u = OfferRisingTo(f.s, f.post, f.hero);
+	CHECK(u.choice != RISING_REFUSED);
+	CHECK(u.reason.find("useless") != std::string::npos);
+}
+
+// Tasks B and C: the attempt is beyond effective skill, it costs them, and the cost is in the record.
+// Task D: the witnesses remember it by name, and their regard moves.
+static void TestRisingCostAndWitnesses()
+{
+	g_test = "the act costs them, and the witnesses remember it by name";
+	RisingFixture f = MakeRising();
+	CrewMember &h = f.s.crew[f.hero];
+	h.fear = FEAR_USELESSNESS; h.desire = DESIRE_HOME; // goes anyway despite the low morale
+	h.deficit = 1.0f; h.outlook = 0.0f; h.holdings = 0.0f;
+	const int beforeW = MemoryCount(f.s.crew[f.w1]);
+	const float holdBefore = f.s.crew[f.w1].holdings;
+	std::string account;
+	const uint8_t outcome = AttemptRising(f.s, f.post, f.hero, 0xFFFFFFFFu, &account);
+	CHECK(outcome == RISING_SUCCEEDED);
+	CHECK(account.find("the post holds") != std::string::npos);
+	// The cost: a condition, named and curable, in the record.
+	const Condition *k = FindCondition(h, COND_EXHAUSTED);
+	if (!k) k = FindCondition(h, COND_HYPOXIC);
+	CHECK(k != nullptr);
+	if (k) CHECK(!k->source.empty());
+	// The witnesses: a positive mark naming the hero, and the regard moves with it.
+	CHECK(MemoryCount(f.s.crew[f.w1]) > beforeW);
+	CHECK(SalienceOf(f.s.crew[f.w1], f.hero) > 0.9f);
+	CHECK(Bond(f.s, f.w1, f.hero) > 0.0f);
+	CHECK(f.s.crew[f.w1].holdings > holdBefore);
+	// The one elsewhere was not a witness: presence is the provenance.
+	CHECK(SalienceOf(f.s.crew[50], f.hero) == 0.0f);
+	// It is legible later: the mark decays unless reinforced, and a retelling sharpens it.
+	const float fresh = SalienceOf(f.s.crew[f.w1], f.hero);
+	Tick(f.s, Hours(f.s, 50.0f));
+	const float faded = SalienceOf(f.s.crew[f.w1], f.hero);
+	CHECK(faded < fresh);
+	CHECK(RetellRising(f.s, f.hero) >= 1);
+	CHECK(SalienceOf(f.s.crew[f.w1], f.hero) > faded);
+}
+
+// Task E: the attempt may fail, and a failed attempt is not a wasted one -- it still cost, and it is
+// still remembered.
+static void TestRisingFailureStillCostsAndIsRemembered()
+{
+	g_test = "a failed attempt still costs, and is still remembered";
+	RisingFixture f = MakeRising();
+	CrewMember &h = f.s.crew[f.hero];
+	h.fear = FEAR_USELESSNESS; h.desire = DESIRE_HOME;
+	h.deficit = 1.0f; h.outlook = 0.0f; h.holdings = 0.0f;
+	f.s.alert = ALERT_YELLOW; // stress 0.5 at 40%: an acute failure, a wound, not yet death
+	const int beforeW = MemoryCount(f.s.crew[f.w1]);
+	std::string account;
+	const uint8_t outcome = AttemptRising(f.s, f.post, f.hero, 0u, &account); // a draw at zero fails
+	CHECK(outcome == RISING_FAILED);
+	CHECK(account.find("lets go") != std::string::npos);
+	CHECK(h.status == CREW_INJURED);
+	CHECK(MemoryCount(f.s.crew[f.w1]) > beforeW);
+	CHECK(Bond(f.s, f.w1, f.hero) > 0.0f);
+}
+
+// Task C at the extreme: a heroism that cannot kill is a cutscene.
+static void TestRisingAtTheExtremeKills()
+{
+	g_test = "at the extreme the attempt can kill";
+	RisingFixture f = MakeRising();
+	CrewMember &h = f.s.crew[f.hero];
+	h.fear = FEAR_USELESSNESS; h.desire = DESIRE_HOME;
+	h.deficit = 1.0f; h.outlook = 0.0f; h.holdings = 0.0f;
+	f.s.alert = ALERT_RED; // stress 1.0 at 40% condition: the catastrophic severity
+	std::string account;
+	const uint8_t outcome = AttemptRising(f.s, f.post, f.hero, 0u, &account);
+	CHECK(outcome == RISING_DIED);
+	CHECK(f.s.crew[f.hero].status == CREW_DEAD);
+	CHECK(account.find("kills them") != std::string::npos);
+	// Even a death is remembered: the witnesses carry the name, with the grief NoteDeath adds.
+	CHECK(Recall(f.s.crew[f.w1], MEM_RESCUE));
+	CHECK(Recall(f.s.crew[f.w1], MEM_DEATH));
+}
+
+// Task B: worse than the task would be for someone properly qualified, and success is not impossible.
+static void TestRisingOddsBeyondSkill()
+{
+	g_test = "the attempt is beyond effective skill: worse odds, and never impossible";
+	RisingFixture f = MakeRising();
+	CrewMember &h = f.s.crew[f.hero];
+	h.fear = FEAR_USELESSNESS; h.desire = DESIRE_A_PERSON;
+	h.deficit = 0.0f; h.outlook = 0.8f; h.holdings = 0.8f;
+	RisingOffer low = OfferRisingTo(f.s, f.post, f.hero);
+	WorkFactor lf[WORK_FACTOR_MAX];
+	const int ln = WorkFactors(h, low.skill, low.context, low.stress, lf, WORK_FACTOR_MAX);
+	const float failLow = RisingOdds(low, h, lf, ln);
+	CHECK(failLow > 0.0f);
+	CHECK(failLow < 1.0f); // success is possible: the odds of failing are strictly below one
+	CHECK(failLow <= 1.0f - RISING_MIN_SUCCESS + 1e-6f);
+	// A qualified hand at the same post faces lower odds of failing.
+	h.skills[SKILL_ENGINEERING] = 5;
+	RisingOffer high = OfferRisingTo(f.s, f.post, f.hero);
+	WorkFactor hf[WORK_FACTOR_MAX];
+	const int hn = WorkFactors(h, high.skill, high.context, high.stress, hf, WORK_FACTOR_MAX);
+	const float failHigh = RisingOdds(high, h, hf, hn);
+	CHECK(failHigh < failLow);
+}
+
+// No new state: everything the act writes is already saved, so a rising round-trips unchanged.
+static void TestRisingSaveRoundTrip()
+{
+	g_test = "a heroism round-trips the save with no new field";
+	RisingFixture f = MakeRising();
+	CrewMember &h = f.s.crew[f.hero];
+	h.fear = FEAR_USELESSNESS;
+	h.deficit = 1.0f; h.outlook = 0.0f; h.holdings = 0.0f;
+	CHECK(AttemptRising(f.s, f.post, f.hero, 0xFFFFFFFFu, nullptr) == RISING_SUCCEEDED);
+	const int conds = f.s.crew[f.hero].conditionCount;
+	const int mems = MemoryCount(f.s.crew[f.hero]);
+	std::vector<uint8_t> blob = Pack(f.s);
+	Ship u = NewShip();
+	CHECK(Unpack(blob.data(), blob.size(), u));
+	CHECK(u.crew[f.hero].conditionCount == conds);
+	CHECK(MemoryCount(u.crew[f.hero]) == mems);
+	CHECK(Bond(u, f.w1, f.hero) > 0.0f);
+}
+
+// One act end to end, in the engine's own words: who, why them, what it cost, and what the
+// witnesses carry afterwards. The transcript the owner judges (docs/rising-to-the-occasion.md).
+static int PrintRising()
+{
+	std::printf("== rising to the occasion: one act, end to end (docs/rising-to-the-occasion.md)\n");
+	RisingFixture f = MakeRising();
+	CrewMember &h = f.s.crew[f.hero];
+	// Two hands, the same post and the same crisis, and only the drive is different.
+	h.fear = FEAR_DECOMPRESSION; h.desire = DESIRE_HOME;
+	h.deficit = 1.0f; h.outlook = 0.05f; h.holdings = 0.05f;
+	RisingOffer refused = OfferRisingTo(f.s, f.post, f.hero);
+	std::printf("\n  the same person, the same post, two drives:\n");
+	std::printf("    wants home, afraid of decompression: %s\n", refused.reason.c_str());
+	std::printf("    -- and the offer is %s\n", refused.choice == RISING_REFUSED ? "refused" : "taken");
+	std::string account;
+	AttemptRising(f.s, f.post, f.hero, 0u, &account);
+	std::printf("    the record: %s\n", account.c_str());
+
+	// The exceeding: the same post and crisis, an unqualified hand and a qualified one. The odds of
+	// failing are worse for the hand beyond their skill, and success is not impossible for either.
+	RisingFixture q = MakeRising();
+	CrewMember &lq = q.s.crew[q.hero];
+	lq.fear = FEAR_USELESSNESS; lq.deficit = 0.0f; lq.outlook = 0.8f; lq.holdings = 0.8f;
+	RisingOffer lo = OfferRisingTo(q.s, q.post, q.hero);
+	WorkFactor lf[WORK_FACTOR_MAX];
+	const int ln = WorkFactors(lq, lo.skill, lo.context, lo.stress, lf, WORK_FACTOR_MAX);
+	const float loFail = RisingOdds(lo, lq, lf, ln);
+	std::printf("\n  the exceeding: the same post and crisis, two hands\n");
+	std::printf("    effective engineering %.1f   odds of failing %.3f (holds %.0f%%)\n",
+		EffectiveSkill(lq, lo.skill), loFail, (1.0f - loFail) * 100.0f);
+	lq.skills[SKILL_ENGINEERING] = 5;
+	RisingOffer hi = OfferRisingTo(q.s, q.post, q.hero);
+	WorkFactor hf[WORK_FACTOR_MAX];
+	const int hn = WorkFactors(lq, hi.skill, hi.context, hi.stress, hf, WORK_FACTOR_MAX);
+	const float hiFail = RisingOdds(hi, lq, hf, hn);
+	std::printf("    effective engineering %.1f   odds of failing %.3f (holds %.0f%%)\n",
+		EffectiveSkill(lq, hi.skill), hiFail, (1.0f - hiFail) * 100.0f);
+
+	// A second hand, afraid of being useless, goes anyway -- and it costs them.
+	RisingFixture g = MakeRising();
+	CrewMember &u = g.s.crew[g.hero];
+	u.fear = FEAR_USELESSNESS; u.desire = DESIRE_HOME;
+	u.deficit = 1.0f; u.outlook = 0.05f; u.holdings = 0.05f;
+	std::printf("\n  a different hand and a different drive, the same post and crisis:\n");
+	std::string account2;
+	const uint8_t outcome = AttemptRising(g.s, g.post, g.hero, 0xFFFFFFFFu, &account2);
+	std::printf("    (%s) %s\n", RisingOutcomeName(outcome), account2.c_str());
+	const Condition *k = FindCondition(g.s.crew[g.hero], COND_EXHAUSTED);
+	if (!k) k = FindCondition(g.s.crew[g.hero], COND_HYPOXIC);
+	std::printf("    what it cost: %s\n", k ? (std::string(ConditionName(k->id)) + " (" + k->source + ")").c_str() : "a wound");
+	std::printf("    the witnesses now carry %s: bond %.2f, holdings %.2f, salience %.2f\n",
+		g.s.crew[g.w1].name.c_str(), Bond(g.s, g.w1, g.hero), g.s.crew[g.w1].holdings,
+		SalienceOf(g.s.crew[g.w1], g.hero));
+	// A heroism nobody retells fades; one the crew keep retelling persists.
+	Tick(g.s, Hours(g.s, 60.0f));
+	std::printf("    60 hours on, untold: salience %.2f\n", SalienceOf(g.s.crew[g.w1], g.hero));
+	RetellRising(g.s, g.hero);
+	std::printf("    retold: salience %.2f\n", SalienceOf(g.s.crew[g.w1], g.hero));
+	return 0;
+}
+
 // One crew member in full, for the evidence: the four kinds, the drives, and the morale reads.
 static void PrintOneCrew(const CrewMember &c, int idx)
 {
@@ -5867,6 +6147,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
 	if (argc > 1 && !std::strcmp(argv[1], "--manner")) return PrintManner();
 	if (argc > 1 && !std::strcmp(argv[1], "--work")) return PrintWork();
+	if (argc > 1 && !std::strcmp(argv[1], "--rising")) return PrintRising();
 	if (argc > 1 && !std::strcmp(argv[1], "--power")) return PrintPower();
 	if (argc > 1 && !std::strcmp(argv[1], "--meeting")) return PrintMeeting();
 	if (argc > 1 && !std::strcmp(argv[1], "--voice")) return PrintVoice();
@@ -5986,6 +6267,13 @@ int main(int argc, char **argv)
 	TestMoraleReachesTheWork();
 	TestReasonsRecoverableFromOutcome();
 	TestBetazoidEmpathyTwoSided();
+	TestRisingOfferRequiresBeyondSkill();
+	TestRisingDriveDecides();
+	TestRisingCostAndWitnesses();
+	TestRisingFailureStillCostsAndIsRemembered();
+	TestRisingAtTheExtremeKills();
+	TestRisingOddsBeyondSkill();
+	TestRisingSaveRoundTrip();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

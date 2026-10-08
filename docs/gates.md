@@ -719,11 +719,16 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   organisation, and the officer of the deck's authority (`docs/crew-manifest.md`).
 - **O7 — the Hazard Team as a standing unit**: two squads, a unit layer above departments
   (`docs/crew-manifest.md`, `docs/crew-roster.md` §6).
-- **O8 — the character layer** *(CLOSED 2026-10-08, PR #72; the wiring 2026-10-08, `feat/the-work-bites`)*:
+- **O8 — the character layer** *(CLOSED 2026-10-08, PR #72; the wiring 2026-10-08, `feat/the-work-bites`;
+  rising to the occasion 2026-10-08, `feat/rising`)*:
   the four kinds, the species capabilities/needs/susceptibilities, the condition record with
   source/cure/visibility, the derivation, and **the wiring of the four kinds and morale into the
   failure roll's odds** are built (`docs/character-derivation.md`, `docs/character-attributes.md`
-  "The wiring", `docs/evidence/the-character-layer.md`, `docs/evidence/the-work-bites.md`).
+  "The wiring", `docs/evidence/the-character-layer.md`, `docs/evidence/the-work-bites.md`). **Rising
+  to the occasion** — the offer, the drive as the lever, the exceeding, the cost, the witness memory
+  and the refusal — is built as a rule over the same layer (`docs/rising-to-the-occasion.md`,
+  `docs/evidence/rising-to-the-occasion.md`; console `ship rise`, check `scripts/rising-check.sh`),
+  and the lever that document named as missing now exists.
 - **O9 — the shuttle load-screen decision menu** (`docs/shuttles.md`; `docs/evidence/every-screen.md` row 18).
 - **O10 — the in-world control at the panel** (the "glance"), out of console scope and into world work
   (`docs/evidence/every-screen.md` row 12).

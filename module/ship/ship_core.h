@@ -579,6 +579,88 @@ std::string WorkFactorLine(const WorkFactor *f, int n);
 // working badly" answerable.
 std::string WorkReading(const Ship &s, int crew, SystemId id);
 
+// ---- rising to the occasion: the act, its cost, and the memory it leaves ------------------------
+//
+// docs/rising-to-the-occasion.md. The character layer reaches the work (above); this is the other
+// direction, and it is built from the same parts rather than beside them. A post must be held and
+// nobody who can hold it is available, and the person in front of it may exceed their own effective
+// skill. The choice is the heroism, not the success:
+//
+//   * the drive is the lever, and it is the work-bites realisation of a fear by the task in front
+//     of them -- RisingDriveAtStake() reads the WORK_DRIVE factor, it does not reread the drive;
+//   * the attempt is made beyond effective skill: the shortfall to a qualified hand worsens the
+//     odds, which are worse than the task would be for someone properly qualified and never zero;
+//   * the cost is not optional, and its severity is the one the condition and the load set
+//     (docs/damage-and-budgets.md's own shape -- condition sets the odds, stress sets the
+//     severity -- applied to a person instead of a system);
+//   * the witnesses remember by name through the existing mark system, and the mark's salience
+//     decays unless reinforced, so a heroism the crew keep retelling persists.
+//
+// There is no heroism stat, no courage roll and no bar: the act is situational, and the same person
+// does it here and does not do it there. The evidence is docs/evidence/rising-to-the-occasion.md;
+// the console is `ship rise`; the transcript is `test_ship_core --rising`.
+
+const float RISING_QUALIFIED = 3.0f;      // the effective skill a qualified hand holds the post at [inv]
+const float RISING_BEYOND_SLOPE = 0.35f;  // each point beyond their effective skill worsens the odds [inv]
+const float RISING_MIN_SUCCESS = 0.05f;   // success is never impossible: a heroism that cannot succeed is a formality [inv]
+const float RISING_WITNESS_BOND = 0.7f;   // the valence a witness carries toward the hero [inv]
+const float RISING_HOLDINGS_RISE = 0.12f; // the regard (bond and allegiance) that moves with it [inv]
+
+// What came of the offer. RISING_NONE: no post here needs a hand beyond its skill. RISING_REFUSED:
+// offered, and they would not -- a decision, not a dice roll. RISING_SUCCEEDED: the post held.
+// RISING_FAILED: it let go, and it still cost. RISING_DIED: the extreme -- a heroism that cannot
+// kill is a cutscene.
+enum RisingOutcome : uint8_t {
+	RISING_NONE = 0, RISING_REFUSED, RISING_SUCCEEDED, RISING_FAILED, RISING_DIED,
+	RISING_OUTCOME_COUNT
+};
+const char *RisingOutcomeName(uint8_t o);
+
+// The offer, and the decision that answers it: a situation in which a post must be held and the
+// person in front of it is beyond their effective skill, together with why they are the one -- the
+// drive the work realises, named. `choice` is RISING_REFUSED when they will not, else RISING_NONE
+// (the attempt is AttemptRising's). A pure read: it writes nothing, and the same ship gives the same
+// offer.
+struct RisingOffer {
+	bool offered = false;
+	int post = SYS_COUNT;
+	uint8_t context = WORK_ROUTINE;
+	uint8_t skill = SKILL_ENGINEERING; // the department skill the post asks of a qualified hand
+	float condition = 1.0f;            // the post's capability now (SystemCondition)
+	float stress = 0.0f;               // the load now (StressNow)
+	int candidate = -1;                // the person in front of the post
+	int qualified = -1;                // a qualified hand already in the moment, if any: offered is false
+	uint8_t choice = RISING_NONE;      // RISING_REFUSED when they will not
+	std::string drive;                 // the drive the offer turns on, named; empty when none is at stake
+	std::string reason;                // why they rise, or why they will not: the log's own words
+};
+RisingOffer OfferRising(const Ship &s, int post);
+// The same, for a named hand: the console and a scenario address the post, and the simulation
+// resolves the post to a person (docs/the-entry-point.md, the post-not-name law). This names one.
+RisingOffer OfferRisingTo(const Ship &s, int post, int crew);
+// The drive a context realises in a person: the WORK_DRIVE factor the work-bites pass already
+// computes (a fear realised by the task in front of them), or empty when none is at stake. It is
+// the same reading, not a second one.
+std::string RisingDriveAtStake(const CrewMember &c, uint8_t skill, uint8_t context, float stress);
+
+// The odds of the attempt: the person's own factors, moved by how far it is beyond their effective
+// skill. Worse than the same post for a qualified hand, and never zero -- and a nominal post still
+// fails no one (docs/failure-is-content.md's promise, kept).
+float RisingOdds(const RisingOffer &o, const CrewMember &c, const WorkFactor *f, int n);
+// One attempt, end to end: the decision from the drives and the morale (a refusal is logged, so it
+// is legible), the roll beyond effective skill, the cost (a condition, a wound, and at the extreme
+// their life), and the witnesses' memory. `roll` is the deterministic 0..UINT32_MAX draw the engine
+// passes from its own counter. Writes the record and the log; returns the outcome, and sets `out`
+// to the account in the engine's own words when given.
+uint8_t AttemptRising(Ship &s, int post, int crew, uint32_t roll, std::string *out = nullptr);
+// The deterministic draw the engine passes to AttemptRising, from the same saved counter UseSystem
+// draws on (s.riskRolls), so the act's roll replays identically across a save.
+uint32_t NextRisingRoll(Ship &s);
+// The crew retell it: the mark is reinforced, so a heroism the crew keep telling persists, and one
+// nobody retells fades (a mark's salience decays unless reinforced). Returns how many witnesses
+// still carry the mark and had it sharpened.
+int RetellRising(Ship &s, int hero);
+
 // Where a crew member is and what they are doing at a time of day, by their watch alone. The day
 // is eight hours on duty, then a meal, recreation, personal time and eight hours' sleep.
 Activity ScheduledActivity(int watch, int secondOfDay);
