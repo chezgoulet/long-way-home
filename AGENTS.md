@@ -103,6 +103,9 @@ scripts/run-scenario.sh            # a scenario run, for the owner's own session
   mode.
 - **An engine rebuild wipes the module symlinks beside the binary**, which silently boots the retail menu
   instead of our code.
+- **A stale `*.pid` makes the next start hang.** A run that was killed leaves its pid file behind, and the
+  launcher waits on a process that is not there. `scripts/run-lwh.sh` clears it; **if a launch ever hangs with
+  no output, check for the stale pid before anything else.**
 - **A new `.cpp` under `module/` is NOT compiled until cmake re-configures.** The module sources are found by a
   configure-time glob, so adding a file silently keeps the old source set — and because **the module links with
   unresolved symbols ignored**, the forgotten file appears only as "undefined symbol" *when the engine loads the
