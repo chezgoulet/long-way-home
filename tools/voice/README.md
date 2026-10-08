@@ -49,3 +49,32 @@ Checked against each project's own `LICENSE` (`gh api repos/<owner>/<repo> --jq 
 
 Not used: `demucs` (MIT) and `silero-vad` (MIT) — the assets made them unnecessary. Not used:
 `OmniVoice` (Apache-2.0); Chatterbox installed cleanly first.
+
+## The three knobs, and the reference rule (owner's review, 2026-10-07)
+
+Read from the installed model, not recalled. `ChatterboxTTS.generate` takes:
+
+```
+generate(text, repetition_penalty=1.2, min_p=0.05, top_p=1.0,
+         audio_prompt_path=None, exaggeration=0.5,
+         cfg_weight=0.5, temperature=0.8)
+```
+
+- **`exaggeration` (default 0.5)** — the emotion control; it enters the model as `emotion_adv`. **This is
+  delivery direction, and it is ours to set per line**: up for urgency, down for the flat and procedural. A
+  render made at the default carries the default's emotional temperature **whatever the text says** — an
+  emergency order and an order for lunch come out the same until someone asks for a difference.
+- **`cfg_weight` (default 0.5)** — prompt adherence against fluency. **This is the lever for drift.** When a
+  voice wanders off the reference as the utterance lengthens, raise it. The model's own prior carries an
+  accent, and it takes over as the reference's influence decays.
+- **`temperature` (default 0.8)** — sampling variety. Lower it for consistency across one character's lines.
+- **There is no `language` parameter.** The accent **cannot be pinned by a setting**; it is fixed in the
+  reference or in `cfg_weight`.
+
+**And the reference rule, which the owner's review earned:** ***one line, one speaker, one recording
+condition, as dry as the source allows.*** A reference built by concatenating two lines **buys duration at the
+cost of the room**: it joins two conditions, and the seam becomes an artefact in every line that voice ever
+speaks. A single clean utterance beats a longer joined one.
+
+**And line length is a rendering constraint, not only a writing choice.** Condition per line and render per
+line; do not render a long passage in one call.
