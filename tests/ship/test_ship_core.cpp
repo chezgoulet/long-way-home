@@ -4770,6 +4770,7 @@ static void TestMeetingBriefPerParticipant()
 static void TestMeetingOverlaySeam()
 {
 	g_test = "the overlay seam: a taken brief, one outcome, and typed text that is never a branch";
+	ClearNoveltyIndex(); // M4: the classifier's index starts empty, so no verdict is loaded
 	Ship s = NewShip();
 	s.player = 0; // the player is in the room
 	const double toWatch = static_cast<double>(SECONDS_PER_WATCH) - std::fmod(s.clock, static_cast<double>(SECONDS_PER_WATCH));
@@ -4813,6 +4814,46 @@ static void TestMeetingOverlaySeam()
 	CHECK(commander >= 0);
 	CHECK(std::strcmp(LogScopeForCrew(s, engineer), "engineering") == 0);
 	CHECK(std::strcmp(LogScopeForCrew(s, commander), "all scopes") == 0);
+}
+
+// M4: the novelty index. A verdict the worker loaded resolves the input to its branch; the same input
+// resolves the same way every time; an input with no verdict is NOVEL and applies nothing. The key is
+// content-addressed over the kind, the text and every option, so the verdict is stable for a save.
+static void TestNoveltyIndex()
+{
+	g_test = "the novelty index: a loaded verdict plays, and an input with no verdict is novel";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW);
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+
+	ClearNoveltyIndex();
+	const uint32_t key = NoveltyKey(b, "Make it so");
+	AddNoveltyVerdict(key, true, 1, "matched \"The chief's plan\" at 0.62");
+	const NoveltyResult first = ClassifyNovelInput(s, b, "Make it so");
+	const NoveltyResult second = ClassifyNovelInput(s, b, "Make it so");
+	CHECK(first.matched && first.outcome == 1);
+	CHECK(second.matched && second.outcome == 1);
+	CHECK(first.note == second.note);              // deterministic: a save replays the same way
+
+	// An input with no verdict is NOVEL, and the simulation applies nothing.
+	const NoveltyResult miss = ClassifyNovelInput(s, b, "Tea, Earl Grey, hot");
+	CHECK(!miss.matched && miss.outcome < 0);
+
+	// A verdict that names no enumerated option is not a branch.
+	AddNoveltyVerdict(NoveltyKey(b, "out of range"), true, 99, "not an outcome");
+	const NoveltyResult bad = ClassifyNovelInput(s, b, "out of range");
+	CHECK(!bad.matched && bad.outcome < 0);
+
+	// The key is content-addressed: different text is a different key.
+	CHECK(NoveltyKey(b, "a") != NoveltyKey(b, "b"));
+
+	// A re-added key revises that verdict and adds no second entry.
+	AddNoveltyVerdict(key, false, -1, "revised");
+	CHECK(NoveltyVerdictCount() == 2);
+	CHECK(!ClassifyNovelInput(s, b, "Make it so").matched);
+
+	ClearNoveltyIndex();
+	CHECK(NoveltyVerdictCount() == 0);
 }
 
 // The meeting round-trips: the schedule and the queued briefs survive save and load byte-for-byte, and
@@ -6518,6 +6559,7 @@ int main(int argc, char **argv)
 	TestMeetingAllocationSeam();
 	TestMeetingBriefPerParticipant();
 	TestMeetingOverlaySeam();
+	TestNoveltyIndex();
 	TestMeetingSaveRoundTrip();
 	TestTrackOwnership();
 	TestCueCannotStopALine();

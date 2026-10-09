@@ -154,7 +154,7 @@ substance of the brief's point and stands.
 | `Unpack` | `const uint8_t *data, size_t len, Ship &s` | False, leaving `s` untouched, on a truncated, foreign or newer record | play | — | — |
 
 ### 2. Situations the simulation generates on its own  
-*57 hooks.*
+*61 hooks.*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -187,7 +187,11 @@ substance of the brief's point and stands.
 | `TakeBrief` | `Ship &s` | Drop the oldest queued brief: the worker has taken it | play | — | — |
 | `ApplyMeetingOutcome` | `Ship &s, const MeetingBrief &brief, int outcome, int decidedBy, bool automatic` | The decision the room reached: which enumerated outcome, who decided it, and whether it was the ship's own answer (automatic mode) or a person's | play | — | — |
 | `LogScopeForCrew` | `const Ship &s, int crew` | The log scope a person reads: command reads all, everyone else their own department's scope. The display form of the per-participant brief | play | — | docs/the-record-and-the-log.md |
-| `ClassifyNovelInput` | `const Ship &s, const MeetingBrief &brief, const std::string &text` | The novelty seam: typed input matched against the option intent descriptors. With the embedding classifier absent (M4) every input is reported novel and nothing is applied, so typed text is never a branch by accident | play | — | docs/staff-meetings.md |
+| `ClassifyNovelInput` | `const Ship &s, const MeetingBrief &brief, const std::string &text` | The novelty seam: typed input matched against the option intent descriptors. With the embedding classifier absent every input is reported novel and nothing is applied, so typed text is never a branch by accident; with a verdict loaded (M4) a genuine match plays its branch | play | — | docs/staff-meetings.md |
+| `NoveltyKey` | `const MeetingBrief &brief, const std::string &text` | The content-addressed key a typed input and a meeting's options hash to. The classifier's verdicts are keyed by it, so the same input against the same options always resolves the same way (M4) | play | — | docs/staff-meetings.md |
+| `ClearNoveltyIndex` | `` | Empty the classifier's verdicts. The host calls it as it (re)loads the worker's output | play | — | docs/staff-meetings.md |
+| `AddNoveltyVerdict` | `uint32_t key, bool matched, int outcome, const std::string &note` | One verdict the worker wrote: this input matches this enumerated outcome, or is novel (M4) | play | — | docs/staff-meetings.md |
+| `NoveltyVerdictCount` | `` | How many verdicts are loaded, for the console and the check | console | — | docs/staff-meetings.md |
 | `DamageSystem` | `Ship &s, SystemId id, float amount` | damage system | console | post | — |
 | `DamageSource` | `Ship &s, SourceId id, float amount` | damage source | console | — | — |
 | `BreachDeck` | `Ship &s, int deck, float amount` | breach deck | console | — | — |
@@ -455,18 +459,18 @@ substance of the brief's point and stands.
 | group | hooks |
 |---|---|
 | entry points | 73 |
-| situations the simulation generates | 57 |
+| situations the simulation generates | 61 |
 | outcomes | 54 |
 | readers | 166 |
 | the configurator | 18 |
-| **total** | **368** |
+| **total** | **372** |
 
 **By reachability.**
 
 | state | hooks |
 |---|---|
-| reached in play | 211 |
-| reached only from the developer console | 122 |
+| reached in play | 214 |
+| reached only from the developer console | 123 |
 | reached by nothing yet | 35 |
 | — of those, reached only by the tests | 29 |
 | — of those, no caller anywhere | 6 |
@@ -481,6 +485,14 @@ brief (`PendingMeetings`, `TakeBrief`) and a pill resolves to an outcome the sim
 the room shows) and `ClassifyNovelInput` (the novelty seam, every input reported novel with the
 classifier absent). The counts above are the rows of this register, counted, not carried over:
 73 + 57 + 54 + 166 + 18 = 368, and 211 + 122 + 35 = 368. Evidence: `docs/evidence/meeting-overlay.md`.
+
+**Re-derived 2026-10-09, the async generator and the novelty classifier (M4).** Four hooks are added
+for the classifier's verdict index -- `NoveltyKey`, `ClearNoveltyIndex`, `AddNoveltyVerdict` and
+`NoveltyVerdictCount` -- three reached in play (the host loads the worker's verdicts and keys a typed
+input) and one from the console (`ship meeting verdicts`). `ClassifyNovelInput` is no longer the
+always-NOVEL seam: with a verdict loaded a genuine match plays its branch, and with none it is still
+novel. The counts above are the rows of this register, counted: 73 + 61 + 54 + 166 + 18 = 372, and
+214 + 123 + 35 = 372. Evidence: `docs/evidence/model-call.md`.
 
 ### 5. The configurator — the player chooses the start state
 
@@ -517,11 +529,11 @@ developer console reaches it too (`ship startstate ...`).
 scenario author and the owner should read first: every one of these is a mechanism the simulation
 has and the game does not yet offer.
 
-### Reached only from the developer console (122)
+### Reached only from the developer console (123)
 
 **1. Entry points** (37): `OfferRising`, `OfferRisingTo`, `AttemptRising`, `NextRisingRoll`, `WritePersonalLog`, `VoiceWrite`, `VoiceRetire`, `EmitCue`, `QueueRender`, `CacheRendered`, `PruneVoiceCache`, `PlanMeetingAudio`, `WarmVoice`, `Repair`, `RepairDeck`, `LoadAwayKit`, `LaunchShuttle`, `RecallShuttle`, `LoseShuttle`, `ShuttleBayHit`, `RebuildShuttle`, `TractorWreck`, `TractorHold`, `LaunchProbe`, `RespondPhenomenon`, `FabricateParts`, `FabricateRations`, `MineBelt`, `EVA`, `TakeSurvivors`, `ObservePreWarp`, `InterferePreWarp`, `ReconcileFactions`, `Survey`, `CatchUp`, `Suspend`, `Sleep`
 
-**2. Situations the simulation generates on its own** (13): `EffectiveSkill`, `WorkContextName`, `WorkReading`, `DamageSystem`, `DamageSource`, `BreachDeck`, `IgniteDeck`, `Board`, `BoardAs`, `BoardBorg`, `JumpStartFromHolodeck`, `Pursued`, `AdvanceSector`
+**2. Situations the simulation generates on its own** (14): `EffectiveSkill`, `WorkContextName`, `WorkReading`, `DamageSystem`, `DamageSource`, `BreachDeck`, `IgniteDeck`, `Board`, `BoardAs`, `BoardBorg`, `JumpStartFromHolodeck`, `Pursued`, `AdvanceSector`, `NoveltyVerdictCount`
 
 **3. Outcomes content can ask for** (18): `SetAllocationBy`, `Hearing`, `SetMobileEmitter`, `EndHolodeckProgram`, `SetAirponics`, `Delegate`, `RevokeDelegation`, `RevokeCredential`, `LockOut`, `ClearLockout`, `Train`, `Brig`, `HoldFuneral`, `Brief`, `MakePromise`, `RunHolodeck`, `ImproveQuarters`, `SetRole`
 

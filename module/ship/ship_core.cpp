@@ -6715,16 +6715,70 @@ const char *LogScopeForCrew(const Ship &s, int crew)
 	return ScopeForDept(s.crew[crew].dept);
 }
 
+// ---- the novelty index: the classifier's verdicts, loaded by the host ---------------------------------
+//
+// M4. The embedding model does not run in the module and the module performs no I/O to it: an external
+// worker (tools/meetings/worker.py) embeds the typed text and each option's intent descriptor with
+// all-minilm and the host loads its verdicts here. The index is keyed by NoveltyKey, content-addressed
+// over the kind, the typed text and every option's intent, so the same input against the same options
+// always resolves the same way -- the determinism a save needs. A key with no verdict is NOVEL
+// (matched false, outcome -1): the safe default that cannot turn a typed string into a branch.
+
+namespace {
+struct NoveltyVerdict { uint32_t key; bool matched; int outcome; std::string note; };
+std::vector<NoveltyVerdict> g_noveltyVerdicts;
+}
+
+uint32_t NoveltyKey(const MeetingBrief &brief, const std::string &text)
+{
+	uint32_t h = 2166136261u;
+	auto mix = [&h]( uint32_t v ) { h ^= v; h *= 16777619u; };
+	auto mixs = [&mix]( const std::string &s ) {
+		mix( static_cast<uint32_t>( s.size() ) );   // length-prefixed: "ab"+"c" cannot forge "a"+"bc"
+		for ( char c : s ) mix( static_cast<uint32_t>( static_cast<unsigned char>( c ) ) );
+	};
+	mix( brief.kind );
+	mixs( text );
+	for ( int i = 0; i < brief.optionCount; ++i ) {
+		mix( brief.options[i].intent );
+		mixs( brief.options[i].label );
+		mixs( brief.options[i].cost );
+	}
+	return h;
+}
+
+void ClearNoveltyIndex() { g_noveltyVerdicts.clear(); }
+
+void AddNoveltyVerdict( uint32_t key, bool matched, int outcome, const std::string &note )
+{
+	for ( NoveltyVerdict &v : g_noveltyVerdicts )
+		if ( v.key == key ) { v.matched = matched; v.outcome = outcome; v.note = note; return; }
+	NoveltyVerdict v;
+	v.key = key; v.matched = matched; v.outcome = outcome; v.note = note;
+	g_noveltyVerdicts.push_back( v );
+}
+
+int NoveltyVerdictCount() { return static_cast<int>( g_noveltyVerdicts.size() ); }
+
 NoveltyResult ClassifyNovelInput(const Ship &s, const MeetingBrief &brief, const std::string &text)
 {
 	(void)s;
-	(void)brief;
-	(void)text;
-	// THE CLASSIFIER IS NOT BUILT (M4). It would embed `text` and each option's intent descriptor and
-	// take the nearest above a tuned threshold; above it the branch plays, below it this is the novel
-	// answer. With no embedding model resident, the safe and honest result is NOVEL -- the simulation
-	// applies nothing, and the input goes to the log. Reporting a match here would let typed text pick
-	// a branch, which is exactly the accident the design forbids.
+	// The classifier's verdict, if the host has loaded one for this exact input and options. Above the
+	// worker's tuned threshold the branch plays; the simulation applies it as any pill would.
+	const uint32_t key = NoveltyKey( brief, text );
+	for ( const NoveltyVerdict &v : g_noveltyVerdicts )
+	{
+		if ( v.key != key ) continue;
+		NoveltyResult r;
+		r.matched = v.matched && v.outcome >= 0 && v.outcome < brief.optionCount;
+		r.outcome = r.matched ? v.outcome : -1;
+		r.note = v.note;
+		return r;
+	}
+	// No verdict: the embedding classifier has not been consulted for this input (the model is absent,
+	// or the worker has not drained the request yet). This is NOVEL -- the simulation applies nothing
+	// and the input is written down. Reporting a match here would let typed text pick a branch, which
+	// is exactly the accident the design forbids, and it is the safe result when no model is running.
 	NoveltyResult r;
 	r.matched = false;
 	r.outcome = -1;

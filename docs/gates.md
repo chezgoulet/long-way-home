@@ -620,9 +620,44 @@ called, no audio device is opened, and no line is rendered**: M4, M5 and M6 are 
   **play** (counts re-derived: 211 play / 122 console / 35 nothing; 368 hooks) ✅
 - `scripts/test.sh`, `scripts/check.sh` and `scripts/meeting-overlay-check.sh` exit 0 ✅
 
-Remaining for the meeting lane: M4 (the async generator and the embedding classifier the novelty seam
-names), M5 (voice out and the cue track) and M6 (voice in and the ship's computer). **The look is the
-owner's to judge** — whether the overlay reads as a room rather than a menu is not decided here.
+Remaining for the meeting lane: M5 (voice out and the cue track) and M6 (voice in and the ship's
+computer). **The look is the owner's to judge** — whether the overlay reads as a room rather than a
+menu is not decided here.
+
+### The async generator and the novelty classifier (M4)
+
+`docs/staff-meetings.md`, phase four / M4, implemented 2026-10-09 on `feat/the-model-call` (cut from
+`testing`; `docs/evidence/model-call.md`, `TestNoveltyIndex`, `tests/tools/test_meeting_worker.py`,
+`scripts/model-call-check.sh`, `tools/meetings/worker.py`). **Save format unchanged (54)** — the script
+and the verdict index are player-local files beside the save, and the simulation applies outcomes
+exactly as before. **No assets and no model in the repository**; the two models are the owner's
+(`all-minilm`, `qwen2.5:3b`), pulled and smoke-tested before this pass and left in ollama's store.
+
+- **the script exists before the player arrives** — the brief is written to `ship/meetings/generate.jsonl`
+  and the worker drains it to a validated script; run A opens the room with 0 scripts loaded and plays
+  the authored skeleton, run B with 1 script loaded and plays the generated one ✅
+- **the validator refuses a deliberately broken script, by name** — a dead end, a branch that does not
+  terminate in an enumerated outcome, and a line that contradicts the record ✅
+- **the meeting plays from the skeleton when the model is absent or broken** — the worker fails soft
+  with no model and writes no script; the engine plays the skeleton ✅
+- **one novel input produces exactly one call** — the classifier counts its calls, and the count can
+  fail: two novel inputs against a budget of one exits non-zero ✅
+- **reloading replays from the log rather than regenerating; a second run offers the promoted branch
+  with no call** — the verdict is content-addressed and the promoted line is appended to the script;
+  run B matches with the call count unchanged ✅
+- **the model never writes ship state** — the loader copies the authored options (and their effects)
+  and takes only the model's dialogue lines ✅
+- the four new hooks are registered, counts re-derived from the register's own rows (372; 214 play /
+  123 console / 35 nothing) ✅
+- **Task A**: the pill row is lifted clear of the engine's version stamp at (371,445) — measured, the
+  stamp's box is a single colour in the rendered frame — and `meet.said` is drawn in the speaker rail ✅
+- `scripts/test.sh`, `scripts/check.sh`, `scripts/meeting-check.sh`, `scripts/meeting-overlay-check.sh`
+  and `scripts/model-call-check.sh` exit 0 ✅
+
+Remaining for the meeting lane: **M5** (voice out and the cue track) and **M6** (voice in and the
+ship's computer). The stale-script **interruption hook** is named and not built; *regenerate* is the
+branch taken. **The prose is the owner's to judge**; the validator guarantees termination and
+non-contradiction, not quality.
 
 ### Then, in rough order
 

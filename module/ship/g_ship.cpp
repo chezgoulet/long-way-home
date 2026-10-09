@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -193,6 +194,259 @@ void VoiceWriteManifest()
 	gi.Printf( "SHIP: voice: wrote ship/voice/render.jsonl (%d job(s))\n", static_cast<int>( voiceRender.queue.size() ) );
 }
 
+// ---- M4: the async generator and the novelty classifier, host side --------------------------------
+//
+// The module does no I/O to a model. It writes a JSON-lines manifest of the meeting briefs the
+// simulation has queued (ship/meetings/generate.jsonl) and of the typed inputs to classify
+// (ship/meetings/classify.jsonl). The external worker (tools/meetings/worker.py) drains both, calls
+// ollama on the local socket, validates, and writes back the script (ship/meetings/scripts.txt) and
+// its verdicts (ship/meetings/novel.txt). The host loads those and applies nothing itself: the
+// simulation applies outcomes exactly as it always did, and the model never writes ship state.
+//
+// Everything lives beside the save, under ship/, player-local and outside version control.
+
+// Split on `sep`, preserving empty fields; the module reads a line-oriented format so that the
+// worker's output needs no JSON parser here (the manifest the worker *reads* is JSON; what it writes
+// back for us is fields, which is robust and trivially greppable).
+int SplitFields( char *s, char sep, char **out, int max )
+{
+	int n = 0;
+	out[n++] = s;
+	for ( char *p = s; *p && n < max; ++p )
+		if ( *p == sep ) { *p = 0; out[n++] = p + 1; }
+	return n;
+}
+
+std::string ReadText( const char *path )
+{
+	fileHandle_t f = 0;
+	const int len = gi.FS_FOpenFile( path, &f, FS_READ );
+	std::string s;
+	if ( len > 0 && f )
+	{
+		s.resize( static_cast<size_t>( len ) );
+		gi.FS_Read( &s[0], len, f );
+	}
+	if ( f ) gi.FS_FCloseFile( f );
+	return s;
+}
+
+uint8_t DeliveryFromName( const char *name )
+{
+	for ( int d = 0; d < ship::DELIVERY_COUNT; ++d )
+		if ( !Q_stricmp( name, ship::DeliveryName( static_cast<uint8_t>( d ) ) ) ) return static_cast<uint8_t>( d );
+	return ship::DELIVERY_UNMARKED;
+}
+
+// The role a line's speaker names. A roster index resolves to that person's name; a role to its word.
+std::string SpeakerWord( int speaker )
+{
+	switch ( speaker )
+	{
+		case ship::SPEAK_ROOM: return "room";
+		case ship::SPEAK_COMMAND: return "command";
+		case ship::SPEAK_ENGINEERING: return "engineering";
+		case ship::SPEAK_SECURITY: return "security";
+		case ship::SPEAK_SCIENCES: return "sciences";
+		case ship::SPEAK_MEDICAL: return "medical";
+		default: return speaker >= 0 && speaker < static_cast<int>( vessel.crew.size() ) ? vessel.crew[speaker].name : "room";
+	}
+}
+
+int SpeakerFromWord( const char *word )
+{
+	if ( !Q_stricmp( word, "command" ) ) return ship::SPEAK_COMMAND;
+	if ( !Q_stricmp( word, "engineering" ) ) return ship::SPEAK_ENGINEERING;
+	if ( !Q_stricmp( word, "security" ) ) return ship::SPEAK_SECURITY;
+	if ( !Q_stricmp( word, "sciences" ) ) return ship::SPEAK_SCIENCES;
+	if ( !Q_stricmp( word, "medical" ) ) return ship::SPEAK_MEDICAL;
+	return ship::SPEAK_ROOM;
+}
+
+// The descriptor the classifier embeds and the pill shows: the option's label with its cost. The
+// brief carries intent as an id, so this is the text the worker embeds. Named as a call
+// (docs/evidence/model-call.md).
+std::string IntentDescriptor( const ship::MeetingOption &o ) { return o.label + " (" + o.cost + ")"; }
+
+// The generated scripts the host has loaded, by meeting kind, with the digest each was written for.
+struct LoadedScript { ship::MeetingSkeleton skeleton; uint32_t digest = 0; std::string source; };
+std::map<uint8_t, LoadedScript> meetingScripts;
+int meetingNovelCalls = 0;   // the novel-path generator calls the worker recorded
+int meetingGenCalls = 0;     // the generation calls the worker recorded
+
+// The script a room plays: the generated one if it is present and was written for this brief's state,
+// otherwise the authored skeleton. A material change between generation and the meeting leaves the
+// digest stale, so the room falls back to the skeleton (and the simulation asks for a regeneration).
+const ship::MeetingSkeleton &ScriptFor( const ship::MeetingBrief &b )
+{
+	auto it = meetingScripts.find( b.kind );
+	if ( it != meetingScripts.end() && it->second.digest == b.stateDigest && it->second.skeleton.outcomeCount > 0 )
+		return it->second.skeleton;
+	return ship::AuthoredSkeleton( b.kind );
+}
+
+bool ScriptIsFresh( const ship::MeetingBrief &b )
+{
+	auto it = meetingScripts.find( b.kind );
+	return it != meetingScripts.end() && it->second.digest == b.stateDigest && it->second.skeleton.outcomeCount > 0;
+}
+
+// The generator manifest: one JSON object per queued brief, carrying identity and time, who is
+// present, the decision, the enumerated options with their costs, the authored skeleton as the
+// fallback, and the ship and people as they are now. The worker turns this into a script.
+std::string BriefJson( const ship::MeetingBrief &b, bool stale )
+{
+	const ship::MeetingSkeleton &sk = ship::AuthoredSkeleton( b.kind );
+	std::string out = Fmt( "{\"kind\":%d,\"kindName\":\"%s\",\"time\":%.1f,\"stateDigest\":%u,\"stale\":%d,\"decision\":\"%s\",\"trigger\":\"%s\"",
+		b.kind, ship::MeetingKindName( b.kind ), b.time, b.stateDigest, stale ? 1 : 0,
+		JsonEsc( b.decision ).c_str(), JsonEsc( b.trigger ).c_str() );
+	out += ",\"present\":[";
+	for ( int i = 0; i < b.presentCount; ++i )
+	{
+		const ship::BriefParticipant &p = b.present[i];
+		out += Fmt( "%s{\"name\":\"%s\",\"post\":%d,\"watch\":%d,\"mood\":%.2f}", i ? "," : "",
+			JsonEsc( p.name ).c_str(), p.post, p.watch, p.mood );
+	}
+	out += "],\"options\":[";
+	for ( int i = 0; i < b.optionCount; ++i )
+		out += Fmt( "%s{\"index\":%d,\"label\":\"%s\",\"cost\":\"%s\",\"intent\":\"%s\"}", i ? "," : "", i + 1,
+			JsonEsc( b.options[i].label ).c_str(), JsonEsc( b.options[i].cost ).c_str(),
+			JsonEsc( IntentDescriptor( b.options[i] ) ).c_str() );
+	out += "],\"skeleton\":[";
+	for ( int i = 0; i < sk.outcomeCount; ++i )
+	{
+		out += Fmt( "%s{\"index\":%d,\"lines\":[", i ? "," : "", i + 1 );
+		for ( int l = 0; l < sk.outcomes[i].lineCount; ++l )
+			out += Fmt( "%s{\"speaker\":\"%s\",\"delivery\":\"%s\",\"text\":\"%s\"}", l ? "," : "",
+				SpeakerWord( sk.outcomes[i].lines[l].speaker ).c_str(),
+				ship::DeliveryName( sk.outcomes[i].lines[l].delivery ),
+				JsonEsc( sk.outcomes[i].lines[l].text ).c_str() );
+		out += "]}";
+	}
+	out += Fmt( "],\"facts\":{\"powerAvailable\":%d,\"powerCommitted\":%d,\"powerShortfall\":%d,\"alert\":%d,"
+		"\"dilithium\":%.2f,\"casualties\":%d,\"beds\":%d}}",
+		b.powerAvailable, b.powerCommitted, b.powerShortfall, b.alert, b.dilithium, b.casualties, b.beds );
+	return out;
+}
+
+void WriteGenerateManifest( const std::vector<ship::MeetingBrief> &briefs )
+{
+	std::string out;
+	for ( const ship::MeetingBrief &b : briefs ) { out += BriefJson( b, false ); out += "\n"; }
+	WriteFile( "ship/meetings/generate.jsonl", out.data(), static_cast<int>( out.size() ) );
+	gi.Printf( "SHIP: meetings: wrote ship/meetings/generate.jsonl (%d brief(s))\n", static_cast<int>( briefs.size() ) );
+}
+
+// A material change between generation and the meeting: the script's digest no longer matches the
+// brief's. The room falls back to the authored skeleton, and the brief is written again for the async
+// worker -- the design's "regenerate" branch. (The authored interruption-hook alternative is named
+// and not built; a judgement call in docs/evidence/model-call.md.)
+void RequestRegeneration( const ship::MeetingBrief &b )
+{
+	std::string all = ReadText( "ship/meetings/regenerate.jsonl" );
+	all += BriefJson( b, true );
+	all += "\n";
+	WriteFile( "ship/meetings/regenerate.jsonl", all.data(), static_cast<int>( all.size() ) );
+	gi.Printf( "SHIP: meetings: the script is stale for %s; queued for regeneration\n", ship::MeetingKindName( b.kind ) );
+}
+
+// One classify request for the worker: the content-addressed key, the typed text and the option
+// descriptors it is matched against. Exactly the input the seam will look up again.
+void AppendClassifyRequest( const ship::MeetingBrief &b, const std::string &text )
+{
+	std::string out = Fmt( "{\"key\":\"%08x\",\"kind\":%d,\"kindName\":\"%s\",\"text\":\"%s\",\"intents\":[",
+		ship::NoveltyKey( b, text ), b.kind, ship::MeetingKindName( b.kind ), JsonEsc( text ).c_str() );
+	for ( int i = 0; i < b.optionCount; ++i )
+		out += Fmt( "%s{\"index\":%d,\"intent\":\"%s\"}", i ? "," : "", i + 1, JsonEsc( IntentDescriptor( b.options[i] ) ).c_str() );
+	out += "]}\n";
+	std::string all = ReadText( "ship/meetings/classify.jsonl" );
+	all += out;
+	WriteFile( "ship/meetings/classify.jsonl", all.data(), static_cast<int>( all.size() ) );
+	gi.Printf( "SHIP: meetings: queued one classification for \"%s\" (key %08x)\n", text.c_str(), ship::NoveltyKey( b, text ) );
+}
+
+// Load the worker's output: the generated scripts (by kind, with the digest each was written for)
+// and the classifier's verdicts (by key) plus the call ledger. Called at ship init and on command;
+// never on the render loop.
+void LoadMeetingFiles( void )
+{
+	meetingScripts.clear();
+	ship::ClearNoveltyIndex();
+	meetingNovelCalls = 0;
+	meetingGenCalls = 0;
+
+	// The script, one `D|kind|digest|decision` header and `L|kind|outcome|speaker|delivery|text` lines.
+	{
+		const std::string text = ReadText( "ship/meetings/scripts.txt" );
+		size_t at = 0;
+		while ( at < text.size() )
+		{
+			const size_t nl = text.find( '\n', at );
+			std::string line = text.substr( at, nl == std::string::npos ? std::string::npos : nl - at );
+			at = nl == std::string::npos ? text.size() : nl + 1;
+			if ( line.empty() ) continue;
+			char buf[1024], *f[8];
+			Q_strncpyz( buf, line.c_str(), sizeof( buf ) );
+			const int n = SplitFields( buf, '|', f, 8 );
+			if ( n >= 3 && f[0][0] == 'D' && !f[0][1] )
+			{
+				const int kind = atoi( f[1] );
+				if ( kind < 0 || kind >= ship::MEET_KIND_COUNT ) continue;
+				LoadedScript &ls = meetingScripts[static_cast<uint8_t>( kind )];
+				ls.skeleton = ship::AuthoredSkeleton( static_cast<uint8_t>( kind ) ); // options are the brief's
+				ls.digest = static_cast<uint32_t>( strtoul( f[2], NULL, 10 ) );
+				ls.skeleton.decision = n >= 4 && f[3][0] ? f[3] : ls.skeleton.decision;
+				for ( int i = 0; i < ship::MEETING_OUTCOME_MAX; ++i ) ls.skeleton.outcomes[i].lineCount = 0;
+				ls.source = "the local model";
+			}
+			else if ( n >= 6 && f[0][0] == 'L' && !f[0][1] )
+			{
+				const int kind = atoi( f[1] );
+				const int outcome = atoi( f[2] ) - 1;
+				auto it = meetingScripts.find( static_cast<uint8_t>( kind ) );
+				if ( kind < 0 || kind >= ship::MEET_KIND_COUNT || it == meetingScripts.end() ) continue;
+				if ( outcome < 0 || outcome >= it->second.skeleton.outcomeCount ) continue;
+				ship::MeetingOutcome &oc = it->second.skeleton.outcomes[outcome];
+				if ( oc.lineCount >= ship::MEETING_LINE_MAX ) continue;
+				ship::MeetingLine &l = oc.lines[oc.lineCount++];
+				l.speaker = SpeakerFromWord( f[3] );
+				l.delivery = DeliveryFromName( f[4] );
+				l.text = f[5];
+			}
+		}
+	}
+
+	// The classifier's verdicts and the call ledger.
+	{
+		const std::string text = ReadText( "ship/meetings/novel.txt" );
+		size_t at = 0;
+		while ( at < text.size() )
+		{
+			const size_t nl = text.find( '\n', at );
+			std::string line = text.substr( at, nl == std::string::npos ? std::string::npos : nl - at );
+			at = nl == std::string::npos ? text.size() : nl + 1;
+			if ( line.empty() ) continue;
+			char buf[512], *f[8];
+			Q_strncpyz( buf, line.c_str(), sizeof( buf ) );
+			const int n = SplitFields( buf, '|', f, 8 );
+			if ( n >= 3 && !Q_stricmp( f[0], "CALLS" ) )
+			{
+				meetingGenCalls = atoi( f[1] );
+				meetingNovelCalls = atoi( f[2] );
+			}
+			else if ( n >= 3 && f[0][0] != '#' )
+			{
+				const uint32_t key = static_cast<uint32_t>( strtoul( f[0], NULL, 16 ) );
+				const bool matched = atoi( f[1] ) != 0;
+				const int outcome = atoi( f[2] ) - 1;
+				ship::AddNoveltyVerdict( key, matched, outcome, n >= 4 ? f[3] : "" );
+			}
+		}
+	}
+	gi.Printf( "SHIP: meetings: loaded %d script(s), %d verdict(s); calls generate=%d novel=%d\n",
+		static_cast<int>( meetingScripts.size() ), ship::NoveltyVerdictCount(), meetingGenCalls, meetingNovelCalls );
+}
+
 // The meeting as the overlay reads it (docs/staff-meetings.md, M3): the queue, and -- when a brief
 // has been taken off it -- the room. A brief is a read, so this is a read too: the room's speaker
 // rail, the line being answered, the enumerated options, and every outcome's skeleton lines with
@@ -247,8 +501,10 @@ void PublishMeeting( void )
 				ship::LogScopeForCrew( vessel, p.crew ) ).c_str() );
 	}
 
-	// The skeleton: every outcome's lines, each with its resolved speaker and its delivery direction.
-	const ship::MeetingSkeleton &sk = ship::AuthoredSkeleton( b.kind );
+	// The script the room plays: the generated one when it is fresh, otherwise the authored skeleton.
+	// Every outcome's lines carry their resolved speaker and their delivery direction.
+	const ship::MeetingSkeleton &sk = ScriptFor( b );
+	gi.cvar_set( "lwh_ship_meeting_script", ScriptIsFresh( b ) ? "the generated script" : "the authored skeleton" );
 	gi.cvar_set( "lwh_ship_meeting_outcomes", Fmt( "%d", sk.outcomeCount ).c_str() );
 	for ( int o = 0; o < sk.outcomeCount && o < ship::MEETING_OUTCOME_MAX; ++o )
 	{
@@ -1141,10 +1397,84 @@ void RunTest( void )
 		}
 		if ( step == 6 && level.time >= 7600 )
 		{
+			// A frame with the seam's answer drawn: meet.said's placement (Task A) is judged on the
+			// screen, so the run leaves time for the screenshot before it quits.
 			gi.SendConsoleCommand( "screenshot lwh_meeting_said\n" );
 			WriteReport( "ship/meeting-overlay.txt" );
-			gi.SendConsoleCommand( "quit\n" );
 			step = 7;
+		}
+		if ( step == 7 && level.time >= 8200 ) { gi.SendConsoleCommand( "quit\n" ); step = 8; }
+		return;
+	}
+	if ( g_shipTest->integer == 83 )
+	{//the async generator and the novelty classifier (docs/staff-meetings.md, M4). The brief becomes a
+	 //JSON-lines manifest for the worker; the room plays from the generated script when it is fresh and
+	 //from the authored skeleton otherwise; typed text is classified by the worker's verdicts; and the
+	 //novel path's call count is read back from the worker's own ledger. No model is called here: the
+	 //module writes files and reads them, and the simulation's line is unchanged.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 )
+		{//the normal case: the watch change emits a brief, and the brief becomes the generator manifest
+			vessel.clock = ( std::floor( vessel.clock / ship::SECONDS_PER_WATCH ) + 1.0 ) * ship::SECONDS_PER_WATCH;
+			ship::Tick( vessel, 1.0f );
+			const std::vector<ship::MeetingBrief> q = ship::PendingMeetings( vessel );
+			gi.Printf( "SHIP: model test: %d brief(s) queued at the watch change\n", static_cast<int>( q.size() ) );
+			WriteGenerateManifest( q );
+			LoadMeetingFiles();
+			gi.SendConsoleCommand( "ship meeting open\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 2600 )
+		{//the script that is waiting before the player arrived, and which one the room plays
+			if ( meetingOpen )
+			{
+				const ship::MeetingSkeleton &sk = ScriptFor( currentMeeting );
+				gi.Printf( "SHIP: model test: the room plays from the %s; %d script(s) waiting before the player arrived\n",
+					ScriptIsFresh( currentMeeting ) ? "generated script" : "authored skeleton",
+					static_cast<int>( meetingScripts.size() ) );
+				if ( sk.outcomeCount > 0 && sk.outcomes[0].lineCount > 0 )
+					gi.Printf( "SHIP: model test: outcome 1 line: \"%s\"\n", sk.outcomes[0].lines[0].text.c_str() );
+			}
+			else gi.Printf( "SHIP: model test: no room opened\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 3200 )
+		{//typed text at the novelty seam: a loaded verdict plays the branch, no verdict is novel
+			const std::string text = "Make it so";
+			const ship::NoveltyResult nr = ship::ClassifyNovelInput( vessel, currentMeeting, text );
+			gi.Printf( "SHIP: model test: typed \"%s\": %s\n", text.c_str(),
+				nr.matched ? Fmt( "matched branch %d", nr.outcome + 1 ).c_str() : "no branch matched (novel)" );
+			if ( !nr.matched ) AppendClassifyRequest( currentMeeting, text );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 3800 )
+		{//the worker's call ledger, and whether the verdict survives a save and a load
+			const int before = meetingNovelCalls;
+			const std::vector<uint8_t> blob = ship::Pack( vessel );
+			ship::Ship back;
+			ship::Unpack( blob.data(), blob.size(), back );
+			const ship::NoveltyResult again = ship::ClassifyNovelInput( back, currentMeeting, "Make it so" );
+			gi.Printf( "SHIP: model test: novel-path calls=%d (before the load %d); the reloaded ship classifies the same input as %s\n",
+				meetingNovelCalls, before,
+				again.matched ? Fmt( "matched branch %d", again.outcome + 1 ).c_str() : "novel" );
+			gi.Printf( "SHIP: model test: verdicts loaded=%d, scripts loaded=%d, generation calls=%d\n",
+				ship::NoveltyVerdictCount(), static_cast<int>( meetingScripts.size() ), meetingGenCalls );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 4200 )
+		{//a material change after generation: the script's digest no longer matches, so the room falls
+		 //back to the authored skeleton and the brief is queued for regeneration
+			ship::SetAlert( vessel, ship::ALERT_RED );
+			const ship::MeetingBrief changed = ship::BuildBrief( vessel, ship::MEET_WATCH_CHANGE );
+			const bool had = meetingScripts.find( changed.kind ) != meetingScripts.end();
+			const bool fresh = ScriptIsFresh( changed );
+			gi.Printf( "SHIP: model test: after a material change the script was loaded=%d, is fresh=%d; the room plays the %s\n",
+				had ? 1 : 0, fresh ? 1 : 0, fresh ? "generated script" : "authored skeleton" );
+			if ( had && !fresh ) RequestRegeneration( changed );
+			WriteReport( "ship/model.txt" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 5;
 		}
 		return;
 	}
@@ -3409,6 +3739,9 @@ void Ship_Init( void )
 	meetingSaid.clear();
 	if ( !active ) return;
 	voiceRender.dir = VOICE_DIR; // the cache, beside the save and never in the repository
+	// M4: the worker's output, read once here and never on the render loop -- the generated scripts
+	// and the classifier's verdicts, both beside the save.
+	LoadMeetingFiles();
 
 	// Taking the turbolift is a level change, and the ship must come through it: the state written
 	// at shutdown is read back here. A new game, or a load, starts from its own source instead.
@@ -4315,14 +4648,55 @@ void Svcmd_Ship_f( void )
 			gi.Printf( "SHIP: meeting say: \"%s\": %s\n", text.c_str(),
 				nr.matched ? Fmt( "matched branch %d", nr.outcome ).c_str() : "no branch matched (novel)" );
 			gi.Printf( "SHIP: meeting say: %s\n", nr.note.c_str() );
-			ship::LogEvent( vessel, "the room", "command", std::string( "a novel answer was given: " ) + text );
+			if ( nr.matched )
+			{
+				// A genuine match: the branch is offered (the pill resolves it); the simulation applies
+				// the outcome through the normal choose path, so a typed say still writes no state.
+				ship::LogEvent( vessel, "the room", "command", std::string( "a typed answer matched the branch: " ) + text );
+			}
+			else
+			{
+				// Novel: the exchange goes to the log, and exactly one classification is queued for the
+				// worker. The simulation applies nothing.
+				ship::LogEvent( vessel, "the room", "command", std::string( "a novel answer was given: " ) + text );
+				AppendClassifyRequest( currentMeeting, text );
+			}
 			Publish();
+			return;
+		}
+		if ( !Q_stricmp( a, "script" ) )
+		{//the generated script, waiting before the player arrives (M4)
+			gi.Printf( "SHIP: meeting script: %d kind(s) loaded\n", static_cast<int>( meetingScripts.size() ) );
+			for ( std::map<uint8_t, LoadedScript>::const_iterator kv = meetingScripts.begin(); kv != meetingScripts.end(); ++kv )
+			{
+				const LoadedScript &ls = kv->second;
+				gi.Printf( "SHIP:   %s: digest %u, %s: %s (%d outcome(s))\n", ship::MeetingKindName( kv->first ),
+					ls.digest, ls.source.c_str(), ls.skeleton.decision.c_str(), ls.skeleton.outcomeCount );
+				for ( int o = 0; o < ls.skeleton.outcomeCount; ++o )
+					for ( int l = 0; l < ls.skeleton.outcomes[o].lineCount; ++l )
+						gi.Printf( "SHIP:     %d.%d %s [%s]: %s\n", o + 1, l + 1,
+							SpeakerWord( ls.skeleton.outcomes[o].lines[l].speaker ).c_str(),
+							ship::DeliveryName( ls.skeleton.outcomes[o].lines[l].delivery ),
+							ls.skeleton.outcomes[o].lines[l].text.c_str() );
+			}
+			return;
+		}
+		if ( !Q_stricmp( a, "reload" ) ) { LoadMeetingFiles(); return; }
+		if ( !Q_stricmp( a, "generate" ) )
+		{//write the generator manifest for the queued briefs (the async worker drains it)
+			WriteGenerateManifest( ship::PendingMeetings( vessel ) );
+			return;
+		}
+		if ( !Q_stricmp( a, "verdicts" ) )
+		{
+			gi.Printf( "SHIP: meeting verdicts: %d loaded; calls generate=%d novel=%d\n",
+				ship::NoveltyVerdictCount(), meetingGenCalls, meetingNovelCalls );
 			return;
 		}
 		const int kind = kindOf( b );
 		if ( kind < 0 || kind >= ship::MEET_KIND_COUNT )
 		{
-			gi.Printf( "SHIP: meeting [list|drain|open|close|choose <outcome>|say <text>|brief <kind>|decide <kind> <outcome>]\n" );
+			gi.Printf( "SHIP: meeting [list|drain|open|close|choose <outcome>|say <text>|brief <kind>|decide <kind> <outcome>|script|reload|generate|verdicts]\n" );
 			return;
 		}
 		if ( !Q_stricmp( a, "brief" ) )

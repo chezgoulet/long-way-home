@@ -1052,6 +1052,18 @@ struct NoveltyResult {
 };
 NoveltyResult ClassifyNovelInput(const Ship &s, const MeetingBrief &brief, const std::string &text);
 
+// The classifier's verdict index (M4). The embedding model is always-resident, but the module does
+// no I/O to it: an external worker (tools/meetings/worker.py) embeds the typed text and each option's
+// intent descriptor, and the host loads its verdicts here. ClassifyNovelInput consults the index by
+// NoveltyKey; an absent verdict is NOVEL, which is what keeps a typed string from becoming a branch
+// by accident. The key is content-addressed over the kind, the text and every option's intent, so the
+// same input against the same options always classifies the same way and a save replays identically.
+// `outcome` is an index into the brief's enumerated options.
+uint32_t NoveltyKey(const MeetingBrief &brief, const std::string &text);
+void ClearNoveltyIndex();
+void AddNoveltyVerdict(uint32_t key, bool matched, int outcome, const std::string &note);
+int NoveltyVerdictCount();
+
 // ---- the seam to synthesis (docs/evidence/voice-review.md) ---------------------------------------
 //
 // Named and left: phase two builds the audio player. Nothing here owns a sound. The seam that hands a
