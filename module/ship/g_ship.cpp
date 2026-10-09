@@ -272,6 +272,9 @@ void Publish( void )
 		static_cast<int>( vessel.enemy.hull * 100 + 0.5f ), static_cast<int>( vessel.enemy.shields * 100 + 0.5f ),
 		static_cast<int>( vessel.enemy.weapons * 100 + 0.5f ), static_cast<int>( vessel.enemy.engines * 100 + 0.5f ),
 		ship::EnemySubsystemName( vessel.target ), vessel.enemy.hull <= 0.0f ? "   DESTROYED" : "" ).c_str() );
+	// What Tactical is aiming at, as an index, so the console can cycle it (the reachability pass:
+	// SetTarget was reached only by `ship target`; the console now carries the decision).
+	gi.cvar_set( "lwh_ship_target_idx", Fmt( "%d", static_cast<int>( vessel.target ) ).c_str() );
 	gi.cvar_set( "lwh_ship_pursued", vessel.pursued ? Fmt( "%d", vessel.pursuitJumps ).c_str() : "" );
 	gi.cvar_set( "lwh_ship_sector", Fmt( "SECTOR %d OF %d%s", vessel.sectorNumber + 1, ship::SECTORS_TO_CROSS, vessel.won ? "   HOME" : "" ).c_str() );
 	gi.cvar_set( "lwh_ship_shields", Fmt( "%d", static_cast<int>( vessel.shieldStrength * 100 + 0.5f ) ).c_str() );
@@ -2985,6 +2988,55 @@ void RunTest( void )
 		}
 		return;
 	}
+	if ( g_shipTest->integer == 72 )
+	{//the Tactical console's combat kit (the reachability pass): target selection, remodulation and a
+	 //vinculum raid, by key at the console. Each was reached only by `ship target|remodulate|vinculum`
+	 //before; the screen now carries them, and the ship holds them to the station as every control is.
+	 //Photographed before and after. A Borg fight is set up on the spot so the counter-play has
+	 //something to act on.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 1800 )
+		{
+			vessel.enemy = ship::Enemy();
+			vessel.enemy.present = true; vessel.enemy.borg = true; vessel.enemy.kind = ship::ENEMY_BORG_VESSEL;
+			vessel.enemy.hull = 1.0f; vessel.enemy.shields = 1.0f; vessel.enemy.adaptation = 0.6f;
+			ship::BoardBorg( vessel, ship::ENGINEERING_DECK, 2 );
+			gi.SendConsoleCommand( "ui_lwh_station 1\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 2600 ) { gi.SendConsoleCommand( "screenshot lwh_counterplay_before\n" ); step = 2; }
+		if ( step == 2 && level.time >= 3200 ) { gi.SendConsoleCommand( "lwh_eng_key a\n" ); step = 3; } // pick what to aim at
+		if ( step == 3 && level.time >= 3800 )
+		{
+			gi.Printf( "SHIP: counterplay test: aiming at %s (a key at Tactical set it)\n", ship::EnemySubsystemName( ship::Target( vessel ) ) );
+			gi.SendConsoleCommand( "lwh_eng_key m\n" ); // remodulate
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 4400 )
+		{
+			gi.Printf( "SHIP: counterplay test: adaptation %d%% after remodulation (cooldown %d s)\n",
+				static_cast<int>( vessel.enemy.adaptation * 100 + 0.5f ), static_cast<int>( vessel.remodulateCooldown + 0.5f ) );
+			gi.SendConsoleCommand( "lwh_eng_key n\n" ); // raid the vinculum
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 5200 )
+		{
+			gi.Printf( "SHIP: counterplay test: vinculum suppressed for %d s (adaptation %d%%)\n",
+				static_cast<int>( vessel.adaptationSuppressed + 0.5f ), static_cast<int>( vessel.enemy.adaptation * 100 + 0.5f ) );
+			gi.SendConsoleCommand( "screenshot lwh_counterplay_after\n" );
+			step = 6;
+		}
+		if ( step == 6 && level.time >= 6000 ) { gi.SendConsoleCommand( "set g_shipRole 1\nship role\nui_lwh_command\n" ); step = 7; }
+		if ( step == 7 && level.time >= 6800 ) { gi.SendConsoleCommand( "lwh_cmd_key s\n" ); step = 8; } // send the squad to the deck
+		if ( step == 8 && level.time >= 7400 )
+		{
+			gi.Printf( "SHIP: counterplay test: squad ordered to retake deck %d (a key on the command console)\n", vessel.advanceDeck );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 9;
+		}
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )
@@ -3362,9 +3414,13 @@ void Svcmd_Ship_f( void )
 		const bool isTractor = !Q_stricmp( cmd, "tractor" );
 		const bool isFabricate = !Q_stricmp( cmd, "fabricate" );
 		const bool isEMH = !Q_stricmp( cmd, "emh" );
+		// The Borg counter-play kit (docs/borg-incursion.md): remodulation and a vinculum raid are
+		// Tactical's acts. Reached only by `ship remodulate|vinculum` before the reachability pass;
+		// the console now carries them, held to the station as every other control is.
+		const bool isCounterplay = !Q_stricmp( cmd, "remodulate" ) || !Q_stricmp( cmd, "vinculum" );
 		// until a character is chosen the player is nobody in particular, and is not held to a rank
 		const bool anyone = vessel.player < 0 && vessel.cfg.role != ship::ROLE_IN_COMMAND;
-		if ( !isAlert && !isSwitch && !isPriority && !isAlloc && !isFire && !isJump && !isBreach && !isTransport && !isSurvey && !isCourse && !isPatients && !isField && !isSurgical && !isScanComp && !isTarget && !isYield && !isChoice && !isRun && !isTractor && !isFabricate && !isEMH )
+		if ( !isAlert && !isSwitch && !isPriority && !isAlloc && !isFire && !isJump && !isBreach && !isTransport && !isSurvey && !isCourse && !isPatients && !isField && !isSurgical && !isScanComp && !isTarget && !isYield && !isChoice && !isRun && !isTractor && !isFabricate && !isEMH && !isCounterplay )
 			why = "that is not a console's to do";
 		else if ( !anyone && !ship::PlayerMayOperate( vessel, st ) )
 		{
@@ -3394,6 +3450,7 @@ void Svcmd_Ship_f( void )
 		else if ( isTractor && st != ship::STN_TACTICAL ) why = "the tractor beam is worked from Tactical";
 		else if ( isFabricate && st != ship::STN_ENGINEERING ) why = "fabrication is Engineering's";
 		else if ( isEMH && st != ship::STN_SICKBAY ) why = "the EMH is Sickbay's";
+		else if ( isCounterplay && st != ship::STN_TACTICAL ) why = "the counter-play kit is Tactical's";
 		else if ( ( !Q_stricmp( cmd, "breach" ) || isSwitch || isPriority || !Q_stricmp( cmd, "alloc" ) ) && sys < 0 )
 			why = "no such system";
 		else if ( ( !Q_stricmp( cmd, "breach" ) || isSwitch || isPriority || !Q_stricmp( cmd, "alloc" ) )

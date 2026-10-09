@@ -1,0 +1,51 @@
+{
+  "_comment": "Owned numbers for tools/docs/check_claims.py. Each claim names its owning document, the value the owner fixes, a pattern that captures the value in the owner, and the other files that state it (including module/ship/ship_core.cpp, the arbiter for what is built). A source whose capture disagrees, or stops matching, fails the check. Scope: only registered claims are checked; docs/evidence/ is deliberately not scanned because it is a dated record allowed to hold superseded values with an annotation.",
+  "claims": [
+    {
+      "id": "computer-core-deck",
+      "description": "the main computer core is on deck 10 (auxiliary on deck 7)",
+      "owner": "docs/ship-master-map.md",
+      "value": "10",
+      "owner_pattern": "\\|\\s*(\\d+)\\s*\\|[^\\n]*main computer core",
+      "sources": [
+        {
+          "file": "module/ship/ship_core.cpp",
+          "pattern": "\\{\"computer core\",\\s*(\\d+)"
+        },
+        {
+          "file": "docs/budget-squaring.md",
+          "pattern": "\\|\\s*computer core\\s*\\|\\s*(\\d+)\\s*\\|"
+        },
+        {
+          "file": "docs/lore-ledger.md",
+          "pattern": "\\| Computer core \\| \\*\\*deck (\\d+)\\*\\*"
+        },
+        {
+          "file": "docs/access-and-authority.md",
+          "pattern": "computer core and the torpedo launchers are on deck (\\d+)"
+        }
+      ]
+    },
+    {
+      "id": "torpedo-launchers-deck",
+      "description": "the modelled torpedo launchers (the fore tubes) are on deck 10; the aft tubes are on deck 4",
+      "owner": "docs/ship-master-map.md",
+      "value": "10",
+      "owner_pattern": "\\|\\s*(\\d+)\\s*\\|[^\\n]*forward torpedo launchers",
+      "sources": [
+        {
+          "file": "module/ship/ship_core.cpp",
+          "pattern": "\\{\"torpedo launchers\",\\s*(\\d+)"
+        },
+        {
+          "file": "docs/budget-squaring.md",
+          "pattern": "\\|\\s*torpedo launchers\\s*\\|\\s*(\\d+)\\s*\\|"
+        },
+        {
+          "file": "docs/access-and-authority.md",
+          "pattern": "computer core and the torpedo launchers are on deck (\\d+)"
+        }
+      ]
+    }
+  ]
+}

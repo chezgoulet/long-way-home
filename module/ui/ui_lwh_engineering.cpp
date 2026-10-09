@@ -458,7 +458,7 @@ void Draw( void )
 	const int footerY = screen.station == 0 ? 456 : 426;
 	UI_DrawProportionalString( 44, footerY, screen.station == 0
 		? "UP/DOWN  ENTER on/off  -/+ ALLOC  E auto  G accept  D decline  [ ] band  L/R priority  Y override  ESC"
-		: screen.station == 1 ? "UP/DOWN select   ENTER on/off   V phaser setting   1 2 3 condition   F fire torpedo   H countermeasures   Y override   ESC leave"
+		: screen.station == 1 ? "UP/DOWN  ENTER on/off  V phaser  A target  F fire  M remodulate  N vinculum  H counter  Y override  1 2 3  ESC leave"
 		: screen.station == 2 ? "UP/DOWN  ENTER on/off  T beam  R recall  U survey  O field  L hail  M trade  A distress  H counter  Y override  ESC"
 		: screen.station == 3 ? "UP/DOWN   ENTER on/off   J K L jump   C course   X run   H counter   Y override   ESC leave"
 		: screen.station == 4 ? "UP/DOWN select   ENTER on/off   B surgical field   H countermeasures   Y override   ESC leave"
@@ -515,13 +515,31 @@ bool Act( int key )
 		if ( screen.station != 2 ) return false;
 		ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_survey\n" );
 		return true;
-	case 'm': case 'M': // trade with a trader (row 21: the beacon's choices, now a key)
-		if ( screen.station != 2 ) return false;
-		Send( "ship trade" );
-		return true;
-	case 'a': case 'A': // answer a distress call
-		if ( screen.station != 2 ) return false;
-		Send( "ship distress" );
+	case 'm': case 'M': // trade with a trader (Operations); remodulate the phasers (Tactical)
+	{
+		if ( screen.station == 2 ) { Send( "ship trade" ); return true; }
+		// The counter-play kit (docs/borg-incursion.md, the reachability pass): the phaser adapter's
+		// rotating modulation, Tactical's act, reached only by `ship remodulate` before.
+		if ( screen.station == 1 ) { Send( "ship remodulate" ); return true; }
+		return false;
+	}
+	case 'a': case 'A': // answer a distress call (Operations); pick what to aim at (Tactical)
+	{
+		if ( screen.station == 2 ) { Send( "ship distress" ); return true; }
+		// What the enemy's shields are down over: hull, weapons, engines or shield generator. The
+		// standing combat decision, reached only by `ship target` before (docs/ship-systems.md).
+		if ( screen.station == 1 )
+		{
+			static const char *const AIM[] = { "hull", "weapons", "engines", "shields" };
+			const int next = ( static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_target_idx" ) ) + 1 ) % 4;
+			Send( va( "ship target %s", AIM[next] ) );
+			return true;
+		}
+		return false;
+	}
+	case 'n': case 'N': // a vinculum raid: sever the Collective's local coordination (Tactical)
+		if ( screen.station != 1 ) return false;
+		Send( "ship vinculum" );
 		return true;
 	case 'x': case 'X': // the Conn runs from a fight it cannot win (the fourth choice, at the helm)
 		if ( screen.station != 3 ) return false;
