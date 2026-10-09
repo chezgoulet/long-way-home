@@ -24,7 +24,7 @@ touch. Four sessions built rich state; the world side of it is thin.
 **The ordering rule, in one sentence: world-visible before world-modelled, the player before the crew, then
 content, then the ending.**
 
-## Stage A — the environment, in the world  *(in flight)*
+## Stage A — the environment, in the world  *(built 2026-10-06; `docs/evidence/environment-in-the-world.md`)*
 
 **Goal.** The ship's environmental state becomes something the player is subject to, not a number.
 
@@ -44,7 +44,7 @@ pattern — no second mechanism.
 
 **Blocks.** Nothing. The engine question this depended on is settled (see *Decisions taken*).
 
-## Stage B — the player in the world
+## Stage B — the player in the world  *(built 2026-10-06; `docs/evidence/player-in-the-world.md`)*
 
 **Goal.** The player stops being an observer of a ship that can be hurt.
 
@@ -60,7 +60,7 @@ carried, recovered in sickbay, and lost.
 
 **Blocks.** Stage A, because a body is what makes an environment land on a person.
 
-## Stage C — places, as places
+## Stage C — places, as places  *(in progress: all five absent decks are built — `docs/ship-master-map.md`; the owner's walkthrough is the open exit criterion)*
 
 **Goal.** The decks become somewhere a person works, rather than blockouts.
 
@@ -131,9 +131,12 @@ of the judgement, and that gap grows with every stage.
 
 ## Defects found in the corpus while writing this
 
-- **`docs/gates.md` contradicts itself on the Maquis.** One entry records "resentment and integration as an arc
-  remain" while a later entry records both as done. One of the two is stale; the later one carries evidence, so
-  the parenthetical is the candidate.
+- **`docs/gates.md` contradicts itself on the Maquis — CORRECTED 2026-10-07.** One entry recorded "resentment
+  and integration as an arc remain" while a later entry records both as done. The stale parenthetical was the
+  candidate, and the omissions sweep removed it; `docs/gates.md` now carries the arc as done in one place
+  (`docs/omissions.md`, "Ledger corrections made in the same pass"). This defect note is kept as the record of
+  the find; the contradiction is no longer present. *(A re-verification on 2026-10-09 found only the two
+  consistent entries.)*
 - **Every dated line in the ledger is a day ahead of the wall clock**, consistently, across days. Either the
   dates are wrong or the convention is unexplained. A plan that dates its own work wrongly cannot be audited.
 

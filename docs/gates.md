@@ -294,8 +294,10 @@ and the acceptance run remain.
 
 **All five gaps now have a first slice** (2026-10-07): morale and fatigue, triage and the sickbay queue,
 air and endurance clocks, the log as a browsable artifact, tricorders and away-team kit. Each is
-core-plus-console, tested, and honest about what is left; the next work is the deck build order in
-`docs/ship-master-map.md` (deck 12 environmental control and deck 13 life support first).
+core-plus-console, tested, and honest about what is left; the deck build order that followed it in
+`docs/ship-master-map.md` is now **complete** — all five absent decks are built (7, 12, 13 and 14
+re-dressed from `tour/deck11`, 6 composed from three maps), and what closes them is the owner's
+walkthrough (the sections below and `docs/ship-master-map.md`, "The deck build, in order").
 
 **Deck 12 is re-dressed from `tour/deck11`** (2026-10-06, `docs/evidence/deck12-redress.md`): the first
 of the five absent decks built against its brief, as a copy of the reuse target the brief names -- main
@@ -695,8 +697,19 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   evidence and tests — see *The ship's budgets squared* above. **What remains is the canon torpedo moments at
   eleven and six as content**, not the mechanism. This entry is left in place, corrected, as the register's
   rule requires.
-- **C2 — allegiance drift** (`docs/story-and-semantics.md`, conflict 3 and *Open*): whether allegiance
-  strength is itself a fold over marks; needed before affinities are authored.
+- **C2 — allegiance drift — RULED 2026-10-08: DERIVED, NOT STORED.** The owner's word: *"Derived."*
+  **And the check found the ruling splits in two, because half of it was already true and the design already
+  said so twice.** `Bond(s, a, b)` is *already* a fold — `ship_core.cpp`: it sums `valence * salience` over the
+  marks that name that person, clamped to ±1 — and its own comment reads *"A bond is remembered valence toward a
+  person, summed: repeated good becomes friendship, repeated [bad a grudge]."* `docs/affinities-and-allegiance.md`
+  reinforces it at line 18 (*"the bond fold stays"*) and line 98 (*"No separate relationship table"*). **So the
+  per-pair bond needs no change, and there is no stored relationship table to remove.**
+  **The half that is not done is `holdings`** — the allegiance read, and one of morale's three components — which
+  is a **stored float** nudged by events (`RISING_HOLDINGS_RISE = 0.12f` moves it) rather than folded. **The
+  ruling makes it a fold over the marks too, which removes the last stored input in the morale chain.**
+  **Consequence, named rather than discovered later: purging the records moves regard**, because regard is
+  computed from what the crew remember and a purge removes what they knew. `docs/morale.md` now records it.
+  **Small, and it makes the whole chain answerable: marks -> bond and holdings -> morale, with nothing hidden.**
 - **C3 — Q-class encounters — DEFERRED 2026-10-08, to the scenario and content work.** The owner: *"I'm
   intrigued by the idea of what a Q-class encounter could be. I can see it being a significant situation.
   Possibly one where they are able to shorten the distance home considerably. That being said, it seems like a

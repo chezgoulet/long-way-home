@@ -52,7 +52,9 @@ boarders on a vented deck do not all die: those who had already taken the torped
   whether or not they are held.
 - **Objectives.** A party can be sent for a deck (`BoardAs`, console `ship board <deck> <n>
   [raider|borg|hunter] [objective]`), not only the nearest of the bridge or Engineering: a party
-  making for the computer core walks toward deck 9, not toward the bridge.
+  making for the computer core walks toward deck 9, not toward the bridge. *(SUPERSEDED 2026-10-09: the
+  main computer core is on deck 10, so the objective now sends a party to deck 10. The dated sentence is
+  kept as written — `docs/ship-master-map.md`.)*
 - **Security as bodies.** The ship's security are embodied like all crew: `CrewOnDeck` puts the
   defenders on the boarded deck, the crew layer spawns them there, and the boarders are teams hostile
   to them, so the fight is bodies against bodies where the player is. The ship's rate-based fight

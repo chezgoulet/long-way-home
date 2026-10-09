@@ -78,6 +78,13 @@ hour  watch  on-duty  mess  recreation  quarters   Janeway        Torres        
 07:00  2       41     60       0        40      meal     d2    meal     d2     duty     d7 
 ```
 
+> **SUPERSEDED 2026-10-07 — the deck numbers in the transcript above.** The transcript is a dated record
+> of the core as it printed on this date: the **computer core** prints deck **7** and the **torpedo
+> launchers** deck **9**. Both were later corrected — the simulation's `SPECS[]` moves the main computer
+> core and the fore torpedo launchers to **deck 10** (`docs/ship-master-map.md`;
+> `docs/evidence/access-and-authority.md`, "Location appropriateness"). The transcript is preserved as
+> written; the deck numbers in it are not current.
+
 Sixty on alpha watch and forty on the others because all nineteen named crew stand alpha — true to
 the series, and something S5 will have to live with at the first watch change.
 

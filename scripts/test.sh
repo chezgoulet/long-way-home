@@ -37,6 +37,10 @@ echo "==> hooks: the register matches the public surface"
 "$ROOT/scripts/hooks-check.sh"
 
 echo
+echo "==> docs: cited paths resolve, and owned numbers agree"
+"$ROOT/scripts/docs-check.sh"
+
+echo
 echo "==> python: syntax"
 find tools tests -name '*.py' -print0 | PYTHONPYCACHEPREFIX="$WORK/pycache" xargs -0 python3 -m py_compile
 echo "    ok"

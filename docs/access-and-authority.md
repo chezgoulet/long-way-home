@@ -73,8 +73,13 @@ bay instead of watching the sensors.
 
 - **A compromised system does not obey rank.** A sliced console (see `docs/borg-incursion.md`) refuses
   everyone, including the captain, until someone clears it. Hardware beats hierarchy.
-- **A dead officer's credentials still work.** The computer does not know they are dead. Using them is
-  possible, sometimes necessary, and ethically its own scene.
+- **A dead officer's credentials are retained; using them is reported, not built — corrected 2026-10-09.**
+  The computer does not know they are dead, so the credentials are **retained**; but *using* them is a
+  deliberate act the console does not yet offer. This is **reported, not built**, and the older phrasing
+  ("still usable") is withdrawn rather than kept as a promise the code cannot keep (see the acceptance
+  item at the end of this document, and `docs/omissions.md` **W1**). A silent use of a dead officer's authority would
+  weaken the scene the edge case is for. The original line read *"Using them is possible, sometimes
+  necessary, and ethically its own scene"*; that is the withdrawn promise, not the build.
 - **The crew can revoke.** If command is losable, access is too: a relieved captain's credentials stop working,
   and the ship records who turned them off.
 

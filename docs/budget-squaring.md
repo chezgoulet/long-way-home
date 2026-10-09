@@ -46,8 +46,10 @@ Sources: `docs/ship-systems.md` (canon constants, the brownout ladder), `module/
 (`SPECS[]`, `SOURCES[]`, the allocation tick), `docs/damage-and-budgets.md` (the two budgets),
 `docs/research/voyager-damage-borg.md` (the Year of Hell cascade), `docs/lore-ledger.md`.
 
-Nothing here is implemented. This is the number set, with its reasoning, so it can be ruled on before a
-lane touches it.
+**Nothing here is implemented** *(written before the owner's ruling, 2026-10-07; the number set has since
+been implemented — see the status at the top of this file and Parts four–six — so this sentence is the
+pre-ruling statement, not current).* This is the number set, with its reasoning, so it can be ruled on
+before a lane touches it.
 
 ---
 

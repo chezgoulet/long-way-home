@@ -128,6 +128,12 @@ Both exit **0**.
    `DilithiumRange` and its change since the last entry. The `--month` output shows the label as the
    code's own meaning, not as "light years from home". If the owner wants the document's
    distance-and-estimate counter, that is a new model, not this function.
+
+   > **SUPERSEDED 2026-10-06, same day, by `feat/the-navigation-counter`.** The distance-and-estimate
+   > counter was built; `NavigationCounter` no longer returns `DilithiumRange`, and the report's headline
+   > is the real counter's change since the last entry (`docs/evidence/the-navigation-counter.md`, save
+   > version 45). The judgement above is kept as the dated record; its "that is a new model" was wrong —
+   > the position model was already in the save. The original text is left visible.
 2. **A line is "contradicted" when it is struck, softened or edited at all.** Additions carry no
    event/person, so an added claim has no witness and cannot be contradicted. This is the smallest
    rule that makes "the lie made with the player's hands" mechanical.
