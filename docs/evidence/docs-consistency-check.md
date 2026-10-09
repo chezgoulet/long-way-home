@@ -135,6 +135,16 @@ $ scripts/docs-check.sh ; echo $?
 0
 ```
 
+### Counts re-taken on the committed tree (2026-10-09, landing pass)
+
+The transcripts above read *157 markdown files, 1168 references* (1169 with the planted line). The
+committed tree yields **156 files, 1156 references** (**1157** planted) — one file and twelve references
+fewer, and the counts are the only thing that differs. The cause is this brief: `BRIEF.md` was still in
+the tree when the transcripts were taken and is deleted before committing, as the brief requires, so the
+recorded figures count a file the commit does not contain. **The demonstration reproduces exactly** — the
+planted line reports at `docs/confidence-and-verification.md:45`, the run exits 1, and `git checkout --`
+followed by a re-run exits 0.
+
 ### O19, re-verified still closed
 
 The dangling reference `docs/gap-the-log` / `docs/gap-the-log.md` was fixed in the omissions sweep.
