@@ -133,6 +133,52 @@ void BeginRun( void )
 	ui.Cmd_ExecuteText( EXEC_APPEND, "exec lwh-start.cfg\n" );
 }
 
+// The descriptions and the reason are author-written sentences, and the column beside the list is
+// narrower than the longer ones are. Drawn on one line they ran off the right edge of the frame --
+// found in the owner's read of the rendered screen (2026-10-09), where THE CHAIR stopped at
+// "…THE SENIOR OFFICER REMAINING I". So the text is broken at a space where the next word would pass
+// the column, and the caller shifts whatever sits below by however many lines it took. Nothing is
+// dropped, and the width is measured with the engine's own font metrics rather than guessed.
+static int DrawWrappedText( int x, int y, int width, int lineHeight, int style, vec4_t color,
+	const char *text )
+{
+	char line[1024] = "";
+	const char *p = text ? text : "";
+	int lines = 0;
+
+	while ( *p )
+	{
+		char word[512];
+		int n = 0;
+		while ( *p == ' ' ) ++p;
+		while ( *p && *p != ' ' && n < (int)sizeof( word ) - 1 ) word[n++] = *p++;
+		word[n] = '\0';
+		if ( !word[0] ) break;
+
+		char candidate[1024];
+		if ( line[0] ) Com_sprintf( candidate, sizeof( candidate ), "%s %s", line, word );
+		else           Q_strncpyz( candidate, word, sizeof( candidate ) );
+
+		if ( line[0] && UI_ProportionalStringWidth( candidate, style ) > width )
+		{
+			UI_DrawProportionalString( x, y, line, style, color );
+			y += lineHeight;
+			++lines;
+			Q_strncpyz( line, word, sizeof( line ) );
+		}
+		else
+		{
+			Q_strncpyz( line, candidate, sizeof( line ) );
+		}
+	}
+	if ( line[0] )
+	{
+		UI_DrawProportionalString( x, y, line, style, color );
+		++lines;
+	}
+	return lines;
+}
+
 void StartDraw( void )
 {
 	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
@@ -152,12 +198,17 @@ void StartDraw( void )
 		UI_DrawProportionalString( 44, y, STARTS[i].name, UI_TINYFONT,
 			colorTable[i == edit.preset ? CT_WHITE : CT_LTGOLD1] );
 	}
+	int blurbLines = 0;
 	if ( edit.preset >= 0 && edit.preset < START_COUNT )
-		UI_DrawProportionalString( 300, 94, STARTS[edit.preset].blurb, UI_TINYFONT, colorTable[CT_LTBLUE2] );
+	{
+		blurbLines = DrawWrappedText( 300, 94, 312, 16, UI_TINYFONT, colorTable[CT_LTBLUE2],
+			STARTS[edit.preset].blurb );
+	}
+	const int extraY = blurbLines > 2 ? ( blurbLines - 2 ) * 16 : 0;
 
 	// The four dimensions, as rows the player turns.
 	const int x = 40, xv = 210;
-	int y = 158;
+	int y = 158 + extraY;
 	auto row = [&]( int r, const char *label, const char *value ) {
 		const bool sel = ( startCursor == r );
 		if ( sel ) UI_FillRect( 36, y - 2, 566, 15, colorTable[CT_DKPURPLE2] );
@@ -167,7 +218,7 @@ void StartDraw( void )
 	};
 
 	{ char why[256]; Q_strncpyz( why, STARTS[edit.preset].reason, sizeof( why ) );
-	  UI_DrawProportionalString( x, 136, va( "Reason the crew accept it: %s", why ), UI_TINYFONT, colorTable[CT_LTPURPLE1] ); }
+	  UI_DrawProportionalString( x, 136 + extraY, va( "Reason the crew accept it: %s", why ), UI_TINYFONT, colorTable[CT_LTPURPLE1] ); }
 
 	row( ROW_PRESET, "START STATE", STARTS[edit.preset].name );
 	row( ROW_CAREER, "CAREER PATH", CAREERS[edit.career] );

@@ -319,3 +319,29 @@ compiled in fails only at `dlopen`).
 8. **`FillVacancies` runs every tick.** It is idempotent and changes nothing on an ordinary watch
    (the canon tests are unchanged), and running it there is what makes "the same rule in play" true
    rather than aspirational.
+
+## The description wraps — the owner's ruling (2026-10-09)
+
+The rendered screen was brought back to the owner with all three cases photographed, because whether a
+start state *reads* is his judgement and no check can take it. His ruling on the one defect visible
+there: **the text must not be lost, and a description longer than its column wraps.**
+
+What it settles. The description is drawn in the column beside the list (`x = 300` of a 640-wide
+frame) and was drawn on **one line, unwrapped** — so `CANON` only just fitted at the right edge, while
+**THE CHAIR** stopped at `…THE SENIOR OFFICER REMAINING I` and **ALL-FICTITIOUS** at
+`…AND THE VACANCY RULE F`. The two states a player is most likely to *choose* were the two losing their
+own description.
+
+- `DrawWrappedText( x, y, width, lineHeight, style, color, text )` in `module/ui/ui_lwh_start.cpp`
+  breaks at a space where the next word would pass the column, measured with the engine's own
+  `UI_ProportionalStringWidth( str, style )` rather than a guessed character count.
+- The reason line and the rows below shift by whatever the description took beyond two lines
+  (`extraY`), so a longer description cannot be overlapped by what follows it.
+- Two lines is the case for all three shipped states, so `extraY` is `0` and the rest of the layout is
+  untouched — the change is visible only where text used to be cut.
+
+Observed on `sasquatch`, `lwh_wrap_{canon,chair,fictitious}.tga` under `build/home/baseEF/screenshots/`:
+every description now completes — `THE CAPTAIN WAS LOST WITH THE ARRAY; THE CHAIR IS VACANT AND THE
+SENIOR / OFFICER REMAINING INHERITS IT.` — and the full frame was read for collisions: none. The tight
+spacing between the list and the reason line is pre-existing and unchanged, and the wrap's column is
+deliberately conservative, leaving a little air at the right rather than risking the edge.
