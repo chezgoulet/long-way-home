@@ -103,6 +103,52 @@ named there and below. Evidence: `docs/evidence/the-configurator.md`,
 `TestCaptainVacancyDerived`, `TestVacancySameRule`, `TestFictitiousNoCanon`,
 `TestStartStateSaveRoundTrip`, `TestCharacterCreationComposes`).
 
+### The hook register, and the hooks a player cannot reach ✅ triaged 2026-10-09
+
+`docs/hook-register.md` indexes the public surface and states, per hook, who can reach it. It is derived
+from `ship_core.h` and the derivation is wired into `scripts/test.sh` (`scripts/hooks-check.sh`), so a
+hook that is registered and does not exist — or exists and is not registered — fails the suite. Its
+finding is that **129 hooks are reachable only from the developer console and 35 by nothing at all** —
+and that **the number is not the defect**. `docs/hook-triage.md` classifies all **164**: **96 diagnostic
+by design, 62 genuine gaps, 6 raised by the simulation itself, 0 dead** — the dead case the brief expected
+does not occur, and each classification carries a specific reason rather than a category. The genuine gaps
+are ordered by what a player meets first, and second by what the scenario content will need, **led by the
+walkthrough's G5** (the systems under stress). The **first slice** wires the top of that list:
+`SetTarget`, `Remodulate` and `RaidVinculum` on the Tactical console and `OrderAdvance` on the command
+console, so four hooks that only `ship …` could reach are now reached by a key at a station screen, held
+to the station and the person as every other control is. Evidence: `docs/evidence/reachability.md`,
+`docs/hook-triage.md`, `scripts/reachability-check.sh`. **The rendered check was run on `sasquatch`** —
+the host with the game data, and with the module rebuilt for this branch: the engine's own output names
+the target, the remodulation, the vinculum raid and the squad order. Two defects in the check surfaced
+only by running it there, and both are corrected in place: it asserted wording the engine never prints
+(`EnemySubsystemName` returns *the hull / its weapons / its engines / its shields*, and the check had
+demanded uppercase), and it was not marked executable. **What the register cannot settle:** whether a
+hook it calls *diagnostic* is one a player would in fact want. That is the owner's, and the list to read
+is the 62 genuine gaps.
+
+### The documentation contradictions, settled — and the check that keeps the mechanical ones settled ✅ 2026-10-09
+
+The walkthrough's **G13** named ten contradictions, each a false claim if quoted and several sitting at
+the top of a document an agent reads first. **All ten are settled in place**, each re-verified against the
+code, the owning document and the evidence rather than trusted from the finding, and the finding itself is
+marked settled while **kept as the record of the find**. The code was wrong in none of them: the computer
+core's deck is **10** in `SPECS[]` (the stale evidence is annotated, across four sites — one more than the
+finding named), the deck build order is complete, the two conflicts in `docs/story-and-semantics.md` are
+marked RESOLVED with their evidence, and `docs/HANDOFF.md` is marked a superseded dated snapshot with its
+"keep this file current" instruction withdrawn — a second file carrying state is the defect the item is
+about.
+
+The pass also lands `scripts/docs-check.sh`, wired into `scripts/test.sh`, covering the two classes that
+are mechanically decidable: **a cited `docs/…` path that does not resolve** (deliberate absences listed
+with their reasons in `tools/docs/allow-missing.txt`) and **a registered owned number contradicted by its
+owning document** (`tools/docs/owned_claims.json`, today the computer core's deck and the torpedo
+launchers'). It was demonstrated failing on a planted error and passing once the plant is removed.
+**What it cannot catch, said plainly:** a *description* that has gone stale, a contradiction nobody
+registered, and a stale value in `docs/evidence/` — those are dated records and are deliberately not
+scanned. Evidence: `docs/evidence/docs-consistency-check.md`, `tests/tools/test_docs_check.py`. One false
+positive found in service and fixed in `tools/docs/check_paths.py`: a citation wrapped in markdown
+emphasis (`*…docs/start-states.md.*`) was read as a dangling glob. The corpus is not claimed clean.
+
 ## G6 — retail single player, including the Expansion Pack ✅ reported working (2026-10-05)
 
 Proven in the owner's session: the retail campaign runs, and Virtual Voyager works (G2's bar met). One
