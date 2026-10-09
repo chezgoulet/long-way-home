@@ -589,6 +589,54 @@ static const Named NAMED[] = {
 	{"Odell", "Odell", 0, DEPT_SECURITY, SYS_COUNT, SPECIES_HUMAN},
 };
 
+// The command seats (docs/the-entry-point.md, Part three). Each seat knows the named record that
+// holds it at the canon default; the derivation promotes from the seat's department by seniority.
+struct SeatSpec {
+	const char *name;
+	const char *type;
+	Department dept;
+	uint8_t post;
+	uint8_t rank;
+};
+static const SeatSpec SEATS[SEAT_COUNT] = {
+	{"the chair",                "janeway",  DEPT_COMMAND,     SYS_COUNT,          6},
+	{"the first officer's seat", "chakotay", DEPT_COMMAND,     SYS_COUNT,          5},
+	{"the security seat",        "tuvok",    DEPT_SECURITY,    SYS_SHIELDS,        4},
+	{"the engineering seat",     "torres",   DEPT_ENGINEERING, SYS_WARP_DRIVE,     3},
+	{"the medical seat",         "doctor",   DEPT_MEDICAL,     SYS_SICKBAY,        3},
+	{"the sciences seat",        "seven",    DEPT_SCIENCES,    SYS_SENSORS,        3},
+	{"the operations seat",      "kim",      DEPT_COMMAND,     SYS_COMMUNICATIONS, 2},
+	{"the conn",                 "paris",    DEPT_COMMAND,     SYS_COUNT,          3},
+};
+
+const char *SeatName(uint8_t s) { return s < SEAT_COUNT ? SEATS[s].name : "a seat"; }
+const char *SeatType(uint8_t s) { return s < SEAT_COUNT ? SEATS[s].type : ""; }
+uint8_t SeatDepartment(uint8_t s) { return s < SEAT_COUNT ? static_cast<uint8_t>(SEATS[s].dept) : static_cast<uint8_t>(DEPT_COMMAND); }
+uint8_t SeatPost(uint8_t s) { return s < SEAT_COUNT ? SEATS[s].post : static_cast<uint8_t>(SYS_COUNT); }
+uint8_t SeatRank(uint8_t s) { return s < SEAT_COUNT ? SEATS[s].rank : static_cast<uint8_t>(0); }
+int SeatForType(const std::string &type)
+{
+	for (int i = 0; i < SEAT_COUNT; ++i)
+		if (type == SEATS[i].type) return i;
+	return -1;
+}
+
+const char *CareerPathName(uint8_t p)
+{
+	static const char *const N[CAREER_COUNT] = {"Starfleet junior", "lower decks", "Maquis", "the chair"};
+	return p < CAREER_COUNT ? N[p] : "unset";
+}
+const char *CareerPathBlurb(uint8_t p)
+{
+	static const char *const N[CAREER_COUNT] = {
+		"the ceiling is intact above you; you are sent into the breach",
+		"no ceiling and no authority; the work itself is the game",
+		"a Maquis uniform aboard a Starfleet ship, and the split is on your record",
+		"the conn is yours from the first minute: the ship, the crew, the fuel, the clock",
+	};
+	return p < CAREER_COUNT ? N[p] : "";
+}
+
 // The uniform a generated crew member wears follows their department, as the game's types do.
 static const char *GenericType(Department d, int n)
 {
@@ -602,10 +650,14 @@ static const char *GenericType(Department d, int n)
 static void BuildRoster(Ship &s)
 {
 	s.crew.clear();
+	for (int i = 0; i < SEAT_COUNT; ++i) s.seatHolder[i] = -1;
 	// One seed stream, drawn from for every record's static character data, so the same seed gives
 	// the same person -- on the first build and again on load (Unpack calls this).
 	uint32_t r = s.cfg.seed ? s.cfg.seed : 1;
 	int have[DEPT_COUNT] = {0, 0, 0, 0, 0};
+	// The canon command crew, unless the roster is fictitious entirely: then none of these records
+	// exists, and every mark of them -- the command seats included -- must be absent too.
+	if (!s.cfg.fictitious)
 	for (const Named &n : NAMED) {
 		CrewMember c;
 		c.name = n.name;
@@ -619,6 +671,8 @@ static void BuildRoster(Ship &s)
 		c.quartersQuality = 0.7f; // senior quarters are the better ones [inv]
 		DeriveCharacter(c, r); // skills, traits, drives and starting state, from the record and the seed
 		s.crew.push_back(c);
+		const int seat = SeatForType(c.type);
+		if (seat >= 0) s.seatHolder[seat] = static_cast<int16_t>(s.crew.size() - 1);
 		++have[n.dept];
 	}
 
@@ -3331,7 +3385,20 @@ bool PlayerMayCommand(const Ship &s)
 int CreateCharacter(Ship &s, const std::string &name, Department dept, int rank)
 {
 	if (name.empty() || name.size() > 40 || rank < 0 || rank > 4 || dept >= DEPT_COUNT) return -1;
-	const size_t named = sizeof(NAMED) / sizeof(NAMED[0]);
+	// Composition with the configurator (docs/the-entry-point.md): the start state chooses the
+	// situation, character creation chooses the person. If the situation has already seated the
+	// player, creation names that person and does not move them -- a seat the situation granted is
+	// not undone, and a rank the seat fixes is not overridden.
+	if (s.player >= 0 && s.player < static_cast<int>(s.crew.size()) && s.crew[s.player].status == CREW_FIT) {
+		CrewMember &c = s.crew[s.player];
+		c.name = name;
+		if (SeatHeldBy(s, s.player) < 0) {
+			c.dept = dept;
+			if (rank > c.rank) c.rank = static_cast<uint8_t>(rank);
+		}
+		return s.player;
+	}
+	const size_t named = s.cfg.fictitious ? 0 : sizeof(NAMED) / sizeof(NAMED[0]);
 	// The last generated member of the department with no station: nobody's post is taken from them.
 	for (size_t i = s.crew.size(); i-- > named;) {
 		CrewMember &c = s.crew[i];
@@ -3665,7 +3732,7 @@ int AttendIncapacitatedPlayer(Ship &s)
 }
 
 // The senior fit officer, in rank order: who takes the chair when the player is lost.
-static int SeniorFitOfficer(const Ship &s)
+int SeniorFitOfficer(const Ship &s)
 {
 	int best = -1;
 	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
@@ -3688,6 +3755,250 @@ int AssumeCommand(Ship &s)
 	LogEvent(s, CommandingOfficer(s), "command",
 		"command passes to " + s.crew[next].name + ", relieving " + fallen);
 	return next;
+}
+
+// ---- the configurator: the player chooses the start state (docs/the-entry-point.md, Part three) ----
+//
+// The four dimensions live here: who you are (the record), who died (the casualty per seat), who
+// fills the gaps (FillVacancies), and the career path. The mechanism is data, and the derivation is
+// the one play uses: a seat a casualty leaves is filled by the roster's own seniority rule, recorded.
+
+int SeatHeldBy(const Ship &s, int crew)
+{
+	if (crew < 0) return -1;
+	for (int i = 0; i < SEAT_COUNT; ++i)
+		if (s.seatHolder[i] == crew) return i;
+	return -1;
+}
+
+int SeatHolder(const Ship &s, uint8_t seat)
+{
+	return seat < SEAT_COUNT ? s.seatHolder[seat] : -1;
+}
+
+// The senior fit member not already holding a seat. This is the same seniority rule SeniorFitOfficer
+// and DepartmentHead read; it exists only for the one-person-one-seat invariant, used when the
+// primary read returns someone already seated (which happens once a higher seat has been decided).
+static int SeniorFitUnseated(const Ship &s, int dept)
+{
+	int best = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT || c.brigged || c.away) continue;
+		if (dept >= 0 && c.dept != static_cast<Department>(dept)) continue;
+		if (SeatHeldBy(s, i) >= 0) continue;
+		if (i == s.player) continue; // the primary read already considered the player
+		if (best < 0 || c.rank > s.crew[best].rank) best = i;
+	}
+	return best;
+}
+
+int FillVacancies(Ship &s, const std::string &reason)
+{
+	int filled = 0;
+	// The chair first, then the first officer, then the department seats: a command-grade successor
+	// exists before a department is decided. The read is the same one play makes -- SeniorFitOfficer
+	// for a command grade, DepartmentHead for a department -- and the fallback only breaks a tie the
+	// primary read cannot (someone already seated may not hold two seats).
+	for (int seat = 0; seat < SEAT_COUNT; ++seat) {
+		const int holder = s.seatHolder[seat];
+		const bool gone = holder < 0 || holder >= static_cast<int>(s.crew.size())
+			|| s.crew[holder].status == CREW_DEAD || s.crew[holder].status == CREW_ASSIMILATED;
+		if (!gone) continue;
+		int pick;
+		if (seat == SEAT_CAPTAIN || seat == SEAT_FIRST_OFFICER)
+			pick = SeniorFitOfficer(s);
+		else
+			pick = DepartmentHead(s, static_cast<Department>(SeatDepartment(seat)));
+		// The derivation may seat the player only where the player already holds the seat's rank:
+		// the player's seat is the player's choice, and a junior is not handed the chair by accident.
+		if (pick == s.player && s.player >= 0 && s.crew[s.player].rank < SeatRank(seat)) pick = -1;
+		if (pick >= 0 && SeatHeldBy(s, pick) >= 0)
+			pick = SeniorFitUnseated(s, static_cast<int>(SeatDepartment(seat)));
+		if (pick < 0) continue;
+		s.seatHolder[seat] = static_cast<int16_t>(pick);
+		if (s.crew[pick].rank < SeatRank(seat)) s.crew[pick].rank = SeatRank(seat);
+		LogEvent(s, CommandingOfficer(s), "command",
+			s.crew[pick].name + " takes " + SeatName(seat)
+			+ (reason.empty() ? std::string() : std::string(", ") + reason));
+		++filled;
+	}
+	return filled;
+}
+
+std::string PlayerPositionLine(const Ship &s)
+{
+	if (s.player < 0 || s.player >= static_cast<int>(s.crew.size())) return "no character is chosen";
+	const CrewMember &c = s.crew[s.player];
+	static const char *const RANKS[] = {"Crewman", "Ensign", "Lt. j.g.", "Lieutenant", "Lt. Commander", "Commander", "Captain"};
+	const std::string rank = c.rank <= 6 ? RANKS[c.rank] : "Officer";
+	const int seat = SeatHeldBy(s, s.player);
+	const std::string post = seat >= 0 ? std::string(SeatName(seat))
+		: (c.post < SYS_COUNT ? SPECS[c.post].name : std::string("department duties"));
+	const bool commands = PlayerMayCommand(s);
+	int reports = 0;
+	for (const CrewMember &o : s.crew)
+		if (&o != &c && o.status == CREW_FIT && (commands || o.dept == c.dept)) ++reports;
+	std::string line = rank + " " + c.name + ", " + post + "; ";
+	line += commands ? "in command: the ship's orders are theirs to give; "
+	                 : "may authorise their station's work; ";
+	line += std::to_string(reports) + (commands ? " crew report to them" : " in their department");
+	return line;
+}
+
+// ---- the shipped start states: a list as data ------------------------------------------------
+
+static StartState MakeStart(uint8_t career, bool fictitious, const char *name, const char *blurb,
+                            const char *reason, const char *playerName, uint8_t playerRank, uint8_t playerDept)
+{
+	StartState st;
+	st.career = career;
+	st.fictitious = fictitious;
+	st.name = name;
+	st.blurb = blurb;
+	st.reason = reason;
+	st.playerName = playerName;
+	st.playerRank = playerRank;
+	st.playerDept = playerDept;
+	return st;
+}
+
+static std::vector<StartState> BuildStartList()
+{
+	std::vector<StartState> v;
+	{
+		StartState st = MakeStart(CAREER_JUNIOR, false, "CANON",
+			"The senior staff survive, the chain of command is intact, and the player is a junior officer.",
+			"the default: a whole ship and a chain that runs from the captain down past you.",
+			"Reyes", 1, DEPT_SECURITY);
+		v.push_back(st);
+	}
+	{
+		// The chair is vacant because the captain was lost, and the derivation fills it: the state
+		// sets the player's rank, and the same seniority rule that runs in play seats them.
+		StartState st = MakeStart(CAREER_CHAIR, false, "THE CHAIR",
+			"The captain was lost with the array; the chair is vacant and the senior officer remaining inherits it.",
+			"the captain was lost with the array, and command passes down the chain to whoever is left.",
+			"Reyes", 6, DEPT_COMMAND);
+		st.casualty[SEAT_CAPTAIN] = true;
+		v.push_back(st);
+	}
+	{
+		// No show character appears: the roster is generated entirely, and the derivation fills the
+		// whole chain from it.
+		StartState st = MakeStart(CAREER_JUNIOR, true, "ALL-FICTITIOUS",
+			"None of the show characters appear: the whole crew is generated, and the vacancy rule fills the chain from it.",
+			"the Caretaker took the senior staff, and the crew that remains is one nobody has heard of.",
+			"Mara Reyes", 1, DEPT_SECURITY);
+		v.push_back(st);
+	}
+	return v;
+}
+
+static const std::vector<StartState> &StartList()
+{
+	static const std::vector<StartState> v = BuildStartList();
+	return v;
+}
+
+int StartStateCount() { return static_cast<int>(StartList().size()); }
+
+const StartState &StartStateAt(int i)
+{
+	const std::vector<StartState> &v = StartList();
+	static const StartState none;
+	if (i < 0 || i >= static_cast<int>(v.size())) return none;
+	return v[i];
+}
+
+// The person and the situation compose: character creation (S10) chooses the person, the start state
+// chooses the situation. The state seats a player if none is chosen (the default junior, or the
+// register it names); if character creation has already chosen one, its person is left alone except
+// where the state names a seat.
+static int SeatPlayerForState(Ship &s, const StartState &st)
+{
+	int p = s.player;
+	if (p < 0 || p >= static_cast<int>(s.crew.size())) {
+		// A generated member of the requested department with no station, as CreateCharacter does,
+		// but without assuming the roster carries the canon crew.
+		for (size_t i = s.crew.size(); i-- > 0;) {
+			CrewMember &c = s.crew[i];
+			if (c.dept != static_cast<Department>(st.playerDept) || c.post != SYS_COUNT || c.status != CREW_FIT) continue;
+			p = static_cast<int>(i);
+			break;
+		}
+		if (p < 0)
+			for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+				if (s.crew[i].status == CREW_FIT && SeatHeldBy(s, i) < 0) { p = i; break; }
+		if (p < 0) return -1;
+		s.player = p;
+		CrewMember &nc = s.crew[p];
+		nc.dept = static_cast<Department>(st.playerDept);
+		if (st.playerRank > nc.rank) nc.rank = st.playerRank;
+	}
+	// The player's register: the state's, or character creation's, or the seat's own.
+	CrewMember &c = s.crew[p];
+	if (st.playerName && st.playerName[0]) c.name = st.playerName;
+	if (st.playerSeat >= 0 && st.playerSeat < SEAT_COUNT) {
+		c.dept = static_cast<Department>(SeatDepartment(st.playerSeat));
+		c.rank = SeatRank(st.playerSeat);
+		c.post = SeatPost(st.playerSeat);
+		s.seatHolder[st.playerSeat] = static_cast<int16_t>(p);
+	}
+	return p;
+}
+
+std::string LogSeedText(const Ship &s, const StartState &st)
+{
+	std::string t = "Day 0, 0800. The Caretaker's array is gone and the ship is alone; ";
+	std::string lost;
+	for (int seat = 0; seat < SEAT_COUNT; ++seat) {
+		if (!st.casualty[seat]) continue;
+		const std::string type = SeatType(seat);
+		std::string who = type;
+		for (const CrewMember &c : s.crew)
+			if (c.type == type) { who = c.name; break; }
+		lost += (lost.empty() ? "" : ", ") + who + " (" + std::string(SeatName(seat)) + ")";
+	}
+	if (lost.empty()) t += "no one in the command crew was lost; ";
+	else t += "lost with her: " + lost + "; ";
+	t += "the ship is whole enough to fly, condition green, with microfractures in the core, no array "
+	     "behind us, and the Maquis still aboard";
+	if (s.cfg.fictitious) t += ", a crew nobody here has served with before";
+	t += ". No rescue is coming: there is no one out here to hear, and no way back. ";
+	t += PlayerPositionLine(s) + ". ";
+	t += std::string("The path taken: ") + CareerPathName(st.career) + " -- " + CareerPathBlurb(st.career) + ".";
+	return t;
+}
+
+void WriteLogSeed(Ship &s, const StartState &st)
+{
+	LogEntry e;
+	e.time = s.clock;
+	e.who = CommandingOfficer(s);
+	e.scope = "command";
+	e.what = LogSeedText(s, st);
+	// The first entry in the ship's log: later entries are measured against it.
+	s.log.insert(s.log.begin(), e);
+	while (static_cast<int>(s.log.size()) > LOG_MAX) s.log.erase(s.log.begin() + 1);
+}
+
+void ApplyStartState(Ship &s, const StartState &st)
+{
+	s.career = st.career;
+	// Dimension two: the casualties, one command seat at a time.
+	for (int seat = 0; seat < SEAT_COUNT; ++seat) {
+		if (!st.casualty[seat]) continue;
+		const int holder = s.seatHolder[seat];
+		if (holder >= 0 && holder < static_cast<int>(s.crew.size()))
+			KillCrew(s, holder, st.cause && st.cause[0] ? st.cause : "the Caretaker's array");
+	}
+	// Dimension one: the player's record, composing with character creation.
+	SeatPlayerForState(s, st);
+	// Dimension three: the derivation fills every vacancy, by the one seniority rule.
+	FillVacancies(s, "vacant on the opening day");
+	// The log seed, placed first though written last: it is how the game tells the player what they chose.
+	WriteLogSeed(s, st);
 }
 
 // ---- memory and consequence -------------------------------------------------------------------
@@ -4990,6 +5301,10 @@ static void Advance(Ship &s, double shipSecondsTotal)
 	// brief that has fallen due. This is the emit site's caller -- every meeting produces a brief, the
 	// ordinary ones as much as the dramatic. A zero-length tick (a load, a console read) emits nothing.
 	if (shipSecondsTotal > 0.0) EmitDueMeetings(s);
+	// The vacancy derivation runs in play too (docs/start-states.md): a command seat whose holder has
+	// died since the last step is filled by the same seniority rule the configurator uses. It is
+	// idempotent -- a full chain is left alone -- so it changes nothing on an ordinary watch.
+	if (shipSecondsTotal > 0.0) FillVacancies(s, "vacant");
 }
 
 void SetAlert(Ship &s, Alert a)
@@ -6690,7 +7005,13 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U32(s.cfg.seed);
 	w.F(s.cfg.dayScale);
 	w.U8(s.cfg.mode); w.U8(s.cfg.clockMode); w.U8(s.cfg.role);
+	w.U8(s.cfg.fictitious ? 1 : 0);
+	w.U8(s.career);
 	w.U16(static_cast<uint16_t>(s.player));
+	// The configurator's seat occupancy: derived from the casualties by FillVacancies, stored so a
+	// configured start replays identically. 0xFFFF is a vacant seat.
+	for (int i = 0; i < SEAT_COUNT; ++i)
+		w.U16(s.seatHolder[i] < 0 ? 0xFFFFu : static_cast<uint16_t>(s.seatHolder[i]));
 	w.U8(static_cast<uint8_t>(s.orderRepairFirst + 1)); w.U8(static_cast<uint8_t>(s.orderSecurityTo)); w.U8(static_cast<uint8_t>(s.orderEvacuate)); w.U8(static_cast<uint8_t>(s.orderTriage));
 	w.U64(s.wallSeconds);
 	// A created character's name and rank are not in the seed.
@@ -6762,7 +7083,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 			w.U8(static_cast<uint8_t>(std::min<int>(static_cast<int>(c.type.size()), 31)));
 			for (size_t k = 0; k < c.type.size() && k < 31; ++k) w.U8(static_cast<uint8_t>(c.type[k]));
 		}
-		w.U8(c.status); w.F(c.fatigue); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); w.F(c.assimScar); w.F(c.severity);
+		w.U8(c.status); w.U8(c.rank); w.F(c.fatigue); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); w.F(c.assimScar); w.F(c.severity);
 		w.U8(c.away ? 1 : 0); w.U8(c.credentials); w.U8(c.faction); w.U8(c.brigged ? 1 : 0); w.F(c.quartersQuality); w.F(c.holoCompulsion); w.U8(c.quartersSealed ? 1 : 0);
 		const int mem = std::min(static_cast<int>(c.memories.size()), MEMORY_MAX);
 		w.U8(static_cast<uint8_t>(mem));
@@ -6779,11 +7100,14 @@ std::vector<uint8_t> Pack(const Ship &s)
 		for (int i = 0; i < n; ++i) {
 			const LogEntry &e = s.log[s.log.size() - n + i];
 			w.U64(static_cast<uint64_t>(std::llround(e.time * 1000.0)));
-			for (const std::string *str : { &e.who, &e.scope, &e.what }) {
+			for (const std::string *str : { &e.who, &e.scope }) {
 				const int m = std::min(static_cast<int>(str->size()), 63);
 				w.U8(static_cast<uint8_t>(m));
 				for (int k = 0; k < m; ++k) w.U8(static_cast<uint8_t>((*str)[k]));
 			}
+			const int mw = std::min(static_cast<int>(e.what.size()), LOG_TEXT_MAX);
+			w.U16(static_cast<uint16_t>(mw));
+			for (int k = 0; k < mw; ++k) w.U8(static_cast<uint8_t>(e.what[k]));
 		}
 	}
 	// The job queue: bounded, each entry a kind, a target, how far and its place.
@@ -7000,17 +7324,29 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	cfg.seed = r.U32();
 	cfg.dayScale = r.F();
 	const uint8_t mode = r.U8(), clockMode = r.U8(), role = r.U8();
+	// The configurator (version 54): whether the roster is fictitious, and the career path. The
+	// fictitious flag must be known before BuildRoster, or the canon crew would be rebuilt on load.
+	const uint8_t fictitious = r.U8(), career = r.U8();
 	if (!r.ok || !(cfg.dayScale > 0.0f && cfg.dayScale <= 86400.0f)) return false;
 	if (mode > MODE_HOLODECK || clockMode > CLOCK_WALL || role > ROLE_MUNRO) return false;
+	if (fictitious > 1 || career >= CAREER_COUNT) return false;
 	cfg.mode = static_cast<PlayMode>(mode); cfg.clockMode = static_cast<ClockMode>(clockMode); cfg.role = static_cast<PlayerRole>(role);
+	cfg.fictitious = fictitious != 0;
 	Ship s;
 	s.cfg = cfg;
+	s.career = career;
 	BuildRoster(s);
 	BuildShuttles(s);
 	BuildSector(s, 0);
 	// The complement, plus any transporter copies beyond it (bounded).
 	if (count < static_cast<size_t>(COMPLEMENT) || count > static_cast<size_t>(COMPLEMENT + MAX_DUPLICATES)) return false;
 	s.player = static_cast<int16_t>(r.U16());
+	// The configurator's seat occupancy. An index must name a real record; a vacant seat is 0xFFFF.
+	for (int i = 0; i < SEAT_COUNT; ++i) {
+		const uint16_t v = r.U16();
+		s.seatHolder[i] = v == 0xFFFFu ? -1 : static_cast<int16_t>(v);
+		if (s.seatHolder[i] < -1 || s.seatHolder[i] >= static_cast<int>(s.crew.size())) return false;
+	}
 	s.orderRepairFirst = r.U8() - 1; s.orderSecurityTo = r.U8(); s.orderEvacuate = r.U8(); s.orderTriage = r.U8();
 	if (s.orderRepairFirst >= SYS_COUNT || s.orderSecurityTo > DECKS || s.orderEvacuate > DECKS || s.orderTriage > 1) return false;
 	s.wallSeconds = r.U64();
@@ -7124,6 +7460,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		}
 		CrewMember &c = s.crew[i];
 		c.status = r.U8();
+		c.rank = r.U8();
 		c.fatigue = r.Unit();
 		c.watch = r.U8();
 		c.post = r.U8();
@@ -7156,17 +7493,23 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 			c.memories.push_back(m);
 		}
 		if (!(c.exposure >= 0.0f && c.exposure <= 1.0e6f)) return false;
-		if (c.status > CREW_ASSIMILATED || c.watch >= WATCHES || c.post > SYS_COUNT || c.faction > 1) return false;
+		if (c.status > CREW_ASSIMILATED || c.rank > 6 || c.watch >= WATCHES || c.post > SYS_COUNT || c.faction > 1) return false;
 	}
 	s.log.clear();
 	const int logCount = r.U16();
 	for (int i = 0; i < logCount && r.ok; ++i) {
 		LogEntry e;
 		e.time = static_cast<double>(r.U64()) / 1000.0;
-		for (std::string *str : { &e.who, &e.scope, &e.what }) {
+		for (std::string *str : { &e.who, &e.scope }) {
 			const int m = r.U8();
 			str->clear();
 			for (int k = 0; k < m && r.ok; ++k) *str += static_cast<char>(r.U8());
+		}
+		{
+			const int m = r.U16();
+			if (m > LOG_TEXT_MAX) return false;
+			e.what.clear();
+			for (int k = 0; k < m && r.ok; ++k) e.what += static_cast<char>(r.U8());
 		}
 		s.log.push_back(e);
 	}

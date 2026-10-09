@@ -1,19 +1,19 @@
-// ui_lwh_start.cpp -- the way in: the "Long Way Home" line on the main menu, and the start-state
-// selector it opens.
+// ui_lwh_start.cpp -- the way in: the "Long Way Home" line on the main menu, and the configurator it
+// opens.
 //
-// This is G1 and the first half of G2 in docs/the-entry-point.md, made visible. The main menu is
-// upstream's; the attach point that adds our line is one call (LWH_UI_MainMenuAdd), and everything
-// that decides anything lives here.
+// This is G1 and G2 in docs/the-entry-point.md. The main menu is upstream's; the attach point that
+// adds our line is one call (LWH_UI_MainMenuAdd), and everything that decides anything lives here.
 //
-// The selector is deliberately a **list of start states with one entry**, not a hardcoded "there is
-// only one". docs/the-entry-point.md Part three rules that the entry point becomes a configurator
-// with four dimensions; when it does, it extends STARTS[] and this screen, and nothing else has to
-// move. The one entry shipped is the canon default, which is what docs/start-states.md protects.
+// The selector is a **list of start states as data** (STARTS[]), and each entry opens the four
+// dimensions the owner's ruling names: who you are, who died, who fills the gaps, and the career
+// path. The list is deliberately a list -- a further state is a row, not a rewrite. The *mechanism*
+// is not here: this screen writes the choice into the run's cvars, and the ship itself derives the
+// casualties, the vacancies and the first log entry (ship_core: ApplyStartState, FillVacancies,
+// LogSeedText). The UI module and the game module are different libraries, so this is the seam they
+// have always used: the screen decides, the ship does.
 //
-// The values the run needs are not here, and not in the launcher: they live once, in
-// configs/lwh-start.cfg, which both this screen and scripts/run-lwh.sh execute. That is the "one
-// place" the brief asks for: the selector decides *which* start state, the config decides *how* a
-// run is set up, and a second copy of a cvar cannot drift into existence.
+// The values a run needs are not here either: they live once, in configs/lwh-start.cfg, which both
+// this screen and scripts/run-lwh.sh execute. This screen sets only the start-state cvars.
 
 #include "ui_local.h"
 
@@ -22,37 +22,113 @@
 namespace {
 
 // ---------------------------------------------------------------------------------------------
-// The start states. One entry: the canon default. A start state is data (docs/start-states.md);
-// this list is the surface, and adding a state is adding a row.
+// The start states. Data, not code: a new state is a new row. Each is the canon default, the
+// captain, or an all-fictitious crew -- the three proving cases of docs/the-entry-point.md.
 // ---------------------------------------------------------------------------------------------
-struct StartState
+struct StartChoice
 {
-	const char *name;
-	const char *blurb;      // one line, kept short: the selector draws it without wrapping
-	const char *reason;     // the fiction's reason the crew accept it (docs/start-states.md)
+	const char   *name;
+	const char   *blurb;
+	const char   *reason;
+	unsigned      casualties; // bitmask over the command seats
+	bool          fictitious;
+	unsigned char career;
+	const char   *playerName;
+	unsigned char playerRank;
+	unsigned char playerDept;
+	int           playerSeat; // -1: the derivation decides
 };
 
-const StartState STARTS[] =
+enum SeatId { SEAT_CAPTAIN = 0, SEAT_FIRST_OFFICER, SEAT_SECURITY, SEAT_ENGINEERING,
+              SEAT_MEDICAL, SEAT_SCIENCES, SEAT_OPERATIONS, SEAT_CONN, SEAT_COUNT };
+
+const StartChoice STARTS[] =
 {
 	{
 		"CANON",
 		"The senior staff survive, the chain of command is intact, and the player is a junior officer.",
 		"the default: a whole ship and a chain that runs from the captain down past you.",
+		0, false, 0, "Reyes", 1, 2 /*security*/, -1,
+	},
+	{
+		"THE CHAIR",
+		"The captain was lost with the array; the chair is vacant and the senior officer remaining inherits it.",
+		"the captain was lost with the array, and command passes down the chain to whoever is left.",
+		(1u << SEAT_CAPTAIN), false, 3 /*the chair*/, "Reyes", 6, 0 /*command*/, -1,
+	},
+	{
+		"ALL-FICTITIOUS",
+		"None of the show characters appear: the whole crew is generated, and the vacancy rule fills the chain from it.",
+		"the Caretaker took the senior staff, and the crew that remains is one nobody has heard of.",
+		0, true, 0, "Mara Reyes", 1, 2 /*security*/, -1,
 	},
 };
 const int START_COUNT = (int)( sizeof( STARTS ) / sizeof( STARTS[0] ) );
 
+const char *const SEAT_NAMES[SEAT_COUNT] =
+{
+	"the chair", "the first officer's seat", "the security seat", "the engineering seat",
+	"the medical seat", "the sciences seat", "the operations seat", "the conn",
+};
+const char *const CAREERS[] = { "Starfleet junior", "lower decks", "Maquis", "the chair" };
+const char *const DEPARTMENTS[] = { "COMMAND", "ENGINEERING", "SECURITY", "SCIENCES", "MEDICAL" };
+const char *const RANKS[] = { "CREWMAN", "ENSIGN", "LIEUTENANT J.G.", "LIEUTENANT", "LIEUTENANT COMMANDER", "COMMANDER", "CAPTAIN" };
+// Invented registers, none a canon character.
+const char *const NAMES[] = { "Reyes", "Okoro", "Lindqvist", "Tanaka", "Ferreira", "Mbeki", "Novak", "Castellanos", "Rahimi", "Whitlock" };
+const int NUM_NAMES = sizeof( NAMES ) / sizeof( NAMES[0] );
+
 menuframework_s startMenu;
 int startCursor = 0;
 
+// The edit the screen is building: seeded from a list entry, then turned by the four dimensions.
+struct Edit
+{
+	int   preset;
+	unsigned casualties;
+	bool  fictitious;
+	int   career;
+	int   name;
+	int   dept;
+	int   rank;
+	int   seat;
+};
+Edit edit;
+
+// The rows: the preset list and the dimensions, the seats, the player register, and begin.
+enum { ROW_PRESET = 0, ROW_CAREER, ROW_ROSTER, ROW_SEAT0, ROW_PLAYER = ROW_SEAT0 + SEAT_COUNT, ROW_BEGIN, ROW_COUNT };
+
+void SeedFromPreset( int i )
+{
+	if ( i < 0 || i >= START_COUNT ) return;
+	edit.preset = i;
+	edit.casualties = STARTS[i].casualties;
+	edit.fictitious = STARTS[i].fictitious;
+	edit.career = STARTS[i].career;
+	edit.rank = STARTS[i].playerRank;
+	edit.dept = STARTS[i].playerDept;
+	edit.seat = STARTS[i].playerSeat;
+	edit.name = 0;
+	for ( int n = 0; n < NUM_NAMES; ++n )
+		if ( !Q_stricmp( NAMES[n], STARTS[i].playerName ) ) { edit.name = n; break; }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Beginning the run. Close the menu first -- a menu pauses the SP simulation (patch 0007), and a
-// map load needs frames -- then run the one config. This is exactly the retail New Game path
-// (ui_game.cpp: UI_ForceMenuOff(), then "map ..."), which is why it is safe in the main menu.
+// map load needs frames -- then write the choice into the run's cvars and run the one config. This
+// is the retail New Game path (ui_game.cpp: UI_ForceMenuOff(), then "map ...").
 // ---------------------------------------------------------------------------------------------
 void BeginRun( void )
 {
-	ui.Printf( "LWH: beginning the run -- exec lwh-start.cfg\n" );
+	ui.Cvar_Set( "g_shipConfigured", "1" );
+	ui.Cvar_Set( "g_shipFictitious", edit.fictitious ? "1" : "0" );
+	ui.Cvar_Set( "g_shipCareer", va( "%d", edit.career ) );
+	ui.Cvar_Set( "g_shipCasualties", va( "%u", edit.casualties ) );
+	ui.Cvar_Set( "g_shipPlayerName", NAMES[edit.name] );
+	ui.Cvar_Set( "g_shipPlayerRank", va( "%d", edit.rank ) );
+	ui.Cvar_Set( "g_shipPlayerDept", va( "%d", edit.dept ) );
+	ui.Cvar_Set( "g_shipPlayerSeat", va( "%d", edit.seat ) );
+	ui.Printf( "LWH: beginning the run -- %s, career %s, %s\n", STARTS[edit.preset].name,
+		CAREERS[edit.career], edit.fictitious ? "an all-fictitious crew" : "the canon crew" );
 	UI_ForceMenuOff();
 	ui.Cmd_ExecuteText( EXEC_APPEND, "exec lwh-start.cfg\n" );
 }
@@ -67,54 +143,106 @@ void StartDraw( void )
 		"The menu grants the situation. The fiction supplies the reason. The simulation holds you to it.",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 
+	// The list, as data: the three proving cases, and the player's cursor on one.
+	UI_DrawProportionalString( 40, 80, "START STATE", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	for ( int i = 0; i < START_COUNT; ++i )
 	{
-		const int y = 92 + i * 20;
-		const bool selected = ( i == startCursor );
-		if ( selected ) UI_FillRect( 38, y - 3, 566, 17, colorTable[CT_DKPURPLE2] );
-		UI_DrawProportionalString( 48, y, STARTS[i].name, UI_SMALLFONT,
-			colorTable[selected ? CT_WHITE : CT_LTGOLD1] );
+		const int y = 94 + i * 16;
+		if ( i == edit.preset ) UI_FillRect( 36, y - 2, 250, 15, colorTable[CT_DKPURPLE2] );
+		UI_DrawProportionalString( 44, y, STARTS[i].name, UI_TINYFONT,
+			colorTable[i == edit.preset ? CT_WHITE : CT_LTGOLD1] );
 	}
+	if ( edit.preset >= 0 && edit.preset < START_COUNT )
+		UI_DrawProportionalString( 300, 94, STARTS[edit.preset].blurb, UI_TINYFONT, colorTable[CT_LTBLUE2] );
 
-	if ( START_COUNT )
+	// The four dimensions, as rows the player turns.
+	const int x = 40, xv = 210;
+	int y = 158;
+	auto row = [&]( int r, const char *label, const char *value ) {
+		const bool sel = ( startCursor == r );
+		if ( sel ) UI_FillRect( 36, y - 2, 566, 15, colorTable[CT_DKPURPLE2] );
+		UI_DrawProportionalString( x, y, label, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTORANGE] );
+		UI_DrawProportionalString( xv, y, value, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1] );
+		y += 16;
+	};
+
+	{ char why[256]; Q_strncpyz( why, STARTS[edit.preset].reason, sizeof( why ) );
+	  UI_DrawProportionalString( x, 136, va( "Reason the crew accept it: %s", why ), UI_TINYFONT, colorTable[CT_LTPURPLE1] ); }
+
+	row( ROW_PRESET, "START STATE", STARTS[edit.preset].name );
+	row( ROW_CAREER, "CAREER PATH", CAREERS[edit.career] );
+	row( ROW_ROSTER, "WHO FILLS THE GAPS", edit.fictitious ? "a generated crew (no show character)" : "the derivation, from the roster" );
+	for ( int s = 0; s < SEAT_COUNT; ++s )
 	{
-		const StartState &s = STARTS[startCursor];
-		UI_DrawProportionalString( 44, 150, s.blurb, UI_TINYFONT, colorTable[CT_LTBLUE2] );
-		UI_DrawProportionalString( 44, 168, va( "Reason the crew accept it: %s", s.reason ),
-			UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+		const bool lost = ( edit.casualties & ( 1u << s ) ) != 0;
+		row( ROW_SEAT0 + s, "WHO DIED:", va( "%s  %s", lost ? "CASUALTY" : "survivor", SEAT_NAMES[s] ) );
+	}
+	row( ROW_PLAYER, "WHO YOU ARE", va( "%s %s, %s", RANKS[edit.rank], NAMES[edit.name], DEPARTMENTS[edit.dept] ) );
+
+	// Begin, and the player's position stated plainly (the opening's own fourth duty).
+	{
+		const bool sel = ( startCursor == ROW_BEGIN );
+		if ( sel ) UI_FillRect( 36, y - 2, 566, 15, colorTable[CT_DKPURPLE2] );
+		UI_DrawProportionalString( x, y, "BEGIN THE RUN", UI_SMALLFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1] );
 	}
 
 	UI_FillRect( 20, 442, 600, 10, colorTable[CT_DKPURPLE1] );
 	UI_DrawProportionalString( 44, 410,
-		"UP/DOWN choose   ENTER begin   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+		"UP/DOWN choose   LEFT/RIGHT change   ENTER begin   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 	UI_DrawProportionalString( 44, 426,
 		"the run's values live once, in configs/lwh-start.cfg (executed here and by scripts/run-lwh.sh)",
 		UI_TINYFONT, colorTable[CT_MDGREY] );
 }
 
-sfxHandle_t StartKey( int key )
+bool StartAct( int key )
 {
 	switch ( key )
 	{
-	case K_UPARROW:   if ( startCursor > 0 ) --startCursor; return menu_null_sound;
-	case K_DOWNARROW: if ( startCursor < START_COUNT - 1 ) ++startCursor; return menu_null_sound;
-	case K_ENTER:
-	case K_KP_ENTER:  BeginRun(); return menu_null_sound;
+	case K_UPARROW:   if ( startCursor > 0 ) --startCursor; return true;
+	case K_DOWNARROW: if ( startCursor < ROW_COUNT - 1 ) ++startCursor; return true;
+	case K_LEFTARROW:
+	case K_RIGHTARROW:
+	{
+		const int d = key == K_RIGHTARROW ? 1 : -1;
+		if ( startCursor == ROW_PRESET ) SeedFromPreset( ( edit.preset + START_COUNT + d ) % START_COUNT );
+		else if ( startCursor == ROW_CAREER ) edit.career = ( edit.career + 4 + d ) % 4;
+		else if ( startCursor == ROW_ROSTER ) edit.fictitious = !edit.fictitious;
+		else if ( startCursor >= ROW_SEAT0 && startCursor < ROW_SEAT0 + SEAT_COUNT )
+			edit.casualties ^= ( 1u << ( startCursor - ROW_SEAT0 ) );
+		else if ( startCursor == ROW_PLAYER )
+		{
+			// The register cycles with N; the arrows choose department and rank.
+			if ( key == K_LEFTARROW ) edit.dept = ( edit.dept + 4 ) % 5;
+			else edit.dept = ( edit.dept + 1 ) % 5;
+		}
+		return true;
 	}
+	case K_ENTER:
+	case K_KP_ENTER:  BeginRun(); return true;
+	case 'n': case 'N': edit.name = ( edit.name + 1 ) % NUM_NAMES; return true;
+	case '[': if ( edit.rank > 0 ) --edit.rank; return true;
+	case ']': if ( edit.rank < 6 ) ++edit.rank; return true;
+	}
+	return false;
+}
+
+sfxHandle_t StartKey( int key )
+{
+	if ( StartAct( key ) ) return menu_null_sound;
 	return Menu_DefaultKey( &startMenu, key );
 }
 
 void OpenStart( void )
 {
 	startCursor = 0;
+	SeedFromPreset( 0 ); // the configurator opens on the canon default
 	memset( &startMenu, 0, sizeof( startMenu ) );
 	startMenu.draw        = StartDraw;
 	startMenu.key         = StartKey;
 	// Fullscreen on purpose: this selector lives on the main menu, and the engine's CA_DISCONNECTED
 	// path re-pushes the main menu whenever the active menu is *not* fullscreen (cl_scrn.c: the
 	// "force menu up" case). A non-fullscreen selector is therefore replaced by the main menu the
-	// frame after it opens. The in-game consoles set fullscreen=qfalse because they live in a
-	// different branch; this one must match the menu it replaces.
+	// frame after it opens.
 	startMenu.fullscreen  = qtrue;
 	startMenu.wrapAround  = qtrue;
 	startMenu.initialized = qtrue;
@@ -123,8 +251,7 @@ void OpenStart( void )
 
 // ---------------------------------------------------------------------------------------------
 // The main-menu line. A bitmap button in the retail 3x3 grid's one empty cell (column 3, row 3),
-// drawing itself the way the eight retail buttons draw so it reads as a mode beside them rather
-// than as a tool. It is added to the menu the upstream MainMenu_Init hands us.
+// drawing itself the way the eight retail buttons draw so it reads as a mode beside them.
 // ---------------------------------------------------------------------------------------------
 char LWH_BUTTON_TEXT[] = "LONG WAY HOME";
 menubitmap_s lwhMainButton;
@@ -176,9 +303,11 @@ qboolean StartScreens( const char *cmd )
 		int key = 0;
 		if      ( !Q_stricmp( arg, "up" ) )    key = K_UPARROW;
 		else if ( !Q_stricmp( arg, "down" ) )  key = K_DOWNARROW;
+		else if ( !Q_stricmp( arg, "left" ) )  key = K_LEFTARROW;
+		else if ( !Q_stricmp( arg, "right" ) ) key = K_RIGHTARROW;
 		else if ( !Q_stricmp( arg, "enter" ) ) key = K_ENTER;
 		else if ( arg[0] && !arg[1] )          key = arg[0];
-		StartKey( key );
+		StartAct( key );
 		return qtrue;
 	}
 	if ( !Q_stricmp( cmd, "lwh_mainmenu_press" ) )
