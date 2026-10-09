@@ -37,6 +37,12 @@ through the console by `scripts/backlog-check.sh`.
 program, so it needs the computer core, and with the medical staff down it keeps the ward at half
 output. It closes the triage gap's last named item.
 
+> **CORRECTION 2026-10-09:** the EMH is **`E`** on the triage board, not `B`. `B` is the surgical bay's
+> force field; the triage board's `E` calls the Doctor and its `B` is the field
+> (`module/ui/ui_lwh_engineering.cpp` lines 724–725; the board's own footer reads
+> *"B surgical field   E the Doctor"*). The phrase "Sickbay's `B` companion" above is kept as the dated
+> record of the slip and is not current.
+
 ## The crew, tied to the ship
 
 - **Training and credentials.** `Train` grants a cross-qualification (a `credentials` bitmask); a

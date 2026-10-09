@@ -1,8 +1,16 @@
-# Hand-off — where the work stands and how to continue
+# Hand-off — a dated snapshot (2026-10-06), superseded
+
+> **SUPERSEDED 2026-10-09.** This is a **dated session snapshot, not current state.** It predates the five
+> generated decks, the five gaps' completion, the record work and most of S6–S10, the power assignment, the
+> character layer, and the meeting/voice work; its figures (a crew cap of 10, "S6–S10 core only") are the
+> state of its date and are wrong now. **Do not use it to answer "where does the work stand"** —
+> `docs/gates.md` is the ledger and the authority for state, and `docs/path-to-playtest.md` owns the order.
+> The content below is kept unedited as the record of that session. The old instruction "keep this file
+> current" is **withdrawn**: a second file carrying state rots, and this one is the proof.
 
 Written 2026-10-06 at the owner's request, for whoever picks this up next (a new session has no
 memory of this one). Read this, then `docs/ship-programme.md` (the plan and the owner's decisions),
-then `docs/gates.md` (the ledger). Keep this file current: update it at the end of every session.
+then `docs/gates.md` (the ledger).
 
 ## In one paragraph
 

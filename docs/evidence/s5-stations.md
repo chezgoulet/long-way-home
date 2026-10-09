@@ -29,6 +29,12 @@ the transporter and astrometrics exist only as `target_interface` screens. The s
 | replicators | 2 | Mess Hall |
 | holodecks | 6 | Holodeck 2 |
 
+> **SUPERSEDED 2026-10-07 — two deck numbers in the table above.** The table is a dated record of the
+> system table as it stood on this date: it prints the **computer core** and the **torpedo launchers** on
+> deck **9**. Both were corrected to **deck 10** (main core; fore tubes) — `docs/ship-master-map.md`;
+> `docs/evidence/access-and-authority.md`, "Location appropriateness". The same correction applies to
+> the canon-placement paragraph below ("deck 9 the computer core"). The table is preserved as written.
+
 The generated decks (6, 7, 12, 13, 14) are ours, so their stations can be placed exactly. The
 published decks need markers authored at their fixtures (the bridge models, the transporter panel,
 the warp core, the astrometrics panel). That authoring is the next step; this slice does the

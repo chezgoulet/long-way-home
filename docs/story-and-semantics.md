@@ -62,8 +62,10 @@ hand, and the horror is not the sealed hatch. It is that everyone aboard remembe
 
 The ship therefore carries a **written list of what she has given up**, so the player can walk past the sealed
 hatch and remember why. `docs/damage-and-budgets.md` calls that list the attrition north star expressed as a
-user interface, and it is the strongest single sentence in the corpus. **It has no state behind it** — see the
-first conflict below.
+user interface, and it is the strongest single sentence in the corpus. **It is built** — `Ship::losses`,
+`WriteOff`, `ship losses`, the command console's `GIVEN UP` column and its painted panel line
+(`docs/evidence/abandonment-list.md`, save version 41). The first conflict below, written when it was not,
+now records the resolution.
 
 ### A relationship
 
@@ -87,9 +89,10 @@ The log is a document, not an instrument, and it has its own document:
 inventory and the estimate — seventy-one years nominal, seventy-six at current capability, up 1.8 since the
 last entry (`docs/navigation-counter.md`). Nothing is on fire, and the number is honest. That is the register.
 
-**Those numbers are the design's, not a readout.** The counter is specified in full and, as of this writing,
-is not implemented — see conflict 7 below. Until it exists, that paragraph describes what the game is *for*,
-not what a console prints.
+**Those numbers are the design's, and now a readout.** When this paragraph was written the counter was
+specified in full and not implemented (conflict 7 below). It is now built
+(`docs/evidence/the-navigation-counter.md`, save version 45), so the console prints it — the design's
+numbers, made a read.
 
 **Procedure is the comfort.** The comfort is that there is a right way and it is written down. An ensign
 reports *"Chief, we've lost the starboard array; the coolant loop is holding at sixty-two percent,"* and the
@@ -117,12 +120,15 @@ of people, and you cannot tell from the numbers that you have lost anything.
 
 Named, because a conflict that is written down can be decided and one that is smoothed over cannot.
 
-**1. The abandonment list is the headline claim and it does not exist.** `docs/damage-and-budgets.md` says the
+**1. The abandonment list — RESOLVED 2026-10-06 (save version 41).** `docs/damage-and-budgets.md` says the
 ship carries a written list of what she has given up and calls it the attrition north star as a user
-interface. Verified on the committed tree of `feature/g3-reactive-crew`: there is no such list in
-`module/ship/ship_core.h`, none in the save, and no version in the changelog that carries one. This is not a
-new system competing with the five approved gaps — it is a **read** over decisions the simulation is already
-making, needing a date, a compartment and a name. It is the cheapest meaningful thing on the board.
+interface. *The conflict as first written (2026-10-06, against the committed tree of
+`feature/g3-reactive-crew`): there was no such list in `module/ship/ship_core.h`, none in the save, and no
+version in the changelog that carries one — a **read** over decisions the simulation was already making,
+needing a date, a compartment and a name.* **It is now built and evidenced:** `Ship::losses` and `WriteOff`
+in the core, `ship losses`, the command console's `GIVEN UP` column and its painted panel line
+(`docs/evidence/abandonment-list.md`, save version 41; registered as **O16** in `docs/omissions.md` and
+carried in `docs/gates.md` S6). The claim of absence above is kept only as the record of the conflict.
 
 **2. Morale is specified as derived and stored as a scalar.** `docs/morale.md` is explicit: morale is per
 person, derived from deficit, outlook and holdings, *never stored as a hidden counter*. `CrewMember` in
@@ -157,7 +163,8 @@ time; `docs/damage-and-budgets.md` granted single-player a planning pause; the e
 clock cannot be stopped — but the simulation can be shut down, and the player can sleep through time at the
 accelerated rate. See `docs/ship-model.md`, *The three clocks and the two exits*.
 
-**7. The counter is the design's emotional centre, and the code had a fuel gauge wearing its name.**
+**7. The counter is the design's emotional centre, and the code had a fuel gauge wearing its name —
+RESOLVED 2026-10-06 (save version 45).**
 `docs/navigation-counter.md` calls itself "the emotional centre of the whole design" and says it should be
 built early, because it costs nothing to compute and makes every other decision legible. It specifies three
 numbers: the distance to Earth; an estimate of the years home, **projected from the capability the ship can
@@ -168,8 +175,10 @@ nominal and current-capability figures shown side by side, so the crew can see w
 `DilithiumRange` — `dilithium × crystalQuality × 3000 light years`, the progress the crystal can still buy —
 and a function literally named `NavigationCounter` that returned it. A fuel gauge under the name of a journey,
 which is worse than no name at all: a name that satisfies a search while returning a different quantity hides
-the gap. A session was put on building the real one — **check `NavigationCounter` in
-`module/ship/ship_core.cpp` and its evidence in `docs/evidence/` before relying on this entry.**
+the gap. **The real counter was built the same day** (`feat/the-navigation-counter`): `NavigationCounter` now
+returns the distance and both figures, the misnamed stand-in is gone, and the report's headline is the
+counter's change (`docs/evidence/the-navigation-counter.md`). The paragraph above is kept as the record of
+the defect, not as current status.
 
 What makes it cheap, and the reason the previous session's "this needs a new model" was wrong: the position
 model already exists and is saved. `Ship::sector` holds the beacons and the jumps between them, `Ship::beacon`

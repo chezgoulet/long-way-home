@@ -388,6 +388,10 @@ running is now resolved on the deck the player is standing on.
 
 The same file settles a point of lore the ledger had guessed: the computer core is on deck 9.
 
+> **SUPERSEDED 2026-10-07, same day.** This dated note says the core is on deck **9**; the master map and
+> the simulation's `SPECS[]` place the main computer core on **deck 10** (`docs/ship-master-map.md`;
+> `docs/evidence/access-and-authority.md`, "Location appropriateness"). Kept as written.
+
 ## The turbolift's own menu carries fifteen decks (2026-10-07)
 
 The retail `ext_data/sp_turbolift.dat` lists the ten decks that were separate levels. The merged
