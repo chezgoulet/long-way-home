@@ -17,7 +17,7 @@ command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; 
 find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
 echo "==> rising to the occasion: the act, its cost, and the memory it leaves"
 SDL_AUDIODRIVER=dummy timeout 200 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
-    +set s_useOpenAL 0 +set g_ship 1 +set g_shipRole 1 +set g_shipDayScale 300 +set g_shipTest 60 +map tour/deck04 >"$OUT" 2>&1 || true
+    +set s_useOpenAL 0 +set g_ship 1 +set g_shipRole 1 +set g_shipDayScale 300 +set g_shipTest 73 +map tour/deck04 >"$OUT" 2>&1 || true
 
 fail() { echo "FAIL  $1" >&2; exit 1; }
 

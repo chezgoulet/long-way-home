@@ -39,7 +39,10 @@ header, no engine code, no new art, no assets, no audio.
 - `RisingOutcomeName` -- none / refused / held / failed / died.
 
 The console is `ship rise <system> [crew]` in `module/ship/g_ship.cpp`, and the engine transcript
-under `g_shipTest 60` is the one the owner judges. The model transcript is `test_ship_core --rising`.
+under `g_shipTest 73` is the one the owner judges. **Corrected 2026-10-09: it was `g_shipTest 60`,
+which the deck 14 re-dress had already claimed on 2026-10-06** — a duplicate case number meant the
+earlier block ran and quit the run before this one, and deck 14's own check failed silently until the
+game-data sweep found it. The model transcript is `test_ship_core --rising`.
 The check is `scripts/rising-check.sh`.
 
 ## Task A -- the offer, and the drive is the lever
