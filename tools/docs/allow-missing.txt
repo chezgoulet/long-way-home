@@ -1,0 +1,11 @@
+# Paths that a document cites *although they do not exist*, because the document is recording a
+# dangling reference as a finding or rejecting one. Keep this list tiny and justified: every entry is
+# a hole in the class-1 check (tools/docs/check_paths.py).
+#
+# docs/gap-the-log and docs/gap-the-log.md -- the O19 citation. docs/omissions.md and docs/gates.md
+#   quote the wrong path to record the fix; the real file is docs/evidence/gap-the-log.md.
+docs/gap-the-log
+docs/gap-the-log.md
+# docs/movement_physics/ -- an external repository (Elite Reinforce's own documentation), named and
+#   rejected as a dangling reference in docs/omissions.md ("considered and rejected").
+docs/movement_physics/

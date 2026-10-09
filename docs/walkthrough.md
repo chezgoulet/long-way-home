@@ -728,6 +728,19 @@ would take to close.** Leniency is the failure mode; this is what is not there.
 ### G13 — Documentation contradictions a careful reader will trip on
 These are not all player-visible, but each is a false claim if quoted, and several sit at the top of a
 document an agent reads first.
+
+> **SETTLED 2026-10-09 — stale as a finding; kept as the record of the find.** The ten items below were
+> re-verified against the code, the owning documents and the evidence, and each is corrected or confirmed
+> already correct. Outcomes in brief: **(1)** the stale evidence for the computer core's deck
+> (`s1`/`s3`/`s5`, and `s7`) is annotated and the code's **deck 10** stands; **(2)** `docs/gates.md`'s
+> deck build order is corrected — all five absent decks are built; **(3)** `docs/story-and-semantics.md`
+> conflicts 1 and 7 are marked resolved; **(4)** the month-report evidence's judgement call 1 is annotated
+> superseded; **(5)** `docs/access-and-authority.md`'s dead-credentials contradiction is corrected in
+> place; **(6)** `docs/path-to-playtest.md`'s Stage A/B/C statuses are corrected; **(7)** `docs/HANDOFF.md`
+> is marked a superseded dated snapshot; **(8)** the Maquis contradiction is confirmed removed from
+> `docs/gates.md` and the stale defect note in `docs/path-to-playtest.md` is corrected; **(9)** the EMH key
+> slip is annotated (`E`, not `B`); **(10)** `docs/budget-squaring.md`'s header was already corrected and its
+> residual "nothing here is implemented" line is marked pre-ruling. The bullets below are left as written.
 - **The computer core's deck.** `docs/evidence/s1-ship-core.md` prints deck 7; `docs/evidence/s3-merged-map-measured.md`
   says "the computer core is on deck 9"; `docs/evidence/s5-stations.md` says 9; the code says **10**
   (`module/ship/ship_core.cpp`, with a comment citing `docs/ship-master-map.md`), and

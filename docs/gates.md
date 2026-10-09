@@ -294,8 +294,10 @@ and the acceptance run remain.
 
 **All five gaps now have a first slice** (2026-10-07): morale and fatigue, triage and the sickbay queue,
 air and endurance clocks, the log as a browsable artifact, tricorders and away-team kit. Each is
-core-plus-console, tested, and honest about what is left; the next work is the deck build order in
-`docs/ship-master-map.md` (deck 12 environmental control and deck 13 life support first).
+core-plus-console, tested, and honest about what is left; the deck build order that followed it in
+`docs/ship-master-map.md` is now **complete** — all five absent decks are built (7, 12, 13 and 14
+re-dressed from `tour/deck11`, 6 composed from three maps), and what closes them is the owner's
+walkthrough (the sections below and `docs/ship-master-map.md`, "The deck build, in order").
 
 **Deck 12 is re-dressed from `tour/deck11`** (2026-10-06, `docs/evidence/deck12-redress.md`): the first
 of the five absent decks built against its brief, as a copy of the reuse target the brief names -- main
