@@ -88,15 +88,43 @@ Line ReadLine( int outcome, int line )
 
 void Send( const char *command ) { ui.Cmd_ExecuteText( EXEC_APPEND, va( "%s\n", command ) ); }
 
-// Copy `src` into `out`, clipped to `max` characters with an ellipsis: the pills must not run their
-// label into the short description the design asks for.
-void Clip( char *out, int size, const char *src, int max )
+// Fit `src` into the column from x to right, measuring with the engine's own font rather than counting
+// characters. A character budget clipped the option "The holodecks full, the shields dark" to
+// "THE HOLODECKS FULL, THE SHIELD." -- a sentence that stops mid-phrase reads as broken rather than as
+// a short label, and the owner's ruling is that on-screen text is not lost to fit. Whole words are
+// taken while they fit; the column cannot give the rest a second line, so what does not fit is
+// REPORTED rather than dropped in silence.
+void FitToColumn( char *out, int size, const char *src, int x, int right )
 {
-	int n = 0;
-	for ( ; src[n] && n < max && n < size - 1; ++n ) out[n] = src[n];
-	if ( src[n] && n < size - 1 ) out[n++] = '.';
-	out[n] = 0;
+	const int width = right - x;
+	if ( UI_ProportionalStringWidth( src, UI_TINYFONT ) <= width )
+	{
+		Q_strncpyz( out, src, size );
+		return;
+	}
+
+	int took = 0;
+	const char *p = src;
+	out[0] = 0;
+	while ( *p )
+	{
+		char word[96], candidate[192];
+		int wl = 0;
+		while ( *p == ' ' ) ++p;
+		while ( *p && *p != ' ' && wl < static_cast<int>( sizeof( word ) ) - 1 ) word[wl++] = *p++;
+		word[wl] = 0;
+		if ( !word[0] ) break;
+		if ( out[0] ) Com_sprintf( candidate, sizeof( candidate ), "%s %s", out, word );
+		else          Q_strncpyz( candidate, word, sizeof( candidate ) );
+		if ( UI_ProportionalStringWidth( candidate, UI_TINYFONT ) > width ) break;
+		Q_strncpyz( out, candidate, size );
+		took = 1;
+	}
+	if ( !took ) Q_strncpyz( out, src, size );  // one word wider than the column: show it whole
+	ui.Printf( "LWH: meeting overlay: the column %d..%d is too narrow for \"%s\"; showing \"%s\"\n",
+		x, right, src, out );
 }
+
 
 // A word-wrapped line, up to `maxLines`; returns the number drawn.
 int Wrapped( int x, int y, const char *text, int style, vec4_t colour, int maxChars, int lineHeight, int maxLines )
@@ -202,21 +230,23 @@ void RoomDraw( void )
 	else
 	{
 		// The pills: each the option's label and the short description the design asks for (its
-		// cost). The label goes in a fixed column and the description in the next, both clipped so
-		// they cannot run into each other.
+		// cost). The label goes in a fixed column and the description in the next; each is fitted to
+		// its column by measurement so the two cannot run into each other, and a string that still
+		// does not fit is reported rather than cut short in silence.
 		for ( int i = 0; i < options && i < 6; ++i )
 		{
-			char buf[256], *f[4], label[40], cost[64];
+			char buf[256], *f[4], label[192], cost[192], whole[192];
 			ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_opt%d", i ), buf, sizeof( buf ) );
 			if ( Split( buf, '|', f, 4 ) < 4 ) continue;
-			Clip( label, sizeof( label ), f[0], 30 );
-			Clip( cost, sizeof( cost ), f[1], 46 );
+			Com_sprintf( whole, sizeof( whole ), "%d %s", i + 1, f[0] );
+			FitToColumn( label, sizeof( label ), whole, 172, 350 );
+			FitToColumn( cost, sizeof( cost ), f[1], 356, 632 );
 			const int y = OV_TOP + 38 + i * 16;
 			const bool sel = i == meet.cursor && meet.mode == MODE_CHOOSING;
 			UI_FillRect( 158, y - 1, 476, 15, colorTable[CT_BLACK] );
 			if ( sel ) UI_FillRect( 158, y - 1, 476, 15, colorTable[CT_DKPURPLE2] );
 			UI_FillRect( 158, y - 1, 7, 15, colorTable[i == 0 ? CT_LTGOLD1 : i == 1 ? CT_LTPURPLE1 : i == 2 ? CT_LTBLUE2 : CT_LTBLUE1] );
-			UI_DrawProportionalString( 172, y, va( "%d %s", i + 1, label ), UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1] );
+			UI_DrawProportionalString( 172, y, label, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1] );
 			UI_DrawProportionalString( 356, y, cost, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTBLUE2] );
 		}
 		// The free-text pill: an entry field, visibly different, with the VOICE affordance from the
