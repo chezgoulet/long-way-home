@@ -697,11 +697,25 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   rule requires.
 - **C2 — allegiance drift** (`docs/story-and-semantics.md`, conflict 3 and *Open*): whether allegiance
   strength is itself a fold over marks; needed before affinities are authored.
-- **C3 — Q-class encounters** (`docs/gap-analysis.md` §4): whether to model them at all.
-- **C4 — per-compartment or per-deck atmosphere**: `docs/ship-model.md` says per compartment, `docs/ship-systems.md`
-  says per deck, the code and both world evidence documents are per deck. One answer, recorded once.
-- **C5 — the player's succession after death** (`docs/evidence/player-in-the-world.md`, judgement call 1):
-  whether death ends the evening or hands the player the successor's body.
+- **C3 — Q-class encounters — DEFERRED 2026-10-08, to the scenario and content work.** The owner: *"I'm
+  intrigued by the idea of what a Q-class encounter could be. I can see it being a significant situation.
+  Possibly one where they are able to shorten the distance home considerably. That being said, it seems like a
+  lot to model. Maybe we should put that into the bucket of work for scenario and content building."* **So it is
+  not a scope question to settle now — it is content, and it is registered there** (`docs/scenario-atlas.md`).
+  **The framing is his and worth keeping: a Q-class encounter could shorten the distance home considerably**,
+  which makes it one of the few *positive* interventions in a game where everything else only takes away.
+- **C4 — per-compartment or per-deck atmosphere — RULED 2026-10-08: PER DECK.** The owner's words: *"Air is
+  per deck."* The register had already found that the code, both world evidence documents, `BreachDeck` and
+  `MinutesOfAir` are all per deck, and that the code equates the two units (`bool system = false; // true = a
+  system, false = a compartment (deck)`). **`docs/ship-model.md` was the outlier and is corrected.** Canon counts
+  in decks too — Year of Hell's *seven decks uninhabitable*. **This unblocks the walkthrough's G11 and the
+  deck-by-deck survival mechanism (O2).**
+- **C5 — the player's succession after death — RULED 2026-10-08: IT IS THE PLAYER'S CHOICE, AS A MODE.** The
+  owner's words: *"We can allow the user to choose to play in permadeath mode or not."* So **permadeath on: death
+  ends the run. Permadeath off: the run continues**, and the successor is the continuation. **It is a mode rather
+  than a fixed rule, which composes with the ironman save already built** (`docs/evidence/s10-modes-and-roles.md`).
+  **This makes the rising rule's lethal outcome (`docs/rising-to-the-occasion.md`, catastrophic severity) a
+  consequence the player has opted into**, which is the right place for it.
 - **C6 — Track D's four questions** (`docs/design-north-star.md` §8): the station model, the ship clock,
   what persistent failure means, and whether ships interact.
 
