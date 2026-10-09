@@ -32,8 +32,8 @@ SDL_AUDIODRIVER=dummy timeout 180 xvfb-run -a "$ROOT/scripts/run-engine.sh" --ho
 echo "==> the Tactical console's combat kit, by key"
 grep -h '^SHIP: counterplay test' "$HOME_DIR/reachability.out" | sed 's/^SHIP: /    /' || true
 
-grep -qE 'counterplay test: aiming at (WEAPONS|ENGINES|SHIELD GENERATOR|HULL)' "$HOME_DIR/reachability.out" \
-  || fail "the target key did not change what Tactical aims at (see $HOME_DIR/reachability.out)"
+grep -qE 'counterplay test: aiming at (its weapons|its engines|its shields)' "$HOME_DIR/reachability.out" \
+  || fail "the target key did not change what Tactical aims at -- the default is 'the hull' (see $HOME_DIR/reachability.out)"
 grep -qE 'counterplay test: adaptation [0-9]+% after remodulation \(cooldown [0-9]+ s\)' "$HOME_DIR/reachability.out" \
   || fail "the remodulate key did not rotate the modulation"
 grep -qE 'counterplay test: vinculum suppressed for [0-9]+ s' "$HOME_DIR/reachability.out" \

@@ -124,22 +124,42 @@ the 8 rejections are exactly the known, documented set
 ```
 
 **The rendered demonstration could not be produced on mikoa, and this is stated rather than hidden.**
-`scripts/reachability-check.sh` is written and would run where the retail game data is; mikoa has none
-(the engine reports `"pak0.pk3" is missing`, and no `pak*.pk3` exists anywhere on the host). On a
-data-equipped host the demonstration is:
+`scripts/reachability-check.sh` is written and runs where the retail game data is; mikoa has none
+(the engine reports `"pak0.pk3" is missing`, and no `pak*.pk3` exists anywhere on the host).
+
+**OBSERVED on sasquatch, 2026-10-09, by the landing pass.** The shell was switched to this branch and the
+module rebuilt first (`cmake -S ../upstream/efgame -B ../upstream/efgame/build-linux
+-DLWH_MODULE_DIR="$PWD/module"`, then `cmake --build`), because a check run against a stale
+`libefgame.so` proves nothing about this branch — the first run printed no counterplay lines at all for
+exactly that reason. The engine's own output, verbatim:
+
 ```
 $ scripts/reachability-check.sh
 ==> the Tactical console's combat kit, by key
-    counterplay test: aiming at WEAPONS (a key at Tactical set it)
-    counterplay test: adaptation 10% after remodulation (cooldown 120 s)
-    counterplay test: vinculum suppressed for 300 s (adaptation 0%)
+    counterplay test: aiming at its weapons (a key at Tactical set it)
+    counterplay test: adaptation 10% after remodulation (cooldown 84 s)
+    counterplay test: vinculum suppressed for 252 s (adaptation 0%)
     counterplay test: squad ordered to retake deck 1 (a key on the command console)
 PASS  Tactical's combat kit is reachable in play: a key picks the target, remodulates and raids the
       vinculum, and command sends the squad
 ```
-That transcript is what the harness `g_shipTest 72` prints; it is quoted from the code path, not
-observed on mikoa. **The owner must run it on `sasquatch` to read the rendered screen.** This is the
-one acceptance item this host could not complete, and it is named.
+
+**Two corrections that observation forced, both fixed in place:**
+
+1. **The transcript this document first carried was not the engine's output.** It read `aiming at
+   WEAPONS` and `cooldown 120 s`; the engine prints `aiming at its weapons`, and the cooldown and
+   suppression seconds are whatever the tick leaves — `EnemySubsystemName` returns *the hull / its
+   weapons / its engines / its shields*. The block above replaces the reconstruction. The numbers in the
+   last two lines vary run to run and are therefore not asserted.
+2. **The check's first assertion could never pass.** It required
+   `(WEAPONS|ENGINES|SHIELD GENERATOR|HULL)` — wording the engine does not produce — so the check failed
+   on a working feature the first time it met real game data. It now requires a target *other than the
+   default*, which is what "the key changed what Tactical aims at" means, and the script is marked
+   executable, as every sibling check is.
+
+What remains the owner's: whether the counter-play makes a Borg fight *good*, and whether the Tactical
+footer's keys read at the screen's own width — `lwh_counterplay_after.tga` sits in
+`build/g3-home/baseEF/screenshots/` on sasquatch for him to read.
 
 ## The register is updated
 
@@ -155,9 +175,9 @@ own.
 
 ## What could not be verified
 
-- **The rendered proof.** Mikoa carries no retail game data, so the engine cannot load a map; the
-  screenshot and the check's own PASS line are not observed here. The check and the harness case are
-  committed; the command is above; it must be run on `sasquatch`.
+- ~~**The rendered proof.**~~ **Closed 2026-10-09 on `sasquatch`**, by the landing pass: the module was
+  rebuilt and the check ran, and its PASS line is recorded above with the engine's own output. The mark
+  here is that it was not observed from *this* clone — mikoa carries no retail game data.
 - **Whether the triage's judgements are right** — whether a hook called *diagnostic* is one a player
   would in fact want. That is the owner's, and the list to read is the 62 genuine gaps.
 - **Whether the footer lines still fit the 640px face.** The Tactical and command footers were trimmed
