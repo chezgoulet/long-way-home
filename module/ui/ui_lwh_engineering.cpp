@@ -1034,6 +1034,7 @@ qboolean LWH_UI_ConsoleCommand( const char *cmd )
 {
 	if ( LWH_UI_StartScreens( cmd ) ) return qtrue;
 	if ( LWH_UI_CommandScreens( cmd ) ) return qtrue;
+	if ( LWH_UI_MeetingScreens( cmd ) ) return qtrue;
 	if ( !Q_stricmp( cmd, "ui_lwh_triage" ) )
 	{
 		memset( &triage.menu, 0, sizeof( triage.menu ) );

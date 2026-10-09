@@ -13,6 +13,10 @@ qboolean LWH_UI_CommandScreens( const char *cmd );
 // (ui_lwh_start.cpp). Called by the above.
 qboolean LWH_UI_StartScreens( const char *cmd );
 
+// The meeting overlay: the queue of pending briefs and the room a brief opens into (ui_lwh_meeting.cpp).
+// Called by LWH_UI_ConsoleCommand alongside the other screens.
+qboolean LWH_UI_MeetingScreens( const char *cmd );
+
 // Adds our line to the main menu. Implemented in ui_lwh_start.cpp and called from the patched
 // upstream ui_menu.cpp (an attach point: the menu itself is upstream's). `menu` is a
 // menuframework_s, passed as void* so the hook header needs no UI type.

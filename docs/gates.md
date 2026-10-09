@@ -561,9 +561,10 @@ skeleton and the seams are built (see below).
 - the schedule and the queued briefs round-trip; `scripts/test.sh`, `scripts/check.sh`,
   `scripts/meeting-check.sh`, `scripts/power-check.sh` and `scripts/s2-check.sh` exit 0 ✅
 
-Remaining, and deliberately not begun: the **overlay** (M3), the **async generator** and novelty detection
-(M4), **voice out** and the cue track (M5), and **voice in** and the ship's computer (M6). The
-**scenario content** is authored against this frame next, per `docs/programme-meetings-and-voice.md`.
+Remaining, and deliberately not begun: the **async generator** and novelty detection (M4), **voice out**
+and the cue track (M5), and **voice in** and the ship's computer (M6). The **overlay** (M3) is built —
+see below. The **scenario content** is authored against this frame next, per
+`docs/programme-meetings-and-voice.md`.
 
 ### The audio plumbing, phase two — three sources, one owner each
 
@@ -591,8 +592,37 @@ call are phase three.
 - **the delivery direction reaches `synthesize.py --exaggeration`** end to end (order → 0.80) ✅
 - `scripts/test.sh`, `scripts/check.sh`, `scripts/meeting-check.sh` and `scripts/audio-check.sh` exit 0 ✅
 
-Remaining for the meeting lane: the **async generator** and novelty detection (M4), the **overlay**
-(M3), and the **meeting that plays the rendered audio** (the player itself, phase three).
+Remaining for the meeting lane: the **async generator** and novelty detection (M4), and the **meeting
+that plays the rendered audio** (the player itself, phase three). The **overlay** (M3) is built — see
+the next section.
+
+### The meeting overlay — the surface a meeting is attended on (M3)
+
+`docs/staff-meetings.md`, phase three / M3, implemented 2026-10-08 on `feat/the-meeting-overlay`
+(`docs/evidence/meeting-overlay.md`, `TestMeetingOverlaySeam`, `ClassifyNovelInput`, `LogScopeForCrew`;
+`module/ui/ui_lwh_meeting.cpp`; `scripts/meeting-overlay-check.sh`). **Save format unchanged (52)** —
+the held brief is host-local, and the simulation applies the outcome exactly as before. **No model is
+called, no audio device is opened, and no line is rendered**: M4, M5 and M6 are not built.
+
+- the **overlay** is drawn on the panel path (`module/ui/`): a lower-frame band (144px of 640x480,
+  30%) with a speaker rail (name, post, watch, mood), the line being answered, the enumerated options
+  as pills with their costs, and a free-text pill carrying the `VOICE` affordance; the scene above is
+  never painted ✅ (screenshots in `docs/evidence/meeting-overlay.md`)
+- the **queue is reachable in play** (`M` at the command console) and lists the pending meetings;
+  opening one takes the oldest brief (`TakeBrief`) and shows the room; a post sees its own scope and
+  command reads all ✅
+- a **pill resolves to exactly one enumerated outcome** and the simulation applies it; driven end to
+  end, the allocation changes with **the player's provenance**, not automatic mode ✅
+- **typed text routes to the novelty seam** and cannot become a branch by accident; the same input
+  twice is reported novel both times and changes nothing ✅
+- **arriving in the room calls no model**, and the meeting reaches its end with no model present ✅
+- the **register moves** `PendingMeetings`, `TakeBrief` and `ApplyMeetingOutcome` from **console** to
+  **play** (counts re-derived: 211 play / 122 console / 35 nothing; 368 hooks) ✅
+- `scripts/test.sh`, `scripts/check.sh` and `scripts/meeting-overlay-check.sh` exit 0 ✅
+
+Remaining for the meeting lane: M4 (the async generator and the embedding classifier the novelty seam
+names), M5 (voice out and the cue track) and M6 (voice in and the ship's computer). **The look is the
+owner's to judge** — whether the overlay reads as a room rather than a menu is not decided here.
 
 ### Then, in rough order
 

@@ -144,7 +144,7 @@ void CommandDraw( void )
 
 	UI_DrawProportionalString( 44, 412, "UP/DOWN system   LEFT/RIGHT deck   R see to it first   G guard deck   V evacuate deck   W write it off   S squad",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
-	UI_DrawProportionalString( 44, 426, "T triage order   O month report   J job queue   A chart   C clear orders   P promote   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+	UI_DrawProportionalString( 44, 426, "T triage order   O month report   J job queue   A chart   M meetings   C clear orders   P promote   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
 bool CommandAct( int key )
@@ -175,6 +175,7 @@ bool CommandAct( int key )
 	case 'o': case 'O': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_report\n" ); return true;
 	case 'j': case 'J': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_jobs\n" ); return true;
 	case 'a': case 'A': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_chart\n" ); return true;
+	case 'm': case 'M': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_meeting\n" ); return true; // the staff meetings waiting
 	case 'p': case 'P':
 	{
 		char idx[16];

@@ -154,7 +154,7 @@ substance of the brief's point and stands.
 | `Unpack` | `const uint8_t *data, size_t len, Ship &s` | False, leaving `s` untouched, on a truncated, foreign or newer record | play | — | — |
 
 ### 2. Situations the simulation generates on its own  
-*55 hooks.*
+*57 hooks.*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -183,9 +183,11 @@ substance of the brief's point and stands.
 | `BuildBrief` | `const Ship &s, uint8_t kind` | build brief | play | — | — |
 | `MeetingDue` | `const Ship &s, uint8_t kind` | Is a meeting of this kind due right now? The watch change and the daily departmental meeting are the normal-case triggers; the rest are thresholds, latched so one... | play | — | — |
 | `EmitDueMeetings` | `Ship &s` | THE EMIT SITE | play | — | docs/programme-meetings-and-voice.md |
-| `PendingMeetings` | `const Ship &s` | pending meetings | console | — | — |
-| `TakeBrief` | `Ship &s` | Drop the oldest queued brief: the worker has taken it | console | — | — |
-| `ApplyMeetingOutcome` | `Ship &s, const MeetingBrief &brief, int outcome, int decidedBy, bool automatic` | The decision the room reached: which enumerated outcome, who decided it, and whether it was the ship's own answer (automatic mode) or a person's | console | — | — |
+| `PendingMeetings` | `const Ship &s` | pending meetings | play | — | — |
+| `TakeBrief` | `Ship &s` | Drop the oldest queued brief: the worker has taken it | play | — | — |
+| `ApplyMeetingOutcome` | `Ship &s, const MeetingBrief &brief, int outcome, int decidedBy, bool automatic` | The decision the room reached: which enumerated outcome, who decided it, and whether it was the ship's own answer (automatic mode) or a person's | play | — | — |
+| `LogScopeForCrew` | `const Ship &s, int crew` | The log scope a person reads: command reads all, everyone else their own department's scope. The display form of the per-participant brief | play | — | docs/the-record-and-the-log.md |
+| `ClassifyNovelInput` | `const Ship &s, const MeetingBrief &brief, const std::string &text` | The novelty seam: typed input matched against the option intent descriptors. With the embedding classifier absent (M4) every input is reported novel and nothing is applied, so typed text is never a branch by accident | play | — | docs/staff-meetings.md |
 | `DamageSystem` | `Ship &s, SystemId id, float amount` | damage system | console | post | — |
 | `DamageSource` | `Ship &s, SourceId id, float amount` | damage source | console | — | — |
 | `BreachDeck` | `Ship &s, int deck, float amount` | breach deck | console | — | — |
@@ -453,24 +455,32 @@ substance of the brief's point and stands.
 | group | hooks |
 |---|---|
 | entry points | 73 |
-| situations the simulation generates | 55 |
+| situations the simulation generates | 57 |
 | outcomes | 54 |
 | readers | 166 |
 | the configurator | 18 |
-| **total** | **366** |
+| **total** | **368** |
 
 **By reachability.**
 
 | state | hooks |
 |---|---|
-| reached in play | 206 |
-| reached only from the developer console | 125 |
+| reached in play | 211 |
+| reached only from the developer console | 122 |
 | reached by nothing yet | 35 |
 | — of those, reached only by the tests | 29 |
 | — of those, no caller anywhere | 6 |
 | unknown | 0 |
 
 The six with no caller anywhere: `SpeciesCapability`, `SpeciesNeed`, `SpeciesSusceptibility`, `PromiseKindName`, `LogVisibilityName`, `BandGrantCount`.
+
+**Re-derived 2026-10-08, the meeting overlay (M3).** `PendingMeetings`, `TakeBrief` and
+`ApplyMeetingOutcome` moved from *console* to *play*: the meetings screen opens the queue and takes a
+brief (`PendingMeetings`, `TakeBrief`) and a pill resolves to an outcome the simulation applies
+(`ApplyMeetingOutcome`). Two hooks were added with them: `LogScopeForCrew` (the per-participant scope
+the room shows) and `ClassifyNovelInput` (the novelty seam, every input reported novel with the
+classifier absent). The counts above are the rows of this register, counted, not carried over:
+73 + 57 + 54 + 166 + 18 = 368, and 211 + 122 + 35 = 368. Evidence: `docs/evidence/meeting-overlay.md`.
 
 ### 5. The configurator — the player chooses the start state
 
@@ -507,11 +517,11 @@ developer console reaches it too (`ship startstate ...`).
 scenario author and the owner should read first: every one of these is a mechanism the simulation
 has and the game does not yet offer.
 
-### Reached only from the developer console (125)
+### Reached only from the developer console (122)
 
 **1. Entry points** (37): `OfferRising`, `OfferRisingTo`, `AttemptRising`, `NextRisingRoll`, `WritePersonalLog`, `VoiceWrite`, `VoiceRetire`, `EmitCue`, `QueueRender`, `CacheRendered`, `PruneVoiceCache`, `PlanMeetingAudio`, `WarmVoice`, `Repair`, `RepairDeck`, `LoadAwayKit`, `LaunchShuttle`, `RecallShuttle`, `LoseShuttle`, `ShuttleBayHit`, `RebuildShuttle`, `TractorWreck`, `TractorHold`, `LaunchProbe`, `RespondPhenomenon`, `FabricateParts`, `FabricateRations`, `MineBelt`, `EVA`, `TakeSurvivors`, `ObservePreWarp`, `InterferePreWarp`, `ReconcileFactions`, `Survey`, `CatchUp`, `Suspend`, `Sleep`
 
-**2. Situations the simulation generates on its own** (16): `EffectiveSkill`, `WorkContextName`, `WorkReading`, `PendingMeetings`, `TakeBrief`, `ApplyMeetingOutcome`, `DamageSystem`, `DamageSource`, `BreachDeck`, `IgniteDeck`, `Board`, `BoardAs`, `BoardBorg`, `JumpStartFromHolodeck`, `Pursued`, `AdvanceSector`
+**2. Situations the simulation generates on its own** (13): `EffectiveSkill`, `WorkContextName`, `WorkReading`, `DamageSystem`, `DamageSource`, `BreachDeck`, `IgniteDeck`, `Board`, `BoardAs`, `BoardBorg`, `JumpStartFromHolodeck`, `Pursued`, `AdvanceSector`
 
 **3. Outcomes content can ask for** (18): `SetAllocationBy`, `Hearing`, `SetMobileEmitter`, `EndHolodeckProgram`, `SetAirponics`, `Delegate`, `RevokeDelegation`, `RevokeCredential`, `LockOut`, `ClearLockout`, `Train`, `Brig`, `HoldFuneral`, `Brief`, `MakePromise`, `RunHolodeck`, `ImproveQuarters`, `SetRole`
 

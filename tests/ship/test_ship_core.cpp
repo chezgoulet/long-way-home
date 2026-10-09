@@ -4762,6 +4762,59 @@ static void TestMeetingBriefPerParticipant()
 	CHECK(found);
 }
 
+// M3: the surface's semantics, without a screen. The queue is what TakeBrief drains; a pill resolves
+// to exactly one enumerated outcome the simulation applies with the person's provenance; and typed
+// text goes to the novelty seam, which -- with the embedding classifier absent (M4) -- never returns
+// a branch, and returns the identical verdict for the identical input. The scope read is what the
+// room shows per participant: a post reads its own scope, command reads all.
+static void TestMeetingOverlaySeam()
+{
+	g_test = "the overlay seam: a taken brief, one outcome, and typed text that is never a branch";
+	Ship s = NewShip();
+	s.player = 0; // the player is in the room
+	const double toWatch = static_cast<double>(SECONDS_PER_WATCH) - std::fmod(s.clock, static_cast<double>(SECONDS_PER_WATCH));
+	AdvanceShip(s, toWatch + 1.0);
+	CHECK(!PendingMeetings(s).empty());
+
+	// The queue: a worker takes the oldest brief; the room opens on it.
+	const size_t queued = PendingMeetings(s).size();
+	CHECK(TakeBrief(s));
+	CHECK(PendingMeetings(s).size() == queued - 1);
+
+	// A pill resolves to exactly one enumerated outcome, applied with a person's provenance.
+	SetAlert(s, ALERT_YELLOW);
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+	const MeetingSkeleton &sk = AuthoredSkeleton(MEET_ALLOCATION);
+	int allocOpt = -1;
+	for (int i = 0; i < sk.outcomeCount; ++i)
+		if (sk.outcomes[i].option.effect == EFFECT_SET_ALLOCATION) allocOpt = i;
+	CHECK(allocOpt >= 0);
+	CHECK(ApplyMeetingOutcome(s, b, allocOpt, s.player, false));
+	CHECK(AllocationPercent(s, SYS_HOLODECKS) == 100);
+	CHECK(AllocationProvenance(s, SYS_HOLODECKS) == "the player");
+
+	// Typed text: the novelty seam, the same input twice, never a branch.
+	const NoveltyResult first = ClassifyNovelInput(s, b, "Make it so");
+	const NoveltyResult second = ClassifyNovelInput(s, b, "Make it so");
+	CHECK(!first.matched && first.outcome < 0);
+	CHECK(!second.matched && second.outcome < 0);
+	CHECK(first.note == second.note);            // deterministic: a save replays the same way
+	const int holodecksWas = AllocationPercent(s, SYS_HOLODECKS);
+	CHECK(ApplyMeetingOutcome(s, b, first.outcome, s.player, false) == false); // -1 is not an outcome
+	CHECK(AllocationPercent(s, SYS_HOLODECKS) == holodecksWas);                // typed text applied nothing
+
+	// The scope read the room shows: command reads all, a post its own scope.
+	int engineer = -1, commander = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		if (MayCommand(s.crew[i])) { if (commander < 0) commander = i; continue; }
+		if (engineer < 0 && s.crew[i].status == CREW_FIT && s.crew[i].dept == DEPT_ENGINEERING) engineer = i;
+	}
+	CHECK(engineer >= 0);
+	CHECK(commander >= 0);
+	CHECK(std::strcmp(LogScopeForCrew(s, engineer), "engineering") == 0);
+	CHECK(std::strcmp(LogScopeForCrew(s, commander), "all scopes") == 0);
+}
+
 // The meeting round-trips: the schedule and the queued briefs survive save and load byte-for-byte, and
 // a load does not re-emit a meeting that has already been called.
 static void TestMeetingSaveRoundTrip()
@@ -6464,6 +6517,7 @@ int main(int argc, char **argv)
 	TestSkeletonPlaysWithoutAModel();
 	TestMeetingAllocationSeam();
 	TestMeetingBriefPerParticipant();
+	TestMeetingOverlaySeam();
 	TestMeetingSaveRoundTrip();
 	TestTrackOwnership();
 	TestCueCannotStopALine();

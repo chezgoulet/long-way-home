@@ -65,6 +65,14 @@ vec3_t glanceAngles = { 0, 0, 0 }; // where the glance test points the player, r
 bool haveGlanceAim = false;
 bool bodyApplied = false;          // S10: the player's model set from the crew record this map
 
+// The meeting overlay's transient state (docs/staff-meetings.md, M3). A brief the player has taken
+// off the queue is held here while the room is open. It is host-local, not ship state, so the save
+// format is unchanged: the simulation applies the outcome (ApplyMeetingOutcome), and the screen never
+// writes ship state. `meetingSaid` is the last typed input and what the novelty seam did with it.
+ship::MeetingBrief currentMeeting;
+bool meetingOpen = false;
+std::string meetingSaid;
+
 // The audio plumbing (docs/staff-meetings.md, phase two). The mixer and the render queue are
 // host-local, not ship state: the audio is player-local data, derived from the queued briefs and
 // cached beside the save. Nothing here is saved, so the save format is unchanged.
@@ -183,6 +191,77 @@ void VoiceWriteManifest()
 			ship::DeliveryName( j.delivery ), j.exaggeration );
 	WriteFile( "ship/voice/render.jsonl", out.data(), static_cast<int>( out.size() ) );
 	gi.Printf( "SHIP: voice: wrote ship/voice/render.jsonl (%d job(s))\n", static_cast<int>( voiceRender.queue.size() ) );
+}
+
+// The meeting as the overlay reads it (docs/staff-meetings.md, M3): the queue, and -- when a brief
+// has been taken off it -- the room. A brief is a read, so this is a read too: the room's speaker
+// rail, the line being answered, the enumerated options, and every outcome's skeleton lines with
+// their speaker and their delivery. The screen draws what this publishes and sends `ship meeting`
+// commands back; it decides nothing.
+void PublishMeeting( void )
+{
+	static const char *const WATCH[] = { "ALPHA", "BETA", "GAMMA" };
+	auto postName = []( uint8_t post ) -> std::string {
+		return post < ship::SYS_COUNT
+			? std::string( ship::Spec( static_cast<ship::SystemId>( post ) ).name ) : std::string( "department duties" );
+	};
+	auto speakerRow = [&]( int crew ) -> std::string {
+		if ( crew < 0 || crew >= static_cast<int>( vessel.crew.size() ) ) return "THE ROOM||| ";
+		const ship::CrewMember &c = vessel.crew[crew];
+		return Fmt( "%s|%s|%s|%s", c.name.c_str(), postName( c.post ).c_str(),
+			WATCH[c.watch < 3 ? c.watch : 0], ship::MoraleBandName( ship::Morale( c ) ) );
+	};
+
+	const std::vector<ship::MeetingBrief> &q = ship::PendingMeetings( vessel );
+	gi.cvar_set( "lwh_ship_meeting_queue", Fmt( "%d", static_cast<int>( q.size() ) ).c_str() );
+	for ( int i = 0; i < 4; ++i )
+	{
+		gi.cvar_set( Fmt( "lwh_ship_meeting_q%d", i ).c_str(),
+			i < static_cast<int>( q.size() )
+				? Fmt( "%s|%s|%d|%d", ship::MeetingKindName( q[i].kind ), q[i].decision.c_str(),
+					q[i].presentCount, q[i].optionCount ).c_str() : "" );
+	}
+	gi.cvar_set( "lwh_ship_meeting_open", meetingOpen ? "1" : "0" );
+	gi.cvar_set( "lwh_ship_meeting_said", meetingSaid.c_str() );
+	if ( !meetingOpen ) return;
+
+	const ship::MeetingBrief &b = currentMeeting;
+	gi.cvar_set( "lwh_ship_meeting_kind", ship::MeetingKindName( b.kind ) );
+	gi.cvar_set( "lwh_ship_meeting_decision", b.decision.c_str() );
+	gi.cvar_set( "lwh_ship_meeting_trigger", b.trigger.c_str() );
+	gi.cvar_set( "lwh_ship_meeting_options", Fmt( "%d", b.optionCount ).c_str() );
+	for ( int i = 0; i < b.optionCount && i < ship::MEETING_OPTION_MAX; ++i )
+		gi.cvar_set( Fmt( "lwh_ship_meeting_opt%d", i ).c_str(),
+			Fmt( "%s|%s|%s|%d", b.options[i].label.c_str(), b.options[i].cost.c_str(),
+				ship::MeetingEffectName( b.options[i].effect ), b.options[i].intent ).c_str() );
+
+	// The room: each participant with the scope their own brief was built from. A post reads its own
+	// scope; command reads all (docs/the-record-and-the-log.md).
+	gi.cvar_set( "lwh_ship_meeting_parts", Fmt( "%d", b.presentCount ).c_str() );
+	for ( int i = 0; i < b.presentCount && i < ship::MEETING_PARTICIPANT_MAX; ++i )
+	{
+		const ship::BriefParticipant &p = b.present[i];
+		gi.cvar_set( Fmt( "lwh_ship_meeting_part%d", i ).c_str(),
+			Fmt( "%s|%s|%s|%s|%s", p.name.c_str(), postName( p.post ).c_str(),
+				WATCH[p.watch < 3 ? p.watch : 0], ship::MoraleBandName( p.mood ),
+				ship::LogScopeForCrew( vessel, p.crew ) ).c_str() );
+	}
+
+	// The skeleton: every outcome's lines, each with its resolved speaker and its delivery direction.
+	const ship::MeetingSkeleton &sk = ship::AuthoredSkeleton( b.kind );
+	gi.cvar_set( "lwh_ship_meeting_outcomes", Fmt( "%d", sk.outcomeCount ).c_str() );
+	for ( int o = 0; o < sk.outcomeCount && o < ship::MEETING_OUTCOME_MAX; ++o )
+	{
+		const ship::MeetingOutcome &oc = sk.outcomes[o];
+		gi.cvar_set( Fmt( "lwh_ship_meeting_lc%d", o ).c_str(), Fmt( "%d", oc.lineCount ).c_str() );
+		for ( int l = 0; l < oc.lineCount && l < ship::MEETING_LINE_MAX; ++l )
+		{
+			const ship::MeetingLine &ln = oc.lines[l];
+			const int crew = ship::ResolveSpeaker( vessel, b, ln.speaker );
+			gi.cvar_set( Fmt( "lwh_ship_meeting_line%d_%d", o, l ).c_str(),
+				Fmt( "%s|%s|%s", speakerRow( crew ).c_str(), ln.text.c_str(), ship::DeliveryName( ln.delivery ) ).c_str() );
+		}
+	}
 }
 
 // The UI is a separate module and cannot see the ship, so the ship's state is published as cvars
@@ -649,6 +728,9 @@ void Publish( void )
 	}
 	// Who the console would delegate a band to: the department head a recommendation comes from.
 	gi.cvar_set( "lwh_ship_chief", Fmt( "%d", ship::DepartmentHead( vessel, ship::DEPT_ENGINEERING ) ).c_str() );
+
+	// The meeting overlay's room and queue (docs/staff-meetings.md, M3).
+	PublishMeeting();
 }
 
 // The configurator's published state (docs/the-entry-point.md, Part three). The UI is a separate
@@ -971,6 +1053,98 @@ void RunTest( void )
 			WriteReport( "ship/voice.txt" );
 			gi.SendConsoleCommand( "quit\n" );
 			step = 5;
+		}
+		return;
+	}
+	if ( g_shipTest->integer == 82 )
+	{//the meeting overlay (docs/staff-meetings.md, M3): the queue reachable in play, a brief opened by
+	 //a screen key, a pill chosen so the simulation applies exactly one enumerated outcome, and typed
+	 //text at the novelty seam. No audio, and no model is called anywhere.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 )
+		{//clear the normal-case queue: advance to a watch and drain what it emits, so the threshold
+		 //meeting below is the only thing queued
+			vessel.clock = ( std::floor( vessel.clock / ship::SECONDS_PER_WATCH ) + 1.0 ) * ship::SECONDS_PER_WATCH;
+			ship::Tick( vessel, 1.0f );
+			const int queued = static_cast<int>( ship::PendingMeetings( vessel ).size() );
+			int drained = 0;
+			while ( ship::TakeBrief( vessel ) ) ++drained;
+			gi.Printf( "SHIP: overlay test: the normal case queued %d brief(s); drained %d\n", queued, drained );
+			// A person must be in the room for a decision to be theirs: the player reports for duty.
+			const int me = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
+			gi.Printf( "SHIP: overlay test: the player reports for duty as crew %d (%s)\n", me,
+				me >= 0 ? vessel.crew[me].name.c_str() : "nobody" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 2800 )
+		{//a threshold episode calls the allocation meeting; it is the only thing queued
+			ship::SetAlert( vessel, ship::ALERT_YELLOW );
+			vessel.crystalCeiling = 0.4f;
+			ship::Tick( vessel, 1.0f );
+			const std::vector<ship::MeetingBrief> &q = ship::PendingMeetings( vessel );
+			gi.Printf( "SHIP: overlay test: the queue is reachable in play and lists %d pending meeting(s)\n", static_cast<int>( q.size() ) );
+			for ( const ship::MeetingBrief &mb : q )
+				gi.Printf( "SHIP: overlay test:   %s: %s\n", ship::MeetingKindName( mb.kind ), mb.decision.c_str() );
+			gi.SendConsoleCommand( "ui_lwh_meeting\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 3100 )
+		{//the queue itself, photographed before it is opened
+			gi.SendConsoleCommand( "screenshot lwh_meeting_queue\n" );
+			step = 21;
+		}
+		if ( step == 21 && level.time >= 3400 )
+		{//a screen key opens the room: Enter on the queue takes the oldest brief (TakeBrief)
+			gi.SendConsoleCommand( "lwh_meet_key enter\n" );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 3800 )
+		{//the room is open: the speaker rail, the line being answered, the options and their costs
+			gi.Printf( "SHIP: overlay test: meeting open=%d, kind %s\n", meetingOpen ? 1 : 0,
+				meetingOpen ? ship::MeetingKindName( currentMeeting.kind ) : "none" );
+			if ( meetingOpen )
+			{
+				const ship::MeetingSkeleton &sk = ship::AuthoredSkeleton( currentMeeting.kind );
+				if ( sk.outcomeCount > 0 && sk.outcomes[0].lineCount > 0 )
+				{
+					const int crew = ship::ResolveSpeaker( vessel, currentMeeting, sk.outcomes[0].lines[0].speaker );
+					gi.Printf( "SHIP: overlay test: speaker %s; line \"%s\"; delivery %s (carried, not rendered)\n",
+						crew >= 0 ? vessel.crew[crew].name.c_str() : "the room",
+						sk.outcomes[0].lines[0].text.c_str(), ship::DeliveryName( sk.outcomes[0].lines[0].delivery ) );
+				}
+				for ( int i = 0; i < currentMeeting.optionCount; ++i )
+					gi.Printf( "SHIP: overlay test: pill %d: %s [%s]\n", i + 1,
+						currentMeeting.options[i].label.c_str(), currentMeeting.options[i].cost.c_str() );
+			}
+			gi.SendConsoleCommand( "screenshot lwh_meeting\n" );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 4400 )
+		{//a pill is picked by key: the screen plays its lines and sends `ship meeting choose`
+			gi.SendConsoleCommand( "lwh_meet_key 4\n" );
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 6800 )
+		{
+			gi.Printf( "SHIP: overlay test: after the pill, holodecks %d%% shields %d%% provenance %s\n",
+				ship::AllocationPercent( vessel, ship::SYS_HOLODECKS ), ship::AllocationPercent( vessel, ship::SYS_SHIELDS ),
+				ship::AllocationProvenance( vessel, ship::SYS_HOLODECKS ).c_str() );
+			// the same typed input twice, through the screen's free-text pill, at the novelty seam;
+			// the allocation cannot move. What a test types is what a hand types.
+			const int before = ship::AllocationPercent( vessel, ship::SYS_HOLODECKS );
+			gi.SendConsoleCommand( "lwh_meet_key t\nlwh_meet_type \"Make it so\"\nlwh_meet_key enter\n" );
+			gi.SendConsoleCommand( "lwh_meet_key t\nlwh_meet_type \"Make it so\"\nlwh_meet_key enter\n" );
+			gi.Printf( "SHIP: overlay test: allocation unchanged by the typed text: %d (was %d)\n",
+				ship::AllocationPercent( vessel, ship::SYS_HOLODECKS ), before );
+			step = 6;
+		}
+		if ( step == 6 && level.time >= 7600 )
+		{
+			gi.SendConsoleCommand( "screenshot lwh_meeting_said\n" );
+			WriteReport( "ship/meeting-overlay.txt" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 7;
 		}
 		return;
 	}
@@ -3229,6 +3403,10 @@ void Ship_Init( void )
 	tested = false;
 	bodyApplied = false;
 	pendingSave.clear();
+	// A room open on the old map does not carry into the new one: the held brief is host-local.
+	meetingOpen = false;
+	currentMeeting = ship::MeetingBrief();
+	meetingSaid.clear();
 	if ( !active ) return;
 	voiceRender.dir = VOICE_DIR; // the cache, beside the save and never in the repository
 
@@ -4092,10 +4270,59 @@ void Svcmd_Ship_f( void )
 			return;
 		}
 		if ( !Q_stricmp( a, "drain" ) ) { gi.Printf( "SHIP: %s\n", ship::TakeBrief( vessel ) ? "one brief taken" : "the queue is empty" ); return; }
+		// The overlay's way in (docs/staff-meetings.md, M3). The screen sends these; the simulation
+		// takes the brief and applies the outcome. The screen never writes ship state.
+		if ( !Q_stricmp( a, "open" ) )
+		{//a worker takes the oldest queued brief, and the room opens on it (TakeBrief)
+			const std::vector<ship::MeetingBrief> &q = ship::PendingMeetings( vessel );
+			if ( q.empty() ) { gi.Printf( "SHIP: meeting open: the queue is empty\n" ); Publish(); return; }
+			currentMeeting = q.front();
+			ship::TakeBrief( vessel );
+			meetingOpen = true;
+			meetingSaid.clear();
+			gi.Printf( "SHIP: meeting open: the room takes the %s brief: %s (present %d, options %d)\n",
+				ship::MeetingKindName( currentMeeting.kind ), currentMeeting.decision.c_str(),
+				currentMeeting.presentCount, currentMeeting.optionCount );
+			Publish();
+			return;
+		}
+		if ( !Q_stricmp( a, "close" ) )
+		{
+			gi.Printf( "SHIP: meeting close: %s\n", meetingOpen ? "the room empties" : "no room was open" );
+			meetingOpen = false;
+			meetingSaid.clear();
+			Publish();
+			return;
+		}
+		if ( !Q_stricmp( a, "choose" ) )
+		{//a pill was picked: exactly one enumerated outcome, applied by the simulation, with the
+		 //person in the room as its provenance (ApplyMeetingOutcome)
+			if ( !meetingOpen ) { gi.Printf( "SHIP: meeting choose: no meeting is open\n" ); return; }
+			const int outcome = b[0] ? atoi( b ) : -1;
+			const bool ok = ship::ApplyMeetingOutcome( vessel, currentMeeting, outcome, vessel.player, false );
+			gi.Printf( "SHIP: meeting choose: %s outcome %d %s (decided by %s)\n",
+				ship::MeetingKindName( currentMeeting.kind ), outcome, ok ? "applied" : "refused",
+				vessel.player >= 0 ? vessel.crew[vessel.player].name.c_str() : ship::CommandingOfficer( vessel ).c_str() );
+			Publish();
+			return;
+		}
+		if ( !Q_stricmp( a, "say" ) )
+		{//typed text, not a pill: it goes to the novelty seam and never to a branch by accident
+			if ( !meetingOpen ) { gi.Printf( "SHIP: meeting say: no room is open, so there is nothing to answer\n" ); return; }
+			const std::string text = b;
+			const ship::NoveltyResult nr = ship::ClassifyNovelInput( vessel, currentMeeting, text );
+			meetingSaid = text + "  ->  " + nr.note;
+			gi.Printf( "SHIP: meeting say: \"%s\": %s\n", text.c_str(),
+				nr.matched ? Fmt( "matched branch %d", nr.outcome ).c_str() : "no branch matched (novel)" );
+			gi.Printf( "SHIP: meeting say: %s\n", nr.note.c_str() );
+			ship::LogEvent( vessel, "the room", "command", std::string( "a novel answer was given: " ) + text );
+			Publish();
+			return;
+		}
 		const int kind = kindOf( b );
 		if ( kind < 0 || kind >= ship::MEET_KIND_COUNT )
 		{
-			gi.Printf( "SHIP: meeting [list|drain|brief <kind>|decide <kind> <outcome>]\n" );
+			gi.Printf( "SHIP: meeting [list|drain|open|close|choose <outcome>|say <text>|brief <kind>|decide <kind> <outcome>]\n" );
 			return;
 		}
 		if ( !Q_stricmp( a, "brief" ) )

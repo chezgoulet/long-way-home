@@ -2,7 +2,8 @@
 
 **What this is.** The companion to `docs/hook-register.md`. The register states, per hook, who can
 reach it; this classifies every hook the register marks **reached only from the developer console**
-(129) or **reached by nothing yet** (35), and says for each whether that is right. The register is the
+(122, after the meeting overlay moved three to play) or **reached by nothing yet** (35), and says for
+each whether that is right. The register is the
 index; this is the judgement the brief asked for, and the reason it is the deliverable is that the
 number is not the defect — *which* of the 164 matter is.
 
@@ -22,14 +23,19 @@ named category rather than forced into the wrong one.
 
 ## Counts
 
-| group | diagnostic | genuine gap | simulation-raised | dead |
-|---|---|---|---|---|
-| entry points (console-only, 37 read) | 13 | 23 | 1 | 0 |
-| situations (console-only) | 5 | 8 | 5 | 0 |
-| outcomes (console-only) | 1 | 19 | 0 | 0 |
-| readers (console-only) | 47 | 7 | 0 | 0 |
-| reached by nothing | 30 | 5 | 0 | 0 |
-| **total (164)** | **96** | **62** | **6** | **0** |
+| group | diagnostic | genuine gap | simulation-raised | wired | dead |
+|---|---|---|---|---|---|
+| entry points (console-only, 37 read) | 13 | 23 | 1 | 0 | 0 |
+| situations (console-only) | 5 | 5 | 5 | 3 | 0 |
+| outcomes (console-only) | 1 | 19 | 0 | 0 | 0 |
+| readers (console-only) | 47 | 7 | 0 | 0 | 0 |
+| reached by nothing | 30 | 5 | 0 | 0 | 0 |
+| **total (164)** | **96** | **59** | **6** | **3** | **0** |
+
+**Three situations are no longer gaps.** `PendingMeetings`, `TakeBrief` and `ApplyMeetingOutcome`
+were all genuine gaps in the first triage; the meeting overlay (M3, `docs/evidence/meeting-overlay.md`)
+wired them, so they are now *play* and counted in the `wired` column rather than the genuine-gap one.
+The genuine-gap total falls from 62 to 59.
 
 **No hook is dead.** All six with no caller anywhere have a reason and something waiting: the three
 species readers want a crew record, and `PromiseKindName`, `LogVisibilityName` and `BandGrantCount` are
@@ -86,9 +92,9 @@ here.
 | `EffectiveSkill` | diagnostic | The derivation read the rising unit tests and harness 60 use; the console prints it through `WorkReading`. |
 | `WorkContextName` | diagnostic | A name read; the console and the work-bit tests read it. |
 | `WorkReading` | **genuine gap** | The whole picture for one person at one system — who, what they can do, every factor that moved the odds — is meant for the personnel console (`docs/character-attributes.md`); no screen shows it and the station gate refuses `operate`. |
-| `PendingMeetings` | **genuine gap** | The meeting queue is the staff-meeting system's surface; no screen shows it, so a player cannot attend a meeting (`docs/programme-meetings-and-voice.md`, phase three). |
-| `TakeBrief` | **genuine gap** | Dropping a queued brief is the worker taking it; only the console and the harness. Same unbuilt meeting surface. |
-| `ApplyMeetingOutcome` | **genuine gap** | The decision a meeting reached is the player's at a meeting screen; only `ship meeting decide`. Same surface. |
+| `PendingMeetings` | **wired** | The meeting queue is the staff-meeting system's surface; it was a genuine gap and the meeting overlay (M3) now opens it in play. |
+| `TakeBrief` | **wired** | Dropping a queued brief is the worker taking it; it was a genuine gap and opening the room now takes it (M3). |
+| `ApplyMeetingOutcome` | **wired** | The decision a meeting reached is the player's at a meeting screen; it was a genuine gap and a pill now applies it (M3). |
 | `DamageSystem` | diagnostic | The model's damage lever, driven by the g_shipTest harness and the unit tests; combat writes system health directly in `UpdateOutside`, so this is the authoring/test entry. |
 | `DamageSource` | diagnostic | The source-damage lever, driven by harness and tests; the simulation degrades sources through the power model. |
 | `BreachDeck` | simulation-raised | A hull breach is raised in play by a weakly-deflected jump (`Jump` is play) and by combat; a player does not hole a deck on purpose. The player's response is the field (play) and the seal (`RepairDeck`, a genuine gap). |
@@ -279,7 +285,8 @@ surface as much as wiring.
 
 29. **`WorkReading`** — the operator's own factors before a roll (the personnel read).
 30. **`PendingMeetings`** / 31. **`TakeBrief`** / 32. **`ApplyMeetingOutcome`** — the staff meeting,
-    whose screen is the meeting programme's phase three.
+    whose screen is the meeting programme's phase three. *Wired (M3): the meetings screen opens the
+    queue, takes a brief, and a pill applies the outcome.*
 33. **`Delegate`** / 34. **`RevokeDelegation`** / 35. **`RevokeCredential`** / 36. **`LockOut`** /
     37. **`ClearLockout`** — the two-lock model in play.
 38. **`Train`** — a cross-qualification earned.

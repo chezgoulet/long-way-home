@@ -6708,6 +6708,31 @@ bool ApplyMeetingOutcome(Ship &s, const MeetingBrief &brief, int outcome, int de
 	return ok;
 }
 
+const char *LogScopeForCrew(const Ship &s, int crew)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return "no scope";
+	if (MayCommand(s.crew[crew])) return "all scopes";
+	return ScopeForDept(s.crew[crew].dept);
+}
+
+NoveltyResult ClassifyNovelInput(const Ship &s, const MeetingBrief &brief, const std::string &text)
+{
+	(void)s;
+	(void)brief;
+	(void)text;
+	// THE CLASSIFIER IS NOT BUILT (M4). It would embed `text` and each option's intent descriptor and
+	// take the nearest above a tuned threshold; above it the branch plays, below it this is the novel
+	// answer. With no embedding model resident, the safe and honest result is NOVEL -- the simulation
+	// applies nothing, and the input goes to the log. Reporting a match here would let typed text pick
+	// a branch, which is exactly the accident the design forbids.
+	NoveltyResult r;
+	r.matched = false;
+	r.outcome = -1;
+	r.note = "novel: no branch descriptor matched (the embedding classifier is M4); "
+		"one live call would be made and its answer written to the log. The simulation applies nothing.";
+	return r;
+}
+
 // ---- the audio plumbing: three sources, one owner each (docs/staff-meetings.md) ----------------
 //
 // ONE PRODUCER PER TRACK, ONE RETIREMENT RULE PER REPLY. The ownership is a function (TrackOwner),

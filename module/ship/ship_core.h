@@ -1030,6 +1030,28 @@ bool TakeBrief(Ship &s);
 // ship's own answer (automatic mode) or a person's. The simulation applies it.
 bool ApplyMeetingOutcome(Ship &s, const MeetingBrief &brief, int outcome, int decidedBy, bool automatic);
 
+// The log scope a person reads: command reads all, everyone else their own department's scope. The
+// display form of the per-participant brief (docs/the-record-and-the-log.md; "a post sees its own
+// scope, command sees all"), so the meeting surface can show what each participant can see.
+const char *LogScopeForCrew(const Ship &s, int crew);
+
+// ---- the novelty seam: the novel answer (docs/staff-meetings.md) ---------------------------------
+//
+// The player's typed input is NOT a branch selection. It is matched against the option **intent
+// descriptors** the pills already carry: a match routes to that one enumerated outcome, and only a
+// genuine miss is novel. Novelty detection is classification, not generation, and the classifier is a
+// small always-resident embedding model with a tuned threshold (docs/programme-meetings-and-voice.md).
+// That model is M4 and this pass does NOT build it, so the seam exists and every typed input is
+// reported NOVEL: it is written down, and the simulation applies nothing. Typed text can therefore
+// never become a branch by accident, and the same text always classifies the same way, so a save
+// replays. The note names exactly what the seam would need.
+struct NoveltyResult {
+	bool matched = false;  // did the input match an enumerated branch?
+	int outcome = -1;      // the branch it matched, or -1 when novel
+	std::string note;      // what happened at the seam, in words (logged)
+};
+NoveltyResult ClassifyNovelInput(const Ship &s, const MeetingBrief &brief, const std::string &text);
+
 // ---- the seam to synthesis (docs/evidence/voice-review.md) ---------------------------------------
 //
 // Named and left: phase two builds the audio player. Nothing here owns a sound. The seam that hands a
