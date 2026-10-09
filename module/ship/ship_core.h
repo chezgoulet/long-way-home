@@ -789,6 +789,10 @@ struct LogEntry {
 	std::string what;    // the fact
 };
 const int LOG_MAX = 128;
+// A log entry's author and subject are short; its fact may be longer -- the opening's log seed
+// states the losses, the ship's condition and the player's position, and must survive a save whole
+// (docs/start-states.md). The stored cap is 63 for who and scope, LOG_TEXT_MAX for the fact.
+const int LOG_TEXT_MAX = 600;
 void LogEvent(Ship &s, const std::string &who, const std::string &scope, const std::string &what);
 
 // ---- the two logs (docs/the-record-and-the-log.md) ----------------------------------------------
@@ -1242,6 +1246,101 @@ enum ClockMode : uint8_t { CLOCK_ACCELERATED = 0, CLOCK_REAL_TIME, CLOCK_WALL };
 // answers to you. Munro: the Hazard Team's ensign, as in the retail game.
 enum PlayerRole : uint8_t { ROLE_ANY_POST = 0, ROLE_IN_COMMAND, ROLE_MUNRO };
 
+// ---- the configurator: the player chooses the start state (docs/the-entry-point.md, Part three) ----
+//
+// A start state is *data* (docs/start-states.md): the casualties, the vacancies derived from them by
+// the same rule play uses, the player's record, and the first log entry. The configurator has four
+// dimensions -- who you are, who died, who fills the gaps, and the career path -- and this header
+// holds the data the four edit. The surface that starts the run is the surface that chooses it.
+
+// The career path (dimension four). This pass lets the player *choose* it and records it; the arc the
+// path implies (resentment, affinity, who trusts you) is the affinities work, authored later.
+enum CareerPath : uint8_t {
+	CAREER_JUNIOR = 0,      // Starfleet junior: the ceiling is intact above you
+	CAREER_LOWER_DECKS,     // lower decks: no ceiling, no authority, the work itself
+	CAREER_MAQUIS,          // Maquis integrating into Starfleet: the split is on your record
+	CAREER_CHAIR,           // the chair: you command from the first minute
+	CAREER_COUNT
+};
+const char *CareerPathName(uint8_t path);
+const char *CareerPathBlurb(uint8_t path);
+
+// The command seats (dimension two: who died -- per seat, survivor or casualty; and dimension three:
+// who fills the gaps -- the seat a casualty leaves is filled by the derivation, never by hand). Each
+// seat knows the named record that holds it and the department the rule promotes from.
+enum CommandSeat : uint8_t {
+	SEAT_CAPTAIN = 0,
+	SEAT_FIRST_OFFICER,
+	SEAT_SECURITY,
+	SEAT_ENGINEERING,
+	SEAT_MEDICAL,
+	SEAT_SCIENCES,
+	SEAT_OPERATIONS,
+	SEAT_CONN,
+	SEAT_COUNT
+};
+const char *SeatName(uint8_t seat);       // "the chair", "the first officer's seat", ...
+const char *SeatType(uint8_t seat);       // the named record that holds it at the canon default
+uint8_t     SeatDepartment(uint8_t seat); // the department the derivation promotes from
+uint8_t     SeatPost(uint8_t seat);       // the station the seat stands, or SYS_COUNT
+uint8_t     SeatRank(uint8_t seat);       // the rank the seat carries (the chair is 6)
+// The seat whose named holder is this type, or -1. Used to initialise the canon default and to read
+// which casualty created a vacancy.
+int SeatForType(const std::string &type);
+
+// A start state, as the configurator edits it. Plain data: the selector keeps them in a list and a
+// further state is a row (docs/evidence/the-way-in.md).
+struct StartState {
+	const char *name = "CANON";
+	const char *blurb = "";
+	const char *reason = "";
+	// Dimension two: per command seat, survivor (false) or casualty (true).
+	bool casualty[SEAT_COUNT];
+	// Dimension three: the roster is fictitious entirely -- none of the show characters appear. The
+	// vacancy derivation still fills every seat, from the generated crew.
+	bool fictitious = false;
+	// Dimension one and four: the player's record and the path that brought them here.
+	const char *playerName = "";   // empty: the roster's own default for the seat/post
+	uint8_t playerRank = 1;
+	uint8_t playerDept = DEPT_COMMAND;
+	int playerSeat = -1;           // the seat the player inherits, or -1 for an ordinary post
+	uint8_t career = CAREER_JUNIOR;
+	// The opening's cause and the ship's condition (the Caretaker aftermath).
+	const char *cause = "the Caretaker's array";
+	int shipDead = 12;             // the ship's dead from the Caretaker, canon at twelve or more
+
+	StartState() { for (int i = 0; i < SEAT_COUNT; ++i) casualty[i] = false; }
+};
+
+// The shipped proving cases: the canon default, the captain, and an all-fictitious crew. A list as
+// data -- the selector renders it, and a further state is an entry rather than a rewrite.
+int StartStateCount();
+const StartState &StartStateAt(int i);
+
+// Apply a start state to a fresh ship: close the casualties, seat the player (composing with
+// character creation), derive the vacancies by the one rule (FillVacancies), and write the log seed.
+void ApplyStartState(Ship &s, const StartState &st);
+
+// The vacancy derivation, one rule for the configurator and for play alike (docs/start-states.md):
+// a command seat whose holder is gone is filled from the roster by seniority -- the chair and the
+// first officer by the senior fit officer, a department seat by the senior fit member of the
+// department. It changes only seats that are actually vacant, so it is idempotent and safe to call
+// every tick; it records each rise. Returns the number of seats filled. The player is never picked by
+// the derivation: the player's seat is the player's choice, and the derivation fills the rest.
+int FillVacancies(Ship &s, const std::string &reason);
+// The seat a crew member holds, or -1. The read the roster and the log use.
+int SeatHeldBy(const Ship &s, int crew);
+int SeatHolder(const Ship &s, uint8_t seat);
+// The player's own position, stated plainly (the opening's fourth duty): rank and post, what they
+// may authorise, and who reports to them. One line, for the log and the console.
+std::string PlayerPositionLine(const Ship &s);
+
+// The log seed (docs/start-states.md): the first entry in the ship's log, describing *what the player
+// actually configured* -- the losses, the ship's condition, that no rescue is coming, the player's
+// own position, and the career path. Later entries are measured against it.
+void WriteLogSeed(Ship &s, const StartState &st);
+std::string LogSeedText(const Ship &s, const StartState &st);
+
 // The access model's stored shapes, defined here so Ship can hold them (docs/access-and-authority.md).
 // A delegation is a shift's grant; an override is one station forced for a while; a lock-out is a
 // senior officer shutting a post-holder out.
@@ -1289,6 +1388,7 @@ struct Config {
 	PlayMode mode = MODE_IRONMAN;
 	ClockMode clockMode = CLOCK_ACCELERATED;
 	PlayerRole role = ROLE_ANY_POST;
+	bool fictitious = false;     // the roster is generated entirely: no show character appears
 };
 
 struct Ship {
@@ -1407,6 +1507,12 @@ struct Ship {
 
 	// the player
 	int player = -1;             // index into crew of the player's character; -1 = none chosen
+	// The configurator's record (docs/the-entry-point.md, Part three): which crew member holds each
+	// command seat, derived from the casualties by the same rule play uses (FillVacancies), and the
+	// career path the player chose. seatHolder[seat] is -1 when the seat is vacant. Stored, so a
+	// configured start replays identically.
+	int16_t seatHolder[SEAT_COUNT];
+	uint8_t career = CAREER_JUNIOR;
 	uint64_t wallSeconds = 0;    // wall-clock time when the ship was last saved (CLOCK_WALL catches up from it)
 	bool leftStanding = false;   // ever exited with a background process: the record's mark (see the two exits)
 	std::vector<LogEntry> log;   // the official log: signed, published and scoped, newest last
@@ -2034,6 +2140,10 @@ int AttendIncapacitatedPlayer(Ship &s);
 // the new player index, or -1. (The succession the world acts on when death is reached.)
 int AssumeCommand(Ship &s);
 
+// The senior fit officer, in rank order: the roster rule that fills the chair, used both by the
+// configurator's vacancy derivation and by play's succession. Exposed so the two are one rule.
+int SeniorFitOfficer(const Ship &s);
+
 // Memory and consequence. A mark is written where it happens (Remember); command can tell the whole
 // crew a thing (Brief); a query asks whether a character holds an event and how they came to (Recall,
 // RecallSource), how many marks they hold (MemoryCount), and how they feel about a person (Bond).
@@ -2151,7 +2261,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 53;  // 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
+const uint16_t SAVE_VERSION = 54;  // 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

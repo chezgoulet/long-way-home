@@ -456,13 +456,14 @@ substance of the brief's point and stands.
 | situations the simulation generates | 55 |
 | outcomes | 54 |
 | readers | 166 |
-| **total** | **348** |
+| the configurator | 18 |
+| **total** | **366** |
 
 **By reachability.**
 
 | state | hooks |
 |---|---|
-| reached in play | 184 |
+| reached in play | 202 |
 | reached only from the developer console | 129 |
 | reached by nothing yet | 35 |
 | — of those, reached only by the tests | 29 |
@@ -470,6 +471,35 @@ substance of the brief's point and stands.
 | unknown | 0 |
 
 The six with no caller anywhere: `SpeciesCapability`, `SpeciesNeed`, `SpeciesSusceptibility`, `PromiseKindName`, `LogVisibilityName`, `BandGrantCount`.
+
+### 5. The configurator — the player chooses the start state
+
+*docs/the-entry-point.md, part three; docs/start-states.md.* The entry point is a configurator with
+four dimensions: who you are, who died, who fills the gaps, and the career path. A start state is
+data; the vacancies are derived by the same rule play uses. **The menu reaches the mechanism in
+play** (the "Long Way Home" line writes the run's cvars, and `Ship_Init` applies the state); the
+developer console reaches it too (`ship startstate ...`).
+
+| hook | takes | does (the header's line, or the name) | reach | law | owner |
+|---|---|---|---|---|---|
+| `CareerPathName` | `uint8_t path` | career path name | play | — | docs/the-entry-point.md |
+| `CareerPathBlurb` | `uint8_t path` | career path blurb | play | — | docs/the-entry-point.md |
+| `SeatName` | `uint8_t seat` | seat name | play | post | docs/the-entry-point.md |
+| `SeatType` | `uint8_t seat` | the named record that holds the seat at the canon default | play | post | docs/the-entry-point.md |
+| `SeatDepartment` | `uint8_t seat` | the department the derivation promotes from | play | post | docs/the-entry-point.md |
+| `SeatPost` | `uint8_t seat` | seat post | play | post | docs/the-entry-point.md |
+| `SeatRank` | `uint8_t seat` | seat rank | play | post | docs/the-entry-point.md |
+| `SeatForType` | `const std::string &type` | the seat whose named holder is this type, or -1 | play | post | docs/the-entry-point.md |
+| `StartStateCount` | — | the shipped start states: a list as data | play | — | docs/the-entry-point.md |
+| `StartStateAt` | `int i` | start state at | play | — | docs/the-entry-point.md |
+| `ApplyStartState` | `Ship &s, const StartState &st` | Apply a start state to a fresh ship: close the casualties, seat the player, derive the vacancies, write the log seed | play | post | docs/the-entry-point.md |
+| `FillVacancies` | `Ship &s, const std::string &reason` | The vacancy derivation, one rule for the configurator and for play alike | play | post | docs/start-states.md |
+| `SeatHeldBy` | `const Ship &s, int crew` | the seat a crew member holds, or -1 | play | person | docs/the-entry-point.md |
+| `SeatHolder` | `const Ship &s, uint8_t seat` | seat holder | play | post | docs/the-entry-point.md |
+| `PlayerPositionLine` | `const Ship &s` | The player's own position, stated plainly: rank and post, what they may authorise, and who reports to them | play | person | docs/the-entry-point.md |
+| `WriteLogSeed` | `Ship &s, const StartState &st` | The log seed: the first entry, describing what the player actually configured | play | — | docs/start-states.md |
+| `LogSeedText` | `const Ship &s, const StartState &st` | log seed text | play | — | docs/start-states.md |
+| `SeniorFitOfficer` | `const Ship &s` | The senior fit officer, in rank order: the roster rule that fills the chair | play | — | docs/start-states.md |
 
 ## The unreachable list, in full — the work nobody knew was waiting
 

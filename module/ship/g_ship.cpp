@@ -35,6 +35,17 @@ cvar_t *g_shipDayScale; // ship seconds per game second (60 = a day in 24 minute
 cvar_t *g_shipMode;     // 0 ironman (the game), 1 holodeck (saves allowed)
 cvar_t *g_shipClock;    // 0 accelerated by g_shipDayScale, 1 real time, 2 wall clock (the ship lives on while away)
 cvar_t *g_shipRole;     // 0 any post, 1 in command, 2 Munro
+// The configurator's chosen start state (docs/the-entry-point.md, Part three): written by the menu
+// before the map loads, read here. `g_shipConfigured 0` is the default, so a run that was not
+// configured is untouched.
+cvar_t *g_shipConfigured;
+cvar_t *g_shipFictitious;
+cvar_t *g_shipCareer;
+cvar_t *g_shipCasualties;
+cvar_t *g_shipPlayerName;
+cvar_t *g_shipPlayerRank;
+cvar_t *g_shipPlayerDept;
+cvar_t *g_shipPlayerSeat;
 cvar_t *g_shipTest;     // harness: 1 = act, report, save, quit; 2 = report what a load restored, quit;
                         //          3 = operate the Engineering console; 4 = go to g_shipTestPos and photograph;
                         //          5 = ride the turbolift to every deck and report each arrival
@@ -60,6 +71,12 @@ bool bodyApplied = false;          // S10: the player's model set from the crew 
 const char *const VOICE_DIR = "ship/voice"; // the cache, beside the save; never in the repository
 ship::VoiceMixer voiceMixer;
 ship::VoiceRender voiceRender;
+
+// The configurator's edit (docs/the-entry-point.md, Part three): the start state being built on the
+// menu. It is UI state, not ship state -- the applied result lives in the ship and is saved; this
+// draft is where the four dimensions are turned before "begin". The list it starts from is data.
+ship::StartState startEdit;
+bool startEditReady = false;
 
 void WriteFile( const char *path, const void *data, int len )
 {
@@ -629,6 +646,47 @@ void Publish( void )
 	}
 	// Who the console would delegate a band to: the department head a recommendation comes from.
 	gi.cvar_set( "lwh_ship_chief", Fmt( "%d", ship::DepartmentHead( vessel, ship::DEPT_ENGINEERING ) ).c_str() );
+}
+
+// The configurator's published state (docs/the-entry-point.md, Part three). The UI is a separate
+// module, so it reads the start states as data and the current edit's derived result as text:
+//   lwh_ship_starts   name|career|fictitious|casualtyMask|playerRank|playerDept|blurb;
+//   lwh_ship_seats    seat|holder|rank;   (the current edit, derived)
+//   lwh_ship_player_position  the player's own position, one line
+//   lwh_ship_log_seed         the first log entry the current edit would write
+void PublishStartState( void )
+{
+	std::string list;
+	for ( int i = 0; i < ship::StartStateCount(); ++i )
+	{
+		const ship::StartState &st = ship::StartStateAt( i );
+		unsigned mask = 0;
+		for ( int s = 0; s < ship::SEAT_COUNT; ++s ) if ( st.casualty[s] ) mask |= 1u << s;
+		list += Fmt( "%s|%d|%d|%u|%d|%d|%s;", st.name, static_cast<int>( st.career ),
+			st.fictitious ? 1 : 0, mask, static_cast<int>( st.playerRank ), static_cast<int>( st.playerDept ), st.blurb );
+	}
+	gi.cvar_set( "lwh_ship_starts", list.c_str() );
+
+	ship::Config cfg = vessel.cfg;
+	cfg.fictitious = startEdit.fictitious;
+	ship::Ship scratch = ship::NewShip( cfg );
+	ship::ApplyStartState( scratch, startEdit );
+	std::string seats;
+	for ( int s = 0; s < ship::SEAT_COUNT; ++s )
+	{
+		const int h = ship::SeatHolder( scratch, s );
+		seats += Fmt( "%s|%s|%d;", ship::SeatName( s ),
+			h >= 0 ? scratch.crew[h].name.c_str() : "VACANT", h >= 0 ? scratch.crew[h].rank : -1 );
+	}
+	gi.cvar_set( "lwh_ship_seats", seats.c_str() );
+	gi.cvar_set( "lwh_ship_player_position", ship::PlayerPositionLine( scratch ).c_str() );
+	gi.cvar_set( "lwh_ship_log_seed", ship::LogSeedText( scratch, startEdit ).c_str() );
+	// The current edit, as data the screen reads back: career|fictitious|casualtyMask|rank|dept|name.
+	unsigned emask = 0;
+	for ( int s = 0; s < ship::SEAT_COUNT; ++s ) if ( startEdit.casualty[s] ) emask |= 1u << s;
+	gi.cvar_set( "lwh_ship_start_edit", Fmt( "%d|%d|%u|%d|%d|%s", static_cast<int>( startEdit.career ),
+		startEdit.fictitious ? 1 : 0, emask, static_cast<int>( startEdit.playerRank ),
+		static_cast<int>( startEdit.playerDept ), startEdit.playerName ? startEdit.playerName : "" ).c_str() );
 }
 
 // Reports the trigger whose centre is at g_shipTestWatch: a trigger that has fired is waiting
@@ -3089,6 +3147,14 @@ void Ship_RegisterCvars( void )
 	g_shipMode = gi.cvar( "g_shipMode", "0", 0 );
 	g_shipClock = gi.cvar( "g_shipClock", "0", 0 );
 	g_shipRole = gi.cvar( "g_shipRole", "0", 0 );
+	g_shipConfigured = gi.cvar( "g_shipConfigured", "0", 0 );
+	g_shipFictitious = gi.cvar( "g_shipFictitious", "0", 0 );
+	g_shipCareer = gi.cvar( "g_shipCareer", "0", 0 );
+	g_shipCasualties = gi.cvar( "g_shipCasualties", "0", 0 );
+	g_shipPlayerName = gi.cvar( "g_shipPlayerName", "", 0 );
+	g_shipPlayerRank = gi.cvar( "g_shipPlayerRank", "1", 0 );
+	g_shipPlayerDept = gi.cvar( "g_shipPlayerDept", "0", 0 );
+	g_shipPlayerSeat = gi.cvar( "g_shipPlayerSeat", "-1", 0 );
 	g_shipTest = gi.cvar( "g_shipTest", "0", 0 );
 	g_shipTestPos = gi.cvar( "g_shipTestPos", "0 0 0", 0 );
 	g_shipTestPitch = gi.cvar( "g_shipDeckPitch", "0", 0 );
@@ -3129,8 +3195,38 @@ void Ship_Init( void )
 	if ( g_shipDayScale->value > 0.0f ) cfg.dayScale = g_shipDayScale->value;
 	cfg.mode = g_shipMode->integer == 1 ? ship::MODE_HOLODECK : ship::MODE_IRONMAN;
 	cfg.clockMode = g_shipClock->integer == 1 ? ship::CLOCK_REAL_TIME : g_shipClock->integer == 2 ? ship::CLOCK_WALL : ship::CLOCK_ACCELERATED;
+	// The configurator (docs/the-entry-point.md, Part three): a run the menu configured is applied
+	// here, when the ship exists. A run that was not configured stays exactly as it was.
+	const bool configured = g_shipConfigured && g_shipConfigured->integer != 0;
+	if ( configured ) cfg.fictitious = g_shipFictitious && g_shipFictitious->integer != 0;
 	vessel = ship::NewShip( cfg );
-	ship::SetRole( vessel, g_shipRole->integer == 1 ? ship::ROLE_IN_COMMAND : g_shipRole->integer == 2 ? ship::ROLE_MUNRO : ship::ROLE_ANY_POST );
+	if ( configured )
+	{
+		ship::StartState st;
+		st.name = "CONFIGURED";
+		st.blurb = "the start state the player chose at the menu";
+		st.reason = "the situation the player granted themselves";
+		st.fictitious = cfg.fictitious;
+		const int career = g_shipCareer->integer;
+		st.career = static_cast<uint8_t>( career >= 0 && career < ship::CAREER_COUNT ? career : 0 );
+		const unsigned mask = static_cast<unsigned>( g_shipCasualties->integer );
+		for ( int i = 0; i < ship::SEAT_COUNT; ++i ) st.casualty[i] = ( ( mask >> i ) & 1u ) != 0;
+		st.playerName = g_shipPlayerName ? g_shipPlayerName->string : "";
+		const int rank = g_shipPlayerRank->integer;
+		st.playerRank = static_cast<uint8_t>( rank >= 0 && rank <= 6 ? rank : 1 );
+		const int dept = g_shipPlayerDept->integer;
+		st.playerDept = static_cast<uint8_t>( dept >= 0 && dept < ship::DEPT_COUNT ? dept : 0 );
+		st.playerSeat = g_shipPlayerSeat->integer;
+		ship::ApplyStartState( vessel, st );
+		gi.Printf( "SHIP: start state applied from the menu: %s, career %s, %s\n",
+			st.fictitious ? "an all-fictitious crew" : "the canon crew",
+			ship::CareerPathName( st.career ), ship::PlayerPositionLine( vessel ).c_str() );
+		if ( !vessel.log.empty() ) gi.Printf( "SHIP:   first log entry: %s\n", vessel.log[0].what.c_str() );
+	}
+	else
+	{
+		ship::SetRole( vessel, g_shipRole->integer == 1 ? ship::ROLE_IN_COMMAND : g_shipRole->integer == 2 ? ship::ROLE_MUNRO : ship::ROLE_ANY_POST );
+	}
 	gi.Printf( "SHIP: simulation active, %d crew, a day every %.0f minutes\n",
 		static_cast<int>( vessel.crew.size() ), ship::SECONDS_PER_DAY / cfg.dayScale / 60.0f );
 }
@@ -3369,6 +3465,62 @@ void Svcmd_Ship_f( void )
 		ship::SetRole( vessel, g_shipRole->integer == 1 ? ship::ROLE_IN_COMMAND : g_shipRole->integer == 2 ? ship::ROLE_MUNRO : ship::ROLE_ANY_POST );
 		ApplyPlayerBody();
 		Publish();
+		return;
+	}
+	if ( !Q_stricmp( cmd, "startstate" ) )
+	{//the configurator (docs/the-entry-point.md, Part three): the list as data, the four dimensions,
+	 //and begin. The draft is UI state; begin applies it to the ship and it becomes the record.
+		static std::string startEditName;
+		if ( !startEditReady ) { startEdit = ship::StartStateAt( 0 ); startEditReady = true; }
+		if ( !a[0] )
+		{
+			gi.Printf( "SHIP: start states (%d):\n", ship::StartStateCount() );
+			for ( int i = 0; i < ship::StartStateCount(); ++i )
+				gi.Printf( "SHIP:   %d %s -- %s\n", i, ship::StartStateAt( i ).name, ship::StartStateAt( i ).blurb );
+			PublishStartState();
+			return;
+		}
+		if ( !Q_stricmp( a, "select" ) )
+		{
+			const int n = atoi( b );
+			if ( n >= 0 && n < ship::StartStateCount() ) { startEdit = ship::StartStateAt( n ); startEditName = startEdit.playerName; startEdit.playerName = startEditName.c_str(); }
+		}
+		else if ( !Q_stricmp( a, "casualty" ) ) // casualty <seat> <0|1>
+		{
+			const int seat = atoi( b );
+			const int on = gi.argc() > first + 3 ? atoi( gi.argv( first + 3 ) ) : 1;
+			if ( seat >= 0 && seat < ship::SEAT_COUNT ) startEdit.casualty[seat] = on != 0;
+		}
+		else if ( !Q_stricmp( a, "fictitious" ) ) startEdit.fictitious = atoi( b ) != 0;
+		else if ( !Q_stricmp( a, "career" ) )
+		{
+			const int c = atoi( b );
+			if ( c >= 0 && c < ship::CAREER_COUNT ) startEdit.career = static_cast<uint8_t>( c );
+		}
+		else if ( !Q_stricmp( a, "seat" ) ) startEdit.playerSeat = atoi( b );
+		else if ( !Q_stricmp( a, "player" ) ) // player <rank> <dept> [name...]
+		{
+			startEdit.playerRank = static_cast<uint8_t>( atoi( b ) );
+			if ( gi.argc() > first + 3 ) startEdit.playerDept = static_cast<uint8_t>( atoi( gi.argv( first + 3 ) ) );
+			std::string nm;
+			for ( int i = first + 4; i < gi.argc(); ++i ) { if ( !nm.empty() ) nm += " "; nm += gi.argv( i ); }
+			if ( !nm.empty() ) { startEditName = nm; startEdit.playerName = startEditName.c_str(); }
+		}
+		else if ( !Q_stricmp( a, "begin" ) )
+		{
+			ship::Config cfg = vessel.cfg;
+			cfg.fictitious = startEdit.fictitious;
+			vessel = ship::NewShip( cfg );
+			ship::ApplyStartState( vessel, startEdit );
+			ApplyPlayerBody();
+			Publish();
+			PublishStartState();
+			gi.Printf( "SHIP: start state applied: %s\n", startEdit.name );
+			gi.Printf( "SHIP:   player: %s\n", ship::PlayerPositionLine( vessel ).c_str() );
+			if ( !vessel.log.empty() ) gi.Printf( "SHIP:   log seed: %s\n", vessel.log[0].what.c_str() );
+			return;
+		}
+		PublishStartState();
 		return;
 	}
 	if ( !Q_stricmp( cmd, "body" ) )

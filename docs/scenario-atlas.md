@@ -75,6 +75,17 @@ Each scenario declares, in data:
   not happen.
 - **Warmth** -- the human beat it leaves behind. A scenario with no warmth is a hazard, not a story.
 
+**The post-not-name law, and it binds every line.** `docs/the-entry-point.md`, part three: because the
+player may field an **all-fictitious crew** in which none of the show characters appear, **content
+addresses the post, and the simulation resolves the post to a person.** A line written as *"Tuvok, seal
+the breach"* is a line that cannot be spoken in a run where Tuvok died at the Caretaker and a fictitious
+ensign holds security -- and it is not one broken line, it is the whole slate. **No scenario, meeting
+brief, log entry or voice line may name a crew member; every one addresses a post, a system id or a
+role, and the simulation substitutes whoever holds it.** The register's `law` column
+(`docs/hook-register.md`) marks which hooks take a resolved person and therefore must be fed by a post.
+This is cheap now and unaffordable later: every scenario written the other way has to be rewritten, and
+the failure would surface as *"the scenarios do not work with the configurator"* long after the cause.
+
 ## Rank and role: one event, many positions
 
 The owner's addition, and it is the thing that turns a scenario set into a ship. But the naive version --

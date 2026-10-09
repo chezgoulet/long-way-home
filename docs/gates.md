@@ -83,6 +83,26 @@ simulation does not start. The campaign was re-proven (`+map borg1` loads and th
 Evidence: `docs/evidence/the-way-in.md`, `patches/0020-main-menu-long-way-home.patch`,
 `module/ui/ui_lwh_start.cpp`.
 
+### The configurator — the player chooses the start state ✅ built 2026-10-08
+
+`docs/the-entry-point.md` Part three is built on `feat/the-configurator`: the entry point is a
+**configurator with four dimensions** — who you are, who died (per command seat), who fills the gaps,
+and the career path — and the player may field **an all-fictitious crew** in which none of the show
+characters appear. The mechanism is `module/ship/ship_core.{h,cpp}`: a start state is data
+(`StartState`, a list of three proving cases), the casualties close named records, and
+**`FillVacancies` derives every vacant seat by the same seniority rule play uses** (`SeniorFitOfficer`
+/ `DepartmentHead`), so a vacancy the configurator creates and one a mid-run loss creates are one rule.
+The `log_seed` is generated from what was chosen; the menu writes the run's cvars and `Ship_Init`
+applies them; the post-not-name law is written into the scenario authoring contract
+(`docs/scenario-atlas.md`). The three proving cases — **CANON** (owned, the default the configurator
+opens on), **THE CHAIR** (the chair vacant and derived, the record naming the casualty) and
+**ALL-FICTITIOUS** (no show character in the content) — are demonstrated; the canon default and the
+chair were also driven through the rendered menu and the loaded map. **Save version 54**; the cost is
+named there and below. Evidence: `docs/evidence/the-configurator.md`,
+`scripts/configurator-check.sh`, `tests/ship/test_ship_core.cpp` (`TestCanonStartUntouched`,
+`TestCaptainVacancyDerived`, `TestVacancySameRule`, `TestFictitiousNoCanon`,
+`TestStartStateSaveRoundTrip`, `TestCharacterCreationComposes`).
+
 ## G6 — retail single player, including the Expansion Pack ✅ reported working (2026-10-05)
 
 Proven in the owner's session: the retail campaign runs, and Virtual Voyager works (G2's bar met). One
@@ -752,7 +772,12 @@ evidence and the closing is this ledger's business. The same rule is stated in `
 - **O13 — the Borg security squad embodied as bodies moving deck by deck** (`docs/borg-incursion.md`,
   *Still to come*).
 - **O14 — the wall-clock exit wired to the engine's quit path** (`docs/evidence/clocks-and-exits.md`).
-- **O15 — the nine-scenario first slate** and the rank-and-role authoring rule (`docs/scenario-atlas.md`).
+- **O15 — the nine-scenario first slate** and the rank-and-role authoring rule
+  (`docs/scenario-atlas.md`). **The authoring rule now carries the post-not-name law** (2026-10-08,
+  `feat/the-configurator`): because the player may field an all-fictitious crew, no scenario, meeting
+  brief, log entry or voice line may name a crew member; each addresses a post and the simulation
+  resolves it to a person (`docs/the-entry-point.md`, part three; `docs/hook-register.md`'s `law`
+  column). The slate itself is still to author.
 - **O18 — Track D / the multiplayer premise** (kind 2, deferred): `docs/multiplayer-premise.md`,
   `docs/design-north-star.md` §8.
 

@@ -627,9 +627,9 @@ static void TestSave()
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[6] = 7; // a different complement
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[43] = 5; // an alert condition that does not exist
+	bad = blob; bad[61] = 5; // an alert condition that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[45] = 0x7f; // a health that is not a fraction
+	bad = blob; bad[65] = 0x7f; // a health that is not a fraction
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[16] = 9; // a play mode that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
@@ -6142,6 +6142,223 @@ static int PrintWork()
 	return 0;
 }
 
+// ---- the configurator (docs/the-entry-point.md, Part three) -----------------------------------
+//
+// The three proving cases, each a different path: the canon default (nobody dies, the chain is
+// intact), the captain (the chair is vacant and the derivation fills it), and an all-fictitious crew
+// (none of the show characters appear). The tests below demonstrate the acceptance; `--starts`
+// prints the three in full, and scripts/configurator-check.sh judges the print.
+
+static void TestCanonStartUntouched()
+{
+	g_test = "the canon default start loads untouched";
+	CHECK(StartStateCount() >= 3);
+	CHECK(std::string(StartStateAt(0).name) == "CANON"); // the configurator opens on it
+	for (int i = 0; i < StartStateCount(); ++i) CHECK(std::string(StartStateAt(i).name).size() > 0);
+
+	Config cfg;
+	Ship s = NewShip(cfg);
+	ApplyStartState(s, StartStateAt(0));
+	CHECK(!s.cfg.fictitious);
+	CHECK(static_cast<int>(s.crew.size()) == COMPLEMENT);
+	CHECK(s.CrewFit() == COMPLEMENT);                       // nobody died
+	CHECK(s.seatHolder[SEAT_CAPTAIN] == 0);                 // Janeway still holds the chair
+	CHECK(s.crew[s.seatHolder[SEAT_FIRST_OFFICER]].type == "chakotay");
+	CHECK(s.player >= 0);                                   // a junior officer is chosen
+	CHECK(!PlayerMayCommand(s));                            // and does not command
+	// The log's first entry states the losses, the condition, and that no rescue is coming.
+	CHECK(!s.log.empty());
+	const std::string seed = LogSeedText(s, StartStateAt(0));
+	CHECK(seed.find("no one in the command crew was lost") != std::string::npos);
+	CHECK(seed.find("No rescue is coming") != std::string::npos);
+	CHECK(s.log[0].what == seed);
+	CHECK(s.log[0].scope == "command");
+	CHECK(s.log[0].what.find("Starfleet junior") != std::string::npos);
+}
+
+static void TestCaptainVacancyDerived()
+{
+	g_test = "the chair is vacant and the derivation fills it";
+	Config cfg;
+	const StartState &st = StartStateAt(1);
+	CHECK(std::string(st.name) == "THE CHAIR");
+	CHECK(st.casualty[SEAT_CAPTAIN]);
+	Ship s = NewShip(cfg);
+	ApplyStartState(s, st);
+	// The casualty is closed, and the record names her as the one who made the vacancy.
+	bool janewayDead = false;
+	for (const CrewMember &c : s.crew) if (c.type == "janeway") janewayDead = (c.status == CREW_DEAD);
+	CHECK(janewayDead);
+	const int chair = SeatHolder(s, SEAT_CAPTAIN);
+	CHECK(chair == s.player);
+	CHECK(s.crew[chair].rank == 6);
+	CHECK(PlayerMayCommand(s));          // the authority is real afterwards
+	CHECK(s.log[0].what.find("Kathryn Janeway") != std::string::npos);
+	CHECK(s.log[0].what.find("the chair") != std::string::npos);
+
+	// The derivation, not the state, decides: the same casualty with a junior player leaves the
+	// senior officer in the chair. Nothing was hand-written -- the rank is what seats the player.
+	StartState junior = st;
+	junior.playerRank = 1;
+	junior.playerName = "Green";
+	Ship j = NewShip(cfg);
+	ApplyStartState(j, junior);
+	CHECK(SeatHolder(j, SEAT_CAPTAIN) != j.player);
+	CHECK(j.crew[SeatHolder(j, SEAT_CAPTAIN)].rank >= 5);
+	CHECK(j.player == chair || j.crew[SeatHolder(j, SEAT_CAPTAIN)].status == CREW_FIT);
+}
+
+static void TestVacancySameRule()
+{
+	g_test = "a configurator vacancy and a mid-run loss are the same derivation";
+	Config cfg;
+	// The reference: the senior fit security officer once the seat-holder is gone.
+	Ship ref = NewShip(cfg);
+	KillCrew(ref, ref.seatHolder[SEAT_SECURITY], "a plasma fire");
+	const int expected = DepartmentHead(ref, DEPT_SECURITY);
+	CHECK(expected >= 0);
+
+	// The configurator's vacancy: Tuvok is a casualty of the opening; the seat is derived.
+	StartState st = StartStateAt(1);
+	st.casualty[SEAT_SECURITY] = true;
+	Ship a = NewShip(cfg);
+	ApplyStartState(a, st);
+	const int fromStart = SeatHolder(a, SEAT_SECURITY);
+	CHECK(fromStart == expected);
+
+	// The mid-run loss: the same holder dies in play, and FillVacancies -- the tick's own call --
+	// fills it by the same rule, from the same roster.
+	Ship b = NewShip(cfg);
+	const int tuvok = b.seatHolder[SEAT_SECURITY];
+	KillCrew(b, tuvok, "a plasma fire");
+	CHECK(SeatHolder(b, SEAT_SECURITY) == tuvok); // the record is closed; the seat is not yet derived
+	CHECK(FillVacancies(b, "vacant") >= 1);
+	const int fromPlay = SeatHolder(b, SEAT_SECURITY);
+	CHECK(fromPlay == expected);
+
+	// And the rule is genuinely the roster's: it is the highest-ranked fit security officer left.
+	CHECK(b.crew[fromPlay].dept == DEPT_SECURITY);
+	CHECK(b.crew[fromPlay].status == CREW_FIT);
+	for (const CrewMember &c : b.crew)
+		if (c.dept == DEPT_SECURITY && c.status == CREW_FIT)
+			CHECK(c.rank <= b.crew[fromPlay].rank);
+}
+
+static void TestFictitiousNoCanon()
+{
+	g_test = "an all-fictitious crew has no canon name anywhere";
+	Config cfg;
+	const StartState &st = StartStateAt(2);
+	CHECK(st.fictitious);
+	cfg.fictitious = st.fictitious;
+	Ship s = NewShip(cfg);
+	CHECK(cfg.fictitious);
+	CHECK(static_cast<int>(s.crew.size()) == COMPLEMENT);
+	ApplyStartState(s, st);
+	// None of the show characters appear: no record's type or name is a canon one.
+	static const char *const CANON[] = {"janeway", "chakotay", "tuvok", "paris", "kim", "torres", "doctor",
+		"seven", "neelix", "vorik", "munro", "biessman", "chang", "telsia", "chell", "jurot", "kenn", "odell"};
+	for (const CrewMember &c : s.crew) {
+		for (const char *n : CANON) {
+			CHECK(c.type.find(n) == std::string::npos);
+			CHECK(c.name.find(n) == std::string::npos);
+		}
+	}
+	// Every seat is held by a generated record: the derivation filled the whole chain.
+	for (int seat = 0; seat < SEAT_COUNT; ++seat) {
+		const int h = SeatHolder(s, seat);
+		CHECK(h >= 0 && h < static_cast<int>(s.crew.size()));
+	}
+	CHECK(s.crew[SeatHolder(s, SEAT_CAPTAIN)].rank == 6);
+	// Nothing in the run depends on a canon name: the command authority is a generated name, and the
+	// first log entry is signed by one.
+	CHECK(CommandingOfficer(s).find("Janeway") == std::string::npos);
+	CHECK(s.log[0].who.find("Janeway") == std::string::npos);
+	CHECK(s.log[0].what.find("Janeway") == std::string::npos);
+}
+
+static void TestStartStateSaveRoundTrip()
+{
+	g_test = "a configured start saves and reloads identically";
+	for (int i = 0; i < StartStateCount(); ++i) {
+		const StartState &st = StartStateAt(i);
+		Config cfg;
+		cfg.fictitious = st.fictitious;
+		Ship s = NewShip(cfg);
+		ApplyStartState(s, st);
+		const std::vector<uint8_t> blob = Pack(s);
+		Ship back;
+		CHECK(Unpack(blob.data(), blob.size(), back));
+		CHECK(Pack(back) == blob);
+		CHECK(back.cfg.fictitious == s.cfg.fictitious);
+		CHECK(back.career == s.career);
+		CHECK(back.player == s.player);
+		for (int seat = 0; seat < SEAT_COUNT; ++seat)
+			CHECK(back.seatHolder[seat] == s.seatHolder[seat]);
+		CHECK(!back.log.empty() && back.log[0].what == s.log[0].what);
+	}
+}
+
+static void TestCharacterCreationComposes()
+{
+	g_test = "character creation composes with the start state";
+	// The situation seats the player in the chair; creation names that person and does not move them.
+	Config cfg;
+	Ship s = NewShip(cfg);
+	ApplyStartState(s, StartStateAt(1));
+	CHECK(SeatHolder(s, SEAT_CAPTAIN) == s.player);
+	const int seat = s.player;
+	const int who = CreateCharacter(s, "Okoro", DEPT_SECURITY, 1);
+	CHECK(who == seat);                                  // the same person, renamed
+	CHECK(s.player == SeatHolder(s, SEAT_CAPTAIN));      // the situation is unchanged
+	CHECK(s.crew[s.player].name == "Okoro");
+	CHECK(s.crew[s.player].rank == 6);                   // the seat fixes the rank
+
+	// An ordinary post: creation chooses the person, and the state does not override it.
+	Ship t = NewShip(cfg);
+	ApplyStartState(t, StartStateAt(0));
+	const int before = t.player;
+	CHECK(CreateCharacter(t, "Reyes", DEPT_ENGINEERING, 2) == before);
+	CHECK(t.crew[before].name == "Reyes");
+	CHECK(SeatHeldBy(t, before) < 0);                    // still an ordinary post
+}
+
+static void PrintStartState(const StartState &st, int index)
+{
+	Config cfg;
+	cfg.fictitious = st.fictitious;
+	Ship s = NewShip(cfg);
+	ApplyStartState(s, st);
+	std::printf("  [%d] %s -- %s\n", index, st.name, st.blurb);
+	std::printf("      reason: %s\n", st.reason);
+	std::printf("      career: %s (%s)\n", CareerPathName(st.career), CareerPathBlurb(st.career));
+	std::printf("      roster: %s\n", st.fictitious ? "generated entirely -- no show character appears"
+		: "the canon crew, with the casualties below closed");
+	for (int i = 0; i < SEAT_COUNT; ++i) {
+		const int h = SeatHolder(s, i);
+		if (h >= 0)
+			std::printf("      seat: %-24s = %s%s\n", SeatName(i), s.crew[h].name.c_str(),
+				st.casualty[i] ? "  (derived: the named holder was lost)" : "");
+		else
+			std::printf("      seat: %-24s = VACANT\n", SeatName(i));
+	}
+	std::printf("      player: %s\n", PlayerPositionLine(s).c_str());
+	std::printf("      save: %d bytes\n", static_cast<int>(Pack(s).size()));
+	std::printf("      log: %s\n\n", LogSeedText(s, st).c_str());
+}
+
+static int PrintStarts()
+{
+	std::printf("== the configurator: the proving cases (docs/the-entry-point.md, Part three)\n");
+	{
+		Ship fresh = NewShip();
+		std::printf("  [baseline] a fresh ship, no start state: %d crew, save %d bytes\n\n",
+			static_cast<int>(fresh.crew.size()), static_cast<int>(Pack(fresh).size()));
+	}
+	for (int i = 0; i < StartStateCount(); ++i) PrintStartState(StartStateAt(i), i);
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
@@ -6157,6 +6374,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
 	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
 	if (argc > 1 && !std::strcmp(argv[1], "--personal")) return PrintPersonal();
+	if (argc > 1 && !std::strcmp(argv[1], "--starts")) return PrintStarts();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -6274,6 +6492,12 @@ int main(int argc, char **argv)
 	TestRisingAtTheExtremeKills();
 	TestRisingOddsBeyondSkill();
 	TestRisingSaveRoundTrip();
+	TestCanonStartUntouched();
+	TestCaptainVacancyDerived();
+	TestVacancySameRule();
+	TestFictitiousNoCanon();
+	TestStartStateSaveRoundTrip();
+	TestCharacterCreationComposes();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);
