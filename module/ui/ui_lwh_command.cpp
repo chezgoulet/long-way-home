@@ -142,7 +142,7 @@ void CommandDraw( void )
 			UI_DrawProportionalString( 44, 376 + row * 12, tok, UI_TINYFONT, colorTable[CT_LTBLUE2] );
 	}
 
-	UI_DrawProportionalString( 44, 412, "UP/DOWN system   LEFT/RIGHT deck   R see to it first   G guard that deck   V evacuate that deck   W write it off",
+	UI_DrawProportionalString( 44, 412, "UP/DOWN system   LEFT/RIGHT deck   R see to it first   G guard deck   V evacuate deck   W write it off   S squad",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 	UI_DrawProportionalString( 44, 426, "T triage order   O month report   J job queue   A chart   C clear orders   P promote   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
@@ -164,6 +164,9 @@ bool CommandAct( int key )
 		return true;
 	case 'g': case 'G': Order( va( "security %d", command.deck ) ); return true;
 	case 'v': case 'V': Order( va( "evacuate %d", command.deck ) ); return true;
+	case 's': case 'S': // send the security squad to retake the deck under the cursor (the Borg response)
+		ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship advance %d\n", command.deck ) );
+		return true;
 	case 'w': case 'W':
 		ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship writeoff %d\n", command.deck ) );
 		return true;

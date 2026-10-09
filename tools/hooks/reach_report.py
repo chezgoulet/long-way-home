@@ -46,6 +46,9 @@ UI_FUNCTIONS = {
     "MakeBreach", "BreachScore", "CounterHack",
     "SetAlert",
     "FireTorpedo", "SetPhaserYield", "PhaserYieldName", "PhaserYieldOf",
+    # The Tactical console's combat kit and command's squad (the reachability pass, 2026-10-09):
+    # ui_lwh_engineering.cpp sends `ship target|remodulate|vinculum`, ui_lwh_command.cpp `ship advance`.
+    "SetTarget", "Remodulate", "RaidVinculum", "OrderAdvance",
     "TransporterConditionLine", "TransportAway", "TransportBack", "AwayTeam",
     "Hail", "Trade", "AnswerDistress", "SetForceField", "SetForceFieldLevel",
     "Jump", "SetCourse", "PlotCourse", "Disengage",

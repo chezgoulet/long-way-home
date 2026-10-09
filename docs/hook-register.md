@@ -198,8 +198,8 @@ substance of the brief's point and stands.
 | `DeckAssimilated` | `const Ship &s, int deck` | deck assimilated | play | — | — |
 | `Jump` | `Ship &s, int toBeacon` | jump | play | — | — |
 | `InCombat` | `const Ship &s` | in combat | play | — | — |
-| `Remodulate` | `Ship &s` | The counter-play kit (docs/borg-incursion.md): the phaser adapter's rotating modulation, and a vinculum raid | console | — | docs/borg-incursion.md |
-| `RaidVinculum` | `Ship &s` | raid vinculum | console | — | — |
+| `Remodulate` | `Ship &s` | The counter-play kit (docs/borg-incursion.md): the phaser adapter's rotating modulation, and a vinculum raid | play | — | docs/borg-incursion.md |
+| `RaidVinculum` | `Ship &s` | raid vinculum | play | — | — |
 | `ShutDownCore` | `Ship &s` | shut down core | play | — | — |
 | `RestartCore` | `Ship &s` | restart core | play | — | — |
 | `EjectCore` | `Ship &s` | eject core | play | — | — |
@@ -226,7 +226,7 @@ substance of the brief's point and stands.
 | `WriteOff` | `Ship &s, bool system, int target, uint8_t kind` | Write it off: the one moment the ship gives something up for good | play | — | docs/story-and-semantics.md |
 | `OrderBuild` | `Ship &s, int parts` | Command orders a net-new thing built: the crew fabricate spare parts over crew-hours | play | — | — |
 | `SetJobPriority` | `Ship &s, int index, int priority` | Command sets a job's place in the order (docs/crew-work.md: "priority is where rank lives") | play | — | docs/crew-work.md |
-| `OrderAdvance` | `Ship &s, int deck` | order advance | console | — | — |
+| `OrderAdvance` | `Ship &s, int deck` | order advance | play | — | — |
 | `SetAlert` | `Ship &s, Alert a` | set alert | play | — | — |
 | `SetEnabled` | `Ship &s, SystemId id, bool on` | set enabled | play | post | — |
 | `SetPriority` | `Ship &s, SystemId id, int priority` | set priority | play | post | — |
@@ -246,7 +246,7 @@ substance of the brief's point and stands.
 | `SetMobileEmitter` | `Ship &s, bool on` | set mobile emitter | console | — | — |
 | `EndHolodeckProgram` | `Ship &s, int crew` | end holodeck program | console | person | — |
 | `SetAirponics` | `Ship &s, bool on` | set airponics | console | — | — |
-| `SetTarget` | `Ship &s, EnemySubsystem t` | An opponent's systems (S9): Tactical picks what to aim at, and its weapons, engines and shield generator are things to break in their own right | console | — | — |
+| `SetTarget` | `Ship &s, EnemySubsystem t` | An opponent's systems (S9): Tactical picks what to aim at, and its weapons, engines and shield generator are things to break in their own right | play | — | — |
 | `SetPhaserYield` | `Ship &s, int y` | The phaser bank's setting (Tactical's standing decision, and the one that has an effect with no contact: it changes what the bank asks of the power budget and what it... | play | — | — |
 | `Delegate` | `Ship &s, int grantor, int grantee, Station st` | delegate | console | post+person | — |
 | `RevokeDelegation` | `Ship &s, int revoker, int grantee, Station st` | revoke delegation | console | post+person | — |
@@ -462,8 +462,8 @@ substance of the brief's point and stands.
 
 | state | hooks |
 |---|---|
-| reached in play | 184 |
-| reached only from the developer console | 129 |
+| reached in play | 188 |
+| reached only from the developer console | 125 |
 | reached by nothing yet | 35 |
 | — of those, reached only by the tests | 29 |
 | — of those, no caller anywhere | 6 |
@@ -477,13 +477,13 @@ The six with no caller anywhere: `SpeciesCapability`, `SpeciesNeed`, `SpeciesSus
 scenario author and the owner should read first: every one of these is a mechanism the simulation
 has and the game does not yet offer.
 
-### Reached only from the developer console (129)
+### Reached only from the developer console (125)
 
 **1. Entry points** (37): `OfferRising`, `OfferRisingTo`, `AttemptRising`, `NextRisingRoll`, `WritePersonalLog`, `VoiceWrite`, `VoiceRetire`, `EmitCue`, `QueueRender`, `CacheRendered`, `PruneVoiceCache`, `PlanMeetingAudio`, `WarmVoice`, `Repair`, `RepairDeck`, `LoadAwayKit`, `LaunchShuttle`, `RecallShuttle`, `LoseShuttle`, `ShuttleBayHit`, `RebuildShuttle`, `TractorWreck`, `TractorHold`, `LaunchProbe`, `RespondPhenomenon`, `FabricateParts`, `FabricateRations`, `MineBelt`, `EVA`, `TakeSurvivors`, `ObservePreWarp`, `InterferePreWarp`, `ReconcileFactions`, `Survey`, `CatchUp`, `Suspend`, `Sleep`
 
-**2. Situations the simulation generates on its own** (18): `EffectiveSkill`, `WorkContextName`, `WorkReading`, `PendingMeetings`, `TakeBrief`, `ApplyMeetingOutcome`, `DamageSystem`, `DamageSource`, `BreachDeck`, `IgniteDeck`, `Board`, `BoardAs`, `BoardBorg`, `Remodulate`, `RaidVinculum`, `JumpStartFromHolodeck`, `Pursued`, `AdvanceSector`
+**2. Situations the simulation generates on its own** (16): `EffectiveSkill`, `WorkContextName`, `WorkReading`, `PendingMeetings`, `TakeBrief`, `ApplyMeetingOutcome`, `DamageSystem`, `DamageSource`, `BreachDeck`, `IgniteDeck`, `Board`, `BoardAs`, `BoardBorg`, `JumpStartFromHolodeck`, `Pursued`, `AdvanceSector`
 
-**3. Outcomes content can ask for** (20): `OrderAdvance`, `SetAllocationBy`, `Hearing`, `SetMobileEmitter`, `EndHolodeckProgram`, `SetAirponics`, `SetTarget`, `Delegate`, `RevokeDelegation`, `RevokeCredential`, `LockOut`, `ClearLockout`, `Train`, `Brig`, `HoldFuneral`, `Brief`, `MakePromise`, `RunHolodeck`, `ImproveQuarters`, `SetRole`
+**3. Outcomes content can ask for** (18): `SetAllocationBy`, `Hearing`, `SetMobileEmitter`, `EndHolodeckProgram`, `SetAirponics`, `Delegate`, `RevokeDelegation`, `RevokeCredential`, `LockOut`, `ClearLockout`, `Train`, `Brig`, `HoldFuneral`, `Brief`, `MakePromise`, `RunHolodeck`, `ImproveQuarters`, `SetRole`
 
 **4. Readers content can consult** (54): `OperatedFrom`, `AllocationByName`, `ControllerName`, `RisingOutcomeName`, `RisingDriveAtStake`, `RisingOdds`, `DeliveryName`, `DeliveryExaggeration`, `DeliveryKnown`, `MeetingEffectName`, `ResolveSpeaker`, `LineToSynthesis`, `VoiceProducerName`, `TrackOwner`, `OwnsTrack`, `TrackBusy`, `CueName`, `CueClip`, `CuePurpose`, `RenderKey`, `VoiceCachePath`, `VoiceCached`, `VoiceQueued`, `AllocationProvenance`, `ShuttleLocationName`, `ShuttlesInBay`, `ShuttlesAway`, `PhenomenonResponseName`, `Refugees`, `Resentment`, `BorgAwareness`, `MobileEmitter`, `Airponics`, `Target`, `MaySuspend`, `LeftStanding`, `MayOperate`, `MayCallAlert`, `DelegatedTo`, `OverrideActive`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `Brigged`, `PlayerDead`, `Recall`, `RecallSource`, `MemoryCount`, `Promises`, `PlayerMayOperate`, `CaptainLog`
 
