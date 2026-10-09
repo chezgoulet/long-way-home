@@ -187,11 +187,43 @@ void VoiceWriteManifest()
 {
 	std::string out;
 	for ( const ship::RenderJob &j : voiceRender.queue )
-		out += Fmt( "{\"key\":\"%s\",\"voice\":\"%s\",\"text\":\"%s\",\"delivery\":\"%s\",\"exaggeration\":%.2f}\n",
+		out += Fmt( "{\"key\":\"%s\",\"voice\":\"%s\",\"text\":\"%s\",\"delivery\":\"%s\",\"exaggeration\":%.2f,"
+			"\"reference\":\"refs/%s.wav\"}\n",
 			JsonEsc( j.key ).c_str(), JsonEsc( j.voice ).c_str(), JsonEsc( j.text ).c_str(),
-			ship::DeliveryName( j.delivery ), j.exaggeration );
+			ship::DeliveryName( j.delivery ), j.exaggeration, JsonEsc( j.voice ).c_str() );
 	WriteFile( "ship/voice/render.jsonl", out.data(), static_cast<int>( out.size() ) );
 	gi.Printf( "SHIP: voice: wrote ship/voice/render.jsonl (%d job(s))\n", static_cast<int>( voiceRender.queue.size() ) );
+}
+
+// The renderer's measurements, beside the cache: one `key|seconds` line per clip it wrote. Loading
+// them fills the cache with the clips' own durations, which is what paces the pills (and makes a
+// reload a no-op: a key already cached is never queued again). Player-local data; never the repo.
+std::string ReadText( const char *path ); // defined with the meeting host, below
+void LoadVoiceDurations( void )
+{
+	const std::string text = ReadText( "ship/voice/durations.txt" );
+	size_t at = 0;
+	int loaded = 0;
+	while ( at < text.size() )
+	{
+		const size_t nl = text.find( '\n', at );
+		const std::string line = text.substr( at, nl == std::string::npos ? std::string::npos : nl - at );
+		at = nl == std::string::npos ? text.size() : nl + 1;
+		const size_t bar = line.find( '|' );
+		if ( bar == std::string::npos ) continue;
+		const std::string key = line.substr( 0, bar );
+		const float secs = static_cast<float>( atof( line.substr( bar + 1 ).c_str() ) );
+		if ( key.empty() || secs <= 0.0f ) continue;
+		if ( ship::VoiceCached( voiceRender, key ) ) continue;
+		if ( static_cast<int>( voiceRender.cache.size() ) >= ship::VOICE_CACHE_MAX ) break;
+		ship::VoiceCacheEntry e;
+		e.key = key;
+		e.file = ship::VoiceCachePath( voiceRender, key );
+		e.duration = secs;
+		voiceRender.cache.push_back( e );
+		++loaded;
+	}
+	if ( loaded ) gi.Printf( "SHIP: voice: loaded %d measured duration(s) from ship/voice/durations.txt\n", loaded );
 }
 
 // ---- M4: the async generator and the novelty classifier, host side --------------------------------
@@ -514,8 +546,12 @@ void PublishMeeting( void )
 		{
 			const ship::MeetingLine &ln = oc.lines[l];
 			const int crew = ship::ResolveSpeaker( vessel, b, ln.speaker );
+			// The 7th field is the line's own duration in seconds (M5): the clip's measured length when
+			// it is rendered, else a text-length fallback. The room paces the pills by it, so the options
+			// are offered for as long as the line actually runs.
 			gi.cvar_set( Fmt( "lwh_ship_meeting_line%d_%d", o, l ).c_str(),
-				Fmt( "%s|%s|%s", speakerRow( crew ).c_str(), ln.text.c_str(), ship::DeliveryName( ln.delivery ) ).c_str() );
+				Fmt( "%s|%s|%s|%.3f", speakerRow( crew ).c_str(), ln.text.c_str(),
+					ship::DeliveryName( ln.delivery ), ship::MeetingLineSeconds( voiceRender, vessel, b, ln ) ).c_str() );
 		}
 	}
 }
@@ -1381,7 +1417,7 @@ void RunTest( void )
 			gi.SendConsoleCommand( "lwh_meet_key 4\n" );
 			step = 5;
 		}
-		if ( step == 5 && level.time >= 6800 )
+		if ( step == 5 && level.time >= 12000 )
 		{
 			gi.Printf( "SHIP: overlay test: after the pill, holodecks %d%% shields %d%% provenance %s\n",
 				ship::AllocationPercent( vessel, ship::SYS_HOLODECKS ), ship::AllocationPercent( vessel, ship::SYS_SHIELDS ),
@@ -1395,7 +1431,7 @@ void RunTest( void )
 				ship::AllocationPercent( vessel, ship::SYS_HOLODECKS ), before );
 			step = 6;
 		}
-		if ( step == 6 && level.time >= 7600 )
+		if ( step == 6 && level.time >= 13000 )
 		{
 			// A frame with the seam's answer drawn: meet.said's placement (Task A) is judged on the
 			// screen, so the run leaves time for the screenshot before it quits.
@@ -1403,7 +1439,7 @@ void RunTest( void )
 			WriteReport( "ship/meeting-overlay.txt" );
 			step = 7;
 		}
-		if ( step == 7 && level.time >= 8200 ) { gi.SendConsoleCommand( "quit\n" ); step = 8; }
+		if ( step == 7 && level.time >= 14000 ) { gi.SendConsoleCommand( "quit\n" ); step = 8; }
 		return;
 	}
 	if ( g_shipTest->integer == 83 )
@@ -1475,6 +1511,102 @@ void RunTest( void )
 			WriteReport( "ship/model.txt" );
 			gi.SendConsoleCommand( "quit\n" );
 			step = 5;
+		}
+		return;
+	}
+	if ( g_shipTest->integer == 84 )
+	{//the casting map and voice out (docs/the-entry-point.md, "And the voice follows the cast"; M5).
+	 //The cast is derived from the start state -- a canon survivor keeps the retail voice, a canon
+	 //character who died has none, and a fictitious member is cast from the non-canon pool -- and it
+	 //is deterministic across a re-generation. Every scripted line is planned with its cast reference
+	 //during generation; a novel answer plays a pause cue immediately and resolves inside the pause or
+	 //defers; and the pills are paced by the clips' measured durations. No model is called from here.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 )
+		{//the three proving cases, and the determinism of the map
+			ship::Config cfg;
+			ship::Ship canon = ship::NewShip( cfg );
+			ship::ApplyStartState( canon, ship::StartStateAt( 0 ) );
+			int canonVoice = 0, poolVoice = 0;
+			std::string tuvokVoice;
+			for ( int i = 0; i < static_cast<int>( canon.crew.size() ); ++i )
+			{
+				if ( ship::CastIsCanon( canon, i ) ) ++canonVoice; else ++poolVoice;
+				if ( canon.crew[i].type == "tuvok" ) tuvokVoice = ship::CastVoice( canon, i );
+			}
+			gi.Printf( "SHIP: cast test: canon: %d canon voice(s), %d from the non-canon pool\n", canonVoice, poolVoice );
+			gi.Printf( "SHIP: cast test: canon survivor Tuvok -> %s (the retail voice)\n", tuvokVoice.c_str() );
+
+			ship::Ship chair = ship::NewShip( cfg );
+			ship::ApplyStartState( chair, ship::StartStateAt( 1 ) );
+			std::string deadVoice = "MISSING";
+			for ( int i = 0; i < static_cast<int>( chair.crew.size() ); ++i )
+				if ( chair.crew[i].type == "janeway" ) deadVoice = ship::CastVoice( chair, i );
+			gi.Printf( "SHIP: cast test: the chair: Janeway is dead -> voice \"%s\" (no voice; no line is authored)\n", deadVoice.c_str() );
+
+			ship::Config fcfg; fcfg.fictitious = true;
+			ship::Ship fict = ship::NewShip( fcfg );
+			ship::ApplyStartState( fict, ship::StartStateAt( 2 ) );
+			int fictCanon = 0;
+			for ( int i = 0; i < static_cast<int>( fict.crew.size() ); ++i )
+				if ( ship::CastIsCanon( fict, i ) ) ++fictCanon;
+			gi.Printf( "SHIP: cast test: all-fictitious: %d crew, %d canon voice(s) used\n",
+				static_cast<int>( fict.crew.size() ), fictCanon );
+
+			ship::Ship again = ship::NewShip( cfg );
+			ship::ApplyStartState( again, ship::StartStateAt( 0 ) );
+			bool same = canon.crew.size() == again.crew.size();
+			for ( int i = 0; i < static_cast<int>( canon.crew.size() ) && same; ++i )
+				if ( ship::CastVoice( canon, i ) != ship::CastVoice( again, i ) ) same = false;
+			gi.Printf( "SHIP: cast test: the same start state re-cast gives the same map=%d\n", same ? 1 : 0 );
+
+			// Voice out during generation: the watch-change brief's lines are planned with cast
+			// references, off the critical path, and no model is called.
+			vessel.clock = ( std::floor( vessel.clock / ship::SECONDS_PER_WATCH ) + 1.0 ) * ship::SECONDS_PER_WATCH;
+			ship::Tick( vessel, 1.0f );
+			if ( !ship::PendingMeetings( vessel ).empty() )
+			{
+				const ship::MeetingBrief mb = ship::PendingMeetings( vessel ).front();
+				const ship::MeetingSkeleton &sk = ship::AuthoredSkeleton( mb.kind );
+				voiceRender.dir = VOICE_DIR;
+				const int planned = ship::PlanMeetingAudio( voiceRender, vessel, mb, sk );
+				gi.Printf( "SHIP: cast test: voice out during generation: planned %d line(s), queue unfinished=%d, inference calls=0\n",
+					planned, static_cast<int>( voiceRender.queue.size() ) );
+				VoiceWriteManifest();
+				// The durations the renderer measured, if this host has them: the pills are paced by
+				// them. If not, the text fallback paces the line and says so.
+				LoadVoiceDurations();
+				const ship::MeetingLine &line = sk.outcomes[0].lines[0];
+				const std::string key = ship::MeetingLineKey( vessel, mb, line );
+				const float secs = ship::MeetingLineSeconds( voiceRender, vessel, mb, line );
+				gi.Printf( "SHIP: cast test: pacing: \"%s\" runs %.3fs (%s); inference calls=0\n",
+					line.text.c_str(), secs,
+					ship::CachedDuration( voiceRender, key ) > 0.0f ? "the clip's own measured duration"
+						: "text fallback, no clip rendered" );
+			}
+
+			// A novel answer plays a cue immediately, and resolves inside the pause or defers.
+			ship::VoiceMixer m;
+			const ship::MeetingBrief b = ship::BuildBrief( vessel, ship::MEET_WATCH_CHANGE );
+			const ship::PauseOutcome fast = ship::SubmitNovelAnswer( vessel, m, b, "watch the reserve closely", 0.5f );
+			gi.Printf( "SHIP: cast test: pause: fast cue=%d, resolved inside the pause=%d\n", fast.cue, fast.resolved ? 1 : 0 );
+			const ship::PauseOutcome slow = ship::SubmitNovelAnswer( vessel, m, b, "make it so", 5.0f );
+			const ship::VoiceReply *r = ship::ActiveReply( m, ship::TRACK_CUE );
+			gi.Printf( "SHIP: cast test: pause: slow deferral=%d \"%s\" -> the outcome moves to a later beat\n",
+				slow.deferral, r ? ship::CueName( static_cast<uint8_t>( r->cue ) ) : "none" );
+			if ( slow.deferral >= 0 ) ship::VoiceRetire( m, ship::PROD_CUE_PLAYER, slow.deferral );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3400 )
+		{//the cache prunes with the save, and a reload replays rather than re-rendering
+			const int before = static_cast<int>( voiceRender.cache.size() );
+			const int dropped = ship::PruneVoiceCache( voiceRender );
+			gi.Printf( "SHIP: cast test: the cache prunes with the save: %d of %d entr(ies) dropped, cache now %d\n",
+				dropped, before, static_cast<int>( voiceRender.cache.size() ) );
+			WriteReport( "ship/cast.txt" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 2;
 		}
 		return;
 	}
@@ -3742,6 +3874,8 @@ void Ship_Init( void )
 	// M4: the worker's output, read once here and never on the render loop -- the generated scripts
 	// and the classifier's verdicts, both beside the save.
 	LoadMeetingFiles();
+	// M5: the renderer's measured durations, which pace the pills and make a reload a no-op.
+	LoadVoiceDurations();
 
 	// Taking the turbolift is a level change, and the ship must come through it: the state written
 	// at shutdown is read back here. A new game, or a load, starts from its own source instead.
@@ -4030,6 +4164,21 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "SHIP: voice: warm %d, %d line(s) cached, %d queued, dir %s\n",
 			voiceRender.warm ? 1 : 0, static_cast<int>( voiceRender.cache.size() ),
 			static_cast<int>( voiceRender.queue.size() ), voiceRender.dir.c_str() );
+		return;
+	}
+	if ( !Q_stricmp( cmd, "cast" ) )
+	{//the casting map (docs/the-entry-point.md, "And the voice follows the cast"): derived from the
+	 //start state, held for the campaign, deterministic. A canon character who died has no voice.
+		int canon = 0, pool = 0, silent = 0;
+		for ( int i = 0; i < static_cast<int>( vessel.crew.size() ); ++i )
+		{
+			const std::string v = ship::CastVoice( vessel, i );
+			if ( v.empty() ) { ++silent; continue; }
+			if ( ship::CastIsCanon( vessel, i ) ) ++canon; else ++pool;
+		}
+		gi.Printf( "SHIP: cast: %d crew; the non-canon pool: %d voice(s)\n",
+			static_cast<int>( vessel.crew.size() ), ship::VoicePoolCount() );
+		gi.Printf( "SHIP: cast: canon voices=%d, pool castings=%d, no voice=%d (the dead)\n", canon, pool, silent );
 		return;
 	}
 	if ( !Q_stricmp( cmd, "role" ) )
@@ -4640,14 +4789,22 @@ void Svcmd_Ship_f( void )
 			return;
 		}
 		if ( !Q_stricmp( a, "say" ) )
-		{//typed text, not a pill: it goes to the novelty seam and never to a branch by accident
+		{//typed text, not a pill: it goes to the novelty seam and never to a branch by accident. M5:
+		 //the pause is filled immediately with a cue, and the answer resolves inside the pause or is
+		 //deferred to a later beat (SubmitNovelAnswer). It writes no ship state either way.
 			if ( !meetingOpen ) { gi.Printf( "SHIP: meeting say: no room is open, so there is nothing to answer\n" ); return; }
 			const std::string text = b;
 			const ship::NoveltyResult nr = ship::ClassifyNovelInput( vessel, currentMeeting, text );
-			meetingSaid = text + "  ->  " + nr.note;
-			gi.Printf( "SHIP: meeting say: \"%s\": %s\n", text.c_str(),
-				nr.matched ? Fmt( "matched branch %d", nr.outcome ).c_str() : "no branch matched (novel)" );
-			gi.Printf( "SHIP: meeting say: %s\n", nr.note.c_str() );
+			// The answer is already known when a verdict is loaded, so it resolves inside the pause;
+			// otherwise the worker has not answered yet and the outcome is deferred.
+			const float elapsed = nr.matched ? 0.3f : 5.0f;
+			const ship::PauseOutcome po = ship::SubmitNovelAnswer( vessel, voiceMixer, currentMeeting, text, elapsed );
+			meetingSaid = text + "  ->  " + po.note;
+			gi.Printf( "SHIP: meeting say: \"%s\": %s; %s\n", text.c_str(),
+				nr.matched ? Fmt( "matched branch %d", nr.outcome ).c_str() : "no branch matched (novel)",
+				po.resolved ? "the cue played and the answer resolved inside the pause"
+					: "the holding line plays; the outcome is deferred" );
+			gi.Printf( "SHIP: meeting say: %s\n", po.note.c_str() );
 			if ( nr.matched )
 			{
 				// A genuine match: the branch is offered (the pill resolves it); the simulation applies
@@ -4681,7 +4838,7 @@ void Svcmd_Ship_f( void )
 			}
 			return;
 		}
-		if ( !Q_stricmp( a, "reload" ) ) { LoadMeetingFiles(); return; }
+		if ( !Q_stricmp( a, "reload" ) ) { LoadMeetingFiles(); LoadVoiceDurations(); return; }
 		if ( !Q_stricmp( a, "generate" ) )
 		{//write the generator manifest for the queued briefs (the async worker drains it)
 			WriteGenerateManifest( ship::PendingMeetings( vessel ) );

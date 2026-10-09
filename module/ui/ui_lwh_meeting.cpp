@@ -60,11 +60,14 @@ int QueueCount( void ) { return static_cast<int>( ui.Cvar_VariableValue( "lwh_sh
 int OptionCount( void ) { return static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_meeting_options" ) ); }
 int LineCount( int outcome ) { return static_cast<int>( ui.Cvar_VariableValue( va( "lwh_ship_meeting_lc%d", outcome ) ) ); }
 
-// One skeleton line as the ship published it: speaker name|post|watch|mood|text|delivery. The
+// One skeleton line as the ship published it: speaker name|post|watch|mood|text|delivery|seconds. The
 // delivery is read into the struct so it is carried with the line (Task C) and is deliberately never
-// drawn: the seam to synthesis owns it, not the frame.
+// drawn: the seam to synthesis owns it, not the frame. The 7th field (M5) is the line's own duration,
+// measured from the rendered clip: it paces the pills, so the options are offered for as long as the
+// line actually runs.
 struct Line {
 	char name[32], post[40], watch[16], mood[24], text[200], delivery[20];
+	float seconds;
 	bool ok;
 };
 Line ReadLine( int outcome, int line )
@@ -73,8 +76,8 @@ Line ReadLine( int outcome, int line )
 	memset( &L, 0, sizeof( L ) );
 	char buf[384];
 	ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_line%d_%d", outcome, line ), buf, sizeof( buf ) );
-	char *f[6];
-	const int n = Split( buf, '|', f, 6 );
+	char *f[7];
+	const int n = Split( buf, '|', f, 7 );
 	if ( n < 6 ) return L;
 	Q_strncpyz( L.name, f[0], sizeof( L.name ) );
 	Q_strncpyz( L.post, f[1], sizeof( L.post ) );
@@ -82,8 +85,17 @@ Line ReadLine( int outcome, int line )
 	Q_strncpyz( L.mood, f[3], sizeof( L.mood ) );
 	Q_strncpyz( L.text, f[4], sizeof( L.text ) );
 	Q_strncpyz( L.delivery, f[5], sizeof( L.delivery ) );
+	L.seconds = n >= 7 ? static_cast<float>( atof( f[6] ) ) : 0.0f;
 	L.ok = true;
 	return L;
+}
+
+// The milliseconds a line's pill is offered for: its measured duration when it has one, else a small
+// floor so a text-only line (no model) still advances.
+static int LineMs( int outcome, int line )
+{
+	const Line L = ReadLine( outcome, line );
+	return L.seconds > 0.05f ? static_cast<int>( L.seconds * 1000.0f ) : 650;
 }
 
 void Send( const char *command ) { ui.Cmd_ExecuteText( EXEC_APPEND, va( "%s\n", command ) ); }
@@ -319,7 +331,7 @@ void Draw( void )
 				meet.mode = MODE_DONE;
 				if ( meet.playLine > 0 ) meet.playLine = LineCount( meet.playOutcome ) - 1;
 			}
-			else meet.playNext = now + 650;
+			else meet.playNext = now + LineMs( meet.playOutcome, meet.playLine );
 		}
 	}
 	RoomDraw();
@@ -405,7 +417,7 @@ bool Act( int key )
 			meet.cursor = key - '0' - 1;
 			meet.playOutcome = meet.cursor;
 			meet.playLine = 0;
-			meet.playNext = ui.Milliseconds() + 650;
+			meet.playNext = ui.Milliseconds() + LineMs( meet.playOutcome, 0 );
 			meet.mode = MODE_PLAYING;
 		}
 		return true;

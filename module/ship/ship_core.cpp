@@ -6942,7 +6942,7 @@ int QueueRender(VoiceRender &vr, const RenderJob &job)
 	return 1;
 }
 
-bool CacheRendered(VoiceRender &vr, const std::string &key, const std::string &file)
+bool CacheRendered(VoiceRender &vr, const std::string &key, const std::string &file, float duration)
 {
 	bool queued = false;
 	for (size_t i = 0; i < vr.queue.size(); ++i)
@@ -6953,6 +6953,7 @@ bool CacheRendered(VoiceRender &vr, const std::string &key, const std::string &f
 	VoiceCacheEntry e;
 	e.key = key;
 	e.file = file.empty() ? VoiceCachePath(vr, key) : file;
+	e.duration = duration;
 	vr.cache.push_back(e);
 	return true;
 }
@@ -6964,18 +6965,150 @@ int PruneVoiceCache(VoiceRender &vr)
 	return n;
 }
 
-// The name a line's role resolves to when no one in the room fills it. For the renderer's benefit,
-// not the player's: it is the casting identity, and phase three casts our own crew.
-static const char *SpeakerRoleName(int speaker)
+// ---- the casting map: cast-state data derived from the start state --------------------------------
+
+// The non-canon pool: the hazard team and minor crew whose retail voices exist, in the brief's own
+// list. Not the canon command crew, and not the synthetic enemy generics (gen*). This is a decision
+// taken in the M5 brief rather than a reading of the design: the design says "a voice from our own
+// casting", and the mechanism requires a reference clip built from assets the player owns, so the
+// implementable and provenance-clean reading is to cast from the pool that is not canon.
+static const char *const VOICE_POOL[] = {
+	"munro", "alexa", "chell", "telsia", "foster", "biessman", "jurot", "csatlos",
+	"nelson", "jaworski", "odell", "oviedo", "kenn", "laird"
+};
+static const int VOICE_POOL_COUNT = static_cast<int>(sizeof(VOICE_POOL) / sizeof(VOICE_POOL[0]));
+int VoicePoolCount() { return VOICE_POOL_COUNT; }
+const char *VoicePoolName(int i) { return i >= 0 && i < VOICE_POOL_COUNT ? VOICE_POOL[i] : ""; }
+
+// The show command crew: the canon few whose retail voice is their own. The hazard team and the minor
+// crew are canon to the game but not to the show, and a fictitious crew member is cast from the pool.
+static const char *const CANON_VOICE[] = {
+	"janeway", "chakotay", "tuvok", "paris", "kim", "torres", "doctor", "seven", "neelix"
+};
+bool VoiceIsCanonType(const std::string &type)
 {
-	switch (speaker) {
-		case SPEAK_COMMAND: return "the commanding officer";
-		case SPEAK_ENGINEERING: return "the chief engineer";
-		case SPEAK_SECURITY: return "the security chief";
-		case SPEAK_SCIENCES: return "the science officer";
-		case SPEAK_MEDICAL: return "the chief medical officer";
-		default: return "the room";
+	for (const char *t : CANON_VOICE) if (type == t) return true;
+	return false;
+}
+
+// FNV-1a over the seed and the person's own immutable record (name, type, department, species). The
+// record is the same on the first build and again on a load -- its static half comes back from the
+// seed -- so the cast is identical both times and a save replays. Fields are separated, so no record
+// can forge another's boundary.
+static uint64_t CastHash(uint32_t seed, const CrewMember &c)
+{
+	uint64_t h = 1469598103934665603ULL;
+	auto mix = [&h](const std::string &t) {
+		for (unsigned char ch : t) { h ^= ch; h *= 1099511628211ULL; }
+		h ^= 0xFFu; h *= 1099511628211ULL;
+	};
+	h ^= seed; h *= 1099511628211ULL;
+	mix(c.name); mix(c.type);
+	mix(std::to_string(static_cast<int>(c.dept)));
+	mix(std::to_string(static_cast<int>(c.species)));
+	return h;
+}
+
+bool CastIsCanon(const Ship &s, int crew)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return false;
+	const CrewMember &c = s.crew[crew];
+	if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) return false;
+	return VoiceIsCanonType(c.type);
+}
+
+std::string CastVoice(const Ship &s, int crew)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return "";
+	const CrewMember &c = s.crew[crew];
+	if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) return ""; // no voice, no line
+	if (VoiceIsCanonType(c.type)) return c.type; // the character's own retail voice
+	if (VOICE_POOL_COUNT <= 0) return "";
+	return VoicePoolName(static_cast<int>(CastHash(s.cfg.seed, c) % static_cast<uint64_t>(VOICE_POOL_COUNT)));
+}
+
+// A character's small set of pause cues: the four non-verbal clips are the set, and the person's own
+// record and the seed choose which they reach for. Deterministic, so a pause is characterisation and
+// not a different tic each time. CUE_HOLDING is not in the set: it is the deferral line, spoken when
+// the answer is late.
+static uint8_t PauseCueFor(const Ship &s, int crew)
+{
+	static const uint8_t CUES[] = { CUE_BREATH, CUE_CHAIR, CUE_PADD_TAP, CUE_HMM };
+	uint64_t h = 1469598103934665603ULL;
+	if (crew >= 0 && crew < static_cast<int>(s.crew.size())) {
+		const CrewMember &c = s.crew[crew];
+		for (unsigned char ch : c.name) { h ^= ch; h *= 1099511628211ULL; }
+		for (unsigned char ch : c.type) { h ^= ch; h *= 1099511628211ULL; }
 	}
+	h ^= s.cfg.seed; h *= 1099511628211ULL;
+	return CUES[h % (sizeof(CUES) / sizeof(CUES[0]))];
+}
+
+// The pause a cue fills. A cue is a clip a second or so long; when the model answers inside it the
+// answer plays now, and when the model is slower the deferral line lands instead. Named as a call:
+// the budget is the cue's length, not a measured value of the rendered clips.
+static const float NOVEL_PAUSE_SECONDS = 1.4f;
+
+PauseOutcome SubmitNovelAnswer(Ship &s, VoiceMixer &m, const MeetingBrief &brief,
+                               const std::string &text, float modelSeconds)
+{
+	PauseOutcome out;
+	const int who = brief.presentCount > 0 ? brief.present[0].crew : -1;
+	const uint8_t cue = PauseCueFor(s, who);
+	// THE SUBMIT POINT: the cue plays immediately, before anything waits on the model. It is on the
+	// cue track, so it cannot touch a dialogue line (EmitCue writes only TRACK_CUE).
+	out.cue = EmitCue(s, m, cue, "a novel answer is submitted: the pause is filled, not hidden");
+
+	if (modelSeconds <= NOVEL_PAUSE_SECONDS) {
+		// The answer arrived inside the pause. The cue retires and the answer resolves now: the branch
+		// the classifier matched, or the live line when it was genuinely novel.
+		const NoveltyResult nr = ClassifyNovelInput(s, brief, text);
+		if (out.cue >= 0) VoiceRetire(m, PROD_CUE_PLAYER, out.cue);
+		out.resolved = true;
+		out.outcome = nr.matched ? nr.outcome : -1;
+		out.note = "the answer arrived inside the pause";
+		LogEvent(s, "the room", "meeting", std::string("the novel answer resolved inside the pause (")
+			+ CueName(cue) + (nr.matched ? ", branch " + std::to_string(nr.outcome) : ", a live line") + ")");
+		return out;
+	}
+
+	// The model was slower than the pause: the deferral line lands, and the outcome moves to a later
+	// beat -- a message, a corridor conversation, the log. Retire the pause cue first: one cue plays
+	// at a time.
+	if (out.cue >= 0) VoiceRetire(m, PROD_CUE_PLAYER, out.cue);
+	out.deferral = EmitCue(s, m, CUE_HOLDING, "the answer is late: the outcome moves to a later beat");
+	out.resolved = false;
+	out.outcome = -1;
+	out.note = "deferred: the answer lands later (a message, a corridor conversation, the log)";
+	LogEvent(s, "the room", "meeting", std::string("the novel answer is deferred: ") + text);
+	return out;
+}
+
+float CachedDuration(const VoiceRender &vr, const std::string &key)
+{
+	for (const VoiceCacheEntry &e : vr.cache) if (e.key == key) return e.duration;
+	return 0.0f;
+}
+
+std::string MeetingLineKey(const Ship &s, const MeetingBrief &brief, const MeetingLine &line)
+{
+	SynthesisRequest req;
+	if (!LineToSynthesis(line, req)) return ""; // unmarked: never rendered
+	const int who = ResolveSpeaker(s, brief, line.speaker);
+	if (who < 0) return "";
+	const std::string voice = CastVoice(s, who);
+	if (voice.empty()) return "";               // no voice, so nothing was rendered
+	return RenderKey(voice, req.text, req.delivery);
+}
+
+float MeetingLineSeconds(const VoiceRender &vr, const Ship &s, const MeetingBrief &brief, const MeetingLine &line)
+{
+	const std::string key = MeetingLineKey(s, brief, line);
+	const float measured = key.empty() ? 0.0f : CachedDuration(vr, key);
+	if (measured > 0.01f) return measured; // the clip's own duration: pacing is data
+	// No clip (the model absent, or the line unmarked and never rendered): a reading estimate, named
+	// as an estimate. The room still paces; it is not waiting on a machine either way.
+	return std::max(0.8f, 0.06f * static_cast<float>(line.text.size()));
 }
 
 int PlanMeetingAudio(VoiceRender &vr, const Ship &s, const MeetingBrief &brief, const MeetingSkeleton &sk)
@@ -6988,9 +7121,11 @@ int PlanMeetingAudio(VoiceRender &vr, const Ship &s, const MeetingBrief &brief, 
 			SynthesisRequest req;
 			if (!LineToSynthesis(line, req)) continue; // the unmarked line is marked, not rendered
 			const int who = ResolveSpeaker(s, brief, line.speaker);
+			if (who < 0) continue;                     // a role nobody in the room fills
+			const std::string voice = CastVoice(s, who);
+			if (voice.empty()) continue;               // a canon character who died: no voice, no line
 			RenderJob job;
-			job.voice = (who >= 0 && who < static_cast<int>(s.crew.size())) ? s.crew[who].name
-				: SpeakerRoleName(line.speaker);
+			job.voice = voice;                         // the cast reference, not the display name
 			job.text = req.text;
 			job.delivery = req.delivery;
 			job.exaggeration = req.exaggeration;

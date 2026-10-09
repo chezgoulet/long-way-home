@@ -75,7 +75,7 @@ substance of the brief's point and stands.
 ## The register, by group
 
 ### 1. Entry points — what content can call  
-*73 hooks.*
+*74 hooks.*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -90,10 +90,11 @@ substance of the brief's point and stands.
 | `VoiceRetire` | `VoiceMixer &m, uint8_t producer, int replyId` | Retire a reply | console | — | — |
 | `EmitCue` | `Ship &s, VoiceMixer &m, uint8_t cue, const std::string &reason` | THE CUE EMIT SITE | console | — | — |
 | `QueueRender` | `VoiceRender &vr, const RenderJob &job` | Enqueue a render | console | — | — |
-| `CacheRendered` | `VoiceRender &vr, const std::string &key, const std::string &file` | A line the renderer finished: it enters the cache and leaves the queue | console | — | — |
+| `CacheRendered` | `VoiceRender &vr, const std::string &key, const std::string &file, float duration = 0.0f` | A line the renderer finished: it enters the cache and leaves the queue, with the clip's measured duration | console | — | — |
 | `PruneVoiceCache` | `VoiceRender &vr` | The cache is pruned with the save: the index is emptied and the host deletes the directory | console | — | — |
 | `PlanMeetingAudio` | `VoiceRender &vr, const Ship &s, const MeetingBrief &brief, const MeetingSkeleton &sk` | Plan a meeting's audio: every line of every outcome of its skeleton, on the dialogue track, keyed and deduplicated | console | — | — |
 | `WarmVoice` | `Ship &s, VoiceRender &vr, double now` | Warm the model in the async window, off the critical path (lesson 4), so the first meeting anyone sees is never the cold one | console | — | — |
+| `SubmitNovelAnswer` | `Ship &s, VoiceMixer &m, const MeetingBrief &brief, const std::string &text, float modelSeconds` | Submit a novel answer: emit the cue immediately, then resolve inside the pause or defer | play | — | docs/staff-meetings.md |
 | `Tick` | `Ship &s, float seconds` | Advances the ship by `seconds` of simulated (not ship) time | play | — | — |
 | `UseSystem` | `Ship &s, SystemId id, float stress, const std::string &who` | Use a system under a load | play | post | docs/failure-is-content.md |
 | `UseSystemBy` | `Ship &s, SystemId id, float stress, int operatorCrew` | The same use, but the operator is named by index -- the player at the console | play | post | — |
@@ -281,7 +282,7 @@ substance of the brief's point and stands.
 | `SetRole` | `Ship &s, PlayerRole role` | Sets the role; ROLE_MUNRO makes the player Alexander Munro | console | — | — |
 
 ### 4. Readers content can consult  
-*166 hooks.*
+*174 hooks.*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -345,6 +346,14 @@ substance of the brief's point and stands.
 | `VoiceCachePath` | `const VoiceRender &vr, const std::string &key` | Where a key's clip lives: <dir>/<key>.wav (the synthesizer's output; never the repository) | console | — | — |
 | `VoiceCached` | `const VoiceRender &vr, const std::string &key` | voice cached | console | — | — |
 | `VoiceQueued` | `const VoiceRender &vr, const std::string &key` | voice queued | console | — | — |
+| `VoicePoolCount` | — | the non-canon pool's size | console | — | docs/the-entry-point.md |
+| `VoicePoolName` | `int i` | a pool voice by index, or "" out of range | console | — | docs/the-entry-point.md |
+| `VoiceIsCanonType` | `const std::string &type` | a show command-crew record: its voice is its own | console | — | docs/the-entry-point.md |
+| `CastVoice` | `const Ship &s, int crew` | The reference identity of a person's voice, or "" when there is no voice | console | person | docs/the-entry-point.md |
+| `CastIsCanon` | `const Ship &s, int crew` | True when the voice is the character's own retail voice rather than a pool casting | console | person | docs/the-entry-point.md |
+| `CachedDuration` | `const VoiceRender &vr, const std::string &key` | The rendered duration of a keyed clip, in seconds; 0 when no clip has been rendered for it | console | — | — |
+| `MeetingLineKey` | `const Ship &s, const MeetingBrief &brief, const MeetingLine &line` | The key a meeting line renders under, resolved through the cast map; "" when the line has no voice | console | post | docs/staff-meetings.md |
+| `MeetingLineSeconds` | `const VoiceRender &vr, const Ship &s, const MeetingBrief &brief, const MeetingLine &line` | The seconds a line runs: its rendered clip's duration when there is one, else a text-length fallback | play | post | docs/staff-meetings.md |
 | `LossKindName` | `uint8_t k` | loss kind name | play | — | — |
 | `WriteOffs` | `const Ship &s` | write offs | play | — | — |
 | `JobKindName` | `uint8_t k` | job kind name | play | — | — |
@@ -458,19 +467,19 @@ substance of the brief's point and stands.
 
 | group | hooks |
 |---|---|
-| entry points | 73 |
+| entry points | 74 |
 | situations the simulation generates | 61 |
 | outcomes | 54 |
-| readers | 166 |
+| readers | 174 |
 | the configurator | 18 |
-| **total** | **372** |
+| **total** | **381** |
 
 **By reachability.**
 
 | state | hooks |
 |---|---|
-| reached in play | 214 |
-| reached only from the developer console | 123 |
+| reached in play | 216 |
+| reached only from the developer console | 130 |
 | reached by nothing yet | 35 |
 | — of those, reached only by the tests | 29 |
 | — of those, no caller anywhere | 6 |
@@ -493,6 +502,15 @@ input) and one from the console (`ship meeting verdicts`). `ClassifyNovelInput` 
 always-NOVEL seam: with a verdict loaded a genuine match plays its branch, and with none it is still
 novel. The counts above are the rows of this register, counted: 73 + 61 + 54 + 166 + 18 = 372, and
 214 + 123 + 35 = 372. Evidence: `docs/evidence/model-call.md`.
+
+**Re-derived 2026-10-09, the casting map and voice out (M5).** Nine hooks are added. `SubmitNovelAnswer`
+is an entry point reached in play: the meeting's typed-input path emits its pause cue immediately and
+resolves inside the pause or defers. Eight readers carry the casting map and the pacing: `VoicePoolCount`,
+`VoicePoolName`, `VoiceIsCanonType`, `CastVoice`, `CastIsCanon`, `CachedDuration`, `MeetingLineKey` and
+`MeetingLineSeconds`; `MeetingLineSeconds` is reached in play (the room publishes each line's measured
+duration for the pills) and the rest are console. The counts above are the rows of this register,
+counted: 74 + 61 + 54 + 174 + 18 = 381, and 216 + 130 + 35 = 381. Evidence:
+`docs/evidence/voice-and-casting.md`.
 
 ### 5. The configurator — the player chooses the start state
 
@@ -529,7 +547,7 @@ developer console reaches it too (`ship startstate ...`).
 scenario author and the owner should read first: every one of these is a mechanism the simulation
 has and the game does not yet offer.
 
-### Reached only from the developer console (123)
+### Reached only from the developer console (130)
 
 **1. Entry points** (37): `OfferRising`, `OfferRisingTo`, `AttemptRising`, `NextRisingRoll`, `WritePersonalLog`, `VoiceWrite`, `VoiceRetire`, `EmitCue`, `QueueRender`, `CacheRendered`, `PruneVoiceCache`, `PlanMeetingAudio`, `WarmVoice`, `Repair`, `RepairDeck`, `LoadAwayKit`, `LaunchShuttle`, `RecallShuttle`, `LoseShuttle`, `ShuttleBayHit`, `RebuildShuttle`, `TractorWreck`, `TractorHold`, `LaunchProbe`, `RespondPhenomenon`, `FabricateParts`, `FabricateRations`, `MineBelt`, `EVA`, `TakeSurvivors`, `ObservePreWarp`, `InterferePreWarp`, `ReconcileFactions`, `Survey`, `CatchUp`, `Suspend`, `Sleep`
 
@@ -537,7 +555,7 @@ has and the game does not yet offer.
 
 **3. Outcomes content can ask for** (18): `SetAllocationBy`, `Hearing`, `SetMobileEmitter`, `EndHolodeckProgram`, `SetAirponics`, `Delegate`, `RevokeDelegation`, `RevokeCredential`, `LockOut`, `ClearLockout`, `Train`, `Brig`, `HoldFuneral`, `Brief`, `MakePromise`, `RunHolodeck`, `ImproveQuarters`, `SetRole`
 
-**4. Readers content can consult** (54): `OperatedFrom`, `AllocationByName`, `ControllerName`, `RisingOutcomeName`, `RisingDriveAtStake`, `RisingOdds`, `DeliveryName`, `DeliveryExaggeration`, `DeliveryKnown`, `MeetingEffectName`, `ResolveSpeaker`, `LineToSynthesis`, `VoiceProducerName`, `TrackOwner`, `OwnsTrack`, `TrackBusy`, `CueName`, `CueClip`, `CuePurpose`, `RenderKey`, `VoiceCachePath`, `VoiceCached`, `VoiceQueued`, `AllocationProvenance`, `ShuttleLocationName`, `ShuttlesInBay`, `ShuttlesAway`, `PhenomenonResponseName`, `Refugees`, `Resentment`, `BorgAwareness`, `MobileEmitter`, `Airponics`, `Target`, `MaySuspend`, `LeftStanding`, `MayOperate`, `MayCallAlert`, `DelegatedTo`, `OverrideActive`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `Brigged`, `PlayerDead`, `Recall`, `RecallSource`, `MemoryCount`, `Promises`, `PlayerMayOperate`, `CaptainLog`
+**4. Readers content can consult** (61): `OperatedFrom`, `AllocationByName`, `ControllerName`, `RisingOutcomeName`, `RisingDriveAtStake`, `RisingOdds`, `DeliveryName`, `DeliveryExaggeration`, `DeliveryKnown`, `MeetingEffectName`, `ResolveSpeaker`, `LineToSynthesis`, `VoiceProducerName`, `TrackOwner`, `OwnsTrack`, `TrackBusy`, `CueName`, `CueClip`, `CuePurpose`, `RenderKey`, `VoiceCachePath`, `VoiceCached`, `VoiceQueued`, `VoicePoolCount`, `VoicePoolName`, `VoiceIsCanonType`, `CastVoice`, `CastIsCanon`, `CachedDuration`, `MeetingLineKey`, `AllocationProvenance`, `ShuttleLocationName`, `ShuttlesInBay`, `ShuttlesAway`, `PhenomenonResponseName`, `Refugees`, `Resentment`, `BorgAwareness`, `MobileEmitter`, `Airponics`, `Target`, `MaySuspend`, `LeftStanding`, `MayOperate`, `MayCallAlert`, `DelegatedTo`, `OverrideActive`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `Brigged`, `PlayerDead`, `Recall`, `RecallSource`, `MemoryCount`, `Promises`, `PlayerMayOperate`, `CaptainLog`
 
 ### Reached by nothing yet (35)
 
@@ -582,9 +600,9 @@ has and the game does not yet offer.
 `docs/the-entry-point.md`, part three: **content addresses a post; the simulation resolves the
 post to a person.** The `law` column marks every hook the rule binds.
 
-- **Takes a person** (`34`): the hook accepts a resolved crew index, so content must resolve a
-  post to that person and must never write a name into a scenario. They are: `Sicken`, `Cure`, `WorkReading`, `OfferRisingTo`, `AttemptRising`, `RetellRising`, `CoverWithCrew`, `WritePersonalLog`, `PersonalLog`, `SetAllocationBy`, `GrantBand`, `RevokeBand`, `RecoverCaptive`, `Hearing`, `Loyalty`, `EndHolodeckProgram`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`, `Brig`, `Brigged`, `KillCrew`, `Promote`, `Remember`, `MakePromise`, `SignReport`, `RunHolodeck`.
-- **Addressed by a post** (`44`), the compliant form: `Spec`, `StationOf`, `StationName`, `OperatedFrom`, `StationReads`, `WorkContextOf`, `OfferRising`, `BandOf`, `UseSystem`, `UseSystemBy`, `SetEnabled`, `SetPriority`, `SetAllocation`, `AllocationPercent`, `AllocationSource`, `AllocationProvenance`, `DamageSystem`, `Repair`, `CounterHack`, `Hijacked`, `EffectiveDemand`, `MayOperate`, `MayCallAlert`, `BeginOverride`, `ConfirmOverride`, `OverrideActive`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `PlayerMayOperate`.
+- **Takes a person** (`36`): the hook accepts a resolved crew index, so content must resolve a
+  post to that person and must never write a name into a scenario. They are: `Sicken`, `Cure`, `WorkReading`, `OfferRisingTo`, `AttemptRising`, `RetellRising`, `CoverWithCrew`, `WritePersonalLog`, `PersonalLog`, `SetAllocationBy`, `GrantBand`, `RevokeBand`, `RecoverCaptive`, `Hearing`, `Loyalty`, `EndHolodeckProgram`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`, `Brig`, `Brigged`, `KillCrew`, `Promote`, `Remember`, `MakePromise`, `SignReport`, `RunHolodeck`, `CastVoice`, `CastIsCanon`.
+- **Addressed by a post** (`46`), the compliant form: `Spec`, `StationOf`, `StationName`, `OperatedFrom`, `StationReads`, `WorkContextOf`, `OfferRising`, `BandOf`, `UseSystem`, `UseSystemBy`, `SetEnabled`, `SetPriority`, `SetAllocation`, `AllocationPercent`, `AllocationSource`, `AllocationProvenance`, `DamageSystem`, `Repair`, `CounterHack`, `Hijacked`, `EffectiveDemand`, `MayOperate`, `MayCallAlert`, `BeginOverride`, `ConfirmOverride`, `OverrideActive`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `PlayerMayOperate`, `MeetingLineKey`, `MeetingLineSeconds`.
 - **Both forms exist** (`14`; content must use the post): `WorkReading`, `OfferRisingTo`, `AttemptRising`, `SetAllocationBy`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`.
 
 ## What this register cannot answer

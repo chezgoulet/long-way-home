@@ -1174,7 +1174,10 @@ struct RenderJob {
 	float exaggeration = 0.5f; // carried from the delivery to the synthesizer's own knob
 	int speaker = SPEAK_ROOM;  // resolved against the room
 };
-struct VoiceCacheEntry { std::string key; std::string file; };
+// One rendered clip in the cache: its key, the file the renderer wrote, and the clip's own duration
+// in seconds. The duration is the renderer's measurement of what it wrote; it is what paces the pills
+// (MeetingLineSeconds), so pacing is data rather than a guess.
+struct VoiceCacheEntry { std::string key; std::string file; float duration = 0.0f; };
 struct VoiceRender {
 	std::string dir;                    // beside the save; the host supplies it. Never the repository.
 	std::vector<VoiceCacheEntry> cache; // rendered keys -> file
@@ -1192,8 +1195,8 @@ bool VoiceQueued(const VoiceRender &vr, const std::string &key);
 // queued or cached is never enqueued twice.
 int QueueRender(VoiceRender &vr, const RenderJob &job);
 // A line the renderer finished: it enters the cache and leaves the queue. False if it was not queued
-// (so a render nobody asked for cannot enter the cache).
-bool CacheRendered(VoiceRender &vr, const std::string &key, const std::string &file);
+// (so a render nobody asked for cannot enter the cache). `duration` is the clip's measured length.
+bool CacheRendered(VoiceRender &vr, const std::string &key, const std::string &file, float duration = 0.0f);
 // The cache is pruned with the save: the index is emptied and the host deletes the directory.
 // Returns the number of entries dropped.
 int PruneVoiceCache(VoiceRender &vr);
@@ -1205,6 +1208,60 @@ int PlanMeetingAudio(VoiceRender &vr, const Ship &s, const MeetingBrief &brief, 
 // sees is never the cold one. Where it happens is the async phase, when the worker opens. Returns
 // false if it was already warm. Writes the warm to the log.
 bool WarmVoice(Ship &s, VoiceRender &vr, double now);
+
+// ---- the casting map: cast-state data derived from the start state ------------------------------
+//
+// docs/the-entry-point.md, "And the voice follows the cast". A voice is a reference clip the analyzer
+// builds from the retail assets the player owns, so **every voice needs a reference**; the map says
+// which reference each person speaks with. It is cast-state data, not a fixed table, and it is
+// derived from the same start state that decides who is aboard:
+//
+//   * a canon character who survived -- their retail voice, cloned on the player's own machine;
+//   * a canon character who died      -- no voice at all, and no line is authored for them (empty);
+//   * a fictitious crew member        -- a voice from the non-canon pool (the hazard team and minor
+//                                        crew), chosen per character and held for the campaign.
+//
+// The choice is DERIVED, never stored and never re-rolled: the static half of a record comes back
+// from the seed, so the same start state casts the same map on the first build and again on a load,
+// and a save replays. `voice` is a reference identity (e.g. "tuvok"), the name of the per-character
+// reference the analyzer writes into the player-local refs directory beside the save.
+int VoicePoolCount();                            // the non-canon pool's size
+const char *VoicePoolName(int i);                // a pool voice by index, or "" out of range
+bool VoiceIsCanonType(const std::string &type);  // a show command-crew record: its voice is its own
+// The reference identity of a person's voice, or "" when there is no voice (a canon character who
+// died or was assimilated, or an index that is nobody). Never a guess: no reference, no voice.
+std::string CastVoice(const Ship &s, int crew);
+// True when the voice is the character's own retail voice rather than a pool casting.
+bool CastIsCanon(const Ship &s, int crew);
+
+// The rendered duration of a keyed clip, in seconds; 0 when no clip has been rendered for it.
+float CachedDuration(const VoiceRender &vr, const std::string &key);
+// The key a meeting line renders under, resolved through the cast map; "" when the line has no voice
+// (a canon character who died, or a role nobody in the room fills).
+std::string MeetingLineKey(const Ship &s, const MeetingBrief &brief, const MeetingLine &line);
+// The seconds a line runs: its rendered clip's duration when there is one, so **the pills are offered
+// for as long as the line actually runs**, or a text-length fallback when there is no audio (the model
+// absent, or the line unmarked and never rendered). The fallback is a reading estimate, named as one.
+float MeetingLineSeconds(const VoiceRender &vr, const Ship &s, const MeetingBrief &brief, const MeetingLine &line);
+
+// The pause, and the deferral (docs/staff-meetings.md, "The pause, and why latency becomes
+// characterisation"). A novel answer is the one place a live call happens. The wait is filled with a
+// cue played **immediately** at submission -- a small set per character, chosen from the person's own
+// record and the seed -- and the outcome falls one of two ways: the answer arrives inside the pause
+// and resolves there, or the deferral line lands and the outcome moves to a later beat (a message, a
+// corridor conversation, the log). A cue is on its own track and can never stop a dialogue line.
+struct PauseOutcome {
+	int cue = -1;          // the cue emitted immediately at submission (TRACK_CUE), or -1 if busy
+	int deferral = -1;     // the holding line's reply id when the answer was slow, else -1
+	bool resolved = false; // true: the answer arrived inside the pause; false: it is deferred
+	int outcome = -1;      // the branch the answer resolved to, or -1 when it was novel/deferred
+	std::string note;      // what happened at the pause, in words (logged)
+};
+// Submit a novel answer: emit the cue immediately, then resolve inside the pause or defer. The module
+// makes no model call; the host writes the classification request and supplies `modelSeconds` (how
+// long the worker took) as the pause elapsed. Writes each step to the log.
+PauseOutcome SubmitNovelAnswer(Ship &s, VoiceMixer &m, const MeetingBrief &brief,
+                               const std::string &text, float modelSeconds);
 
 // ---- what the ship has given up (docs/damage-and-budgets.md, docs/story-and-semantics.md) --------
 //
