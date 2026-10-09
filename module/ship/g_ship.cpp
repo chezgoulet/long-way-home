@@ -1620,10 +1620,14 @@ void RunTest( void )
 		if ( step == 4 && level.time >= 6800 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
 		return;
 	}
-	if ( g_shipTest->integer == 60 )
+	if ( g_shipTest->integer == 73 )
 	{//rising to the occasion (docs/rising-to-the-occasion.md): a post must be held and the hand in
 	 //front of it is beyond their skill. The transcript is the console's own words -- who, why them,
 	 //what it cost, and what the witnesses carry afterwards.
+	 //Case 73, not 60: the deck 14 re-dress claimed 60 on 2026-10-06 and this block claimed it again on
+	 //2026-10-08, so the earlier block ran first and quit the run before this one -- deck 14's own check
+	 //failed silently for a day. A case number is claimed by first use, and scripts/harness-check.sh now
+	 //fails on a duplicate.
 		static int step = 0;
 		if ( level.time < 1000 ) step = 0;
 		if ( step == 0 && level.time >= 2000 )

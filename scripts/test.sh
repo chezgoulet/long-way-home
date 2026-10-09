@@ -37,6 +37,10 @@ echo "==> hooks: the register matches the public surface"
 "$ROOT/scripts/hooks-check.sh"
 
 echo
+echo "==> harness: the g_shipTest case numbers are distinct"
+"$ROOT/scripts/harness-check.sh"
+
+echo
 echo "==> docs: cited paths resolve, and owned numbers agree"
 "$ROOT/scripts/docs-check.sh"
 
