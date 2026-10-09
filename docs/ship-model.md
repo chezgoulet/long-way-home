@@ -36,7 +36,7 @@ One authoritative structure, owned by the game module (behind the module boundar
   Bounded per head -- the 256-byte target in the crew spec is a budget for exactly this record.
 - **Systems.** Power, life support, doors, sensors, shields, weapons, engines, transport -- each with a
   current value, a target value, a health, and which compartment it lives in.
-- **Compartments and damage.** Per compartment: hull/breach state, atmosphere, temperature, which systems
+- **Compartments and damage.** Per **deck** — the code's compartment *is* a deck, and the owner ruled it so on 2026-10-08 (`docs/gates.md`, C4): hull/breach state, atmosphere, temperature, which systems
   it hosts. Damage events write here.
 - **Threats.** Borg (and anything later) as pressure per compartment, not as a spawn list.
 - **A clock.** Accumulated ship time. This is what lets the ship change while the player is elsewhere:
