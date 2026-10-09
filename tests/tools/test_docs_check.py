@@ -69,6 +69,23 @@ class PathCheckTests(unittest.TestCase):
         text = "line one\n\n```\nignored\n```\nprose docs/a.md\n"
         self.assertEqual([ln for ln, _ in check_paths.find_refs(text)], [6])
 
+    def test_emphasis_around_a_citation_is_punctuation(self):
+        # The real case (docs/hook-register.md): *docs/a.md, part three; docs/start-states.md.*
+        with tempfile.TemporaryDirectory() as d:
+            write(d, "docs/start-states.md", "x")
+            write(d, "docs/ok.md", "*docs/start-states.md.* the entry point\n")
+            self.assertEqual(check_paths.main(["--root", d, "--allow", "no-allow.txt", "--min-refs", "0"]), 0)
+
+    def test_emphasis_does_not_rescue_a_dangling_path(self):
+        with tempfile.TemporaryDirectory() as d:
+            write(d, "docs/ok.md", "*docs/nowhere.md.* the missing one\n")
+            self.assertEqual(check_paths.main(["--root", d, "--allow", "no-allow.txt", "--min-refs", "0"]), 1)
+
+    def test_a_dangling_glob_still_fails(self):
+        with tempfile.TemporaryDirectory() as d:
+            write(d, "docs/ok.md", "see docs/nowhere/*.md\n")
+            self.assertEqual(check_paths.main(["--root", d, "--allow", "no-allow.txt", "--min-refs", "0"]), 1)
+
 
 CLAIM = {
     "id": "core-deck",
