@@ -107,3 +107,27 @@ design, expressed as one number's absence.
 - A captain can lose the crew's confidence without losing the ship, and both are recorded.
 - And the human check: a player should be able to name the three people they are worried about, from what they
   have seen, without opening a status screen.
+
+---
+
+## `holdings` is a fold, not a stored value (owner's ruling, 2026-10-08)
+
+**The owner ruled the allegiance read derived rather than stored** (`docs/gates.md`, C2), and this document owns
+the component it names.
+
+`holdings` is currently a **stored float** nudged by events — a witness's regard rises by a constant when they
+see something, rather than being computed from what they remember. **It becomes a fold over the marks**, the way
+`Bond` already is (`module/ship/ship_core.cpp`: valence × salience over the marks naming that person).
+
+**Why it matters, and it is the same argument as the rest of the layer.** Morale is a *reading* over three
+components and never a hidden counter; conditions carry their source and their cure; a work outcome names the
+factors that moved it. **A stored `holdings` was the last input in the chain that could not be explained by its
+own evidence** — a number that could disagree with the marks it supposedly came from.
+
+**The consequence, which is a feature and should be known before it is met:** purging the records moves regard.
+Regard computed from memory changes when memory is removed — so a purge is not only a documentary act, it is a
+social one.
+
+**And the shape it completes:** marks → `bond` (per pair) and `holdings` (toward the ship and the command) →
+morale. **Every value answerable to the same evidence.**
+
