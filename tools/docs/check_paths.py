@@ -75,12 +75,23 @@ def load_allow(path):
 
 
 def resolve(root, tok):
-    """True if ``tok`` names an existing file or directory, or a glob that matches one."""
+    """True if ``tok`` names an existing file or directory, or a glob that matches one.
+
+    Emphasis is punctuation, not part of the path.  A citation wrapped in markdown emphasis --
+    ``*docs/start-states.md.*``, ``_docs/x.md_`` -- yields a token whose closing marker looks like a
+    glob, and the ``*`` is *inside* the reference language (globs are legal citations), so it cannot be
+    stripped at extraction.  Resolve it on the token first, then retry once with the marker removed, so
+    a real glob still works and a real dangling path still fails.
+    """
     t = tok.rstrip("/")
     if (root / t).exists():
         return True
     if any(ch in tok for ch in "*?["):
-        return bool(glob.glob(str(root / tok))) or bool(glob.glob(str(root / t)))
+        if bool(glob.glob(str(root / tok))) or bool(glob.glob(str(root / t))):
+            return True
+    probe = t.rstrip("*_").rstrip(STRIP)
+    if probe != t and (root / probe).exists():
+        return True
     return False
 
 
