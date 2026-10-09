@@ -214,9 +214,13 @@ void RoomDraw( void )
 	UI_FillRect( 0, OV_TOP, 640, 4, colorTable[CT_LTGOLD1] );
 	DrawRail( L );
 
-	// The line being answered.
+	// The line being answered. Task A (docs/evidence/model-call.md): the engine's version stamp is
+	// drawn by UI_MenuFrame2 AFTER every menu's content, at (371,445) with the tiny font, so no fill
+	// of ours can hide it and it must be kept in a clear strip. The answer is measured first; the
+	// pills below are then placed against what is left above y=443, so the stamp lands in a gap.
 	UI_DrawProportionalString( 158, OV_TOP + 6, "THE LINE BEING ANSWERED", UI_TINYFONT, colorTable[CT_LTORANGE] );
-	if ( L.ok ) Wrapped( 158, OV_TOP + 18, L.text, UI_SMALLFONT, colorTable[CT_WHITE], 74, 12, 2 );
+	int answerLines = 0;
+	if ( L.ok ) answerLines = Wrapped( 158, OV_TOP + 18, L.text, UI_SMALLFONT, colorTable[CT_WHITE], 74, 11, 2 );
 
 	if ( meet.mode == MODE_DONE )
 	{
@@ -230,9 +234,17 @@ void RoomDraw( void )
 	else
 	{
 		// The pills: each the option's label and the short description the design asks for (its
-		// cost). The label goes in a fixed column and the description in the next; each is fitted to
-		// its column by measurement so the two cannot run into each other, and a string that still
-		// does not fit is reported rather than cut short in silence.
+		// cost), each fitted to its column by measurement (FitToColumn). The block is packed above
+		// the version stamp's clear strip: it starts just below the answer and compresses its line
+		// height if the outcomes and the free-text pill would together reach y=443. Task A lifts the
+		// row ~16 units from where M3 drew it, which is what moves the free-text pill clear of the
+		// stamp (a fixed 16px pitch with four outcomes put it at y=438, inside the stamp at y=445).
+		int dy = 14;
+		const int pillTop = OV_TOP + 18 + ( answerLines > 0 ? answerLines : 1 ) * 11 + 6;
+		const int rows = options + 1;
+		const int avail = 441 - pillTop;
+		if ( rows > 0 && rows * dy > avail ) dy = avail / rows;
+		if ( dy < 9 ) dy = 9;
 		for ( int i = 0; i < options && i < 6; ++i )
 		{
 			char buf[256], *f[4], label[192], cost[192], whole[192];
@@ -241,26 +253,26 @@ void RoomDraw( void )
 			Com_sprintf( whole, sizeof( whole ), "%d %s", i + 1, f[0] );
 			FitToColumn( label, sizeof( label ), whole, 172, 350 );
 			FitToColumn( cost, sizeof( cost ), f[1], 356, 632 );
-			const int y = OV_TOP + 38 + i * 16;
+			const int y = pillTop + i * dy;
 			const bool sel = i == meet.cursor && meet.mode == MODE_CHOOSING;
-			UI_FillRect( 158, y - 1, 476, 15, colorTable[CT_BLACK] );
-			if ( sel ) UI_FillRect( 158, y - 1, 476, 15, colorTable[CT_DKPURPLE2] );
-			UI_FillRect( 158, y - 1, 7, 15, colorTable[i == 0 ? CT_LTGOLD1 : i == 1 ? CT_LTPURPLE1 : i == 2 ? CT_LTBLUE2 : CT_LTBLUE1] );
+			UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[CT_BLACK] );
+			if ( sel ) UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[CT_DKPURPLE2] );
+			UI_FillRect( 158, y - 1, 7, dy - 1, colorTable[i == 0 ? CT_LTGOLD1 : i == 1 ? CT_LTPURPLE1 : i == 2 ? CT_LTBLUE2 : CT_LTBLUE1] );
 			UI_DrawProportionalString( 172, y, label, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1] );
 			UI_DrawProportionalString( 356, y, cost, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTBLUE2] );
 		}
 		// The free-text pill: an entry field, visibly different, with the VOICE affordance from the
 		// start even though voice is not built.
 		{
-			const int y = OV_TOP + 38 + options * 16;
+			const int y = pillTop + options * dy;
 			const bool sel = meet.cursor == options && meet.mode == MODE_CHOOSING;
-			UI_FillRect( 158, y - 1, 476, 15, colorTable[CT_BLACK] );
-			UI_FillRect( 158, y - 1, 476, 15, colorTable[sel ? CT_DKPURPLE2 : CT_DKPURPLE3] );
-			UI_FillRect( 158, y - 1, 7, 15, colorTable[CT_LTPURPLE1] );
+			UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[CT_BLACK] );
+			UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[sel ? CT_DKPURPLE2 : CT_DKPURPLE3] );
+			UI_FillRect( 158, y - 1, 7, dy - 1, colorTable[CT_LTPURPLE1] );
 			UI_DrawProportionalString( 172, y, "SAY SOMETHING ELSE", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 			UI_DrawProportionalString( 356, y, meet.typing ? meet.buf : "type an answer", UI_TINYFONT, colorTable[meet.typing ? CT_WHITE : CT_DKGREY] );
 			if ( meet.typing ) UI_DrawProportionalString( 356 + static_cast<int>( strlen( meet.buf ) ) * 6, y, "_", UI_TINYFONT, colorTable[CT_WHITE] );
-			UI_FillRect( 596, y - 1, 38, 15, colorTable[CT_LTPURPLE1] );
+			UI_FillRect( 596, y - 1, 38, dy - 1, colorTable[CT_LTPURPLE1] );
 			UI_DrawProportionalString( 601, y, "VOICE", UI_TINYFONT, colorTable[CT_BLACK] );
 		}
 	}
@@ -280,7 +292,10 @@ void RoomDraw( void )
 		}
 		UI_DrawProportionalString( 158, 458, line, UI_TINYFONT, colorTable[CT_LTBLUE2] );
 	}
-	if ( meet.said[0] ) UI_DrawProportionalString( 158, 446, meet.said, UI_TINYFONT, colorTable[CT_LTORANGE] );
+	// Task A: meet.said is drawn in the speaker rail's lower strip (x < 150), not at y=446 in the
+	// free-text row. The rail is entirely left of the version stamp's box (x>=371), so the seam's
+	// answer can never be read as the stamp's contents whatever its length. Named as a call.
+	if ( meet.said[0] ) Wrapped( 6, OV_TOP + 98, meet.said, UI_TINYFONT, colorTable[CT_LTORANGE], 24, 9, 4 );
 
 	UI_DrawProportionalString( 158, 470, meet.typing
 		? "type   ENTER submit   ESC cancel"

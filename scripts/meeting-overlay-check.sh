@@ -24,10 +24,15 @@ GAME_DIR="$HOME_DIR/baseEF"
 OUT="$GAME_DIR/ship"
 SHOT="$GAME_DIR/screenshots/lwh_meeting.tga"
 SHOTQ="$GAME_DIR/screenshots/lwh_meeting_queue.tga"
+SHOTSAID="$GAME_DIR/screenshots/lwh_meeting_said.tga"
 [ -d "$ROOT/build/baseEF" ] || { echo "no game data at build/baseEF -- run scripts/playtest-host-setup.sh" >&2; exit 1; }
 command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; }
 mkdir -p "$OUT" "$GAME_DIR/screenshots"
-rm -f "${OUT:?}/meeting-overlay.txt" "${SHOT:?}" "${SHOTQ:?}"
+rm -f "${OUT:?}/meeting-overlay.txt" "${SHOT:?}" "${SHOTQ:?}" "${SHOTSAID:?}"
+# With no classifier verdict loaded, typed text is novel. A worker's output from another check would
+# load verdicts and change that, so this check starts from none (M4: the classifier is a seam, not a
+# dependency).
+rm -rf "$GAME_DIR/ship/meetings"
 
 find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
 echo "==> the meeting overlay (g_shipTest 82)"
@@ -71,6 +76,7 @@ grep -q 'overlay test: allocation unchanged by the typed text: 100 (was 100)' "$
 [ -f "$OUT/meeting-overlay.txt" ] || fail "the meeting did not reach its end"
 [ -f "$SHOT" ] || fail "no screenshot of the room"
 [ -f "$SHOTQ" ] || fail "no screenshot of the queue"
+[ -f "$SHOTSAID" ] || fail "no screenshot of the seam's answer (Task A: meet.said's placement)"
 echo "PASS  the queue is reachable in play; a screen key opened a brief; a pill applied one outcome with the player's provenance;"
 echo "      typed text reached the novelty seam and changed nothing; the meeting reached its end"
-echo "      screenshots: $SHOTQ, $SHOT"
+echo "      screenshots: $SHOTQ, $SHOT, $SHOTSAID"
