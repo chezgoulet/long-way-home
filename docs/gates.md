@@ -698,6 +698,56 @@ beside the save. **No assets and no generated audio in the repository.**
 Remaining for the meeting lane: **M6** (voice in and the ship's computer). **Whether the cast sounds
 right is the owner's ear** and needs the clips brought to him; the evidence names their paths.
 
+### The ship's computer (M6, first half)
+
+`docs/staff-meetings.md` (*"The ship's computer is the same machinery"*), implemented on
+`feat/the-computer` (cut from `testing`; `docs/evidence/the-computer-api.md`, `TestConsoleApi`,
+`TestTheComputer`, `module/ship/console_api.def`, `scripts/api-check.sh`, `scripts/computer-check.sh`).
+**Save format unchanged (54)** — the computer is addressed, not convened, so it is never queued.
+
+- **the enumerated set is the ship's API** — one checked row per console verb; the console answers 128
+  verbs and the enumeration carries all of them, in both directions; adding `ship computer` to the
+  console failed the check until its row was added ✅
+- **the same overlay, no second UI** — the computer is a `MEET_COMPUTER` brief; `module/ui/` still has
+  one meeting file, and the rail reads `THE COMPUTER` ✅
+- **the refusal, in character, with the state byte-identical** — an input outside the set gets the
+  canonical *"that function is not available"*, minuted, and `Pack` is identical across it ✅
+- `scripts/test.sh`, `scripts/check.sh`, `scripts/api-check.sh` and `scripts/computer-check.sh` exit 0 ✅
+
+*Whether being addressed by the computer feels like talking to a ship rather than a menu is the owner's
+to judge*, and needs the rendered frame the evidence names.
+
+### Voice in (M6, second half)
+
+`docs/staff-meetings.md`, "*Voice input, and the ship's computer*", implemented 2026-10-10 on
+`feat/voice-in` (cut from `testing`; `docs/evidence/voice-in.md`, `TestVoiceInIsTheTypedPath`,
+`tests/tools/test_speech_worker.py`, `tools/speech/transcribe.py`, `scripts/voice-in-check.sh`). **Save
+format unchanged (54)** — the voice mode, the pending queue and the last transcript are host state, and
+the seam writes no ship state. **No model, no audio and no transcript in the repository**; the STT model
+is borrowed and read in place, and the venv is gitignored.
+
+- **the engine captures no audio; the boundary is an audio file** — a "spoken" reply is a file
+  transcribed to a string, and the evidence says plainly that no microphone was involved ✅
+- **the transcribed string takes the identical path** — the `ship meeting say` body is the one function
+  `SubmitRoomInput`, and `ship dictate say` calls it; the transcribed and typed forms of the same line
+  give the same verdict, the same log entry and a byte-identical ship state, hashing to the same key ✅
+- **at most one inference call across both** — the repeated spoken input is one content-addressed key,
+  so the classifier makes one live call and caches the rest; the replay reads the log and calls nothing ✅
+- **the memory rule** — the STT worker is a one-shot process run only in voice mode; the game runs with
+  it absent (the input is pending and the room plays on). `ollama ps` is recorded, including the honest
+  limit that the meeting worker's two models are ollama-resident together (they do not *run* together) ✅
+- **the capture seam is priced and not built** — SDL capture behind a cvar, off by default, one additive
+  engine patch with its rebase cost recorded; it cannot be demonstrated on a headless host ✅
+- **no public hook is added, and that is the finding** — the seam reuses the free-text path, so the
+  register counts are unchanged (392), and `scripts/api-check.sh` guards the one new console verb ✅
+- `scripts/test.sh`, `scripts/check.sh`, `scripts/meeting-check.sh`, `scripts/meeting-overlay-check.sh`,
+  `scripts/model-call-check.sh`, `scripts/audio-check.sh`, `scripts/computer-check.sh` and
+  `scripts/api-check.sh` exit 0 ✅
+
+**What voice in cannot decide, and says so:** whether speaking to the ship feels different from typing to
+it. That needs the microphone this pass does not build and a host with audio; the transcription seam and
+the identity of the path are what are proved here.
+
 ### Then, in rough order
 
 **First batch done (2026-10-07)** — `docs/evidence/backlog-materials-and-crew.md`, `scripts/backlog-check.sh`,

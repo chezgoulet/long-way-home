@@ -26,6 +26,11 @@
 
 extern qboolean g_qbLoadTransition;
 
+// The one free-text path (M6, voice in): defined below, and reached by both `ship meeting say` and
+// `ship dictate say`. Declared at file scope so the harness can measure the same function a console
+// reaches -- there is no second path, and the harness does not get one either.
+void SubmitRoomInput( const std::string &text );
+
 namespace {
 
 const unsigned long SAVE_CHUNK = 0x53484950; // 'SHIP'
@@ -74,6 +79,16 @@ ship::MeetingBrief currentMeeting;
 bool meetingOpen = false;
 std::string meetingSaid;
 int computerCalls = 0;       // M6: times the computer was addressed (an authored answer, never a model call)
+
+// M6, second half: voice in (docs/staff-meetings.md, "Voice input, and the ship's computer"). The
+// engine has no audio-capture path, so the boundary is an audio file: voice mode makes the module
+// write a transcription request (ship/meetings/voice.jsonl), the STT worker (tools/speech/
+// transcribe.py) turns the file into a string (ship/meetings/transcript.txt), and the module reads
+// that string and gives it to the *same* function a typed answer reaches (SubmitRoomInput). Host
+// state, not ship state: the save format is unchanged. STT runs only in voice mode.
+bool voiceInMode = false;
+int voicePending = 0;        // audio files queued for the STT worker (drained off the render loop)
+std::string voiceSaid;       // the last transcribed string the seam received, for the screen/report
 
 // The audio plumbing (docs/staff-meetings.md, phase two). The mixer and the render queue are
 // host-local, not ship state: the audio is player-local data, derived from the queued briefs and
@@ -478,6 +493,49 @@ void LoadMeetingFiles( void )
 	}
 	gi.Printf( "SHIP: meetings: loaded %d script(s), %d verdict(s); calls generate=%d novel=%d\n",
 		static_cast<int>( meetingScripts.size() ), ship::NoveltyVerdictCount(), meetingGenCalls, meetingNovelCalls );
+}
+
+// ---- M6, second half: voice in -- the transcription seam ----------------------------------------
+//
+// The engine captures no audio (docs/evidence/voice-in.md): there is no SDL capture anywhere in the
+// upstream sources, so this client cannot read a microphone, and giving it one is a priced engine
+// extension that is not this pass. The boundary is therefore an audio file -- the microphone would
+// have delivered exactly one. The module writes a request for the file and the STT worker, an
+// instrument and never a dependency, turns it into a string; the module reads that string and
+// submits it through the one free-text path (SubmitRoomInput). docs/staff-meetings.md is the law:
+// "Speech-to-text produces a string that takes exactly the same path through the intent
+// descriptors." There is no second path, and this file gains none.
+
+// One request for the STT worker: the audio file the capture seam would have produced. Appended,
+// like the generator and classify manifests, so a drain catches every file.
+void WriteVoiceRequest( const std::string &audio )
+{
+	std::string all = ReadText( "ship/meetings/voice.jsonl" );
+	all += Fmt( "{\"audio\":\"%s\"}\n", JsonEsc( audio ).c_str() );
+	WriteFile( "ship/meetings/voice.jsonl", all.data(), static_cast<int>( all.size() ) );
+	++voicePending;
+	gi.Printf( "SHIP: dictate: the capture boundary holds \"%s\"; queued one transcription for the worker\n",
+		audio.c_str() );
+}
+
+// The worker's transcript, keyed by the audio file: a line `A|audio|text`. An absent transcript is
+// the model-absent case, and it is not an error: the input is pending and the room plays on.
+std::string LookupTranscript( const std::string &audio )
+{
+	const std::string text = ReadText( "ship/meetings/transcript.txt" );
+	size_t at = 0;
+	while ( at < text.size() )
+	{
+		const size_t nl = text.find( '\n', at );
+		std::string line = text.substr( at, nl == std::string::npos ? std::string::npos : nl - at );
+		at = nl == std::string::npos ? text.size() : nl + 1;
+		if ( line.empty() ) continue;
+		char buf[2048], *f[4];
+		Q_strncpyz( buf, line.c_str(), sizeof( buf ) );
+		const int n = SplitFields( buf, '|', f, 4 );
+		if ( n >= 3 && f[0][0] == 'A' && !f[0][1] && audio == f[1] ) return f[2];
+	}
+	return "";
 }
 
 // The meeting as the overlay reads it (docs/staff-meetings.md, M3): the queue, and -- when a brief
@@ -1157,6 +1215,19 @@ bool TeleportPlayerTo( const char *name, const char *label )
 	return true;
 }
 
+// The last free-text entry the seam wrote for this input, or "". The voice path and the typed path
+// write the identical entry ("a novel answer was given: ..." / "an answer matched the branch: ..."),
+// which is the provenance-neutral wording SubmitRoomInput uses so that identity can be read here.
+static std::string SeamLogFor( const ship::Ship &s, const std::string &text )
+{
+	const std::vector<ship::LogEntry> entries = ship::ReadOfficialLog( s, 64, "" );
+	for ( const ship::LogEntry &e : entries )  // newest first
+		if ( e.what == std::string( "a novel answer was given: " ) + text
+			|| e.what == std::string( "an answer matched the branch: " ) + text )
+			return e.what;
+	return "";
+}
+
 // The harness (scripts/s2-check.sh): do to the ship what a console would, then prove the result
 // is what the save holds.
 void RunTest( void )
@@ -1711,6 +1782,114 @@ void RunTest( void )
 			gi.SendConsoleCommand( "quit\n" );
 			step = 8;
 		}
+		return;
+	}
+	if ( g_shipTest->integer == 86 )
+	{//voice in (docs/staff-meetings.md, M6 second half). The engine captures no audio, so the boundary
+	 //is an audio file: the STT worker turns it into a string, and the module submits that string
+	 //through the one free-text path (SubmitRoomInput). The strong test is identity, not resemblance:
+	 //the transcribed and typed forms of the same line give the same verdict, the same log entry and
+	 //byte-identical ship state. The engine calls no model; it writes manifests and reads files.
+		static int step = 0;
+		static std::vector<uint8_t> before, spoken, typed;
+		static std::string audio, transcript, spokenLog, typedLog;
+		static int spokenVerdict = -2, typedVerdict = -2;
+		static bool haveTranscript = false;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 )
+		{
+			const int me = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
+			gi.Printf( "SHIP: voice-in test: the player reports for duty as crew %d (%s)\n",
+				me, me >= 0 ? vessel.crew[me].name.c_str() : "nobody" );
+			vessel.clock = ( std::floor( vessel.clock / ship::SECONDS_PER_WATCH ) + 1.0 ) * ship::SECONDS_PER_WATCH;
+			ship::Tick( vessel, 1.0f );
+			gi.SendConsoleCommand( "ship meeting open\n" );
+			gi.SendConsoleCommand( "ship dictate on\n" );
+			char buf[512];
+			Q_strncpyz( buf, "voice/example.wav", sizeof( buf ) );
+			gi.Cvar_VariableStringBuffer( "lwh_voice_audio", buf, sizeof( buf ) );
+			audio = buf;
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 2800 )
+		{
+			transcript = LookupTranscript( audio );
+			haveTranscript = !transcript.empty();
+			before = ship::Pack( vessel );
+			gi.Printf( "SHIP: voice-in test: voice mode on; the room is open on the %s brief (options %d)\n",
+				ship::MeetingKindName( currentMeeting.kind ), currentMeeting.optionCount );
+			gi.Printf( "SHIP: voice-in test: the capture boundary is the audio file \"%s\"\n", audio.c_str() );
+			if ( haveTranscript )
+				gi.Printf( "SHIP: voice-in test: the STT worker transcribed \"%s\" -> \"%s\"\n",
+					audio.c_str(), transcript.c_str() );
+			// The command runs on the next frame; the effects are read in the step after.
+			gi.SendConsoleCommand( va( "ship dictate say \"%s\"", audio.c_str() ) );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 3400 )
+		{
+			if ( !haveTranscript )
+			{
+				// No transcript: no string, so the seam is never reached and nothing is applied. The
+				// engine ran, wrote the request and read a missing file -- the instrument is optional.
+				gi.Printf( "SHIP: voice-in test: the STT worker is absent: \"%s\" has no transcript, the input is "
+					"pending, no string reaches the seam, and no classification is queued\n", audio.c_str() );
+				// The meeting still resolves from the authored skeleton: the model is never a dependency.
+				gi.SendConsoleCommand( "ship meeting choose 1\n" );
+				step = 5;
+			}
+			else
+			{
+				// The console voice path's own record: it reached the seam and wrote the entry.
+				spokenLog = SeamLogFor( vessel, transcript );
+				const ship::NoveltyResult nr = ship::ClassifyNovelInput( vessel, currentMeeting, transcript );
+				spokenVerdict = nr.matched ? nr.outcome : -1;
+				gi.Printf( "SHIP: voice-in test: the spoken form (console): verdict %s; the log entry: %s\n",
+					nr.matched ? Fmt( "matched branch %d", nr.outcome + 1 ).c_str() : "novel", spokenLog.c_str() );
+				// The typed console path, from the same pre-input state.
+				ship::Unpack( before.data(), before.size(), vessel );
+				gi.SendConsoleCommand( va( "ship meeting say \"%s\"", transcript.c_str() ) );
+				step = 3;
+			}
+		}
+		if ( step == 3 && level.time >= 4000 )
+		{
+			typedLog = SeamLogFor( vessel, transcript );
+			const ship::NoveltyResult nr = ship::ClassifyNovelInput( vessel, currentMeeting, transcript );
+			typedVerdict = nr.matched ? nr.outcome : -1;
+			gi.Printf( "SHIP: voice-in test: the typed form (console):  verdict %s; the log entry: %s\n",
+				nr.matched ? Fmt( "matched branch %d", nr.outcome + 1 ).c_str() : "novel", typedLog.c_str() );
+			gi.Printf( "SHIP: voice-in test: the verdict is the same: %s\n", spokenVerdict == typedVerdict ? "yes" : "NO" );
+			gi.Printf( "SHIP: voice-in test: the log entry is the same: %s\n", spokenLog == typedLog ? "yes" : "NO" );
+			// The byte-identical state, measured synchronously: from one snapshot, the one function the
+			// two console commands both call. (Across frames the ship's own clock advances, so a
+			// console-to-console pack comparison would measure the ticks, not the seam.)
+			ship::Ship keep;
+			ship::Unpack( before.data(), before.size(), keep );
+			vessel = keep;
+			SubmitRoomInput( transcript );                     // what `ship dictate say` reaches
+			spoken = ship::Pack( vessel );
+			const std::string sl = SeamLogFor( vessel, transcript );
+			vessel = keep;
+			SubmitRoomInput( transcript );                     // what `ship meeting say` reaches
+			typed = ship::Pack( vessel );
+			const std::string tl = SeamLogFor( vessel, transcript );
+			gi.Printf( "SHIP: voice-in test: the ship's state is byte-identical across the two paths: %s "
+				"(%d bytes), the log entry identical: %s\n", spoken == typed ? "yes" : "NO",
+				static_cast<int>( typed.size() ), sl == tl ? "yes" : "NO" );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 4800 )
+		{
+			// The replay: the verdict the worker wrote is loaded, so the same spoken input costs nothing.
+			const ship::NoveltyResult again = ship::ClassifyNovelInput( vessel, currentMeeting, transcript );
+			gi.Printf( "SHIP: voice-in test: replay: verdicts loaded=%d, novel-path calls=%d; the same spoken input "
+				"resolves as %s\n", ship::NoveltyVerdictCount(), meetingNovelCalls,
+				again.matched ? Fmt( "matched branch %d", again.outcome + 1 ).c_str() : "novel" );
+			WriteReport( "ship/voice-in.txt" );
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 5200 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
 		return;
 	}
 	if ( g_shipTest->integer == 11 )
@@ -4135,6 +4314,48 @@ void AddressComputerToConsole( const std::string &input )
 	Publish();
 }
 
+// THE free-text path, and there is exactly one (docs/staff-meetings.md, M6 voice in). A typed answer
+// -- the pill's entry field -- and a transcribed spoken answer both arrive here as a string: the
+// novelty seam classifies it, the simulation applies nothing, and the log carries what was said.
+// The log wording is provenance-neutral on purpose: a voiced line and a typed line with the same
+// text produce the *same* log entry, which is the acceptance, not a resemblance between two paths.
+void SubmitRoomInput( const std::string &text )
+{
+	if ( !meetingOpen ) { gi.Printf( "SHIP: meeting say: no room is open, so there is nothing to answer\n" ); return; }
+	if ( currentMeeting.kind == ship::MEET_COMPUTER )
+	{//the computer's room: free text is matched against the ship's API. In set, the computer answers;
+	 //out of set, the canonical refusal. No model, no invention, no state written. The transcribed
+	 //string takes this same membership test (docs/evidence/the-computer-api.md).
+		AddressComputerToConsole( text );
+		return;
+	}
+	const ship::NoveltyResult nr = ship::ClassifyNovelInput( vessel, currentMeeting, text );
+	// The answer is already known when a verdict is loaded, so it resolves inside the pause;
+	// otherwise the worker has not answered yet and the outcome is deferred.
+	const float elapsed = nr.matched ? 0.3f : 5.0f;
+	const ship::PauseOutcome po = ship::SubmitNovelAnswer( vessel, voiceMixer, currentMeeting, text, elapsed );
+	meetingSaid = text + "  ->  " + po.note;
+	gi.Printf( "SHIP: meeting say: \"%s\": %s; %s\n", text.c_str(),
+		nr.matched ? Fmt( "matched branch %d", nr.outcome ).c_str() : "no branch matched (novel)",
+		po.resolved ? "the cue played and the answer resolved inside the pause"
+			: "the holding line plays; the outcome is deferred" );
+	gi.Printf( "SHIP: meeting say: %s\n", po.note.c_str() );
+	if ( nr.matched )
+	{
+		// A genuine match: the branch is offered (the pill resolves it); the simulation applies the
+		// outcome through the normal choose path, so a say still writes no state.
+		ship::LogEvent( vessel, "the room", "command", std::string( "an answer matched the branch: " ) + text );
+	}
+	else
+	{
+		// Novel: the exchange goes to the log, and exactly one classification is queued for the
+		// worker. The simulation applies nothing.
+		ship::LogEvent( vessel, "the room", "command", std::string( "a novel answer was given: " ) + text );
+		AppendClassifyRequest( currentMeeting, text );
+	}
+	Publish();
+}
+
 void Svcmd_Ship_f( void )
 {
 	if ( !active )
@@ -4288,6 +4509,50 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "SHIP: voice: warm %d, %d line(s) cached, %d queued, dir %s\n",
 			voiceRender.warm ? 1 : 0, static_cast<int>( voiceRender.cache.size() ),
 			static_cast<int>( voiceRender.queue.size() ), voiceRender.dir.c_str() );
+		return;
+	}
+	if ( !Q_stricmp( cmd, "dictate" ) )
+	{//voice IN (docs/staff-meetings.md, M6 second half). "on"/"off" gate voice mode -- STT runs only
+	 //in voice mode. "say <audio-file>" is the capture boundary: the module queues the file for the
+	 //STT worker and, when the worker has written the transcript, submits that string through the one
+	 //free-text path (SubmitRoomInput). The engine captures no audio; an audio file is what a
+	 //microphone would have delivered, and there is no microphone on a headless host.
+		if ( !Q_stricmp( a, "on" ) )
+		{
+			voiceInMode = true;
+			gi.cvar_set( "lwh_ship_voice_in", "1" );
+			gi.Printf( "SHIP: dictate: voice mode on; the STT model runs only now, and only this worker\n" );
+			Publish();
+			return;
+		}
+		if ( !Q_stricmp( a, "off" ) )
+		{
+			voiceInMode = false;
+			gi.cvar_set( "lwh_ship_voice_in", "0" );
+			gi.Printf( "SHIP: dictate: voice mode off; no STT model is resident\n" );
+			Publish();
+			return;
+		}
+		if ( !Q_stricmp( a, "say" ) )
+		{
+			if ( !voiceInMode ) { gi.Printf( "SHIP: dictate: voice mode is off; there is no microphone to read\n" ); return; }
+			const std::string audio = b;
+			WriteVoiceRequest( audio );
+			const std::string transcript = LookupTranscript( audio );
+			if ( transcript.empty() )
+			{
+				gi.Printf( "SHIP: dictate: no transcript for \"%s\" yet; the transcription is pending and the room is "
+					"unaffected (the STT worker is absent)\n", audio.c_str() );
+				return;
+			}
+			voiceSaid = transcript;
+			gi.Printf( "SHIP: dictate: \"%s\" transcribed to \"%s\"; the string now takes the path a typed one takes\n",
+				audio.c_str(), transcript.c_str() );
+			SubmitRoomInput( transcript );
+			return;
+		}
+		gi.Printf( "SHIP: dictate [on|off|say <audio-file>]: voice mode %s, %d transcription(s) queued\n",
+			voiceInMode ? "on" : "off", voicePending );
 		return;
 	}
 	if ( !Q_stricmp( cmd, "cast" ) )
@@ -4920,42 +5185,10 @@ void Svcmd_Ship_f( void )
 			return;
 		}
 		if ( !Q_stricmp( a, "say" ) )
-		{//typed text, not a pill: it goes to the novelty seam and never to a branch by accident. M5:
-		 //the pause is filled immediately with a cue, and the answer resolves inside the pause or is
-		 //deferred to a later beat (SubmitNovelAnswer). It writes no ship state either way.
-			if ( !meetingOpen ) { gi.Printf( "SHIP: meeting say: no room is open, so there is nothing to answer\n" ); return; }
-			const std::string text = b;
-			if ( currentMeeting.kind == ship::MEET_COMPUTER )
-			{//the computer's room: free text is matched against the ship's API. In set, the computer
-			 //answers; out of set, the canonical refusal. No model, no invention, no state written.
-				AddressComputerToConsole( text );
-				return;
-			}
-			const ship::NoveltyResult nr = ship::ClassifyNovelInput( vessel, currentMeeting, text );
-			// The answer is already known when a verdict is loaded, so it resolves inside the pause;
-			// otherwise the worker has not answered yet and the outcome is deferred.
-			const float elapsed = nr.matched ? 0.3f : 5.0f;
-			const ship::PauseOutcome po = ship::SubmitNovelAnswer( vessel, voiceMixer, currentMeeting, text, elapsed );
-			meetingSaid = text + "  ->  " + po.note;
-			gi.Printf( "SHIP: meeting say: \"%s\": %s; %s\n", text.c_str(),
-				nr.matched ? Fmt( "matched branch %d", nr.outcome ).c_str() : "no branch matched (novel)",
-				po.resolved ? "the cue played and the answer resolved inside the pause"
-					: "the holding line plays; the outcome is deferred" );
-			gi.Printf( "SHIP: meeting say: %s\n", po.note.c_str() );
-			if ( nr.matched )
-			{
-				// A genuine match: the branch is offered (the pill resolves it); the simulation applies
-				// the outcome through the normal choose path, so a typed say still writes no state.
-				ship::LogEvent( vessel, "the room", "command", std::string( "a typed answer matched the branch: " ) + text );
-			}
-			else
-			{
-				// Novel: the exchange goes to the log, and exactly one classification is queued for the
-				// worker. The simulation applies nothing.
-				ship::LogEvent( vessel, "the room", "command", std::string( "a novel answer was given: " ) + text );
-				AppendClassifyRequest( currentMeeting, text );
-			}
-			Publish();
+		{//typed text, not a pill: it goes to the one free-text path (SubmitRoomInput) and never to a
+		 //branch by accident. M5: the pause is filled immediately with a cue, and the answer resolves
+		 //inside the pause or is deferred to a later beat. It writes no ship state either way.
+			SubmitRoomInput( b );
 			return;
 		}
 		if ( !Q_stricmp( a, "script" ) )
