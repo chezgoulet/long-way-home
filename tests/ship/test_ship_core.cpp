@@ -6620,6 +6620,77 @@ static void TestCharacterCreationComposes()
 	CHECK(SeatHeldBy(t, before) < 0);                    // still an ordinary post
 }
 
+// M6 Task A: the ship's API is enumerable, the computer's pills are drawn from it, and membership is a
+// whole-token, case-insensitive test over it -- nothing else's. The freshness check (scripts/api-check.sh)
+// holds the table against the console; this holds the semantics.
+static void TestConsoleApi()
+{
+	g_test = "the ship's API is enumerable, and the computer's pills come from it";
+	CHECK(ConsoleVerbCount() > 0);
+	for (int i = 0; i < ConsoleVerbCount(); ++i)
+		CHECK(ConsoleVerbAt(i).verb != nullptr && ConsoleVerbAt(i).verb[0]);
+	// Whole-token, case-insensitive membership: `on` is not `onto`, `run` is not `running`.
+	CHECK(FindConsoleVerb("status") >= 0);
+	CHECK(FindConsoleVerb("STATUS") >= 0);
+	CHECK(FindConsoleVerb("AlErT") >= 0);
+	CHECK(FindConsoleVerb("on") >= 0);
+	CHECK(FindConsoleVerb("onto") < 0);
+	CHECK(FindConsoleVerb("running") < 0);
+	CHECK(FindConsoleVerb("frobnicate") < 0);
+	CHECK(FindConsoleVerb("") < 0);
+	// Every pill names a function the computer has: a pill can never offer what the API lacks.
+	CHECK(ComputerPillCount() > 0);
+	for (int i = 0; i < ComputerPillCount(); ++i)
+		CHECK(FindConsoleVerb(ComputerPillVerb(i)) >= 0);
+	CHECK(std::strcmp(ComputerVoice(), "computer") == 0);
+}
+
+// M6 Tasks B, C and D: the computer is the same machinery as a meeting -- a brief with pills, the same
+// skeleton, its own voice -- and an input outside the enumerated set is refused in character with the
+// ship's state byte-identical. A recognised input is answered and also changes nothing.
+static void TestTheComputer()
+{
+	g_test = "the computer: the enumerated set is its API, and the refusal writes nothing";
+	Ship s = NewShip();
+	s.player = 0;
+	const MeetingBrief c = BuildComputerBrief(s);
+	CHECK(c.kind == MEET_COMPUTER);
+	CHECK(c.optionCount == ComputerPillCount());
+	const MeetingSkeleton &sk = AuthoredSkeleton(MEET_COMPUTER);
+	CHECK(sk.outcomeCount == ComputerPillCount());
+	for (int i = 0; i < sk.outcomeCount; ++i)
+		CHECK(sk.outcomes[i].lines[0].speaker == SPEAK_COMPUTER);
+
+	// The computer's voice: its own named reference, not a pool draw, and the clip is keyed under it.
+	const std::string key = MeetingLineKey(s, c, sk.outcomes[0].lines[0]);
+	CHECK(!key.empty());
+	CHECK(key == RenderKey("computer", sk.outcomes[0].lines[0].text, DELIVERY_REPORT));
+
+	// A recognised pill (and the same verb typed free) is answered, deterministically and in set.
+	ComputerReply pill = AddressComputer(s, ComputerPillVerb(0));
+	ComputerReply typed = AddressComputer(s, "status");
+	CHECK(pill.inSet && !pill.refused);
+	CHECK(typed.inSet && !typed.refused);
+	CHECK(pill.line == typed.line);            // one form, so a clip is rendered once and replays
+	CHECK(pill.line == "Acknowledged. status.");
+	CHECK(pill.verb == typed.verb);
+
+	// THE REFUSAL: an input close to real but not in the enumerated set is refused in character, and
+	// the ship's state is byte-identical across it.
+	const std::vector<uint8_t> before = Pack(s);
+	const ComputerReply miss = AddressComputer(s, "warpnine");
+	CHECK(!miss.inSet && miss.refused);
+	CHECK(miss.line == ComputerRefusal());
+	CHECK(std::strcmp(miss.line.c_str(), "that function is not available") == 0);
+	CHECK(AddressComputer(s, "make it so").refused);  // a phrase that is not a console verb
+	const std::vector<uint8_t> after = Pack(s);
+	CHECK(before == after);                    // nothing was written -- not even a plausible status
+
+	// A replay costs nothing: the same input twice is the same authored line, no model in the loop.
+	CHECK(AddressComputer(s, "status").line == typed.line);
+	CHECK(Pack(s) == before);
+}
+
 static void PrintStartState(const StartState &st, int index)
 {
 	Config cfg;
@@ -6801,6 +6872,8 @@ int main(int argc, char **argv)
 	TestFictitiousNoCanon();
 	TestStartStateSaveRoundTrip();
 	TestCharacterCreationComposes();
+	TestConsoleApi();
+	TestTheComputer();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

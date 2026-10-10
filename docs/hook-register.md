@@ -220,6 +220,8 @@ substance of the brief's point and stands.
 | `SectorNumber` | `const Ship &s` | sector number | nothing | — | — |
 | `AdvanceSector` | `Ship &s` | advance sector | console | — | — |
 | `Trauma` | `const CrewMember &who` | The unprocessed weight a character carries: their negative marks, still salient | play | — | — |
+| `BuildComputerBrief` | `const Ship &s` | The computer is addressed, not convened: the same brief shape as a meeting's, built from the computer skeleton, whose pills are the ship's API | play | — | docs/staff-meetings.md |
+| `AddressComputer` | `const Ship &s, const std::string &input` | What the computer says to an input: membership in the ship's API (FindConsoleVerb); a recognised command answered from the authored line, an input outside the set refused in character ("that function is not available") with nothing invented and no state written | play | — | docs/staff-meetings.md |
 
 ### 3. Outcomes content can ask for  
 *54 hooks.*
@@ -460,6 +462,15 @@ substance of the brief's point and stands.
 | `CrewOnDeck` | `const Ship &s, int deck` | Who is on a deck right now: indices into Ship::crew, in roster order | play | — | — |
 | `Describe` | `const Ship &s` | A one-screen status report, for the console command and for tests' failure messages | nothing | — | — |
 | `CaptainLog` | `const Ship &s` | The captain's log as an authored, summarised artifact, distinct from the raw feed: the situation in the captain's words, generated from the ship's state | console | — | — |
+| `ConsoleVerbCount` | `` | the size of the ship's API, the enumerated command surface (M6) | play | — | docs/staff-meetings.md |
+| `ConsoleVerbAt` | `int i` | a command's verb, arguments and owning station, or empty out of range | play | — | docs/staff-meetings.md |
+| `FindConsoleVerb` | `const char *word` | The enumerated verb a word names, whole-token and case-insensitive; -1 when it is not in the set. The computer's membership test, and nothing else's | play | — | docs/staff-meetings.md |
+| `ComputerVoice` | `` | The computer's own voice reference ("computer"), assigned where the cast lives rather than by a pool draw | play | — | docs/staff-meetings.md |
+| `ComputerRefusal` | `` | The canonical refusal, in one place: "that function is not available" | play | — | docs/staff-meetings.md |
+| `ComputerPillCount` | `` | the computer's pills | play | — | docs/staff-meetings.md |
+| `ComputerPillVerb` | `int i` | the API verb a computer pill submits | play | — | docs/staff-meetings.md |
+| `ComputerPillLabel` | `int i` | a computer pill's short description | play | — | docs/staff-meetings.md |
+| `ComputerPillCost` | `int i` | a computer pill's cost | play | — | docs/staff-meetings.md |
 
 ## The counts (Task B)
 
@@ -468,17 +479,17 @@ substance of the brief's point and stands.
 | group | hooks |
 |---|---|
 | entry points | 74 |
-| situations the simulation generates | 61 |
+| situations the simulation generates | 63 |
 | outcomes | 54 |
-| readers | 174 |
+| readers | 183 |
 | the configurator | 18 |
-| **total** | **381** |
+| **total** | **392** |
 
 **By reachability.**
 
 | state | hooks |
 |---|---|
-| reached in play | 216 |
+| reached in play | 227 |
 | reached only from the developer console | 130 |
 | reached by nothing yet | 35 |
 | — of those, reached only by the tests | 29 |
@@ -511,6 +522,17 @@ resolves inside the pause or defers. Eight readers carry the casting map and the
 duration for the pills) and the rest are console. The counts above are the rows of this register,
 counted: 74 + 61 + 54 + 174 + 18 = 381, and 216 + 130 + 35 = 381. Evidence:
 `docs/evidence/voice-and-casting.md`.
+
+**Re-derived 2026-10-09, the ship's computer (M6a).** Eleven hooks are added. The ship's API becomes
+readable: `ConsoleVerbCount`, `ConsoleVerbAt` and `FindConsoleVerb` (the enumerated command surface, and
+the computer's membership test), `ComputerVoice` and `ComputerRefusal` (the computer's own voice and its
+canonical refusal), and the computer's pills (`ComputerPillCount`, `ComputerPillVerb`,
+`ComputerPillLabel`, `ComputerPillCost`). `BuildComputerBrief` and `AddressComputer` are the same
+machinery a meeting uses, addressed to the computer. All eleven are reached in play: the computer is
+addressed through the meeting overlay, whose keys send `ship meeting say` and `ship meeting choose`, and
+the host routes them to `AddressComputer`. The counts above are the rows of this register, counted:
+74 + 63 + 54 + 183 + 18 = 392, and 227 + 130 + 35 = 392. Evidence:
+`docs/evidence/the-computer-api.md`.
 
 ### 5. The configurator — the player chooses the start state
 
