@@ -24,7 +24,6 @@ No geometry, no texture, no new asset: light entities only.
 import argparse
 import json
 import os
-import re
 import sys
 
 # The astrometrics room in deck08's own frame: floor top z -3768, the room x -1876..-1476,
