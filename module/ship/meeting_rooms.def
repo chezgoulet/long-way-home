@@ -1,0 +1,50 @@
+// module/ship/meeting_rooms.def -- where each meeting is held, as one place a program can read.
+//
+// The owner's ruling (docs/staff-meetings.md, 2026-10-09): a meeting happens *somewhere*, and the
+// subject and the people choose the room. A command decision meets in the briefing room; a security
+// matter meets in the security office, with the security chief, before anyone decides or executes; a
+// medical question meets where the medicine is; an engineering one where the plant is. The rooms are
+// real places the master map names (docs/ship-master-map.md), never invented here.
+//
+// A row is keyed by the meeting's **kind** and by its **subject** -- the department whose business it
+// is. The subject is the department, so a departmental meeting's room follows the department whose
+// work it is (a departmental engineering meeting is held in main engineering, a medical one in
+// sickbay), which is the one kind with more than one row and the demonstration that the place is
+// derived from kind *and* subject rather than hand-set on the kind.
+//
+// This file is the single source: included (X-macro) by module/ship/ship_core.cpp to build the runtime
+// table, so the module and tools/meetings/rooms.py read the same rows. scripts/meeting-place-check.sh
+// fails when a kind of meeting has no room at all -- a meeting that cannot say where it happens is the
+// bug this table exists to close.
+//
+//   MEETING_ROOM(kind, subject-department, room, deck)
+//     kind              -- a MeetingKind
+//     subject-department-- the Department whose business the meeting is (docs/ship-master-map.md)
+//     room              -- the room's own name, as the ship names it
+//     deck              -- the deck that hosts it (docs/ship-master-map.md)
+
+// A command decision: the command crew meet in the briefing room.
+MEETING_ROOM(MEET_WATCH_CHANGE, DEPT_COMMAND,     "the briefing room",   1)
+
+// The departmental meeting is held where the department's own work is.
+MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_COMMAND,     "the ready room",      1)
+MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_ENGINEERING, "main engineering",   11)
+MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_SECURITY,    "the security office", 6)
+MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_SCIENCES,    "astrometrics",        8)
+MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_MEDICAL,     "sickbay",             5)
+
+// An engineering matter meets where the plant is.
+MEETING_ROOM(MEET_ALLOCATION,   DEPT_ENGINEERING, "main engineering",   11)
+MEETING_ROOM(MEET_DILITHIUM,    DEPT_ENGINEERING, "main engineering",   11)
+
+// A medical question meets where the medicine is.
+MEETING_ROOM(MEET_CASUALTIES,   DEPT_MEDICAL,     "sickbay",             5)
+
+// A security matter meets in security, with the security chief.
+MEETING_ROOM(MEET_BORG,         DEPT_SECURITY,    "the security office", 6)
+
+// A command decision that has waited: the captain's own room.
+MEETING_ROOM(MEET_DEFERRED,     DEPT_COMMAND,     "the ready room",      1)
+
+// The computer is addressed, not convened: from the bridge, where it is spoken to.
+MEETING_ROOM(MEET_COMPUTER,     DEPT_COMMAND,     "the bridge",          1)

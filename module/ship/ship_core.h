@@ -944,6 +944,28 @@ enum MeetingKind : uint8_t {
 };
 const char *MeetingKindName(uint8_t kind);
 
+// Where a meeting is held (the owner's ruling, 2026-10-09; docs/staff-meetings.md). The room belongs
+// to the brief and is known *before* the meeting: the subject and the people choose the room, and
+// because it is known early, generation has the render window the ruling describes. The mapping lives
+// in one place a program reads -- module/ship/meeting_rooms.def -- keyed by the meeting's kind and by
+// its subject, the department whose business it is. Every kind has a room;
+// scripts/meeting-place-check.sh fails when a kind has none, because a meeting that cannot say where
+// it happens is the bug this closes.
+struct MeetingRoom {
+	const char *name;  // the room's own name, as the ship names it
+	int deck;          // the deck that hosts it (docs/ship-master-map.md)
+};
+int MeetingRoomCount();
+const MeetingRoom &MeetingRoomAt(int i);
+// The room for a meeting of `kind` whose subject is `dept`. Falls back to the kind's first row when
+// the subject has none, and to a named "no room" when the kind has none at all (which the check
+// forbids). A pure read.
+MeetingRoom MeetingRoomFor(uint8_t kind, uint8_t dept);
+// The department whose business a meeting of this kind is, read from the ship: the busiest department
+// for the departmental meeting, and the fixed subject for the rest. This is the "subject" the room is
+// derived from, so the place is computed from the state rather than carried in by hand. A pure read.
+uint8_t MeetingSubjectDepartment(const Ship &s, uint8_t kind);
+
 // Delivery direction (docs/evidence/voice-review.md, finding three). The synthesizer's `exaggeration`
 // defaults to 0.5 whatever the text says, so an emergency order and a request for lunch arrive at the
 // same emotional temperature until something asks for a difference. Every line carries one of these,
@@ -1067,6 +1089,8 @@ struct BriefSystem {
 };
 struct MeetingBrief {
 	uint8_t kind = MEET_WATCH_CHANGE;
+	uint8_t subject = 0;     // the department whose business it is (a Department): the room's subject
+	uint8_t room = 0;        // MeetingRoomAt index: the place, resolved at generation time
 	double time = 0.0;       // ship seconds when it was emitted
 	std::string trigger;     // why this meeting exists, in words
 	std::string decision;    // what is being decided
@@ -2467,7 +2491,7 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-const uint16_t SAVE_VERSION = 54;  // 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
+const uint16_t SAVE_VERSION = 55;  // 55: the meeting's place -- each queued brief now knows the room it is held in and the department whose business it is, derived from the meeting's kind and subject (docs/staff-meetings.md); 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

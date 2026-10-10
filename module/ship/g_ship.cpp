@@ -566,8 +566,9 @@ void PublishMeeting( void )
 	{
 		gi.cvar_set( Fmt( "lwh_ship_meeting_q%d", i ).c_str(),
 			i < static_cast<int>( q.size() )
-				? Fmt( "%s|%s|%d|%d", ship::MeetingKindName( q[i].kind ), q[i].decision.c_str(),
-					q[i].presentCount, q[i].optionCount ).c_str() : "" );
+				? Fmt( "%s|%s|%d|%d|%s", ship::MeetingKindName( q[i].kind ), q[i].decision.c_str(),
+					q[i].presentCount, q[i].optionCount,
+					ship::MeetingRoomAt( static_cast<int>( q[i].room ) ).name ).c_str() : "" );
 	}
 	gi.cvar_set( "lwh_ship_meeting_open", meetingOpen ? "1" : "0" );
 	gi.cvar_set( "lwh_ship_meeting_said", meetingSaid.c_str() );
@@ -577,6 +578,13 @@ void PublishMeeting( void )
 	gi.cvar_set( "lwh_ship_meeting_kind", ship::MeetingKindName( b.kind ) );
 	gi.cvar_set( "lwh_ship_meeting_decision", b.decision.c_str() );
 	gi.cvar_set( "lwh_ship_meeting_trigger", b.trigger.c_str() );
+	// The place (docs/staff-meetings.md, the owner's ruling 2026-10-09): the room the brief will be
+	// played in, on the brief and known before the meeting. The screen names it.
+	{
+		const ship::MeetingRoom place = ship::MeetingRoomAt( static_cast<int>( b.room ) );
+		gi.cvar_set( "lwh_ship_meeting_room", place.name );
+		gi.cvar_set( "lwh_ship_meeting_deck", Fmt( "%d", place.deck ).c_str() );
+	}
 	gi.cvar_set( "lwh_ship_meeting_options", Fmt( "%d", b.optionCount ).c_str() );
 	for ( int i = 0; i < b.optionCount && i < ship::MEETING_OPTION_MAX; ++i )
 		gi.cvar_set( Fmt( "lwh_ship_meeting_opt%d", i ).c_str(),
@@ -1517,6 +1525,106 @@ void RunTest( void )
 			step = 7;
 		}
 		if ( step == 7 && level.time >= 14000 ) { gi.SendConsoleCommand( "quit\n" ); step = 8; }
+		return;
+	}
+	if ( g_shipTest->integer == 91 )
+	{//the meeting's place (docs/staff-meetings.md, the owner's ruling 2026-10-09): every meeting's room
+	 //is on its brief, derived from the kind and the subject, and known before the player arrives. A
+	 //command decision is in the briefing room, a security matter in the security office with the
+	 //security chief present, an engineering one where the plant is. The player stands in the named
+	 //room, and the overlay names it; whether the room reads as the right room is the owner's to judge.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{//clear the normal-case queue, then let a security matter call its meeting
+			vessel.clock = ( std::floor( vessel.clock / ship::SECONDS_PER_WATCH ) + 1.0 ) * ship::SECONDS_PER_WATCH;
+			ship::Tick( vessel, 1.0f );
+			while ( ship::TakeBrief( vessel ) ) {}
+			const int me = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
+			gi.Printf( "SHIP: meeting place: the player reports for duty as crew %d (%s)\n", me,
+				me >= 0 ? vessel.crew[me].name.c_str() : "nobody" );
+			// A security matter: Borg pressure rising. Before anyone decides or executes, the room is
+			// security, with the security chief present.
+			vessel.borgAwareness = 1.0f;
+			ship::Tick( vessel, 1.0f );
+			while ( !ship::PendingMeetings( vessel ).empty()
+				&& ship::PendingMeetings( vessel ).front().kind != ship::MEET_BORG )
+				ship::TakeBrief( vessel );
+
+			// The mapping the brief carries: the room and deck come from the kind and its subject.
+			static const char *const DEPTS[] = { "command", "engineering", "security", "sciences", "medical" };
+			static const uint8_t KINDS[] = { ship::MEET_WATCH_CHANGE, ship::MEET_BORG, ship::MEET_ALLOCATION,
+				ship::MEET_CASUALTIES, ship::MEET_DEPARTMENTAL };
+			for ( uint8_t k : KINDS )
+			{
+				const ship::MeetingBrief b = ship::BuildBrief( vessel, k );
+				const ship::MeetingRoom r = ship::MeetingRoomAt( static_cast<int>( b.room ) );
+				gi.Printf( "SHIP: meeting place: %s (subject %s) -> %s, deck %d\n",
+					ship::MeetingKindName( k ), DEPTS[b.subject < ship::DEPT_COUNT ? b.subject : 0], r.name, r.deck );
+			}
+			const std::vector<ship::MeetingBrief> &q = ship::PendingMeetings( vessel );
+			gi.Printf( "SHIP: meeting place: %d brief queued before the player arrives\n", static_cast<int>( q.size() ) );
+			for ( const ship::MeetingBrief &b : q )
+			{
+				const ship::MeetingRoom r = ship::MeetingRoomAt( static_cast<int>( b.room ) );
+				gi.Printf( "SHIP: meeting place:   %s in %s (deck %d), present %d\n",
+					ship::MeetingKindName( b.kind ), r.name, r.deck, b.presentCount );
+			}
+			// The place is written into the log at the emit site, long before the room is opened.
+			const std::vector<ship::LogEntry> newest = ship::ReadOfficialLog( vessel, 1, "" );
+			if ( !newest.empty() ) gi.Printf( "SHIP: meeting place: the log at generation: %s\n", newest[0].what.c_str() );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3000 )
+		{//the player walks into the room the brief named: the security office on deck 6
+			if ( TeleportPlayerTo( "lwh_armory_post", "meeting place: at the security office" ) )
+			{
+				vec3_t look = { 0, 90, 0 };  // face north, out of the armory alcove
+				VectorCopy( look, glanceAngles );
+				haveGlanceAim = true;
+			}
+			else gi.Printf( "SHIP: meeting place: no lwh_armory_post on this map\n" );
+			step = 11;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
+		if ( step == 11 && level.time >= 3600 ) { gi.SendConsoleCommand( "screenshot lwh_meeting_place_a\n" ); step = 12; }
+		if ( step == 12 && level.time >= 4200 )
+		{//the other side of the same room
+			vec3_t look = { 0, 270, 0 };
+			VectorCopy( look, glanceAngles );
+			haveGlanceAim = true;
+			step = 13;
+		}
+		if ( step == 13 && level.time >= 4800 ) { gi.SendConsoleCommand( "screenshot lwh_meeting_place_b\n" ); step = 2; }
+		if ( step == 2 && level.time >= 5400 )
+		{//the room opens on the security brief: the place was already on it, from generation
+			gi.SendConsoleCommand( "ship meeting open\n" );
+			gi.SendConsoleCommand( "ui_lwh_meeting_room\n" );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 6000 )
+		{
+			gi.Printf( "SHIP: meeting place: open=%d\n", meetingOpen ? 1 : 0 );
+			if ( meetingOpen )
+			{
+				const ship::MeetingRoom r = ship::MeetingRoomAt( static_cast<int>( currentMeeting.room ) );
+				gi.Printf( "SHIP: meeting place: the room is %s (deck %d); kind %s\n",
+					r.name, r.deck, ship::MeetingKindName( currentMeeting.kind ) );
+				for ( int i = 0; i < currentMeeting.presentCount; ++i )
+					gi.Printf( "SHIP: meeting place: present %s (%s)\n",
+						currentMeeting.present[i].name.c_str(),
+						vessel.crew[currentMeeting.present[i].crew].dept == ship::DEPT_SECURITY ? "security" : "other" );
+			}
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 6600 ) { gi.SendConsoleCommand( "screenshot lwh_meeting_place\n" ); step = 5; }
+		if ( step == 5 && level.time >= 7600 )
+		{
+			WriteReport( "ship/meeting-place.txt" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 6;
+		}
 		return;
 	}
 	if ( g_shipTest->integer == 83 )
@@ -5303,8 +5411,10 @@ void Svcmd_Ship_f( void )
 			ship::TakeBrief( vessel );
 			meetingOpen = true;
 			meetingSaid.clear();
-			gi.Printf( "SHIP: meeting open: the room takes the %s brief: %s (present %d, options %d)\n",
+			gi.Printf( "SHIP: meeting open: the room takes the %s brief: %s (in %s, deck %d; present %d, options %d)\n",
 				ship::MeetingKindName( currentMeeting.kind ), currentMeeting.decision.c_str(),
+				ship::MeetingRoomAt( static_cast<int>( currentMeeting.room ) ).name,
+				ship::MeetingRoomAt( static_cast<int>( currentMeeting.room ) ).deck,
 				currentMeeting.presentCount, currentMeeting.optionCount );
 			Publish();
 			return;

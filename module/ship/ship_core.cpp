@@ -6448,6 +6448,77 @@ const char *MeetingKindName(uint8_t kind)
 	return kind < MEET_KIND_COUNT ? NAMES[kind] : "?";
 }
 
+// ---- where a meeting is held (the owner's ruling, 2026-10-09) ------------------------------------
+//
+// meeting_rooms.def is the single source: included here as an X-macro it becomes the runtime table the
+// room lookup reads, and tools/meetings/rooms.py parses the same rows. scripts/meeting-place-check.sh
+// fails when a kind of meeting has no room. The place is keyed by the meeting's kind and its subject.
+namespace {
+struct MeetingRoomRow { uint8_t kind; uint8_t dept; MeetingRoom room; };
+#define MEETING_ROOM(k, d, r, deck) MeetingRoomRow{ k, d, { r, deck } },
+const MeetingRoomRow g_meetingRooms[] = {
+#include "meeting_rooms.def"
+};
+#undef MEETING_ROOM
+const int MEETING_ROOM_COUNT = static_cast<int>(sizeof(g_meetingRooms) / sizeof(g_meetingRooms[0]));
+}
+
+int MeetingRoomCount() { return MEETING_ROOM_COUNT; }
+
+const MeetingRoom &MeetingRoomAt(int i)
+{
+	static const MeetingRoom none = { "no room", 0 };
+	if (i < 0 || i >= MEETING_ROOM_COUNT) return none;
+	return g_meetingRooms[i].room;
+}
+
+MeetingRoom MeetingRoomFor(uint8_t kind, uint8_t dept)
+{
+	// The row for this kind and this subject, if the subject has one; otherwise the kind's first row.
+	for (int i = 0; i < MEETING_ROOM_COUNT; ++i)
+		if (g_meetingRooms[i].kind == kind && g_meetingRooms[i].dept == dept) return g_meetingRooms[i].room;
+	for (int i = 0; i < MEETING_ROOM_COUNT; ++i)
+		if (g_meetingRooms[i].kind == kind) return g_meetingRooms[i].room;
+	return MeetingRoomAt(-1);
+}
+
+// The row index the brief stores: MeetingRoomAt(room) is the place. -1 when the kind has no row,
+// which scripts/meeting-place-check.sh forbids but which the lookup survives (it names "no room").
+static int RoomIndexFor(uint8_t kind, uint8_t dept)
+{
+	for (int i = 0; i < MEETING_ROOM_COUNT; ++i)
+		if (g_meetingRooms[i].kind == kind && g_meetingRooms[i].dept == dept) return i;
+	for (int i = 0; i < MEETING_ROOM_COUNT; ++i)
+		if (g_meetingRooms[i].kind == kind) return i;
+	return -1;
+}
+
+// The busiest department: the one with the most fit, on-duty, unbrigged crew. The subject of a
+// departmental meeting, and (formerly) how its participants were chosen.
+static Department BusiestDepartment(const Ship &s)
+{
+	int best = DEPT_COMMAND, bestN = -1;
+	for (int d = 0; d < DEPT_COUNT; ++d) {
+		int cnt = 0;
+		for (const CrewMember &c : s.crew)
+			if (c.status == CREW_FIT && !c.brigged && c.dept == d && c.activity == ACT_ON_DUTY) ++cnt;
+		if (cnt > bestN) { bestN = cnt; best = d; }
+	}
+	return static_cast<Department>(best);
+}
+
+uint8_t MeetingSubjectDepartment(const Ship &s, uint8_t kind)
+{
+	switch (kind) {
+		case MEET_ALLOCATION:
+		case MEET_DILITHIUM: return DEPT_ENGINEERING;   // the plant's business
+		case MEET_CASUALTIES: return DEPT_MEDICAL;      // the medicine's
+		case MEET_BORG: return DEPT_SECURITY;           // security's
+		case MEET_DEPARTMENTAL: return BusiestDepartment(s); // the department whose work it is
+		default: return DEPT_COMMAND;                   // the command's own room
+	}
+}
+
 const char *MeetingEffectName(uint8_t e)
 {
 	static const char *const NAMES[EFFECT_COUNT] = {
@@ -6834,13 +6905,7 @@ static void ParticipantsFor(const Ship &s, uint8_t kind, MeetingBrief &b)
 			for (const Promise &p : s.promises) if (p.state == PROMISE_OPEN) { add(p.promiser); add(p.beneficiary); }
 			break;
 		case MEET_DEPARTMENTAL: {
-			int best = -1, bestN = -1;
-			for (int d = 0; d < DEPT_COUNT; ++d) {
-				int cnt = 0;
-				for (const CrewMember &c : s.crew)
-					if (c.status == CREW_FIT && !c.brigged && c.dept == d && c.activity == ACT_ON_DUTY) ++cnt;
-				if (cnt > bestN) { bestN = cnt; best = d; }
-			}
+			const Department best = BusiestDepartment(s);
 			for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
 				const CrewMember &c = s.crew[i];
 				if (c.status == CREW_FIT && !c.brigged && c.dept == best) add(i);
@@ -6901,6 +6966,13 @@ MeetingBrief BuildBrief(const Ship &s, uint8_t kind)
 	MeetingBrief b;
 	if (kind >= MEET_KIND_COUNT) kind = MEET_WATCH_CHANGE;
 	b.kind = kind;
+	b.subject = MeetingSubjectDepartment(s, kind);
+	{
+		// The place, resolved here at generation time from the kind and the subject -- so the brief
+		// knows the room it will be played in before the player arrives (Task C).
+		const int room = RoomIndexFor(kind, static_cast<uint8_t>(b.subject));
+		b.room = static_cast<uint8_t>(room < 0 ? 0xFF : room);
+	}
 	b.time = s.clock;
 	const MeetingSkeleton &sk = AuthoredSkeleton(kind);
 	b.decision = sk.decision;
@@ -6974,8 +7046,12 @@ int EmitDueMeetings(Ship &s)
 		s.meetingLatches = static_cast<uint16_t>(s.meetingLatches | (1u << k));
 		if (k == MEET_WATCH_CHANGE) s.lastWatchMeeting = WatchToken(s);
 		if (k == MEET_DEPARTMENTAL) s.lastDeptMeetingDay = s.Day();
+		// The place is known here, at the emit site: the brief was built with the room it will be
+		// played in, long before the player opens it (the render window, Task C).
+		const MeetingRoom room = MeetingRoomAt(static_cast<int>(b.room));
 		LogEvent(s, "the bridge", "command",
-			std::string("a ") + MeetingKindName(static_cast<uint8_t>(k)) + " meeting is called: " + b.decision);
+			std::string("a ") + MeetingKindName(static_cast<uint8_t>(k)) + " meeting is called in "
+			+ room.name + " (deck " + std::to_string(room.deck) + "): " + b.decision);
 		++emitted;
 	}
 	if (static_cast<int>(s.pendingMeetings.size()) > MEETING_QUEUE_MAX)
@@ -7821,6 +7897,8 @@ std::vector<uint8_t> Pack(const Ship &s)
 	for (int i = 0; i < nMeetings; ++i) {
 		const MeetingBrief &b = s.pendingMeetings[i];
 		w.U8(b.kind);
+		w.U8(b.subject);
+		w.U8(b.room);
 		w.U64(static_cast<uint64_t>(std::llround(b.time * 1000.0)));
 		WriteStr(w, b.trigger);
 		WriteStr(w, b.decision);
@@ -8267,6 +8345,10 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	for (int i = 0; i < meetingCount && r.ok; ++i) {
 		MeetingBrief b;
 		b.kind = r.U8();
+		b.subject = r.U8();
+		b.room = r.U8();
+		if (b.subject >= DEPT_COUNT) return false;
+		if (b.room != 0xFF && b.room >= MeetingRoomCount()) return false;
 		b.time = static_cast<double>(r.U64()) / 1000.0;
 		b.trigger = ReadStr(r);
 		b.decision = ReadStr(r);
