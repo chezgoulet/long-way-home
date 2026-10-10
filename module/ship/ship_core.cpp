@@ -439,6 +439,230 @@ void DeriveCharacter(CrewMember &c, uint32_t &rng)
 	c.conditionCount = 0;
 }
 
+// ---- the appearance derivation -------------------------------------------------------------------
+//
+// The pool, enumerated from the shipped data and recorded in docs/evidence/the-appearance.md. It is
+// the game's own generic-crew/multiplayer parts: the head directories that ship a head.md3 and a
+// skin, which the game's ext_data/NPCs.cfg already dresses its random Starfleet crew from. The
+// species tag is the game's own `race` field where it has one, and a named placeholder where it has
+// none (the game ships no non-canon Vulcan, Talaxian or Ocampan face -- see the evidence).
+//
+// The show command crew (janeway, chakotay, tuvok, paris, kim, torres, doctor, seven, neelix,
+// tuvok_h) is NOT in this table: IsCanonFace names them in one place, and both the derivation and
+// the whole-pool check call it. A generated member can never wear a canon likeness.
+
+struct HeadPart {
+	const char *dir;
+	const char *skin;
+	uint8_t species;
+	bool female;
+};
+
+static const HeadPart HEADS[] = {
+	// Human, from the game's own generic-crew and multiplayer faces.
+	{"Garren",      "default",  SPECIES_HUMAN,          true },
+	{"Garren",      "mackey",   SPECIES_HUMAN,          true },
+	{"Garren",      "salma",    SPECIES_HUMAN,          true },
+	{"generic1",    "default",  SPECIES_HUMAN,          false},
+	{"green",       "default",  SPECIES_HUMAN,          false},
+	{"chang",       "default",  SPECIES_HUMAN,          false},
+	{"chang",       "tom",      SPECIES_HUMAN,          false},
+	{"foster",      "default",  SPECIES_HUMAN,          false},
+	{"biessman",    "default",  SPECIES_HUMAN,          false},
+	{"telsia",      "default",  SPECIES_HUMAN,          true },
+	{"munro",       "default",  SPECIES_HUMAN,          false},
+	{"munro",       "kenn",     SPECIES_HUMAN,          false},
+	{"munro_lt",    "default",  SPECIES_HUMAN,          false},
+	{"munroscav",   "default",  SPECIES_HUMAN,          false},
+	{"munrocrew",   "jar",      SPECIES_HUMAN,          false},
+	{"munrocrew",   "jon",      SPECIES_HUMAN,          false},
+	{"imperial",    "default",  SPECIES_HUMAN,          false},
+	{"imperial",    "paladin",  SPECIES_HUMAN,          false},
+	{"imperial2",   "default",  SPECIES_HUMAN,          false},
+	{"imperial3",   "default",  SPECIES_HUMAN,          false},
+	{"imperial4",   "default",  SPECIES_HUMAN,          false},
+	{"imperial5",   "default",  SPECIES_HUMAN,          false},
+	{"imperial6",   "default",  SPECIES_HUMAN,          false},
+	{"impfem",      "default",  SPECIES_HUMAN,          true },
+	{"impfem2",     "default",  SPECIES_HUMAN,          true },
+	// Vulcan: the game ships the species only as canon faces (tuvok, vorik), so these are a named
+	// placeholder carve of human faces -- the one visual shortfall of this pass, in the evidence.
+	{"pelletier",   "default",  SPECIES_VULCAN,         false},
+	{"pelletier",   "klein",    SPECIES_VULCAN,         false},
+	{"pelletier",   "generic2", SPECIES_VULCAN,         false},
+	{"oviedo_h",    "default",  SPECIES_VULCAN,         false},
+	{"oviedo_h",    "csatlos",  SPECIES_VULCAN,         false},
+	{"oviedo_h",    "jaworski", SPECIES_VULCAN,         false},
+	{"mackey",      "default",  SPECIES_VULCAN,         true },
+	// Betazoid and Bolian: the game ships these as the game's own characters (Jurot, Chell), whose
+	// faces are Raven's, not Paramount's -- the boundary docs/asset-doctrine.md draws.
+	{"telsia",      "jurot",    SPECIES_BETAZOID,       true },
+	{"chell",       "default",  SPECIES_BOLIAN,         false},
+	{"chell",       "long",     SPECIES_BOLIAN,         false},
+	// Klingon: a genuinely distinct, non-canon pool.
+	{"klingon",     "default",  SPECIES_KLINGON,        false},
+	{"klingon",     "angry",    SPECIES_KLINGON,        false},
+	{"klingon",     "sleep",    SPECIES_KLINGON,        false},
+	{"klingonfem",  "default",  SPECIES_KLINGON,        true },
+	{"klingonfem",  "auburn",   SPECIES_KLINGON,        true },
+	{"klingonfem",  "ugly",     SPECIES_KLINGON,        true },
+	// Borg-recovered: the de-assimilated, humanoid drones.
+	{"borgthin",    "default",  SPECIES_BORG_RECOVERED, false},
+	{"borgthin2",   "default",  SPECIES_BORG_RECOVERED, false},
+	{"borgThin3",   "default",  SPECIES_BORG_RECOVERED, false},
+	{"borgThin4",   "default",  SPECIES_BORG_RECOVERED, false},
+	{"borgfoster",  "default",  SPECIES_BORG_RECOVERED, false},
+	// Ocampa and Talaxian: placeholder carves, as Vulcan -- the game ships only canon faces (Kes,
+	// Neelix) for these species.
+	{"alexandria",  "default",  SPECIES_OCAMPA,         true },
+	{"alexandria_lt","default", SPECIES_OCAMPA,         true },
+	{"alexascav",   "default",  SPECIES_OCAMPA,         true },
+	{"boothby",     "default",  SPECIES_TALAXIAN,       false},
+	{"proton",      "default",  SPECIES_TALAXIAN,       false},
+	{"goodheart",   "default",  SPECIES_TALAXIAN,       true },
+};
+static const int HEAD_COUNT = static_cast<int>(sizeof(HEADS) / sizeof(HEADS[0]));
+
+static bool CiEqual(const char *a, const char *b)
+{
+	if (!a || !b) return false;
+	for (; *a && *b; ++a, ++b) {
+		char x = *a, y = *b;
+		if (x >= 'A' && x <= 'Z') x = static_cast<char>(x - 'A' + 'a');
+		if (y >= 'A' && y <= 'Z') y = static_cast<char>(y - 'A' + 'a');
+		if (x != y) return false;
+	}
+	return *a == *b;
+}
+
+bool IsCanonFace(const char *directory)
+{
+	// The show command crew: the television cast whose likeness we may not generate
+	// (docs/asset-doctrine.md). One place, called by the derivation and the check alike.
+	static const char *const CANON[] = {
+		"janeway", "chakotay", "tuvok", "tuvok_h", "paris", "kim", "torres", "doctor", "seven", "neelix",
+	};
+	for (const char *n : CANON) if (CiEqual(directory, n)) return true;
+	return false;
+}
+
+const char *CanonFaceInPool(const char *const *dirs, int n)
+{
+	for (int i = 0; i < n; ++i) if (IsCanonFace(dirs[i])) return dirs[i];
+	return nullptr;
+}
+
+int AppearancePoolCount() { return HEAD_COUNT; }
+const char *AppearancePoolDirectoryAt(int i)
+{
+	return i >= 0 && i < HEAD_COUNT ? HEADS[i].dir : nullptr;
+}
+uint8_t AppearancePoolSpeciesAt(int i)
+{
+	return i >= 0 && i < HEAD_COUNT ? HEADS[i].species : static_cast<uint8_t>(SPECIES_HUMAN);
+}
+const char *AppearancePoolHeadAt(int i)
+{
+	static std::string model[sizeof(HEADS) / sizeof(HEADS[0])];
+	static bool built = false;
+	if (!built) {
+		for (int k = 0; k < HEAD_COUNT; ++k) model[k] = std::string(HEADS[k].dir) + "/" + HEADS[k].skin;
+		built = true;
+	}
+	return i >= 0 && i < HEAD_COUNT ? model[i].c_str() : nullptr;
+}
+const char *AppearanceHeadModel(const Appearance &a) { return AppearancePoolHeadAt(a.head); }
+
+const char *NamedHeadModel(const std::string &type)
+{
+	// The named records whose own type ships a model: the show crew and Munro. A record not here
+	// keeps the game's default body (the residual named in the evidence); a generated record
+	// ("GoldM3") never reaches this. The list is one place; see docs/evidence/the-appearance.md.
+	static const char *const NAMED_TYPES[] = { "janeway", "chakotay", "tuvok", "paris", "kim",
+		"torres", "doctor", "seven", "neelix", "vorik", "munro" };
+	static std::string model;
+	for (const char *n : NAMED_TYPES) if (type == n) { model = type + "/default"; return model.c_str(); }
+	return nullptr;
+}
+
+const char *AppearanceBuildName(uint8_t build) { return build == BUILD_FEMALE ? "crewfemale" : "crewthin"; }
+const char *AppearanceColourName(uint8_t colour)
+{
+	switch (colour) {
+	case COLOUR_RED: return "red";
+	case COLOUR_GOLD: return "gold";
+	case COLOUR_BLUE: return "blue";
+	default: return "default";
+	}
+}
+
+int SpeciesHeadCount(uint8_t species)
+{
+	int n = 0;
+	for (int i = 0; i < HEAD_COUNT; ++i) if (HEADS[i].species == species) ++n;
+	return n;
+}
+const char *SpeciesHeadAt(uint8_t species, int i)
+{
+	int n = 0;
+	for (int k = 0; k < HEAD_COUNT; ++k) if (HEADS[k].species == species) {
+		if (n == i) return AppearancePoolHeadAt(k); // "dir/skin": the face, not just the directory
+		++n;
+	}
+	return nullptr;
+}
+
+// The build the game's own type carries: the M/F in the middle of "GoldM3" / "RedF1" / "blueF2".
+// Case-insensitive, unlike the player-body path's older test, so gold and blue are read too.
+static bool TypeIsFemale(const std::string &type)
+{
+	if (type.size() < 2) return false;
+	const char c = type[1];
+	if (c != 'F' && c != 'f') return false;
+	const char d = type[0];
+	return d == 'R' || d == 'r' || d == 'G' || d == 'g' || d == 'B' || d == 'b';
+}
+
+static uint8_t ColourFor(Department dept, bool female)
+{
+	if (dept == DEPT_COMMAND) return female ? COLOUR_DEFAULT : COLOUR_RED;
+	if (dept == DEPT_SCIENCES || dept == DEPT_MEDICAL) return COLOUR_BLUE;
+	return COLOUR_GOLD;
+}
+
+void DeriveAppearance(CrewMember &c, uint32_t &rng)
+{
+	c.appear.head = 0xFFFF;
+	c.appear.build = BUILD_THIN;
+	c.appear.colour = COLOUR_DEFAULT;
+	if (c.type.empty()) return; // a named record keeps the model its type ships
+	const bool female = TypeIsFemale(c.type);
+	c.appear.build = female ? BUILD_FEMALE : BUILD_THIN;
+	c.appear.colour = ColourFor(c.dept, female);
+
+	// The species's own pool, canon excluded. Species constrains the pool, so a Vulcan and a human
+	// do not share a face; a species the game ships no non-canon face for falls back to the human
+	// pool, and that fallback is named in the evidence rather than hidden.
+	uint16_t cand[sizeof(HEADS) / sizeof(HEADS[0])];
+	int n = 0;
+	for (int i = 0; i < HEAD_COUNT; ++i)
+		if (HEADS[i].species == c.species && !IsCanonFace(HEADS[i].dir))
+			cand[n++] = static_cast<uint16_t>(i);
+	if (n == 0)
+		for (int i = 0; i < HEAD_COUNT; ++i)
+			if (HEADS[i].species == SPECIES_HUMAN && !IsCanonFace(HEADS[i].dir))
+				cand[n++] = static_cast<uint16_t>(i);
+	if (n == 0) return; // no pool at all: leave the record unnamed (head 0xFFFF), as a named one
+
+	// One draw: the face comes off the same stream as the traits. Prefer a build that matches.
+	const int pick = static_cast<int>(NextRandom(rng) % static_cast<uint32_t>(n));
+	for (int k = 0; k < n; ++k) {
+		const int idx = cand[(pick + k) % n];
+		if (HEADS[idx].female == female) { c.appear.head = static_cast<uint16_t>(idx); return; }
+	}
+	c.appear.head = cand[pick];
+}
+
 bool AddCondition(CrewMember &c, uint8_t id, const std::string &source, int8_t valence,
                   uint8_t magnitude, uint8_t clears, float now, uint8_t visible)
 {
@@ -692,6 +916,9 @@ static void BuildRoster(Ship &s)
 			c.faction = (NextRandom(r) % 6 == 0) ? 1 : 0;                 // a Maquis alongside the Starfleet crew [lore]
 			c.species = DeriveSpecies(c.dept, r);
 			DeriveCharacter(c, r);
+			// The face is part of the person (docs/character-attributes.md, "Appearance"): the same
+			// stream, the same seed, recomputed on load -- and never stored.
+			DeriveAppearance(c, r);
 			s.crew.push_back(c);
 		}
 	}

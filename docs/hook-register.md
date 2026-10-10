@@ -155,7 +155,7 @@ substance of the brief's point and stands.
 | `Unpack` | `const uint8_t *data, size_t len, Ship &s` | False, leaving `s` untouched, on a truncated, foreign or newer record | play | — | — |
 
 ### 2. Situations the simulation generates on its own  
-*61 hooks.*
+*74 hooks.*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -167,6 +167,19 @@ substance of the brief's point and stands.
 | `HasTrait` | `const CrewMember &c, uint8_t trait` | has trait | play | — | — |
 | `DeriveCharacter` | `CrewMember &c, uint32_t &rng` | The derivation: given the record (its identity, department, rank and species) and a seed stream, fills the four kinds and the drives | play | — | — |
 | `DeriveSpecies` | `uint8_t dept, uint32_t &rng` | Species for a record: named crew carry theirs; a generated member draws one from the seed | play | — | — |
+| `DeriveAppearance` | `CrewMember &c, uint32_t &rng` | The appearance derivation: the face is part of the person, so it comes from the same seed as the traits and is never stored | play | — | docs/character-attributes.md |
+| `AppearanceHeadModel` | `const Appearance &a` | The head model ("dir/skin") a derived appearance resolves to, or null for a named record | play | — | docs/character-attributes.md |
+| `AppearanceBuildName` | `uint8_t build` | The body build name: crewthin or crewfemale | play | — | — |
+| `AppearanceColourName` | `uint8_t colour` | The department-colour name: default, red, gold or blue | play | — | — |
+| `NamedHeadModel` | `const std::string &type` | The model a named record keeps ("type/default"), or null for a generated one: one list for the named boundary | play | — | docs/character-attributes.md |
+| `IsCanonFace` | `const char *directory` | The canon boundary in one place: is this head directory a show command-crew face the derivation may not produce? | play | — | docs/asset-doctrine.md |
+| `CanonFaceInPool` | `const char *const *dirs, int n` | The first directory that resolves to a canon face, or null: the whole-pool check, plantable | play | — | — |
+| `AppearancePoolCount` | — | How many shipped head parts the derivation may draw from | play | — | — |
+| `AppearancePoolDirectoryAt` | `int i` | The head directory of one pool entry | play | — | — |
+| `AppearancePoolHeadAt` | `int i` | The head model ("dir/skin") of one pool entry | play | — | — |
+| `AppearancePoolSpeciesAt` | `int i` | The species one pool entry belongs to | play | — | — |
+| `SpeciesHeadCount` | `uint8_t species` | How many face parts a species may draw from | play | — | docs/character-attributes.md |
+| `SpeciesHeadAt` | `uint8_t species, int i` | The face ("dir/skin") one species pool entry resolves to | play | — | docs/character-attributes.md |
 | `FindCondition` | `const CrewMember &c, uint8_t id` | find condition | play | — | — |
 | `Morale` | `const CrewMember &c` | Morale, the read (docs/morale.md) | play | — | docs/morale.md |
 | `MoraleBandName` | `float morale` | morale band name | play | — | — |

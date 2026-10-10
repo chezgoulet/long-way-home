@@ -975,7 +975,13 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   to the occasion** — the offer, the drive as the lever, the exceeding, the cost, the witness memory
   and the refusal — is built as a rule over the same layer (`docs/rising-to-the-occasion.md`,
   `docs/evidence/rising-to-the-occasion.md`; console `ship rise`, check `scripts/rising-check.sh`),
-  and the lever that document named as missing now exists.
+  and the lever that document named as missing now exists. **The appearance derivation** — the face
+  from the same seed, the canon exclusion in code over the whole pool, the species-constrained
+  pools, named crew untouched, and the residual `munro/default` for generated crew removed — is
+  built (`docs/character-attributes.md` *Appearance*, `docs/character-derivation.md` §1
+  *Appearance*, `docs/evidence/the-appearance.md`; check `scripts/appearance-check.sh`). Its named
+  shortfall: the game ships no non-canon Vulcan, Ocampan or Talaxian face, so those species draw a
+  placeholder carve, and making one is the whole-cloth step deliberately not built here.
 - **O9 — the shuttle load-screen decision menu** (`docs/shuttles.md`; `docs/evidence/every-screen.md` row 18).
 - **O10 — the in-world control at the panel** (the "glance"), out of console scope and into world work
   (`docs/evidence/every-screen.md` row 12).

@@ -25,6 +25,9 @@
 #include <vector>
 
 extern qboolean g_qbLoadTransition;
+// The engine's cgame is linked into this same module (efgame = game + cgame + icarus), so the
+// reminder that re-registers an entity's models from its renderInfo is reachable from here.
+extern void CG_RegisterClientModels( int entityNum );
 
 // The one free-text path (M6, voice in): defined below, and reached by both `ship meeting say` and
 // `ship dictate say`. Declared at file scope so the harness can measure the same function a console
@@ -1890,6 +1893,131 @@ void RunTest( void )
 			step = 5;
 		}
 		if ( step == 5 && level.time >= 5200 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
+		return;
+	}
+	if ( g_shipTest->integer == 90 )
+	{//the appearance derivation, photographed: a row of generated crew, each wearing the face the
+	 //seed gave them. The placed Starfleet NPCs are re-dressed from the crew records and lined up in
+	 //front of the player, so the picture is of the derivation and not of the game's own defaults.
+		static int step = 0;
+		static int row[8] = {0,0,0,0,0,0,0,0};
+		static int rowCount = 0;
+		static vec3_t anchor = {0,0,0};
+		static vec3_t viewAngles = {0,0,0};
+		if ( level.time < 1000 ) { step = 0; rowCount = 0; }
+
+		if ( step == 0 && level.time >= 2500 )
+		{
+			// Spread the pick across the roster, so the row is not one department's worth.
+			int all[256]; int na = 0;
+			for ( int i = 0; i < static_cast<int>( vessel.crew.size() ) && na < 256; ++i )
+			{
+				const ship::CrewMember &c = vessel.crew[i];
+				if ( c.type.empty() || c.appear.head == 0xFFFF ) continue; // named crew keep their own
+				if ( c.status != ship::CREW_FIT ) continue;
+				all[na++] = i;
+			}
+			int crewPick[8]; const int want = 5; int haveCrew = 0;
+			for ( int k = 0; k < want && na > 0; ++k )
+				crewPick[haveCrew++] = all[ k * ( na - 1 ) / ( want - 1 ) ];
+
+			// The Starfleet NPCs already on the deck: the game's own generic crew, re-dressed. The
+			// spawned entity's classname is "NPC" (the spawner's own name for it).
+			int entPick[8]; int have = 0;
+			for ( int e = 1; e < globals.num_entities && have < haveCrew; ++e )
+			{
+				gentity_t *n = &g_entities[e];
+				if ( !n->inuse || !n->client || !n->classname ) continue;
+				if ( Q_stricmp( n->classname, "NPC" ) ) continue;
+				entPick[have++] = e;
+			}
+			gi.Printf( "SHIP: appearance lineup: lining up %d of %d Starfleet NPC(s) found on the deck\n",
+				have < haveCrew ? have : haveCrew, have );
+			const int n = have < haveCrew ? have : haveCrew;
+			for ( int k = 0; k < n; ++k )
+			{
+				gentity_t *npc = &g_entities[entPick[k]];
+				const ship::CrewMember &c = vessel.crew[crewPick[k]];
+				const char *head = ship::AppearanceHeadModel( c.appear );
+				const char *base = ship::AppearanceBuildName( c.appear.build );
+				const bool isCommand = c.dept == ship::DEPT_COMMAND;
+				const bool isScience = c.dept == ship::DEPT_SCIENCES || c.dept == ship::DEPT_MEDICAL;
+				const char *colour = isCommand ? ( c.appear.build == ship::BUILD_FEMALE ? "default" : "red" )
+					: isScience ? "blue" : "gold";
+				Q_strncpyz( npc->client->renderInfo.headModelName, head ? head : "",
+					sizeof( npc->client->renderInfo.headModelName ) );
+				Q_strncpyz( npc->client->renderInfo.torsoModelName, Fmt( "%s/%s", base, colour ).c_str(),
+					sizeof( npc->client->renderInfo.torsoModelName ) );
+				Q_strncpyz( npc->client->renderInfo.legsModelName, Fmt( "%s/default", base ).c_str(),
+					sizeof( npc->client->renderInfo.legsModelName ) );
+				CG_RegisterClientModels( npc->s.number );
+				gi.Printf( "SHIP: appearance lineup: %s (%s) walks as head %s, torso %s/%s, legs %s/default\n",
+					c.name.c_str(), ship::SpeciesName( c.species ), head ? head : "?", base, colour, base );
+				row[rowCount++] = entPick[k];
+			}
+			// Stand the rank where an NPC was already standing -- a spot the map made walkable --
+			// and bring the player round to face it from the most open direction there is.
+			VectorCopy( g_entities[rowCount > 0 ? row[0] : 0].currentOrigin, anchor );
+			float bestFrac = -1.0f; vec3_t bestDir = { 1.0f, 0.0f, 0.0f };
+			for ( int a = 0; a < 360; a += 30 )
+			{
+				vec3_t ang = { 0.0f, static_cast<float>( a ), 0.0f }, f;
+				AngleVectors( ang, f, NULL, NULL );
+				vec3_t to;
+				for ( int k = 0; k < 3; ++k ) to[k] = anchor[k] + f[k] * 260.0f;
+				trace_t tr;
+				gi.trace( &tr, anchor, vec3_origin, vec3_origin, to, 0, MASK_PLAYERSOLID );
+				if ( tr.fraction > bestFrac ) { bestFrac = tr.fraction; VectorCopy( f, bestDir ); }
+			}
+			const float back = bestFrac * 260.0f * 0.92f;
+			vec3_t stand;
+			for ( int k = 0; k < 3; ++k ) stand[k] = anchor[k] + bestDir[k] * back;
+			{
+				vec3_t ang2 = { 0.0f, 0.0f, 0.0f };
+				VectorSubtract( anchor, stand, ang2 ); vectoangles( ang2, viewAngles );
+				vec3_t ang3 = { 0.0f, viewAngles[1], 0.0f };
+				TeleportPlayer( &g_entities[0], stand, ang3, 0 );
+			}
+			// Centre the rank in the open span across the view, so no one stands in the wall.
+			vec3_t right; AngleVectors( viewAngles, NULL, right, NULL );
+			auto clear = [&]( float sign ) {
+				vec3_t to;
+				for ( int k = 0; k < 3; ++k ) to[k] = anchor[k] + right[k] * sign * 220.0f;
+				trace_t tr; gi.trace( &tr, anchor, vec3_origin, vec3_origin, to, 0, MASK_PLAYERSOLID );
+				return tr.fraction;
+			};
+			const float shift = ( clear( 1.0f ) - clear( -1.0f ) ) * 110.0f;
+			for ( int k = 0; k < 3; ++k ) anchor[k] += right[k] * shift;
+			vec3_t toAnchor; VectorSubtract( anchor, stand, toAnchor );
+			vectoangles( toAnchor, viewAngles );
+			gi.Printf( "SHIP: appearance lineup: standing %.0f units off, clearance %.2f, row shifted %.0f\n",
+				back, bestFrac, shift );
+			step = 1;
+		}
+		if ( step == 1 )
+		{
+			// Hold the rank each frame: shoulder to shoulder about the anchor, facing the player.
+			if ( g_entities[0].client ) VectorCopy( viewAngles, g_entities[0].client->ps.viewangles );
+			vec3_t fwd, right;
+			AngleVectors( viewAngles, fwd, right, NULL );
+			for ( int k = 0; k < rowCount; ++k )
+			{
+				gentity_t *npc = &g_entities[row[k]];
+				vec3_t at, look;
+				for ( int a = 0; a < 3; ++a )
+					at[a] = anchor[a] + right[a] * ( ( k - ( rowCount - 1 ) * 0.5f ) * 18.0f );
+				VectorCopy( at, npc->s.pos.trBase );
+				VectorCopy( at, npc->currentOrigin );
+				VectorCopy( at, npc->client->ps.origin );
+				npc->s.pos.trType = TR_STATIONARY;
+				VectorSubtract( g_entities[0].client->ps.origin, at, look );
+				vectoangles( look, npc->s.apos.trBase );
+				VectorCopy( npc->s.apos.trBase, npc->client->ps.viewangles );
+				npc->s.apos.trType = TR_STATIONARY;
+			}
+		}
+		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_appearance_lineup\n" ); step = 2; }
+		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
 		return;
 	}
 	if ( g_shipTest->integer == 11 )
@@ -4075,12 +4203,10 @@ static void BorgAssets( ship::Ship *s )
 // The model change rides the game's own headModel/torsoModel/legsModel path (the one it uses for a
 // disguise), and the Starfleet humanoid models share one animation set, so no anim reset is needed.
 // Off unless the simulation is on and a character is chosen.
+// One list, in the model (ship::NamedHeadModel): the named records whose own type ships a model.
 bool IsNamedType( const std::string &type )
 {
-	static const char *const NAMED_TYPES[] = { "janeway", "chakotay", "tuvok", "paris", "kim",
-		"torres", "doctor", "seven", "neelix", "vorik", "munro" };
-	for ( const char *n : NAMED_TYPES ) if ( type == n ) return true;
-	return false;
+	return ship::NamedHeadModel( type ) != nullptr;
 }
 
 void ApplyPlayerBody( void )
@@ -4090,18 +4216,44 @@ void ApplyPlayerBody( void )
 	bodyApplied = true;
 	const ship::CrewMember &c = vessel.crew[vessel.player];
 
-	const bool female = c.type == "janeway" || c.type == "torres" || c.type == "seven"
-		|| ( c.type.size() >= 2 && c.type[1] == 'F' && ( c.type[0] == 'R' || c.type[0] == 'G' || c.type[0] == 'B' ) );
-	const bool isCommand = c.dept == ship::DEPT_COMMAND;
-	const bool isScience = c.dept == ship::DEPT_SCIENCES || c.dept == ship::DEPT_MEDICAL;
-	// the female torso has no red skin; a woman of command wears the neutral cut
-	const char *colour = isCommand ? ( female ? "default" : "red" ) : isScience ? "blue" : "gold";
-
 	char head[64], torso[64], legs[64];
-	if ( IsNamedType( c.type ) ) std::snprintf( head, sizeof( head ), "%s/default", c.type.c_str() );
-	else std::snprintf( head, sizeof( head ), "%s", female ? "torres/default" : "munro/default" );
-	std::snprintf( torso, sizeof( torso ), "%s/%s", female ? "crewfemale" : "crewthin", colour );
-	std::snprintf( legs, sizeof( legs ), "%s/default", female ? "crewfemale" : "crewthin" );
+	if ( IsNamedType( c.type ) )
+	{
+		// A named record keeps its shipped model exactly as it did before the derivation existed:
+		// `<type>/default`, and the uniform its department wears. Never re-rolled.
+		const bool female = c.type == "janeway" || c.type == "torres" || c.type == "seven"
+			|| ( c.type.size() >= 2 && c.type[1] == 'F' && ( c.type[0] == 'R' || c.type[0] == 'G' || c.type[0] == 'B' ) );
+		const bool isCommand = c.dept == ship::DEPT_COMMAND;
+		const bool isScience = c.dept == ship::DEPT_SCIENCES || c.dept == ship::DEPT_MEDICAL;
+		// the female torso has no red skin; a woman of command wears the neutral cut
+		const char *colour = isCommand ? ( female ? "default" : "red" ) : isScience ? "blue" : "gold";
+		std::snprintf( head, sizeof( head ), "%s/default", c.type.c_str() );
+		std::snprintf( torso, sizeof( torso ), "%s/%s", female ? "crewfemale" : "crewthin", colour );
+		std::snprintf( legs, sizeof( legs ), "%s/default", female ? "crewfemale" : "crewthin" );
+	}
+	else
+	{
+		// A generated member: the face was derived from the same seed as the person
+		// (ship::DeriveAppearance), so it is never the game's default head and never a canon face.
+		const char *derived = c.appear.head != 0xFFFF ? ship::AppearanceHeadModel( c.appear ) : NULL;
+		if ( !derived )
+		{
+			// The guard. A generated record always derives a head, so this is unreachable in play;
+			// if it is ever reached, the pool's own first head stands in. It is NOT munro/default:
+			// that fallback was the residual this pass removes, and naming it would not remove it.
+			ship::Appearance first; first.head = 0;
+			derived = ship::AppearanceHeadModel( first );
+			gi.Printf( "SHIP: %s has no derived face: the pool head %s stands in, never a canon default\n",
+				c.name.c_str(), derived ? derived : "?" );
+		}
+		const bool female = c.appear.head != 0xFFFF ? ( c.appear.build == ship::BUILD_FEMALE ) : false;
+		const bool isCommand = c.dept == ship::DEPT_COMMAND;
+		const bool isScience = c.dept == ship::DEPT_SCIENCES || c.dept == ship::DEPT_MEDICAL;
+		const char *colour = isCommand ? ( female ? "default" : "red" ) : isScience ? "blue" : "gold";
+		std::snprintf( head, sizeof( head ), "%s", derived );
+		std::snprintf( torso, sizeof( torso ), "%s/%s", female ? "crewfemale" : "crewthin", colour );
+		std::snprintf( legs, sizeof( legs ), "%s/default", female ? "crewfemale" : "crewthin" );
+	}
 
 	gi.SendConsoleCommand( Fmt( "headModel %s; torsoModel %s; legsModel %s\n", head, torso, legs ).c_str() );
 	gi.Printf( "SHIP: %s walks as head %s, torso %s, legs %s\n", c.name.c_str(), head, torso, legs );

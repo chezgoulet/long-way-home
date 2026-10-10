@@ -422,6 +422,17 @@ struct MonthReport {
 	std::vector<ReportLine> lines;
 };
 
+// The appearance derivation's own vocabulary. Declared here, above CrewMember, which carries an
+// Appearance; the derivation and its rules are described beside DeriveCharacter, below.
+enum AppearanceBuild : uint8_t { BUILD_THIN = 0, BUILD_FEMALE };  // crewthin / crewfemale
+enum AppearanceColour : uint8_t { COLOUR_DEFAULT = 0, COLOUR_RED, COLOUR_GOLD, COLOUR_BLUE };
+
+struct Appearance {
+	uint16_t head = 0xFFFF;  // index into the shipped head pool; 0xFFFF = a named record, keeps its type
+	uint8_t  build = BUILD_THIN;
+	uint8_t  colour = COLOUR_DEFAULT;
+};
+
 struct CrewMember {
 	std::string name;
 	std::string type;        // the game's NPC type used to embody them (an existing character)
@@ -463,6 +474,9 @@ struct CrewMember {
 	uint8_t desire = DESIRE_PROMOTION;
 	uint8_t need = NEED_SLEEP;
 	uint8_t fear = FEAR_DYING_ALONE;
+	// The face, too, is part of the person (DeriveAppearance, beside DeriveCharacter): static
+	// content derived from the record and the seed, and never stored.
+	Appearance appear;
 	// Conditions are dynamic, and therefore in the save.
 	Condition conditions[CONDITION_MAX];
 	uint8_t conditionCount = 0;
@@ -482,6 +496,52 @@ bool HasTrait(const CrewMember &c, uint8_t trait);
 void DeriveCharacter(CrewMember &c, uint32_t &rng);
 // Species for a record: named crew carry theirs; a generated member draws one from the seed.
 uint8_t DeriveSpecies(uint8_t dept, uint32_t &rng);
+
+// ---- the appearance derivation: the face comes from the same seed --------------------------------
+// docs/character-attributes.md, "Appearance: the face is part of the person, so it comes from the
+// same seed". The parts are the shipped player models -- a cast list per slot -- and the seed
+// selects, exactly as it selects the traits. Nothing here is stored: the derivation runs again on
+// load, over the same seed stream, so a save replays identically face and all, and a person's face
+// can never drift from their record.
+//
+// The shipped palette does not separate hair and tone from the face: one head skin carries all
+// three, so "head" is the slot and the skin carries the rest. The build (crewthin/crewfemale) is
+// the record's own, as the game's type already carries it; the department colour follows the post.
+// The Appearance struct itself is declared above, beside CrewMember.
+
+// The derivation, beside DeriveCharacter and over the same stream: it fills which shipped parts
+// were chosen. A generated member draws a face; a named member is left unset (head 0xFFFF) and
+// keeps the model its type ships.
+void DeriveAppearance(CrewMember &c, uint32_t &rng);
+// The model strings the chosen parts resolve to. "dir/skin" for the head; the null when the record
+// is named and has no derived face.
+const char *AppearanceHeadModel(const Appearance &a);
+const char *AppearanceBuildName(uint8_t build);   // "crewthin" / "crewfemale"
+const char *AppearanceColourName(uint8_t colour); // "default" / "red" / "gold" / "blue"
+// The model a named record keeps: "<type>/default" for the types the player-body path dresses
+// itself, or null for a generated one. One list, so the derivation (which leaves a named record
+// unset) and the demonstration (which names its head) cannot disagree.
+const char *NamedHeadModel(const std::string &type);
+
+// The canon boundary, in one place: the show command crew, whose likeness the derivation may not
+// produce (docs/asset-doctrine.md: an original face for an original ensign is ours; a generated
+// likeness of a lore character is not). Both the derivation and the whole-pool check call this, so
+// they cannot disagree. Case-insensitive; false for a null.
+bool IsCanonFace(const char *directory);
+// The first directory in `dirs` that resolves to a canon face, or null. The check for the whole
+// pool -- not a sample -- so a canon head planted in the pool is caught rather than selected.
+const char *CanonFaceInPool(const char *const *dirs, int n);
+
+// The pool the derivation may draw from: the shipped head parts, canon removed. Exposed so the
+// check walks every entry, and so the console can enumerate what a generated member may wear.
+int AppearancePoolCount();
+const char *AppearancePoolDirectoryAt(int i); // "Garren"
+const char *AppearancePoolHeadAt(int i);      // "Garren/default"
+uint8_t AppearancePoolSpeciesAt(int i);
+// The subset a species draws from. Species constrains the pool (docs/character-attributes.md): a
+// Vulcan draws from Vulcan parts, a human from human ones, and the two pools do not intersect.
+int SpeciesHeadCount(uint8_t species);
+const char *SpeciesHeadAt(uint8_t species, int i); // "dir/skin": the face it draws
 
 // Conditions. Add is bounded (CONDITION_MAX, evicting the oldest debuff), deduplicated by id, and
 // refuses a condition with no visibility at all. Find returns null when absent. The Ship-level
