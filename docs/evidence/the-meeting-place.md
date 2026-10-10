@@ -251,3 +251,10 @@ light."** So it is a **defect**, not the look, and it is queued.
 flagged off; the vantage faces away from the lit part of the room; or that corner is genuinely dark in the
 bake. **Establishing which is a lane of its own** — a guess would ship a light into a room that has six.
 
+**Resolved, and the ruling kept:** the cause was the **vantage** — the `lwh_armory_post` the
+composition placed stood *inside* the copied armory geometry, so the camera was inside a solid, and
+the harness's "facing" never turned the client (writing `client->ps.viewangles` does not move the
+view). The post moved into the open armory floor in `tools/shipmap/dressdeck06.py`; the turn is now
+made with `SetClientViewAngle`; no light was added. The frames, the room-by-room survey, and the
+overlay dimming that keeps the delivered picture dark are in `docs/evidence/the-dark-room.md`.
+
