@@ -57,7 +57,9 @@ cvar_t *g_shipPlayerDept;
 cvar_t *g_shipPlayerSeat;
 cvar_t *g_shipTest;     // harness: 1 = act, report, save, quit; 2 = report what a load restored, quit;
                         //          3 = operate the Engineering console; 4 = go to g_shipTestPos and photograph;
-                        //          5 = ride the turbolift to every deck and report each arrival
+                        //          5 = ride the turbolift to every deck and report each arrival;
+                        //          96 = the dark room: the security office's vantages (screenshots/lwh_darkroom_*);
+                        //          97 = the room survey: every meeting room from four facings (screenshots/lwh_room_*)
 cvar_t *g_shipTestPos;
 cvar_t *g_shipTestPitch;
 cvar_t *g_shipTestWatch; // "x y z": report whether the trigger centred there has fired
@@ -1644,18 +1646,29 @@ void RunTest( void )
 				vec3_t look = { 0, 90, 0 };  // face north, out of the armory alcove
 				VectorCopy( look, glanceAngles );
 				haveGlanceAim = true;
+				// The client owns its viewangles: writing ps.viewangles does not turn it. The game's
+				// own SetClientViewAngle (what TeleportPlayer calls) is what actually faces the
+				// player, and it is what set delta_angles so the turn takes effect.
+				SetClientViewAngle( &g_entities[0], look );
 			}
 			else gi.Printf( "SHIP: meeting place: no lwh_armory_post on this map\n" );
 			step = 11;
 		}
 		if ( haveGlanceAim && g_entities[0].client )
 			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
-		if ( step == 11 && level.time >= 3600 ) { gi.SendConsoleCommand( "screenshot lwh_meeting_place_a\n" ); step = 12; }
+		if ( step == 11 && level.time >= 3600 )
+		{
+			if ( g_entities[0].client )
+				gi.Printf( "SHIP: meeting place: t=%d player at %s, viewangles %s\n", level.time,
+					vtos( g_entities[0].currentOrigin ), vtos( g_entities[0].client->ps.viewangles ) );
+			gi.SendConsoleCommand( "screenshot lwh_meeting_place_a\n" ); step = 12;
+		}
 		if ( step == 12 && level.time >= 4200 )
 		{//the other side of the same room
 			vec3_t look = { 0, 270, 0 };
 			VectorCopy( look, glanceAngles );
 			haveGlanceAim = true;
+			if ( g_entities[0].client ) SetClientViewAngle( &g_entities[0], look );
 			step = 13;
 		}
 		if ( step == 13 && level.time >= 4800 ) { gi.SendConsoleCommand( "screenshot lwh_meeting_place_b\n" ); step = 2; }
@@ -1686,6 +1699,144 @@ void RunTest( void )
 			WriteReport( "ship/meeting-place.txt" );
 			gi.SendConsoleCommand( "quit\n" );
 			step = 6;
+		}
+		return;
+	}
+	if ( g_shipTest->integer == 96 )
+	{//the dark room (the owner's ruling 2026-10-10, docs/evidence/the-meeting-place.md): a room a
+	 //meeting happens in must be legible, not pitch black -- and the .map that holds it is full of
+	 //lights, so the cause is established before anything is changed. This tests the *vantage*: the
+	 //same room from more than one position and more than one facing, so a dark frame can be told
+	 //from a dark room. Each vantage becomes a frame (screenshots/lwh_darkroom_<room>_<n>.tga) and a
+	 //line; the check measures the frames rather than counting the lights.
+		static int step = 0;
+		static int n = 0;
+		static int shotAt = 0;
+		static vec3_t base = { 0, 0, 0 };
+		static const char *room = "security";
+		if ( level.time < 1000 ) { step = 0; n = 0; shotAt = 0; base[0] = base[1] = base[2] = 0; }
+		if ( step == 0 && level.time >= 2500 )
+		{
+			// Optional: put the player in the meeting's own state (a command crew member, a security
+			// matter pending) before the vantages, so the room is judged as the meeting finds it.
+			if ( g_shipTestPos->string[0] == 'c' )
+			{
+				vessel.clock = ( std::floor( vessel.clock / ship::SECONDS_PER_WATCH ) + 1.0 ) * ship::SECONDS_PER_WATCH;
+				ship::Tick( vessel, 1.0f );
+				while ( ship::TakeBrief( vessel ) ) {}
+				const int me = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
+				gi.Printf( "SHIP: dark room: crew setup, player is crew %d\n", me );
+				vessel.borgAwareness = 1.0f;
+				ship::Tick( vessel, 1.0f );
+			}
+			// The room's anchor: the security office's own post, placed by the composition
+			// (tools/shipmap/dressdeck06.py). A "x y z" in g_shipTestPos overrides it, so a candidate
+			// post can be stood on without rebuilding the map. If neither is present, no frames.
+			if ( g_shipTestPos->string[0] && Q_stricmp( g_shipTestPos->string, "0 0 0" )
+				&& sscanf( g_shipTestPos->string, "%f %f %f", &base[0], &base[1], &base[2] ) == 3 )
+			{
+				gi.Printf( "SHIP: dark room: the anchor given by g_shipTestPos: %s\n", vtos( base ) );
+			}
+			else
+			{
+				gentity_t *post = NULL;
+				for ( int i = 1; i < globals.num_entities && !post; ++i )
+				{
+					gentity_t *e = &g_entities[i];
+					if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "lwh_armory_post" ) ) post = e;
+				}
+				if ( !post ) { gi.Printf( "SHIP: dark room: no lwh_armory_post on this map\n" ); step = 9; return; }
+				VectorCopy( post->currentOrigin, base );
+				gi.Printf( "SHIP: dark room: the security office anchor at %s\n", vtos( base ) );
+			}
+			step = 1;
+		}
+		if ( step == 1 )
+		{
+			// (dx, dy, dz, yaw): two positions -- the post itself, and a pace west and east of it --
+			// and four facings at the post. The room is asked to read at every one of them.
+			static const struct { const char *label; float dx, dy, dz, yaw; } V[] = {
+				{ "post-north",  0.0f,   0.0f, 24.0f,   90.0f },
+				{ "post-south",  0.0f,   0.0f, 24.0f,  270.0f },
+				{ "post-east",   0.0f,   0.0f, 24.0f,    0.0f },
+				{ "post-west",   0.0f,   0.0f, 24.0f,  180.0f },
+				{ "west-east", -192.0f,  0.0f, 24.0f,    0.0f },
+				{ "east-west",  192.0f,  0.0f, 24.0f,  180.0f },
+			};
+			if ( n >= (int)( sizeof( V ) / sizeof( V[0] ) ) )
+			{
+				gi.Printf( "SHIP: dark room: %d vantage(s) photographed\n", n );
+				step = 9;
+				return;
+			}
+			vec3_t at, angles;
+			at[0] = base[0] + V[n].dx; at[1] = base[1] + V[n].dy; at[2] = base[2] + V[n].dz;
+			angles[0] = 0.0f; angles[1] = V[n].yaw; angles[2] = 0.0f;
+			TeleportPlayer( &g_entities[0], at, angles, 0 );
+			VectorCopy( angles, glanceAngles );
+			haveGlanceAim = true;
+			if ( g_entities[0].client ) SetClientViewAngle( &g_entities[0], angles );
+			gi.Printf( "SHIP: dark room: %s %s at %s facing %.0f\n", room, V[n].label, vtos( at ), V[n].yaw );
+			shotAt = level.time + 900;    // let the client take the new origin and facing before the frame
+			step = 2;
+		}
+		if ( haveGlanceAim && g_entities[0].client )
+			SetClientViewAngle( &g_entities[0], glanceAngles );
+		if ( step == 2 && level.time >= shotAt )
+		{
+			if ( g_entities[0].client )
+				gi.Printf( "SHIP: dark room: %s frame %d, player at %s, viewangles %s\n", room, n,
+					vtos( g_entities[0].currentOrigin ), vtos( g_entities[0].client->ps.viewangles ) );
+			gi.SendConsoleCommand( Fmt( "screenshot lwh_darkroom_%s_%d\n", room, n ).c_str() );
+			++n;
+			step = 1;
+		}
+		if ( step == 9 && level.time >= shotAt + 1200 ) { gi.SendConsoleCommand( "quit\n" ); step = 10; }
+		return;
+	}
+	if ( g_shipTest->integer == 97 )
+	{//the room survey (the dark-room brief, Task C): every room a meeting can happen in, in front of
+	 //the camera. One frame per (room, facing) is written as screenshots/lwh_room_<room>_<n>.tga and a
+	 //line printed, so the owner has a frame of each and the check can measure legible against dark.
+	 //The points are chosen from the maps' own floor-standing nav goals (the deck offsets are
+	 //stitch.py's pitch: deck n sits (n-1)*3072 below deck 1); the security office is its own post.
+		static const struct { const char *room; float x, y, z; } ROOMS[] = {
+			{ "briefing-room",   -3080.0f, -3440.0f,  -4013.0f },
+			{ "ready-room",      -3950.0f, -3400.0f,  -4008.0f },
+			{ "bridge",          -3450.0f, -3435.0f,  -3995.0f },
+			{ "sickbay",         -3252.0f, -3136.0f, -16296.0f },
+			{ "astrometrics",    -1672.0f, -3040.0f, -25248.0f },
+			{ "engineering",     -3806.0f, -3996.0f, -34688.0f },
+			{ "security-office", -4172.0f, -3906.0f, -19332.0f },
+		};
+		static const float YAWS[] = { 0.0f, 90.0f, 180.0f, 270.0f };
+		static int r = 0, ci = 0, shotAt = 0, done = 0;
+		if ( level.time < 1000 ) { r = 0; ci = 0; shotAt = 0; done = 0; }
+		const int nrooms = (int)( sizeof( ROOMS ) / sizeof( ROOMS[0] ) );
+		const int ncam = (int)( sizeof( YAWS ) / sizeof( YAWS[0] ) );
+		if ( r >= nrooms )
+		{
+			if ( !done ) { gi.Printf( "SHIP: room survey: %d room(s) photographed\n", r ); done = 1; shotAt = level.time + 1800; }
+			else if ( level.time >= shotAt ) gi.SendConsoleCommand( "quit\n" );
+			return;
+		}
+		if ( shotAt == 0 )
+		{//stand at the room, then wait for the client to take the origin and facing
+			vec3_t at, angles;
+			at[0] = ROOMS[r].x; at[1] = ROOMS[r].y; at[2] = ROOMS[r].z + 24.0f;
+			angles[0] = 0.0f; angles[1] = YAWS[ci]; angles[2] = 0.0f;
+			TeleportPlayer( &g_entities[0], at, angles, 0 );
+			if ( g_entities[0].client ) SetClientViewAngle( &g_entities[0], angles );
+			gi.Printf( "SHIP: room survey: %s %d of %d at %s facing %.0f\n",
+				ROOMS[r].room, ci + 1, ncam, vtos( at ), YAWS[ci] );
+			shotAt = level.time + 700;
+			return;
+		}
+		if ( level.time >= shotAt )
+		{
+			gi.SendConsoleCommand( Fmt( "screenshot lwh_room_%s_%d\n", ROOMS[r].room, ci ).c_str() );
+			shotAt = 0;
+			if ( ++ci >= ncam ) { ci = 0; ++r; }
 		}
 		return;
 	}

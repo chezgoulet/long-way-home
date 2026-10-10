@@ -74,6 +74,14 @@ grep -q '^SHIP: meeting place: present .* (security)' "$HOME_DIR/meeting-place.o
 [ -f "$SHOT" ] || fail "no screenshot of the player at the meeting in the named room"
 [ -f "$SHOT_A" ] || fail "no screenshot of the named room (angle a)"
 [ -f "$SHOT_B" ] || fail "no screenshot of the named room (angle b)"
+
+# The room must not be pitch black (the owner's ruling, docs/evidence/the-meeting-place.md,
+# 2026-10-10: "if a room is pitch black it needs its own light"). The room-only frame is measured --
+# the lights are not counted -- so this check can fail for the reason the ruling is about. The cause
+# and the fix are in docs/evidence/the-dark-room.md.
+echo "==> the room is legible (measured, not counted)"
+python3 "$ROOT/tools/meetings/legibility.py" --require-legible "$SHOT_A" \
+  || fail "the meeting room renders dark: the room the security matter meets in is not legible"
 echo "PASS  every kind of meeting has a room; a command decision named the briefing room and a security"
 echo "      matter the security office with the chief present; the room was on the brief before the"
 echo "      player arrived; the player stood in the named room and the frame is photographed"

@@ -522,8 +522,13 @@ class Build:
 
     def _armory_post(self):
         # The security post by the armory: where the security party draws its weapons, on the armory
-        # floor, measured clear of the copied lockers.
-        ax, ay = -4336, -3904
+        # floor, clear of the copied lockers. The lockers (the copied `_brig` room) are a furniture
+        # bank at x -4444..-4272, y -3940..-3770; the post at its own centre stood *inside* that
+        # solid, so the meeting's own frame was a blank wall (the dark room, 2026-10-10). The point
+        # below is measured against this composition's own solids -- it is clear of every brush at
+        # standing height, and it looks north down the bay, the longest open sightline in the
+        # alcove. A spot inside geometry is what to avoid; this is the one the frames chose.
+        ax, ay = -4172, -3906
         self.point("info_notnull", "lwh_armory_post", (ax, ay, FLOOR + 24))
         self.point("waypoint_navgoal_1", "armorywatch", (ax, ay, FLOOR + 24))
         self.report["armory_post"] = [ax, ay]
