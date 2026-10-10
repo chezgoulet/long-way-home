@@ -209,6 +209,40 @@ never invent a command result. An unrecognised input gets a diegetic refusal —
 available"* — never a fabricated outcome. It is the same invariant as everywhere else, with less room for
 interpretation.
 
+## The computer as somewhere to dive in — and the one rule an exposed entity must not cross
+
+**The owner's design, 2026-10-10**, in his words: *"The computer entity on the ship rendered using Majel
+Barrett's voice, should have a custom input session mode or specific interactive modes that allow the player to
+dive deeply into everything the computer knows and has access to relevant to the player's role and rank. The
+ship's systems should be exposed to this computer entity, and could even be an MCP server so as to properly
+facilitate the computer entity's relative autonomy."*
+
+**What is already true.** The computer's voice is the retail `computer` bank — the largest in the install at 375
+lines, which is Majel Barrett's performance; the overlay is its surface; and the enumerated set is its API. What
+the design adds is **depth and scoping**: a session mode that answers about everything the computer knows,
+**filtered by the same rule the records already use** — a post reads its own scope, command reads all
+(`docs/access-and-authority.md`, `PersonalVisibleTo`, `LogScopeForCrew`). An answer the player's rank and
+department do not reach is **refused in character**, like any other out-of-set request.
+
+**And the one thing that must be settled before any of it is built, because it is an invariant rather than a
+preference.** Exposing the ship to the entity means giving it **tools**, and tools come in two kinds:
+
+- **Tools that read are in scope.** The instruments a brief already carries — power, alert, dilithium,
+  casualties, beds, every system, the digest — and whatever else the computer may know, **scoped by the
+  player's clearance**. An MCP server exposing the ship as **read-only tools** is a legitimate way to do this,
+  and better than the digest: the entity asks for what it needs instead of being handed a snapshot.
+- **Tools that act are not.** The standing rule is *the simulation decides; the model speaks.* Every action
+  still resolves through **the enumerated API, chosen by the player** — a pill, or a free-text order classified
+  into the set. The entity may *say* what it would do and *ask*; it never does it. **A model that can write ship
+  state has been given the ship.**
+
+**So the fork is: read-only MCP, or no MCP.** The mechanism is not built, and its cost is named rather than
+assumed: the House runs MCP servers already, so the pattern is familiar, but here the *game* would be the server
+and the worker the client, which is a change to how the worker gets its state and a maintenance tail to own. **It
+must not become a dependency**: the computer still answers from the enumerated set with the model absent, exactly
+as a meeting still plays from its skeleton.
+
+
 ## Acceptance, continued
 
 - The overlay occupies no more than about a quarter of the frame and the scene stays visible; the line being
