@@ -534,6 +534,15 @@ the host routes them to `AddressComputer`. The counts above are the rows of this
 74 + 63 + 54 + 183 + 18 = 392, and 227 + 130 + 35 = 392. Evidence:
 `docs/evidence/the-computer-api.md`.
 
+**Re-derived 2026-10-10, voice in (M6b). No hook is added, and that is the finding.** Speech-to-text
+feeds the free-text pill, and the pill already emits text, so the transcribed string takes the one path
+the typed string takes (`SubmitRoomInput`, the host function behind both `ship meeting say` and the new
+`ship dictate say`); no new public function in `ship_core.h` is needed, and adding one would have been
+the second path the design forbids. The counts are unchanged: 392 (227 play / 130 console / 35 nothing).
+The new console verb `dictate` is enumerated in `module/ship/console_api.def` and checked by
+`scripts/api-check.sh`, not by this register (which is the `ship_core.h` surface). Evidence:
+`docs/evidence/voice-in.md`.
+
 ### 5. The configurator — the player chooses the start state
 
 *docs/the-entry-point.md, part three; docs/start-states.md.* The entry point is a configurator with

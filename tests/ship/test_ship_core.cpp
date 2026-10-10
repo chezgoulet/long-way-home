@@ -6691,6 +6691,31 @@ static void TestTheComputer()
 	CHECK(Pack(s) == before);
 }
 
+// M6, second half: voice in is the typed path. The transcription boundary produces a string, and the
+// design says that string "takes exactly the same path through the intent descriptors". There is no
+// second path, so the same string -- typed or transcribed -- is the same content-addressed key and
+// resolves the same way, with the same note. This is the invariant the harness measures end to end.
+static void TestVoiceInIsTheTypedPath()
+{
+	g_test = "voice in: a transcribed string is the typed string";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW);
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+	const std::string spoken = "Watch the reserve closely.";  // what the STT worker returned
+	const std::string typed = spoken;                          // the hand typed the same characters
+	CHECK(NoveltyKey(b, spoken) == NoveltyKey(b, typed));
+
+	ClearNoveltyIndex();
+	CHECK(!ClassifyNovelInput(s, b, spoken).matched);          // no verdict: novel, applies nothing
+	AddNoveltyVerdict(NoveltyKey(b, spoken), true, 1, "matched at 0.61");
+	const NoveltyResult vs = ClassifyNovelInput(s, b, spoken);
+	const NoveltyResult ts = ClassifyNovelInput(s, b, typed);
+	CHECK(vs.matched && ts.matched);
+	CHECK(vs.outcome == ts.outcome);
+	CHECK(vs.note == ts.note);                                 // the path is the same, so the note is too
+	ClearNoveltyIndex();
+}
+
 static void PrintStartState(const StartState &st, int index)
 {
 	Config cfg;
@@ -6874,6 +6899,7 @@ int main(int argc, char **argv)
 	TestCharacterCreationComposes();
 	TestConsoleApi();
 	TestTheComputer();
+	TestVoiceInIsTheTypedPath();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);
