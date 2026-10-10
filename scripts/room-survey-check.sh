@@ -16,8 +16,11 @@
 #
 # LWH_ROOM_POST_ANCHOR="x y z" re-anchors the security office's post (the meeting's own room) through
 # g_shipTestPos, the candidate tool g_shipTest 96 uses, so a post can be planted inside a wall and the
-# assertion shown to catch it -- without rebuilding the map. Demonstrated in
-# docs/evidence/the-room-posts.md.
+# assertion shown to catch it -- without rebuilding the map. An anchor the harness cannot honour (not
+# three numbers, or with no world geometry beneath it) is now rejected loudly by the harness, and the
+# check fails on the rejection rather than quietly standing at the table's own position (Task B of the
+# room-reads brief; the trap is named in docs/evidence/the-room-posts.md). Demonstrated in
+# docs/evidence/the-room-reads.md.
 #
 # Needs the merged ship (scripts/build-ship.sh) and xvfb-run. Writes under build/g3-home only.
 
@@ -55,6 +58,18 @@ SDL_AUDIODRIVER=dummy timeout 300 xvfb-run -a "$ROOT/scripts/run-engine.sh" --ho
     ${ANCHOR_ARGS[@]+"${ANCHOR_ARGS[@]}"} +map voyager >"$HOME_DIR/room-survey.out" 2>&1 || true
 
 grep -h '^SHIP: room post' "$HOME_DIR/room-survey.out" | sed 's/^SHIP: /    /' || true
+
+# The anchor must not be silently ignored (the room-reads brief, Task B). If LWH_ROOM_POST_ANCHOR was
+# given, the harness must either reject it loudly (a bad or out-of-bounds anchor) or print that it
+# honoured it; an anchor that is neither is the silent no-op this check exists to close.
+if [ -n "${LWH_ROOM_POST_ANCHOR:-}" ]; then
+    if grep -qE 'BAD ANCHOR|ANCHOR OUT OF BOUNDS' "$HOME_DIR/room-survey.out"; then
+        grep -hE 'BAD ANCHOR|ANCHOR OUT OF BOUNDS' "$HOME_DIR/room-survey.out" | sed 's/^SHIP: /    /'
+        fail "the planted anchor was rejected by the harness (above); the survey did not run"
+    fi
+    grep -q 'room post: the security office anchored at .* by g_shipTestPos' "$HOME_DIR/room-survey.out" \
+        || fail "an anchor was given (LWH_ROOM_POST_ANCHOR) but the harness did not honour it -- a silently ignored anchor is the trap this check closes"
+fi
 
 echo
 echo "==> the verdicts (the middle band of each frame; legible = a visible room and a lit feature)"

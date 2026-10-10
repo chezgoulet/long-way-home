@@ -155,6 +155,13 @@ The frames are `build/g3-home/baseEF/screenshots/lwh_roompost_<room>.tga`. **The
 ready room and main engineering are the ones the owner is likely to ask about**: their posts read as
 a panelled wall, a dim antechamber and a corridor door, not as the table, the lounge and the core.
 
+**Corrected by the next pass.** That table became the work list for `docs/evidence/the-room-reads.md`
+(2026-10-10): the briefing room, the ready room and main engineering were re-aimed at the fixture that
+names each room, and the security office's post was moved within its room (and is reported there as an
+armory, not an office — the composed deck 6 has no office fixture). The four descriptions above are
+this pass's own frames, which the next pass overwrote; they are the *before*, kept as the record of
+what the open was.
+
 ## The checks
 
 ```
