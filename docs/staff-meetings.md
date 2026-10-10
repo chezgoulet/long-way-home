@@ -229,18 +229,28 @@ preference.** Exposing the ship to the entity means giving it **tools**, and too
 
 - **Tools that read are in scope.** The instruments a brief already carries — power, alert, dilithium,
   casualties, beds, every system, the digest — and whatever else the computer may know, **scoped by the
-  player's clearance**. An MCP server exposing the ship as **read-only tools** is a legitimate way to do this,
-  and better than the digest: the entity asks for what it needs instead of being handed a snapshot.
-- **Tools that act are not.** The standing rule is *the simulation decides; the model speaks.* Every action
-  still resolves through **the enumerated API, chosen by the player** — a pill, or a free-text order classified
-  into the set. The entity may *say* what it would do and *ask*; it never does it. **A model that can write ship
-  state has been given the ship.**
+  player's clearance**. An MCP server exposing the ship as **read tools** is a legitimate way to do this, and
+  better than the digest: the entity asks for what it needs instead of being handed a snapshot.
+- **Tools that act are in scope too — because the caller is the player.** The owner's ruling, 2026-10-10:
+  *"Think of it as a set of tools exposed to the player through the computer. This is compliant because they
+  only affect the simulation."* **The computer is the surface the player reaches the ship's tools through**,
+  and what is exposed is **the enumerated set** — the same API the console already answers, and the same one
+  `scripts/api-check.sh` guards in both directions. The player's intent is classified into that set by the
+  novelty seam (M4), exactly as a typed meeting answer already is, **and the simulation applies it.** The tools
+  reach the simulation and nothing else: not the host, not the filesystem, not the network.
 
-**So the fork is: read-only MCP, or no MCP.** The mechanism is not built, and its cost is named rather than
-assumed: the House runs MCP servers already, so the pattern is familiar, but here the *game* would be the server
-and the worker the client, which is a change to how the worker gets its state and a maintenance tail to own. **It
-must not become a dependency**: the computer still answers from the enumerated set with the model absent, exactly
-as a meeting still plays from its skeleton.
+**The one line that keeps it compliant, and it is the whole of it: the model never calls a tool.** It produces
+text and selects from enumerated outcomes. The player calls; the simulation applies. **And if the entity is
+ever to act without being asked, that is a delegation and not a discretion** — the pattern the power system
+already has, and the one to copy: a band **granted** by the player, **held by a name**, **revocable
+immediately**, recorded in the log (`GrantBand` / `RevokeBand`, and the ship's own answer as `SetPowerAuto`).
+A ship that acts under a recorded, revocable delegation is still the player acting. A model that decides on its
+own has written state, and it is the one thing every part of this design rests on not happening.
+
+*Superseded: an earlier draft of this section asked whether to expose read-only tools or none at all. That was
+the wrong question — the ruling above answers it, and the mechanism (MCP or another) is a means to the
+enumeration, not the thing being decided.*
+
 
 
 ## Acceptance, continued
