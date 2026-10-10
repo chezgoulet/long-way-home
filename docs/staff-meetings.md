@@ -7,6 +7,24 @@ the thing happening. The engine already has every part of that scene except one 
 the arbiter, the log and the clock all exist. What is missing is the dialogue. This document is how a local LLM
 supplies it without ever becoming a dependency of the running game.
 
+**And a meeting happens *somewhere*, with the people it concerns — that is the loop, and it is why the scene is
+synchronous.** The owner's ruling, 2026-10-09: the command crew meet in the briefing room; a security matter
+meets with the security chief **in security** before anyone decides or executes; a medical question meets where
+the medicine is. **The subject and the people choose the room**, and the room is a real place on this ship
+(`docs/ship-master-map.md` says which deck hosts what). **The synchronous in-room loop is what buys the render
+window**: because the player is standing in a room with the actual people, the scene supplies the beat the game
+uses to render the bespoke voices for that meeting and for every one of its branches. **A meeting with no place
+would have neither the people nor the time.**
+
+**Corrected in the same pass, because this document claimed otherwise:** the sentence above says the room
+exists, and *the room as a place on the ship* does — but **a meeting is not bound to one today.**
+`MeetingBrief` (`module/ship/ship_core.h`) carries the kind, the trigger, the decision, the participants, the
+options, the instruments, the systems and the digest — **and no place.** The overlay draws wherever the player
+is standing, and the only "room" it knows is the participants list. So the place is a rule this document now
+states and the code does not yet keep; binding a brief to its room is its own work, and it is not a label
+change on the overlay.
+
+
 ## The three phases
 
 **1. Async generation, off the critical path.** Long before the meeting, the simulation enqueues a *meeting
@@ -170,6 +188,17 @@ pick a branch or become the novel case.
 One wrinkle to plan for: a local STT model is a third resident model, so the memory plan is that no two run at
 once. The embedding matcher for novelty (~100 MB) stays resident; TTS runs batched during generation; STT runs only
 in voice mode; the generator runs only during async generation.
+
+**And the owner's ruling, 2026-10-09: the game does not capture audio, and does not need to.** The speech path
+is **the platform's own** — the pill is an ordinary text field, and where the operating system's keyboard offers
+dictation, that dictation fills it. So the `VOICE` affordance on the free-text pill means *"use your keyboard's
+speech-to-text"*, not *"the ship is listening"*. **No microphone is opened by the engine and no capture path is
+added**; the STT worker above runs against a file, and in the shipping build it is a convenience for a platform
+that has none. This is a **decision, not a deferral**: it is cheaper, it improves wherever the OS improves, and
+it keeps the engine's audio output-only. The priced engine extension in
+`docs/evidence/voice-in.md` is therefore **not on the road** — it stays recorded as the alternative that was
+costed and declined.
+
 
 **The ship's computer is the same machinery**, which is the best argument that the abstraction is right: options
 as pills, free text, a pre-generated voice, the same branch model. One system serves staff meetings, conversations

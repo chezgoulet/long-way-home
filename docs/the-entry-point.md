@@ -198,6 +198,16 @@ own crew get voices we choose.** The ruling composes with that rather than fight
 state that decides who is aboard. That belongs to the meeting programme's phase three, and it has a dependency
 now that it did not have before.
 
+**And the owner's ruling on the cast, 2026-10-09: use the voices we have.** The pool is **not** pruned and no
+audition pass is run for it now — *"I'd rather have a completely working model that needs cosmetic polish than
+not get a completely working game"*, which is the same posture as everywhere else in this build. **Polishing
+passes are promised** and two facts are recorded for them rather than acted on: some pool voices are thinly
+provisioned (one of them has fifty-four seconds of speech in the entire install), and with roughly fifteen
+voices across twenty-four people **some crew share a voice**. And the polish need not be ours to record — the
+owner's own words: *"some people may even be willing to donate their voice acting to the project."* **So the
+cast is good enough to ship as it stands, and better voices are a later pass rather than a blocker.**
+
+
 ## What the first pass builds
 
 - **The configurator**, with those four dimensions, on the menu that G1 puts there.
