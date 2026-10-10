@@ -19,6 +19,7 @@
 
 #include "lwh_ui.h"
 
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 
@@ -59,6 +60,20 @@ int Split( char *s, char sep, char **out, int max )
 int QueueCount( void ) { return static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_meeting_queue" ) ); }
 int OptionCount( void ) { return static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_meeting_options" ) ); }
 int LineCount( int outcome ) { return static_cast<int>( ui.Cvar_VariableValue( va( "lwh_ship_meeting_lc%d", outcome ) ) ); }
+
+// The room the brief names (docs/staff-meetings.md, the owner's ruling): the place is on the brief,
+// published by the host as `lwh_ship_meeting_room`, and the overlay shows it. LCARS lettering is caps,
+// so the place is upper-cased for the frame; the table keeps the room's own name.
+void RoomCaps( char *out, int size )
+{
+	char room[64];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_meeting_room", room, sizeof( room ) );
+	if ( !room[0] ) Q_strncpyz( room, "the room", sizeof( room ) );
+	int i = 0;
+	for ( ; room[i] && i < size - 1; ++i )
+		out[i] = static_cast<char>( toupper( static_cast<unsigned char>( room[i] ) ) );
+	out[i] = 0;
+}
 
 // One skeleton line as the ship published it: speaker name|post|watch|mood|text|delivery|seconds. The
 // delivery is read into the struct so it is carried with the line (Task C) and is deliberately never
@@ -192,16 +207,19 @@ void QueueDraw( void )
 	UI_DrawProportionalString( 300, OV_TOP + 10, va( "%d waiting.  The room takes the oldest.", q ), UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 	UI_DrawProportionalString( 12, OV_TOP + 30, "KIND", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	UI_DrawProportionalString( 150, OV_TOP + 30, "DECIDING", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 470, OV_TOP + 30, "ROOM", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	for ( int i = 0; i < q && i < 5; ++i )
 	{
-		char buf[256], *f[4];
+		char buf[256], *f[5], deciding[192];
 		ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_q%d", i ), buf, sizeof( buf ) );
-		if ( Split( buf, '|', f, 4 ) < 4 ) continue;
+		if ( Split( buf, '|', f, 5 ) < 5 ) continue;
 		const int y = OV_TOP + 46 + i * 16;
 		const bool sel = i == meet.cursor;
 		if ( sel ) UI_FillRect( 6, y - 1, 628, 14, colorTable[CT_DKPURPLE2] );
+		FitToColumn( deciding, sizeof( deciding ), f[1], 150, 465 );
 		UI_DrawProportionalString( 12, y, f[0], UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1] );
-		UI_DrawProportionalString( 150, y, f[1], UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTBLUE2] );
+		UI_DrawProportionalString( 150, y, deciding, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTBLUE2] );
+		UI_DrawProportionalString( 470, y, f[4], UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTPURPLE1] );
 	}
 	if ( !q ) UI_DrawProportionalString( 12, OV_TOP + 46, "NOTHING IS WAITING.  A meeting is called by the clock or a threshold.", UI_TINYFONT, colorTable[CT_LTBLUE2] );
 	if ( q && meet.cursor >= q ) meet.cursor = q - 1;
@@ -289,18 +307,21 @@ void RoomDraw( void )
 		}
 	}
 
-	// The room itself: who is present, and the scope each one's brief was built from -- a post reads
-	// its own scope, command reads all (docs/the-record-and-the-log.md).
+	// The room itself: the brief names the place it is held in, and who is present, with the scope
+	// each one's brief was built from -- a post reads its own scope, command reads all
+	// (docs/the-record-and-the-log.md). Naming the place is the owner's ruling (docs/staff-meetings.md):
+	// the screen stops saying "IN THE ROOM" about a room that does not exist.
 	{
-		char line[512];
-		line[0] = 0;
+		char roomCaps[64], line[512];
+		RoomCaps( roomCaps, sizeof( roomCaps ) );
+		Com_sprintf( line, sizeof( line ), "IN %s:", roomCaps );
 		const int n = static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_meeting_parts" ) );
 		for ( int i = 0; i < n && i < 6; ++i )
 		{
 			char buf[192], *f[5];
 			ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_part%d", i ), buf, sizeof( buf ) );
 			if ( Split( buf, '|', f, 5 ) < 5 ) continue;
-			Q_strcat( line, sizeof( line ), va( "%s%s (%s)", i ? "   " : "IN THE ROOM:  ", f[0], f[4] ) );
+			Q_strcat( line, sizeof( line ), va( "%s%s (%s)", i ? "   " : "  ", f[0], f[4] ) );
 		}
 		UI_DrawProportionalString( 158, 458, line, UI_TINYFONT, colorTable[CT_LTBLUE2] );
 	}

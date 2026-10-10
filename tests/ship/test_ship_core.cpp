@@ -4871,8 +4871,131 @@ static void TestMeetingSaveRoundTrip()
 	CHECK(Unpack(blob.data(), blob.size(), back));
 	CHECK(Pack(back) == blob);
 	CHECK(PendingMeetings(back).size() == PendingMeetings(s).size());
-	// The load is a zero-length tick: it must not emit a second watch-change brief.
+// The load is a zero-length tick: it must not emit a second watch-change brief.
 	CHECK(PendingMeetings(back).size() == PendingMeetings(s).size());
+}
+
+// The meeting's place (docs/staff-meetings.md, the owner's ruling 2026-10-09): the room belongs to the
+// brief, derived from the meeting's kind and its subject, and known at generation -- before the player
+// arrives. Every kind has a room (scripts/meeting-place-check.sh enforces the table); a command decision
+// meets in the briefing room, a security matter in the security office with the security chief present,
+// an engineering one where the plant is, a medical one where the medicine is. The place round-trips.
+static void TestMeetingPlace()
+{
+	g_test = "the meeting's place: derived from kind and subject, on the brief, and round-tripped";
+	Ship s = NewShip();
+	s.player = 0;
+
+	// Every kind of meeting has a room, and the room names a deck the master map gives it.
+	for (int k = 0; k < MEET_KIND_COUNT; ++k) {
+		const MeetingBrief b = BuildBrief(s, static_cast<uint8_t>(k));
+		CHECK(b.subject < DEPT_COUNT);
+		CHECK(b.room < MeetingRoomCount());
+		const MeetingRoom r = MeetingRoomAt(b.room);
+		CHECK(r.name && r.name[0]);
+		CHECK(r.deck >= 1 && r.deck <= 15);
+	}
+
+	// Two kinds, two rooms. A command decision (the watch change) meets in the briefing room on deck 1.
+	{
+		const MeetingRoom wr = MeetingRoomFor(MEET_WATCH_CHANGE, DEPT_COMMAND);
+		CHECK(std::strcmp(wr.name, "the briefing room") == 0);
+		CHECK(wr.deck == 1);
+	}
+
+	// A security matter meets in the security office on deck 6, with the security chief present.
+	{
+		Ship borg = NewShip();
+		borg.player = 0;
+		borg.borgAwareness = 1.0f;
+		const MeetingBrief bm = BuildBrief(borg, MEET_BORG);
+		const MeetingRoom br = MeetingRoomAt(bm.room);
+		CHECK(std::strcmp(br.name, "the security office") == 0);
+		CHECK(br.deck == 6);
+		const int chief = DepartmentHead(borg, DEPT_SECURITY);
+		bool present = false;
+		for (int i = 0; i < bm.presentCount; ++i) if (bm.present[i].crew == chief) present = true;
+		CHECK(chief >= 0);
+		CHECK(present);
+	}
+
+	// A third, from the map: an engineering matter meets where the plant is; a medical one where the
+	// medicine is.
+	{
+		CHECK(std::strcmp(MeetingRoomFor(MEET_ALLOCATION, DEPT_ENGINEERING).name, "main engineering") == 0);
+		CHECK(MeetingRoomFor(MEET_ALLOCATION, DEPT_ENGINEERING).deck == 11);
+		CHECK(std::strcmp(MeetingRoomFor(MEET_CASUALTIES, DEPT_MEDICAL).name, "sickbay") == 0);
+		CHECK(MeetingRoomFor(MEET_CASUALTIES, DEPT_MEDICAL).deck == 5);
+	}
+
+	// Derived, not hand-set: the room comes from the kind *and* the subject. The departmental meeting is
+	// the one kind with more than one subject, so two briefs of the same kind name two rooms.
+	{
+		const MeetingRoom eng = MeetingRoomFor(MEET_DEPARTMENTAL, DEPT_ENGINEERING);
+		const MeetingRoom med = MeetingRoomFor(MEET_DEPARTMENTAL, DEPT_MEDICAL);
+		CHECK(std::strcmp(eng.name, "main engineering") == 0);
+		CHECK(std::strcmp(med.name, "sickbay") == 0);
+		CHECK(eng.deck != med.deck);
+	}
+
+	// The place is on the brief before the player arrives, and a save replays it: the queued brief and
+	// its room, subject and deck survive Pack/Unpack byte-for-byte.
+	{
+		Ship q = NewShip();
+		const double toWatch = static_cast<double>(SECONDS_PER_WATCH) - std::fmod(q.clock, static_cast<double>(SECONDS_PER_WATCH));
+		AdvanceShip(q, toWatch + 1.0);
+		CHECK(!PendingMeetings(q).empty());
+		const MeetingBrief queued = PendingMeetings(q).front();
+		CHECK(queued.room < MeetingRoomCount());
+
+		// A material tick later, the queued brief's place does not move: it was fixed at generation.
+		const uint8_t emittedRoom = queued.room;
+		AdvanceShip(q, 5.0);
+		CHECK(PendingMeetings(q).front().room == emittedRoom);
+
+		const std::vector<uint8_t> blob = Pack(q);
+		Ship back;
+		CHECK(Unpack(blob.data(), blob.size(), back));
+		CHECK(Pack(back) == blob);
+		bool found = false;
+		for (const MeetingBrief &b : PendingMeetings(back))
+			if (b.kind == queued.kind && b.room == queued.room && b.subject == queued.subject) found = true;
+		CHECK(found);
+	}
+}
+
+// `test_ship_core --place` prints the meeting's place as evidence (docs/evidence/the-meeting-place.md):
+// the room every kind resolves from its kind and subject, the one kind with more than one subject, and
+// the place already on a queued brief before the player arrives.
+static int PrintPlace()
+{
+	static const char *const DEPTS[] = { "command", "engineering", "security", "sciences", "medical" };
+	Ship s = NewShip();
+	std::printf("== every kind of meeting resolves a room, from the kind and the subject\n");
+	for (int k = 0; k < MEET_KIND_COUNT; ++k) {
+		const MeetingBrief b = BuildBrief(s, static_cast<uint8_t>(k));
+		const MeetingRoom r = MeetingRoomAt(b.room);
+		std::printf("  %-13s subject %-11s -> %-18s deck %d\n",
+			MeetingKindName(static_cast<uint8_t>(k)), DEPTS[b.subject], r.name, r.deck);
+	}
+	std::printf("== the departmental meeting is the one kind with more than one subject\n");
+	const MeetingRoom eng = MeetingRoomFor(MEET_DEPARTMENTAL, DEPT_ENGINEERING);
+	const MeetingRoom med = MeetingRoomFor(MEET_DEPARTMENTAL, DEPT_MEDICAL);
+	std::printf("  MEET_DEPARTMENTAL / DEPT_ENGINEERING -> %s (deck %d)\n", eng.name, eng.deck);
+	std::printf("  MEET_DEPARTMENTAL / DEPT_MEDICAL     -> %s (deck %d)\n", med.name, med.deck);
+	std::printf("== the place is on the brief before the player arrives\n");
+	{
+		Ship q = NewShip();
+		q.borgAwareness = 1.0f;  // a security matter calls its meeting
+		AdvanceShip(q, 2.0);
+		if (PendingMeetings(q).empty()) std::printf("  (nothing queued)\n");
+		for (const MeetingBrief &b : PendingMeetings(q)) {
+			const MeetingRoom r = MeetingRoomAt(b.room);
+			std::printf("  queued %-13s in %s (deck %d), present %d\n",
+				MeetingKindName(b.kind), r.name, r.deck, b.presentCount);
+		}
+	}
+	return 0;
 }
 
 // `test_ship_core --power` prints the allocation model as evidence (docs/evidence/power-assignment.md):
@@ -6995,6 +7118,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--rising")) return PrintRising();
 	if (argc > 1 && !std::strcmp(argv[1], "--power")) return PrintPower();
 	if (argc > 1 && !std::strcmp(argv[1], "--meeting")) return PrintMeeting();
+	if (argc > 1 && !std::strcmp(argv[1], "--place")) return PrintPlace();
 	if (argc > 1 && !std::strcmp(argv[1], "--voice")) return PrintVoice();
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
@@ -7096,6 +7220,7 @@ int main(int argc, char **argv)
 	TestMeetingOverlaySeam();
 	TestNoveltyIndex();
 	TestMeetingSaveRoundTrip();
+	TestMeetingPlace();
 	TestTrackOwnership();
 	TestCueCannotStopALine();
 	TestCueSet();

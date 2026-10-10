@@ -484,6 +484,10 @@ substance of the brief's point and stands.
 | `ComputerPillVerb` | `int i` | the API verb a computer pill submits | play | — | docs/staff-meetings.md |
 | `ComputerPillLabel` | `int i` | a computer pill's short description | play | — | docs/staff-meetings.md |
 | `ComputerPillCost` | `int i` | a computer pill's cost | play | — | docs/staff-meetings.md |
+| `MeetingRoomCount` | `` | how many room rows the table carries | play | — | docs/staff-meetings.md |
+| `MeetingRoomAt` | `int i` | the room and deck one table row names | play | — | docs/staff-meetings.md |
+| `MeetingRoomFor` | `uint8_t kind, uint8_t dept` | the room a meeting of `kind` with subject `dept` is held in | play | — | docs/staff-meetings.md |
+| `MeetingSubjectDepartment` | `const Ship &s, uint8_t kind` | the department whose business a meeting of this kind is | play | — | docs/staff-meetings.md |
 
 ## The counts (Task B)
 
@@ -494,15 +498,15 @@ substance of the brief's point and stands.
 | entry points | 74 |
 | situations the simulation generates | 63 |
 | outcomes | 54 |
-| readers | 183 |
+| readers | 187 |
 | the configurator | 18 |
-| **total** | **392** |
+| **total** | **396** |
 
 **By reachability.**
 
 | state | hooks |
 |---|---|
-| reached in play | 227 |
+| reached in play | 231 |
 | reached only from the developer console | 130 |
 | reached by nothing yet | 35 |
 | — of those, reached only by the tests | 29 |
@@ -555,6 +559,14 @@ the second path the design forbids. The counts are unchanged: 392 (227 play / 13
 The new console verb `dictate` is enumerated in `module/ship/console_api.def` and checked by
 `scripts/api-check.sh`, not by this register (which is the `ship_core.h` surface). Evidence:
 `docs/evidence/voice-in.md`.
+
+**Re-derived 2026-10-10, the meeting's place.** Four hooks are added, all reached in play: the room
+table `module/ship/meeting_rooms.def` becomes readable (`MeetingRoomCount`, `MeetingRoomAt`,
+`MeetingRoomFor`) and the subject the room is derived from is read from the ship
+(`MeetingSubjectDepartment`). The place is on the brief, the overlay names it, and the emit site logs
+it, so all four are reached in the meeting path. The counts above are the rows of this register,
+counted: 74 + 63 + 54 + 187 + 18 = 396, and 231 + 130 + 35 = 396. Evidence:
+`docs/evidence/the-meeting-place.md`.
 
 ### 5. The configurator — the player chooses the start state
 
