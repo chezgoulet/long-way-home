@@ -95,6 +95,19 @@ grep -q 'computer test: log \[command\] the computer: the computer refused (not 
 grep -q 'computer test: log \[command\] the computer: the computer applied: alert yellow' "$HOME_DIR/computer.out" \
   || fail "the applied request was not in the record"
 
+# Task A / B -- the wrap. Every live string is measured, in the engine's own font, against the column
+# it is drawn in -- the transcript, the rail's echo of it, the pills, the queue, the rail's facts. A
+# line wider than its column is an OVERFLOW and this check fails on it. Nothing is clipped to fit.
+grep -h '^WRAP:' "$HOME_DIR/computer.out" | sed 's/^/    /' || true
+grep -qE '^WRAP: checked [1-9][0-9]* string\(s\), [1-9][0-9]* line\(s\), overflows 0$' "$HOME_DIR/computer.out" \
+  || fail "the wrap check did not run, or a line overflowed its column (see $HOME_DIR/computer.out)"
+if grep -q '^WRAP: OVERFLOW' "$HOME_DIR/computer.out"; then fail "a wrapped line overflowed its column"; fi
+# The refusal reads whole: its own end is a wrapped line of both the transcript and the rail's echo.
+[ "$(grep -ci '^WRAP:   | .*or by command' "$HOME_DIR/computer.out")" -ge 2 ] \
+  || fail "the refusal's own end is not a wrapped line of both the transcript and the rail's echo"
+grep -q '^WRAP: rail-echo ' "$HOME_DIR/computer.out" \
+  || fail "the wrap check did not measure the rail's echo"
+
 # The model calls nothing, and the classification path is the API's membership test.
 grep -q 'computer test: the classification path is the API.s membership test (FindConsoleVerb), not the embedding seam; model calls=0' "$HOME_DIR/computer.out" \
   || fail "the classification path was not the membership test, or a model was called"
