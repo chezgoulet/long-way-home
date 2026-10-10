@@ -2382,6 +2382,9 @@ void RunTest( void )
 			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_refusal", kind, sizeof( kind ) );
 			gi.Printf( "SHIP: computer test: the junior asks \"alert red\" -> %s: %s\n", kind, said );
 			gi.Printf( "SHIP: computer test: the alert is unchanged at index %d (the permission changed nothing)\n", vessel.alert );
+			// The wrap self-check, in the engine's own font, over the live strings: the refusal reads
+			// whole, and no line of any surface overflows its column. Run before the frame is captured.
+			gi.SendConsoleCommand( "lwh_wrap_check\n" );
 			// The refusal on the screen the meeting uses: its own step, so the cvar holds between the say
 			// being processed and the frame being captured.
 			gi.SendConsoleCommand( "screenshot lwh_computer_refused\n" );

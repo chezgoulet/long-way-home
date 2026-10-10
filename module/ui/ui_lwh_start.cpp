@@ -18,6 +18,9 @@
 #include "ui_local.h"
 
 #include "lwh_ui.h"
+#include "lwh_textfit.h"
+
+#include <cstdint>
 
 namespace {
 
@@ -139,44 +142,23 @@ void BeginRun( void )
 // "…THE SENIOR OFFICER REMAINING I". So the text is broken at a space where the next word would pass
 // the column, and the caller shifts whatever sits below by however many lines it took. Nothing is
 // dropped, and the width is measured with the engine's own font metrics rather than guessed.
+//
+// The mechanism is `LWH_WrapText` (lwh_textfit.h) -- the one measured wrap the meeting overlay and the
+// computer's transcript use too, so the three surfaces cannot drift apart again. This function is only
+// the start screen's thin drawing wrapper around it.
+static int MeasureStyle( const void *ctx, const char *text )
+{
+	return UI_ProportionalStringWidth( text, static_cast<int>( reinterpret_cast<intptr_t>( ctx ) ) );
+}
+
 static int DrawWrappedText( int x, int y, int width, int lineHeight, int style, vec4_t color,
 	const char *text )
 {
-	char line[1024] = "";
-	const char *p = text ? text : "";
-	int lines = 0;
-
-	while ( *p )
-	{
-		char word[512];
-		int n = 0;
-		while ( *p == ' ' ) ++p;
-		while ( *p && *p != ' ' && n < (int)sizeof( word ) - 1 ) word[n++] = *p++;
-		word[n] = '\0';
-		if ( !word[0] ) break;
-
-		char candidate[1024];
-		if ( line[0] ) Com_sprintf( candidate, sizeof( candidate ), "%s %s", line, word );
-		else           Q_strncpyz( candidate, word, sizeof( candidate ) );
-
-		if ( line[0] && UI_ProportionalStringWidth( candidate, style ) > width )
-		{
-			UI_DrawProportionalString( x, y, line, style, color );
-			y += lineHeight;
-			++lines;
-			Q_strncpyz( line, word, sizeof( line ) );
-		}
-		else
-		{
-			Q_strncpyz( line, candidate, sizeof( line ) );
-		}
-	}
-	if ( line[0] )
-	{
-		UI_DrawProportionalString( x, y, line, style, color );
-		++lines;
-	}
-	return lines;
+	const LWH_Wrapped w = LWH_WrapText( text ? text : "", width, LWH_WRAP_MAX_LINES, MeasureStyle,
+		reinterpret_cast<const void *>( static_cast<intptr_t>( style ) ) );
+	for ( int i = 0; i < w.count; ++i )
+		UI_DrawProportionalString( x, y + i * lineHeight, w.line[i], style, color );
+	return w.count;
 }
 
 void StartDraw( void )

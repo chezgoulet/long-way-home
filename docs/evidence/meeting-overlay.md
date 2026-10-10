@@ -198,3 +198,7 @@ output is the house's usual check sweep.)*
 6. **The pill labels are clipped** (30 characters, description 46) so the label cannot run into its
    description in the fixed columns. The authored labels are whole sentences; the clipping is the
    frame's, and the full text stays in the brief.
+   *Corrected 2026-10-10 (the wrap pass, `docs/evidence/the-wrap.md`):* the owner's ruling is that
+   on-screen text is never clipped to fit — it wraps. The pills are measured now (`LWH_WrapText`), not
+   clipped, and a row grows if a label or cost needs a second line. The authored labels fit on one
+   line today, so the frame is unchanged; the clipping described here is superseded.
