@@ -561,9 +561,9 @@ skeleton and the seams are built (see below).
 - the schedule and the queued briefs round-trip; `scripts/test.sh`, `scripts/check.sh`,
   `scripts/meeting-check.sh`, `scripts/power-check.sh` and `scripts/s2-check.sh` exit 0 ✅
 
-Remaining, and deliberately not begun: the **async generator** and novelty detection (M4), **voice out**
-and the cue track (M5), and **voice in** and the ship's computer (M6). The **overlay** (M3) is built —
-see below. The **scenario content** is authored against this frame next, per
+Remaining, and deliberately not begun: **voice in** and the ship's computer (M6). The **async
+generator** and novelty detection (M4), **voice out** and the cue track (M5), and the **overlay** (M3)
+are built — see below. The **scenario content** is authored against this frame next, per
 `docs/programme-meetings-and-voice.md`.
 
 ### The audio plumbing, phase two — three sources, one owner each
@@ -592,9 +592,9 @@ call are phase three.
 - **the delivery direction reaches `synthesize.py --exaggeration`** end to end (order → 0.80) ✅
 - `scripts/test.sh`, `scripts/check.sh`, `scripts/meeting-check.sh` and `scripts/audio-check.sh` exit 0 ✅
 
-Remaining for the meeting lane: the **async generator** and novelty detection (M4), and the **meeting
-that plays the rendered audio** (the player itself, phase three). The **overlay** (M3) is built — see
-the next section.
+Remaining for the meeting lane: **voice in and the ship's computer** (M6). The **async generator** and
+novelty detection (M4) and **voice out** (M5) are built — see the next sections. The **overlay** (M3)
+is built, too.
 
 ### The meeting overlay — the surface a meeting is attended on (M3)
 
@@ -658,6 +658,45 @@ Remaining for the meeting lane: **M5** (voice out and the cue track) and **M6** 
 ship's computer). The stale-script **interruption hook** is named and not built; *regenerate* is the
 branch taken. **The prose is the owner's to judge**; the validator guarantees termination and
 non-contradiction, not quality.
+
+### Voice out, and the casting map (M5)
+
+`docs/staff-meetings.md`, phase five / M5, and `docs/the-entry-point.md`, "And the voice follows the
+cast", implemented 2026-10-09 on `feat/voice-and-casting` (cut from `testing`;
+`docs/evidence/voice-and-casting.md`, `TestCastMap`, `TestCastDeterminism`, `TestPauseCue`,
+`TestLineDurations`, `scripts/audio-check.sh`, `tools/voice/render.py`). **Save format unchanged (54)**
+— the cast is derived from the record and the seed, never stored, and the cache is player-local data
+beside the save. **No assets and no generated audio in the repository.**
+
+- **the casting map is cast-state data, derived from the start state, not a fixed table** — a canon
+  character who survived keeps their retail voice; a canon character who died has **no voice** and no
+  line is authored for them; a fictitious crew member is cast from the **non-canon pool** (the hazard
+  team and minor crew, not the synthetic enemy generics). The canon default casts **9 canon voices and
+  132 from the pool**; the chair case gives the dead captain `""`; the all-fictitious case uses **0
+  canon voices** ✅
+- **the map is deterministic and held for the campaign** — derived from the person's own record and the
+  seed, so a re-derivation is identical and a save replays; demonstrated by re-casting the same start
+  state and by re-deriving after a pack/unpack ✅
+- **voice out during generation** — `PlanMeetingAudio` names each line's **cast reference**, not the
+  display name, so the renderer finds `refs/<voice>.wav`; the render manifest carries the reference and
+  the delivery's exaggeration ✅
+- **a meeting plays with zero inference and true line durations pacing the pills** — the engine plans
+  and reads; it never opens a model. `render.py` measures each clip it writes and records
+  `key|seconds`; the host loads them and the room offers each pill for the clip's own length ✅
+- **a novel answer plays a cue immediately, and resolves inside the pause or defers** —
+  `SubmitNovelAnswer` emits a per-character cue at submission; a fast answer retires the cue and
+  resolves, a slow one plays the holding line and moves the outcome to a later beat ✅
+- **the cache prunes with the save** — and a reload replays rather than re-rendering (a key already
+  cached is never queued again) ✅
+- **the boundary holds** — `scripts/audio-check.sh` fails on any audio in `git ls-files`, and the cache
+  is gitignored; no reference clip, no rendered line, no model is committed ✅
+- the nine new hooks are registered, counts re-derived from the register's own rows (381; 216 play /
+  130 console / 35 nothing) ✅
+- `scripts/test.sh`, `scripts/check.sh`, `scripts/meeting-check.sh`, `scripts/meeting-overlay-check.sh`,
+  `scripts/model-call-check.sh` and `scripts/audio-check.sh` exit 0 ✅
+
+Remaining for the meeting lane: **M6** (voice in and the ship's computer). **Whether the cast sounds
+right is the owner's ear** and needs the clips brought to him; the evidence names their paths.
 
 ### Then, in rough order
 

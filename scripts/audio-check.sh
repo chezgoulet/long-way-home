@@ -28,6 +28,9 @@ VOICE="$OUT/voice"
 command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; }
 mkdir -p "$VOICE" "$GAME_DIR/screenshots"
 rm -f "$VOICE/render.jsonl"
+# Be hermetic: the check plans from an empty queue, so a cache or a durations file left by an earlier
+# run (or by the real renderer) does not make the plan a no-op. Reference clips under refs/ are kept.
+rm -f "$VOICE"/*.wav "$VOICE/durations.txt"
 
 find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
 echo "==> the audio plumbing (g_shipTest 81)"
@@ -83,6 +86,44 @@ if git -C "$ROOT" check-ignore -q "$VOICE"; then :; else
   fail "the audio cache is not gitignored: $VOICE"
 fi
 
+# ---- the casting map, voice out, the pause cue, and pacing (M5) ---------------------------------
+# A second headless run: the cast is derived from the start state (a canon survivor keeps the retail
+# voice; a canon character who died has none; a fictitious member is cast from the non-canon pool);
+# the map is deterministic; every line is planned with its cast reference during generation, with no
+# inference; a novel answer plays a cue immediately and resolves or defers; and a line's measured
+# clip duration paces the pill. No model is loaded.
+echo
+echo "==> the casting map and voice out (g_shipTest 84)"
+find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
+SDL_AUDIODRIVER=dummy timeout 240 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
+    +set s_useOpenAL 0 +set g_ship 1 +set g_shipMode 1 +set g_shipTest 84 +map "$MAP" \
+    >"$HOME_DIR/audio-cast.out" 2>&1 || true
+grep -h '^SHIP: cast test' "$HOME_DIR/audio-cast.out" | sed 's/^/    /' || true
+
+grep -q 'cast test: canon: 9 canon voice(s), 132 from the non-canon pool' "$HOME_DIR/audio-cast.out" \
+  || fail "the canon default did not keep 9 retail voices and cast 132 from the pool"
+grep -q 'cast test: canon survivor Tuvok -> tuvok (the retail voice)' "$HOME_DIR/audio-cast.out" \
+  || fail "a canon survivor was not given their own retail voice"
+grep -q 'cast test: the chair: Janeway is dead -> voice "" (no voice; no line is authored)' "$HOME_DIR/audio-cast.out" \
+  || fail "a canon character who died was given a voice"
+grep -q 'cast test: all-fictitious: 141 crew, 0 canon voice(s) used' "$HOME_DIR/audio-cast.out" \
+  || fail "an all-fictitious crew used a canon voice"
+grep -q 'cast test: the same start state re-cast gives the same map=1' "$HOME_DIR/audio-cast.out" \
+  || fail "the casting map was not deterministic"
+grep -q 'cast test: voice out during generation: planned 6 line(s), queue unfinished=6, inference calls=0' "$HOME_DIR/audio-cast.out" \
+  || fail "the meeting's lines were not planned with cast references, or a model was called"
+grep -q 'cast test: pacing: .* runs [0-9.]*s (.*); inference calls=0' "$HOME_DIR/audio-cast.out" \
+  || fail "the line's duration did not pace the pill"
+grep -q 'cast test: pause: fast cue=[0-9]*, resolved inside the pause=1' "$HOME_DIR/audio-cast.out" \
+  || fail "a fast novel answer did not play a cue and resolve inside the pause"
+grep -q 'cast test: pause: slow deferral=[0-9]* "I have to think about that." -> the outcome moves to a later beat' "$HOME_DIR/audio-cast.out" \
+  || fail "a slow novel answer did not defer with the holding line"
+grep -q 'cast test: the cache prunes with the save: [0-9]* of [0-9]* entr(ies) dropped, cache now 0' "$HOME_DIR/audio-cast.out" \
+  || fail "the voice cache was not pruned with the save"
+
 echo "PASS  three sources with one owner each; a cue cannot stop a line; the cache key makes a re-render a"
 echo "      no-op and prunes with the save; the warm happens in the async window; the cue emit site fires;"
-echo "      the delivery direction reaches synthesizer --exaggeration; the repository carries no audio"
+echo "      the delivery direction reaches synthesizer --exaggeration; the repository carries no audio;"
+echo "      the casting map is derived and deterministic (canon, the chair, all-fictitious); the lines are"
+echo "      planned with cast references and no inference; a novel answer cues immediately and resolves or"
+echo "      defers; a line's measured duration paces the pill"

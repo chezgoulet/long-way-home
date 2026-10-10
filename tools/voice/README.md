@@ -12,7 +12,10 @@ the retail assets are, what was installed, and the numbers behind the one clip t
 - `synthesize.py` — clone that voice and speak one new line, using Chatterbox.
 - `render.py` — drain a meeting's render manifest (module/ship, phase two) through `synthesize.py`,
   carrying each line's delivery direction to `--exaggeration`. It refuses an unmarked line, skips a
-  clip already on disk, and refuses a cache inside the repository. `--dry-run` prints the commands.
+  clip already on disk, and refuses a cache inside the repository. Each clip it writes is measured
+  (`ffprobe`) and recorded as `key|seconds` beside the cache, which is what the meeting's pills are
+  paced by; the manifest names the cast reference (`refs/<voice>.wav`) the render job resolved to.
+  `--dry-run` prints the commands.
 
 ## What stage one found, in one line
 

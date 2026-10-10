@@ -5231,6 +5231,141 @@ static void TestAudioSaveRoundTrip()
 	CHECK(Pack(back) == blob);
 }
 
+static void TestCastMap()
+{
+	g_test = "the casting map: a canon voice, no voice for the dead, the pool for the rest";
+	CHECK(VoicePoolCount() >= 8);
+	for (int i = 0; i < VoicePoolCount(); ++i) CHECK(VoicePoolName(i)[0] != '\0');
+	CHECK(VoiceIsCanonType("tuvok"));
+	CHECK(!VoiceIsCanonType("greenguy"));
+	CHECK(CastVoice(NewShip(), -1).empty()); // nobody: no voice
+
+	// THE CANON DEFAULT: the show characters keep their own retail voice; every other record is cast
+	// from the non-canon pool, and none of them takes a canon voice.
+	Config cfg;
+	Ship s = NewShip(cfg);
+	ApplyStartState(s, StartStateAt(0));
+	int canon = 0, pool = 0;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const std::string v = CastVoice(s, i);
+		CHECK(!v.empty());
+		if (CastIsCanon(s, i)) {
+			++canon;
+			CHECK(v == s.crew[i].type);
+			CHECK(VoiceIsCanonType(v));
+		} else {
+			++pool;
+			bool inPool = false;
+			for (int p = 0; p < VoicePoolCount(); ++p) if (v == VoicePoolName(p)) inPool = true;
+			CHECK(inPool);
+		}
+	}
+	CHECK(canon == 9);                     // the canon few
+	CHECK(pool == COMPLEMENT - 9);         // the hazard team and the generated crew
+
+	// THE CHAIR: the captain died, so she has no voice and no line is authored for her.
+	Ship chair = NewShip(cfg);
+	ApplyStartState(chair, StartStateAt(1));
+	int janeway = -1;
+	for (int i = 0; i < static_cast<int>(chair.crew.size()); ++i)
+		if (chair.crew[i].type == "janeway") janeway = i;
+	CHECK(janeway >= 0);
+	CHECK(chair.crew[janeway].status == CREW_DEAD);
+	CHECK(CastVoice(chair, janeway).empty());
+	CHECK(!CastIsCanon(chair, janeway));
+
+	// ALL-FICTITIOUS: none of the show characters appears, and every voice is from the pool.
+	Config fcfg; fcfg.fictitious = true;
+	Ship f = NewShip(fcfg);
+	ApplyStartState(f, StartStateAt(2));
+	for (int i = 0; i < static_cast<int>(f.crew.size()); ++i) {
+		CHECK(!CastIsCanon(f, i));
+		const std::string v = CastVoice(f, i);
+		bool inPool = false;
+		for (int p = 0; p < VoicePoolCount(); ++p) if (v == VoicePoolName(p)) inPool = true;
+		CHECK(inPool);
+	}
+}
+
+static void TestCastDeterminism()
+{
+	g_test = "the same start state re-casts the same map, and a reload derives it identically";
+	Config cfg;
+	Ship a = NewShip(cfg);
+	ApplyStartState(a, StartStateAt(0));
+	Ship b = NewShip(cfg);
+	ApplyStartState(b, StartStateAt(0));
+	CHECK(a.crew.size() == b.crew.size());
+	for (int i = 0; i < static_cast<int>(a.crew.size()); ++i) CHECK(CastVoice(a, i) == CastVoice(b, i));
+	// A save carries no cast: the static record comes back from the seed, so the map is re-derived.
+	const std::vector<uint8_t> blob = Pack(a);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.crew.size() == a.crew.size());
+	for (int i = 0; i < static_cast<int>(a.crew.size()); ++i) CHECK(CastVoice(back, i) == CastVoice(a, i));
+}
+
+static void TestPauseCue()
+{
+	g_test = "a novel answer plays a cue immediately, and resolves inside the pause or defers";
+	Ship s = NewShip();
+	VoiceMixer m;
+	const MeetingBrief b = BuildBrief(s, MEET_WATCH_CHANGE);
+	const size_t before = s.log.size();
+	// Fast: the answer arrives inside the pause, so the cue retires and the answer resolves now.
+	PauseOutcome fast = SubmitNovelAnswer(s, m, b, "watch the reserve closely", 0.5f);
+	CHECK(fast.cue >= 0);
+	CHECK(fast.resolved);
+	CHECK(fast.outcome == -1 || fast.outcome >= 0); // a matched branch, or the live line
+	CHECK(!TrackBusy(m, TRACK_CUE));                // the pause is over
+	CHECK(s.log.size() > before);
+	bool cueLogged = false;
+	for (const LogEntry &e : s.log) if (e.what.find("cue: ") != std::string::npos) cueLogged = true;
+	CHECK(cueLogged);                               // the cue emit site fired, at submission
+
+	// Slow: the model was slower than the pause. The deferral line lands on the cue track and the
+	// outcome moves to a later beat -- a message, a corridor conversation, the log.
+	PauseOutcome slow = SubmitNovelAnswer(s, m, b, "make it so", 5.0f);
+	CHECK(slow.cue >= 0);
+	CHECK(!slow.resolved);
+	CHECK(slow.deferral >= 0);
+	CHECK(slow.outcome == -1);
+	CHECK(TrackBusy(m, TRACK_CUE));
+	const VoiceReply *r = ActiveReply(m, TRACK_CUE);
+	CHECK(r != nullptr && r->cue == CUE_HOLDING);   // the short holding line
+	bool deferred = false;
+	for (const LogEntry &e : s.log) if (e.what.find("deferred") != std::string::npos) deferred = true;
+	CHECK(deferred);
+	// The cue track never touched the dialogue track: a cue cannot stop a line.
+	CHECK(!TrackBusy(m, TRACK_DIALOGUE));
+}
+
+static void TestLineDurations()
+{
+	g_test = "a line is paced by its measured clip duration, and falls back to the text without one";
+	Ship s = NewShip();
+	s.player = 0;
+	const MeetingBrief b = BuildBrief(s, MEET_WATCH_CHANGE);
+	const MeetingSkeleton &sk = AuthoredSkeleton(MEET_WATCH_CHANGE);
+	VoiceRender vr;
+	vr.dir = "voice";
+	CHECK(PlanMeetingAudio(vr, s, b, sk) > 0);
+	const MeetingLine *line = nullptr;
+	for (int i = 0; i < sk.outcomeCount && !line; ++i)
+		for (int l = 0; l < sk.outcomes[i].lineCount && !line; ++l)
+			if (DeliveryKnown(sk.outcomes[i].lines[l].delivery)) line = &sk.outcomes[i].lines[l];
+	CHECK(line != nullptr);
+	const std::string key = MeetingLineKey(s, b, *line);
+	CHECK(!key.empty());
+	CHECK(CachedDuration(vr, key) == 0.0f);
+	const float fallback = MeetingLineSeconds(vr, s, b, *line);
+	CHECK(fallback >= 0.8f);                        // a reading estimate, not zero
+	// The renderer finished it with a measured duration: that duration now paces the line.
+	CHECK(CacheRendered(vr, key, VoiceCachePath(vr, key), 2.75f));
+	CHECK(std::fabs(CachedDuration(vr, key) - 2.75f) < 1e-4f);
+	CHECK(std::fabs(MeetingLineSeconds(vr, s, b, *line) - 2.75f) < 1e-4f);
+}
+
 // `test_ship_core --voice` prints the audio plumbing as evidence (docs/evidence/audio-plumbing.md):
 // the three sources and their owners, the cue set, the cache key and the no-op, the queue unfinished,
 // the warm in the async window, and the delivery direction end to end.
@@ -5321,6 +5456,74 @@ static int PrintVoice()
 		std::printf("  line: \"%s\"\n", line.text.c_str());
 		std::printf("  delivery %s -> RenderJob.exaggeration %.2f -> synthesize.py --exaggeration %.2f\n",
 			DeliveryName(req.delivery), req.exaggeration, req.exaggeration);
+	}
+
+	std::printf("== the casting map: cast-state data derived from the start state\n");
+	{
+		std::printf("  the non-canon pool (%d voices):", VoicePoolCount());
+		for (int i = 0; i < VoicePoolCount(); ++i) std::printf(" %s", VoicePoolName(i));
+		std::printf("\n");
+		// The three proving cases.
+		Config cfg;
+		Ship canon = NewShip(cfg);
+		ApplyStartState(canon, StartStateAt(0));
+		for (int i = 0; i < static_cast<int>(canon.crew.size()); ++i)
+			if (canon.crew[i].type == "tuvok" || canon.crew[i].type == "janeway")
+				std::printf("  canon survivor: %s -> voice %s (%s)\n", canon.crew[i].name.c_str(),
+					CastVoice(canon, i).c_str(), CastIsCanon(canon, i) ? "the retail voice" : "the pool");
+		Ship chair = NewShip(cfg);
+		ApplyStartState(chair, StartStateAt(1));
+		for (int i = 0; i < static_cast<int>(chair.crew.size()); ++i)
+			if (chair.crew[i].type == "janeway")
+				std::printf("  the chair: %s is dead -> voice \"%s\" (no voice; no line authored)\n",
+					chair.crew[i].name.c_str(), CastVoice(chair, i).c_str());
+		Config fcfg; fcfg.fictitious = true;
+		Ship fict = NewShip(fcfg);
+		ApplyStartState(fict, StartStateAt(2));
+		int canonVoices = 0, poolVoices = 0;
+		for (int i = 0; i < static_cast<int>(fict.crew.size()); ++i) {
+			if (CastIsCanon(fict, i)) ++canonVoices; else ++poolVoices;
+		}
+		std::printf("  all-fictitious: %d crew, %d canon voice(s), %d from the pool\n",
+			static_cast<int>(fict.crew.size()), canonVoices, poolVoices);
+		bad(canonVoices == 0 && poolVoices == static_cast<int>(fict.crew.size()));
+		// The same start state re-cast gives the same map.
+		Ship again = NewShip(cfg);
+		ApplyStartState(again, StartStateAt(0));
+		bool same = canon.crew.size() == again.crew.size();
+		for (int i = 0; i < static_cast<int>(canon.crew.size()) && same; ++i)
+			if (CastVoice(canon, i) != CastVoice(again, i)) same = false;
+		std::printf("  the same start state re-cast gives the same map: %s\n", same ? "yes" : "NO (a defect)");
+		bad(same);
+	}
+
+	std::printf("== the pause cue, and true durations pacing the pills\n");
+	{
+		Ship s = NewShip();
+		s.player = 0;
+		VoiceMixer m;
+		const MeetingBrief b = BuildBrief(s, MEET_WATCH_CHANGE);
+		PauseOutcome fast = SubmitNovelAnswer(s, m, b, "watch the reserve closely", 0.5f);
+		std::printf("  fast: cue emitted=%d, resolved inside the pause=%d\n", fast.cue, fast.resolved ? 1 : 0);
+		bad(fast.cue >= 0 && fast.resolved);
+		PauseOutcome slow = SubmitNovelAnswer(s, m, b, "make it so", 5.0f);
+		const VoiceReply *r = ActiveReply(m, TRACK_CUE);
+		std::printf("  slow: deferral=%d (%s), it moves to a later beat\n", slow.deferral,
+			r ? CueName(static_cast<uint8_t>(r->cue)) : "none");
+		bad(slow.deferral >= 0 && !slow.resolved);
+		// True durations: a rendered clip's own length paces the line.
+		const MeetingSkeleton &sk = AuthoredSkeleton(MEET_WATCH_CHANGE);
+		VoiceRender vr;
+		vr.dir = "voice";
+		PlanMeetingAudio(vr, s, b, sk);
+		const MeetingLine &line = sk.outcomes[0].lines[0];
+		const std::string key = MeetingLineKey(s, b, line);
+		const float fallback = MeetingLineSeconds(vr, s, b, line);
+		CacheRendered(vr, key, VoiceCachePath(vr, key), 2.75f);
+		const float measured = MeetingLineSeconds(vr, s, b, line);
+		std::printf("  line \"%s\": text fallback %.2fs; measured clip %.2fs paces it\n",
+			line.text.c_str(), fallback, measured);
+		bad(std::fabs(measured - 2.75f) < 1e-4f);
 	}
 	return failures;
 }
@@ -6568,6 +6771,10 @@ int main(int argc, char **argv)
 	TestRenderKeyAndCache();
 	TestPlanMeetingAudio();
 	TestAudioSaveRoundTrip();
+	TestCastMap();
+	TestCastDeterminism();
+	TestPauseCue();
+	TestLineDurations();
 	TestTheDerivation();
 	TestConditionLifecycle();
 	TestMoraleIsReadFromThree();

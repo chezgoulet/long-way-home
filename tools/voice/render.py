@@ -21,11 +21,16 @@ Three rules hold the line, and they are the point of the plumbing:
   * the cache is player-local, beside the save, and is never inside this repository.
     There is no audio in the repository, ever (docs/asset-doctrine.md).
 
-    render.py --cache DIR --manifest FILE [--synthesize PATH] [--dry-run]
+    render.py --cache DIR --manifest FILE [--synthesize PATH] [--durations FILE] [--dry-run]
 
 --dry-run prints the synthesizer command it would run and touches no model. It is the
 end-to-end proof: the delivery direction that started in the meeting brief arrives here
 as an --exaggeration argument.
+
+The durations of the clips it writes are measured (`ffprobe`) and recorded, one `key|seconds`
+line each, in the durations file beside the cache (default `<cache>/durations.txt`). The host
+loads them and paces the meeting's pills by them, so the options are offered for as long as
+the line actually runs -- and a clip already on disk is measured rather than re-rendered.
 """
 
 import argparse
@@ -95,8 +100,21 @@ def output_path(cache, job):
 
 def reference_path(cache, job):
     if job.get("reference"):
-        return job["reference"]
+        ref = job["reference"]
+        return ref if os.path.isabs(ref) else os.path.join(cache, ref)
     return os.path.join(cache, "refs", job["voice"] + ".wav")
+
+
+def clip_duration(path):
+    """The clip's own length in seconds, measured, or 0.0 when it cannot be read."""
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", path],
+            capture_output=True, text=True, check=True).stdout.strip()
+        return float(out)
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        return 0.0
 
 
 def command_for(synth, cache, job):
@@ -115,9 +133,10 @@ def command_for(synth, cache, job):
     ]
 
 
-def render(cache, manifest, synth, dry_run):
+def render(cache, manifest, synth, dry_run, durations_path):
     jobs = load_manifest(manifest)
     done = skipped = refused = 0
+    durations = []  # (key, seconds) measured from the clips on disk
     for job in jobs:
         try:
             exag = exaggeration_for(job["delivery"])
@@ -127,7 +146,10 @@ def render(cache, manifest, synth, dry_run):
             continue
         out = output_path(cache, job)
         if os.path.exists(out):
-            print(f"cached  : {out} (a re-render is a no-op, key {job['key']})")
+            secs = clip_duration(out)
+            print(f"cached  : {out} ({secs:.3f}s; a re-render is a no-op, key {job['key']})")
+            if secs > 0.0:
+                durations.append((job["key"], secs))
             skipped += 1
             continue
         cmd = command_for(synth, cache, job)
@@ -138,7 +160,16 @@ def render(cache, manifest, synth, dry_run):
         os.makedirs(os.path.dirname(out), exist_ok=True)
         print(f"render  : {job['voice']} delivery={job['delivery']} exaggeration={exag}")
         subprocess.run(cmd, check=True)
+        secs = clip_duration(out)
+        if secs > 0.0:
+            durations.append((job["key"], secs))
         done += 1
+    if not dry_run and durations_path:
+        os.makedirs(os.path.dirname(os.path.abspath(durations_path)), exist_ok=True)
+        with open(durations_path, "w", encoding="utf-8") as fh:
+            for key, secs in durations:
+                fh.write("%s|%.3f\n" % (key, secs))
+        print(f"durations: {len(durations)} clip(s) measured -> {durations_path}")
     print(f"== {done} to render, {skipped} cached, {refused} refused")
     return refused
 
@@ -152,6 +183,8 @@ def main():
     ap.add_argument("--manifest", required=True, help="the JSON-lines manifest to drain")
     ap.add_argument("--synthesize", default=os.path.join(here, "synthesize.py"),
                     help="the synthesizer to call (default: beside this script)")
+    ap.add_argument("--durations", default="",
+                    help="where to record each clip's measured duration (default: <cache>/durations.txt)")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the synthesizer commands; touch no model")
     args = ap.parse_args()
@@ -162,7 +195,8 @@ def main():
     if not os.path.exists(args.manifest):
         print(f"render: no manifest at {args.manifest}", file=sys.stderr)
         return 2
-    return 1 if render(args.cache, args.manifest, args.synthesize, args.dry_run) else 0
+    durations = args.durations or os.path.join(args.cache, "durations.txt")
+    return 1 if render(args.cache, args.manifest, args.synthesize, args.dry_run, durations) else 0
 
 
 if __name__ == "__main__":
