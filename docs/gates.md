@@ -787,6 +787,35 @@ older save loads and replays identically; the version is deliberately not bumped
 like a moment rather than a menu is the owner's* to judge from the two frames. **Where a badly-taken order
 lands is the owner's open question (Q3)**; the behaviour implemented is recorded, not settled.
 
+### The wrap — text is never clipped to fit
+
+The owner's ruling (*on-screen text is never clipped to fit — it wraps*), broken three times — the
+configurator's description, the meeting pills, and the computer's transcript, whose own frame
+(`lwh_computer_refused.tga`, `docs/evidence/the-computer-depth.md`) showed the refusal cut at the
+frame edge. Fixed on `feat/the-wrap` (cut from `testing`; `docs/evidence/the-wrap.md`,
+`module/ui/lwh_textfit.h`, `TestTextFit`, `scripts/computer-check.sh`). **Save format unchanged** — no
+ship state, no API and no behaviour changed; the pass is text fitting its column and nothing else.
+
+- **one wrap, measured** — `LWH_WrapText` returns the lines it would draw, each measured no wider than
+  its column with `UI_ProportionalStringWidth`; a character count is never used as a proxy. The
+  transcript, the rail's echo and the rail's facts, the meeting line, the pills, the queue, the order
+  face and the configurator all call it, so the surfaces cannot drift apart again ✅
+- **the refusal reads whole** — the transcript (`158..632`) and the rail's echo (`6..148`) both wrap;
+  `lwh_wrap_check` measures every live string in the engine's own font: **20 strings, 26 lines,
+  overflows 0** ✅
+- **the sweep found a fourth** — the rail's mood fact (`at breaking point`, 67px in a 44px column) was
+  clipped; its value column was widened to `34..118`. The meeting and computer pills, the queue and
+  the order face were found clean and are wrapped anyway, so the next longer string cannot clip ✅
+- **a test that can fail** — `tests/ship/test_ship_core` asserts every wrapped line of 304 real
+  strings fits; the same assertion on the unwrapped string fails on 9 of them, including the longest
+  refusals, and the test names them. `--textfit` passes, `--textfit-unwrapped` fails by design ✅
+- `scripts/test.sh`, `scripts/check.sh`, `scripts/computer-check.sh` and the meeting, overlay, place,
+  room, model-call, api, voice-in, order and appearance checks exit 0 ✅
+
+**What cannot be decided here:** whether the wrapped result *reads* well — where the breaks fall,
+whether a wrapped refusal still lands. That is the owner's, and it needs the picture
+(`lwh_computer_refused.tga`, `lwh_computer_session.tga`).
+
 ### Then, in rough order
 
 **First batch done (2026-10-07)** — `docs/evidence/backlog-materials-and-crew.md`, `scripts/backlog-check.sh`,

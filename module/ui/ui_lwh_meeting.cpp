@@ -18,8 +18,10 @@
 #include "ui_local.h"
 
 #include "lwh_ui.h"
+#include "lwh_textfit.h"
 
 #include <cctype>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
@@ -128,70 +130,104 @@ static int LineMs( int outcome, int line )
 
 void Send( const char *command ) { ui.Cmd_ExecuteText( EXEC_APPEND, va( "%s\n", command ) ); }
 
-// Fit `src` into the column from x to right, measuring with the engine's own font rather than counting
-// characters. A character budget clipped the option "The holodecks full, the shields dark" to
-// "THE HOLODECKS FULL, THE SHIELD." -- a sentence that stops mid-phrase reads as broken rather than as
-// a short label, and the owner's ruling is that on-screen text is not lost to fit. Whole words are
-// taken while they fit; the column cannot give the rest a second line, so what does not fit is
-// REPORTED rather than dropped in silence.
-void FitToColumn( char *out, int size, const char *src, int x, int right )
+// The one wrap, measured with the engine's own font rather than counting characters (lwh_textfit.h).
+// A character budget clipped the option "The holodecks full, the shields dark" to "THE HOLODECKS
+// FULL, THE SHIELD." and the computer's transcript to half a refusal -- a sentence that stops
+// mid-phrase reads as broken -- and the owner's ruling is that on-screen text is never lost to fit:
+// **it wraps.** Every line the wrap returns is measured against the column it will be drawn in; a
+// line that still will not fit (one word wider than the column) is REPORTED rather than dropped in
+// silence, and so is text the caller's vertical budget cannot hold.
+static int MeasureStyle( const void *ctx, const char *text )
 {
-	const int width = right - x;
-	if ( UI_ProportionalStringWidth( src, UI_TINYFONT ) <= width )
-	{
-		Q_strncpyz( out, src, size );
-		return;
-	}
-
-	int took = 0;
-	const char *p = src;
-	out[0] = 0;
-	while ( *p )
-	{
-		char word[96], candidate[192];
-		int wl = 0;
-		while ( *p == ' ' ) ++p;
-		while ( *p && *p != ' ' && wl < static_cast<int>( sizeof( word ) ) - 1 ) word[wl++] = *p++;
-		word[wl] = 0;
-		if ( !word[0] ) break;
-		if ( out[0] ) Com_sprintf( candidate, sizeof( candidate ), "%s %s", out, word );
-		else          Q_strncpyz( candidate, word, sizeof( candidate ) );
-		if ( UI_ProportionalStringWidth( candidate, UI_TINYFONT ) > width ) break;
-		Q_strncpyz( out, candidate, size );
-		took = 1;
-	}
-	if ( !took ) Q_strncpyz( out, src, size );  // one word wider than the column: show it whole
-	ui.Printf( "LWH: meeting overlay: the column %d..%d is too narrow for \"%s\"; showing \"%s\"\n",
-		x, right, src, out );
+	return UI_ProportionalStringWidth( text, static_cast<int>( reinterpret_cast<intptr_t>( ctx ) ) );
 }
 
-
-// A word-wrapped line, up to `maxLines`; returns the number drawn.
-int Wrapped( int x, int y, const char *text, int style, vec4_t colour, int maxChars, int lineHeight, int maxLines )
+// Wrap `text` for the column x..right in `style`. `maxLines` is the caller's vertical budget.
+static LWH_Wrapped WrapMeasured( int style, const char *text, int x, int right, int maxLines )
 {
-	char line[160];
-	int n = 0, col = 0;
-	const char *p = text;
-	line[0] = 0;
-	while ( *p && n < maxLines )
+	return LWH_WrapText( text, right - x, maxLines, MeasureStyle,
+		reinterpret_cast<const void *>( static_cast<intptr_t>( style ) ) );
+}
+
+static void ReportOverflow( const char *text, int x, int right, int maxLines )
+{
+	ui.Printf( "LWH: meeting overlay: the column %d..%d cannot hold \"%s\" in %d line(s)\n",
+		x, right, text, maxLines );
+}
+
+// Draw `text` wrapped inside the column x..right from y, one measured line at a time; returns the
+// number of lines drawn. Text the budget cannot hold is reported, never silently clipped.
+static int DrawWrapped( int x, int y, int right, int lineHeight, int style, vec4_t colour,
+	const char *text, int maxLines )
+{
+	const LWH_Wrapped w = WrapMeasured( style, text, x, right, maxLines );
+	for ( int i = 0; i < w.count; ++i )
+		UI_DrawProportionalString( x, y + i * lineHeight, w.line[i], style, colour );
+	if ( w.overflow ) ReportOverflow( text, x, right, maxLines );
+	return w.count;
+}
+
+// The option pills and the free-text pill, shared by the room and the order face. Each label and cost
+// is wrapped to its own measured column, and a row grows only when a wrapped label or cost needs it --
+// so fitting content draws exactly as it did before (one line, the same pitch) and longer content
+// wraps instead of being cut. `order` selects the order face's cvars and the free-text placeholder's
+// wording; everything else is identical.
+static const char *OptCvar( bool order, int i )
+{
+	return order ? va( "lwh_ship_order_opt%d", i ) : va( "lwh_ship_meeting_opt%d", i );
+}
+
+static void DrawPillBlock( int pillTop, int options, bool order, bool highlighting, int cursor )
+{
+	int maxRowLines = 1;
+	for ( int i = 0; i < options && i < 6; ++i )
 	{
-		const char *word = p;
-		while ( *p && *p != ' ' ) ++p;
-		const int wlen = static_cast<int>( p - word );
-		if ( col && col + 1 + wlen > maxChars )
-		{
-			UI_DrawProportionalString( x, y + n * lineHeight, line, style, colour );
-			++n;
-			line[0] = 0; col = 0;
-			if ( n >= maxLines ) break;
-		}
-		if ( col ) line[col++] = ' ';
-		for ( int i = 0; i < wlen && col < static_cast<int>( sizeof( line ) ) - 1; ++i ) line[col++] = word[i];
-		line[col] = 0;
-		while ( *p == ' ' ) ++p;
+		char buf[256], *f[4], whole[192];
+		ui.Cvar_VariableStringBuffer( OptCvar( order, i ), buf, sizeof( buf ) );
+		if ( Split( buf, '|', f, 4 ) < 4 ) continue;
+		Com_sprintf( whole, sizeof( whole ), "%d %s", i + 1, f[0] );
+		const LWH_Wrapped lab = WrapMeasured( UI_TINYFONT, whole, 172, 350, 2 );
+		const LWH_Wrapped cst = WrapMeasured( UI_TINYFONT, f[1], 356, 632, 2 );
+		int lines = lab.count > cst.count ? lab.count : cst.count;
+		if ( lines < 1 ) lines = 1;
+		if ( lines > maxRowLines ) maxRowLines = lines;
 	}
-	if ( n < maxLines && col ) { UI_DrawProportionalString( x, y + n * lineHeight, line, style, colour ); ++n; }
-	return n;
+
+	int dy = maxRowLines > 1 ? maxRowLines * 10 + 4 : 14;
+	const int rows = options + 1;
+	const int avail = 441 - pillTop;
+	if ( rows > 0 && rows * dy > avail ) dy = avail / rows;
+	if ( dy < 9 ) dy = 9;
+	if ( maxRowLines > 1 && dy < maxRowLines * 10 + 2 )
+		ui.Printf( "LWH: meeting overlay: the pill block from %d cannot hold %d-line pills\n", pillTop, maxRowLines );
+
+	for ( int i = 0; i < options && i < 6; ++i )
+	{
+		char buf[256], *f[4], whole[192];
+		ui.Cvar_VariableStringBuffer( OptCvar( order, i ), buf, sizeof( buf ) );
+		if ( Split( buf, '|', f, 4 ) < 4 ) continue;
+		Com_sprintf( whole, sizeof( whole ), "%d %s", i + 1, f[0] );
+		const int y = pillTop + i * dy;
+		const bool sel = highlighting && i == cursor;
+		UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[CT_BLACK] );
+		if ( sel ) UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[CT_DKPURPLE2] );
+		UI_FillRect( 158, y - 1, 7, dy - 1, colorTable[i == 0 ? CT_LTGOLD1 : i == 1 ? CT_LTPURPLE1 : i == 2 ? CT_LTBLUE2 : CT_LTBLUE1] );
+		DrawWrapped( 172, y, 350, 10, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1], whole, 2 );
+		DrawWrapped( 356, y, 632, 10, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTBLUE2], f[1], 2 );
+	}
+	{
+		const int y = pillTop + options * dy;
+		const bool sel = highlighting && cursor == options;
+		UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[CT_BLACK] );
+		UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[sel ? CT_DKPURPLE2 : CT_DKPURPLE3] );
+		UI_FillRect( 158, y - 1, 7, dy - 1, colorTable[CT_LTPURPLE1] );
+		UI_DrawProportionalString( 172, y, "SAY SOMETHING ELSE", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+		UI_DrawProportionalString( 356, y, meet.typing ? meet.buf : ( order ? "type an order" : "type an answer" ),
+			UI_TINYFONT, colorTable[meet.typing ? CT_WHITE : CT_DKGREY] );
+		if ( meet.typing ) UI_DrawProportionalString( 356 + static_cast<int>( strlen( meet.buf ) ) * 6, y, "_", UI_TINYFONT, colorTable[CT_WHITE] );
+		UI_FillRect( 596, y - 1, 38, dy - 1, colorTable[CT_LTPURPLE1] );
+		UI_DrawProportionalString( 601, y, "VOICE", UI_TINYFONT, colorTable[CT_BLACK] );
+	}
 }
 
 // The rail: the speaker of the line being answered -- name, post, watch and mood, the storyboard's
@@ -205,10 +241,12 @@ void DrawRail( const Line &L )
 	UI_DrawProportionalString( 8, OV_TOP + 42, L.post, UI_TINYFONT, colorTable[CT_BLACK] );
 	UI_FillRect( 0, OV_TOP + 60, 118, 15, colorTable[CT_LTBLUE2] );
 	UI_DrawProportionalString( 6, OV_TOP + 62, "WATCH", UI_TINYFONT, colorTable[CT_BLACK] );
-	UI_DrawProportionalString( 74, OV_TOP + 62, L.watch, UI_TINYFONT, colorTable[CT_BLACK] );
+	DrawWrapped( 34, OV_TOP + 62, 118, 8, UI_TINYFONT, colorTable[CT_BLACK], L.watch, 2 );
 	UI_FillRect( 0, OV_TOP + 79, 118, 15, colorTable[CT_LTBLUE1] );
 	UI_DrawProportionalString( 6, OV_TOP + 81, "MOOD", UI_TINYFONT, colorTable[CT_BLACK] );
-	UI_DrawProportionalString( 74, OV_TOP + 81, L.mood, UI_TINYFONT, colorTable[CT_BLACK] );
+	// The mood's own column: the value sits left of x=74 because "at breaking point" is 67px and the
+	// old 44px column cut it to "at b". Named as a call -- it is the one rail fact long enough to clip.
+	DrawWrapped( 34, OV_TOP + 81, 118, 8, UI_TINYFONT, colorTable[CT_BLACK], L.mood, 2 );
 }
 
 void QueueDraw( void )
@@ -223,15 +261,14 @@ void QueueDraw( void )
 	UI_DrawProportionalString( 470, OV_TOP + 30, "ROOM", UI_TINYFONT, colorTable[CT_LTORANGE] );
 	for ( int i = 0; i < q && i < 5; ++i )
 	{
-		char buf[256], *f[5], deciding[192];
+		char buf[256], *f[5];
 		ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_q%d", i ), buf, sizeof( buf ) );
 		if ( Split( buf, '|', f, 5 ) < 5 ) continue;
 		const int y = OV_TOP + 46 + i * 16;
 		const bool sel = i == meet.cursor;
 		if ( sel ) UI_FillRect( 6, y - 1, 628, 14, colorTable[CT_DKPURPLE2] );
-		FitToColumn( deciding, sizeof( deciding ), f[1], 150, 465 );
 		UI_DrawProportionalString( 12, y, f[0], UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1] );
-		UI_DrawProportionalString( 150, y, deciding, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTBLUE2] );
+		DrawWrapped( 150, y, 465, 8, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTBLUE2], f[1], 2 );
 		UI_DrawProportionalString( 470, y, f[4], UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTPURPLE1] );
 	}
 	if ( !q ) UI_DrawProportionalString( 12, OV_TOP + 46, "NOTHING IS WAITING.  A meeting is called by the clock or a threshold.", UI_TINYFONT, colorTable[CT_LTBLUE2] );
@@ -242,10 +279,34 @@ void QueueDraw( void )
 // The computer's session on the same room (docs/staff-meetings.md, the depth pass). A meeting answers
 // one line; the computer keeps talking, so the frame shows the run of exchanges -- ask and answer on a
 // line, a refusal in a colour of its own. The transcript is host state, published as cvars; the screen
-// decides nothing and writes no ship state. `maxLines` bounds it so the pills and the free-text row stay
-// clear of the engine's version stamp; the return is the tiny lines it used. The full answer is in the
-// log and the console; the frame shows the newest turns, one line each.
-int DrawTranscript( int x, int top, int maxLines )
+// decides nothing and writes no ship state. Each turn WRAPS to the column (the owner's ruling: text is
+// never clipped to fit), so a refusal reads whole rather than ending at the frame edge. `maxLines` is
+// the caller's vertical budget -- the pills below need the space above the engine's version stamp --
+// and it is spent on whole turns from the newest backward (a scrollback); the full answer is in the
+// log. The return is the number of lines drawn.
+static const int TRANSCRIPT_TURNS = 8;
+
+// The transcript line for turn `i`, composed as the frame draws it; "" when the turn is empty.
+static const char *ComposeTranscript( int i )
+{
+	static char composed[640];
+	composed[0] = 0;
+	char buf[768], *f[4];
+	ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_turn%d", i ), buf, sizeof( buf ) );
+	if ( Split( buf, '|', f, 4 ) < 3 ) return composed;
+	Com_sprintf( composed, sizeof( composed ), "> %s  ->  %s", f[0], f[1] );
+	return composed;
+}
+
+static bool TurnRefused( int i )
+{
+	char buf[768], *f[4];
+	ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_turn%d", i ), buf, sizeof( buf ) );
+	if ( Split( buf, '|', f, 4 ) < 3 ) return false;
+	return Q_stricmp( f[2], "answered" ) != 0;
+}
+
+int DrawTranscript( int x, int right, int top, int lineHeight, int maxLines )
 {
 	const int turns = static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_meeting_turns" ) );
 	if ( turns <= 0 )
@@ -253,17 +314,42 @@ int DrawTranscript( int x, int top, int maxLines )
 		UI_DrawProportionalString( x, top, "THE COMPUTER IS READY.  ASK IT SOMETHING.", UI_TINYFONT, colorTable[CT_LTBLUE2] );
 		return 1;
 	}
+
+	// How many of the newest turns fit? Whole turns only: the oldest whole turns are dropped, so a
+	// wrapped line never runs into the next entry's space. If even the newest turn alone is taller
+	// than the budget, its column is the thing to widen -- it is drawn to the budget and reported.
+	const int first = turns > TRANSCRIPT_TURNS ? turns - TRANSCRIPT_TURNS : 0;
+	int shownFrom = turns;
 	int used = 0;
-	const int first = turns > maxLines ? turns - maxLines : 0;
-	for ( int i = first; i < turns && used < maxLines; ++i )
+	int capped = -1;
+	for ( int i = turns - 1; i >= first; --i )
 	{
-		char buf[768], *f[4], line[512];
-		ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_turn%d", i ), buf, sizeof( buf ) );
-		if ( Split( buf, '|', f, 4 ) < 3 ) continue;
-		const bool refused = Q_stricmp( f[2], "answered" ) != 0;
-		Com_sprintf( line, sizeof( line ), "> %s  ->  %s", f[0], f[1] );
-		used += Wrapped( x, top + used * 8, line, UI_TINYFONT,
-			colorTable[refused ? CT_LTORANGE : CT_WHITE], 68, 8, 1 );
+		const char *composed = ComposeTranscript( i );
+		if ( !composed[0] ) continue;
+		const LWH_Wrapped w = WrapMeasured( UI_TINYFONT, composed, x, right, LWH_WRAP_MAX_LINES );
+		if ( used + w.count > maxLines )
+		{
+			if ( used == 0 ) { capped = i; shownFrom = i; used = maxLines; }
+			break;
+		}
+		used += w.count;
+		shownFrom = i;
+	}
+
+	int y = top;
+	for ( int i = shownFrom; i < turns; ++i )
+	{
+		const char *composed = ComposeTranscript( i );
+		if ( !composed[0] ) continue;
+		const LWH_Wrapped w = WrapMeasured( UI_TINYFONT, composed, x, right, maxLines );
+		vec4_t &colour = colorTable[TurnRefused( i ) ? CT_LTORANGE : CT_WHITE];
+		for ( int j = 0; j < w.count; ++j )
+		{
+			UI_DrawProportionalString( x, y, w.line[j], UI_TINYFONT, colour );
+			y += lineHeight;
+		}
+		if ( w.overflow ) ReportOverflow( composed, x, right, maxLines );
+		if ( i == capped ) break;
 	}
 	return used > 0 ? used : 1;
 }
@@ -295,8 +381,16 @@ void RoomDraw( void )
 	UI_DrawProportionalString( 158, OV_TOP + 6, computer ? "THE COMPUTER  -  ASK IT ANYTHING" : "THE LINE BEING ANSWERED",
 		UI_TINYFONT, colorTable[CT_LTORANGE] );
 	int answerLines = 0;
-	if ( computer ) answerLines = DrawTranscript( 158, OV_TOP + 18, 4 );
-	else if ( L.ok ) answerLines = Wrapped( 158, OV_TOP + 18, L.text, UI_SMALLFONT, colorTable[CT_WHITE], 74, 11, 2 );
+	if ( computer )
+	{
+		// The transcript wraps to its column; its budget is what is left before the pills' floor and
+		// the version stamp's clear strip (y=441), so a wrapped line never runs into the pills' space.
+		const int rows = OptionCount() + 1;
+		int maxLines = ( 441 - ( rows * 9 + 6 ) - ( OV_TOP + 18 ) ) / 8;
+		if ( maxLines < 1 ) maxLines = 1;
+		answerLines = DrawTranscript( 158, 632, OV_TOP + 18, 8, maxLines );
+	}
+	else if ( L.ok ) answerLines = DrawWrapped( 158, OV_TOP + 18, 632, 11, UI_SMALLFONT, colorTable[CT_WHITE], L.text, 2 );
 
 	if ( !computer && meet.mode == MODE_DONE )
 	{
@@ -304,54 +398,21 @@ void RoomDraw( void )
 		ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_opt%d", meet.playOutcome ), outcome, sizeof( outcome ) );
 		char *bar = strchr( outcome, '|' );
 		if ( bar ) *bar = 0;
-		UI_DrawProportionalString( 158, OV_TOP + 50, va( "DECIDED: %s  -  the simulation applied it; the log records it.", outcome ),
-			UI_TINYFONT, colorTable[CT_LTBLUE2] );
+		DrawWrapped( 158, OV_TOP + 50, 632, 9, UI_TINYFONT, colorTable[CT_LTBLUE2],
+			va( "DECIDED: %s  -  the simulation applied it; the log records it.", outcome ), 2 );
 	}
 	else
 	{
 		// The pills: each the option's label and the short description the design asks for (its
-		// cost), each fitted to its column by measurement (FitToColumn). The block is packed above
-		// the version stamp's clear strip: it starts just below the answer and compresses its line
-		// height if the outcomes and the free-text pill would together reach y=443. Task A lifts the
-		// row ~16 units from where M3 drew it, which is what moves the free-text pill clear of the
-		// stamp (a fixed 16px pitch with four outcomes put it at y=438, inside the stamp at y=445).
-		int dy = 14;
+		// cost), each wrapped by measurement to its column and its row grown only if the text needs
+		// it. The block is packed above the version stamp's clear strip: it starts just below the
+		// answer and compresses its line height if the outcomes and the free-text pill would reach
+		// y=443. Task A lifts the row ~16 units from where M3 drew it, which is what moves the
+		// free-text pill clear of the stamp (a fixed 16px pitch with four outcomes put it at y=438,
+		// inside the stamp at y=445).
 		const int answerPitch = computer ? 8 : 11;   // the transcript is tiny font; a meeting line is small
 		const int pillTop = OV_TOP + 18 + ( answerLines > 0 ? answerLines : 1 ) * answerPitch + 6;
-		const int rows = options + 1;
-		const int avail = 441 - pillTop;
-		if ( rows > 0 && rows * dy > avail ) dy = avail / rows;
-		if ( dy < 9 ) dy = 9;
-		for ( int i = 0; i < options && i < 6; ++i )
-		{
-			char buf[256], *f[4], label[192], cost[192], whole[192];
-			ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_opt%d", i ), buf, sizeof( buf ) );
-			if ( Split( buf, '|', f, 4 ) < 4 ) continue;
-			Com_sprintf( whole, sizeof( whole ), "%d %s", i + 1, f[0] );
-			FitToColumn( label, sizeof( label ), whole, 172, 350 );
-			FitToColumn( cost, sizeof( cost ), f[1], 356, 632 );
-			const int y = pillTop + i * dy;
-			const bool sel = i == meet.cursor && meet.mode == MODE_CHOOSING;
-			UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[CT_BLACK] );
-			if ( sel ) UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[CT_DKPURPLE2] );
-			UI_FillRect( 158, y - 1, 7, dy - 1, colorTable[i == 0 ? CT_LTGOLD1 : i == 1 ? CT_LTPURPLE1 : i == 2 ? CT_LTBLUE2 : CT_LTBLUE1] );
-			UI_DrawProportionalString( 172, y, label, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1] );
-			UI_DrawProportionalString( 356, y, cost, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTBLUE2] );
-		}
-		// The free-text pill: an entry field, visibly different, with the VOICE affordance from the
-		// start even though voice is not built.
-		{
-			const int y = pillTop + options * dy;
-			const bool sel = meet.cursor == options && meet.mode == MODE_CHOOSING;
-			UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[CT_BLACK] );
-			UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[sel ? CT_DKPURPLE2 : CT_DKPURPLE3] );
-			UI_FillRect( 158, y - 1, 7, dy - 1, colorTable[CT_LTPURPLE1] );
-			UI_DrawProportionalString( 172, y, "SAY SOMETHING ELSE", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
-			UI_DrawProportionalString( 356, y, meet.typing ? meet.buf : "type an answer", UI_TINYFONT, colorTable[meet.typing ? CT_WHITE : CT_DKGREY] );
-			if ( meet.typing ) UI_DrawProportionalString( 356 + static_cast<int>( strlen( meet.buf ) ) * 6, y, "_", UI_TINYFONT, colorTable[CT_WHITE] );
-			UI_FillRect( 596, y - 1, 38, dy - 1, colorTable[CT_LTPURPLE1] );
-			UI_DrawProportionalString( 601, y, "VOICE", UI_TINYFONT, colorTable[CT_BLACK] );
-		}
+		DrawPillBlock( pillTop, options, false, meet.mode == MODE_CHOOSING, meet.cursor );
 	}
 
 	// The room itself: the brief names the place it is held in, and who is present, with the scope
@@ -370,7 +431,9 @@ void RoomDraw( void )
 			if ( Split( buf, '|', f, 5 ) < 5 ) continue;
 			Q_strcat( line, sizeof( line ), va( "%s%s (%s)", i ? "   " : "  ", f[0], f[4] ) );
 		}
-		UI_DrawProportionalString( 158, 458, line, UI_TINYFONT, colorTable[CT_LTBLUE2] );
+		// The participants line is wrapped to its column like everything else. It shares the bottom
+		// strip with the free-text pill and the engine's stamp; see the evidence for the call.
+		DrawWrapped( 158, 458, 632, 8, UI_TINYFONT, colorTable[CT_LTBLUE2], line, 2 );
 	}
 	// Task A: meet.said is drawn in the speaker rail's lower strip (x < 150), not at y=446 in the
 	// free-text row. The rail is entirely left of the version stamp's box (x>=371), so the seam's
@@ -382,7 +445,7 @@ void RoomDraw( void )
 		char hostSaid[320] = "";
 		ui.Cvar_VariableStringBuffer( "lwh_ship_meeting_said", hostSaid, sizeof( hostSaid ) );
 		const char *said = ( !meet.typing && hostSaid[0] ) ? hostSaid : meet.said;
-		if ( said[0] ) Wrapped( 6, OV_TOP + 98, said, UI_TINYFONT, colorTable[CT_LTORANGE], 24, 9, 4 );
+		if ( said[0] ) DrawWrapped( 6, OV_TOP + 98, 148, 8, UI_TINYFONT, colorTable[CT_LTORANGE], said, 5 );
 	}
 
 	UI_DrawProportionalString( 158, 470, meet.typing
@@ -446,7 +509,7 @@ void OrderDraw( void )
 		UI_SMALLFONT, colorTable[CT_LTGOLD1] );
 	char situation[256];
 	ui.Cvar_VariableStringBuffer( "lwh_ship_order_situation", situation, sizeof( situation ) );
-	int sitLines = situation[0] ? Wrapped( 158, OV_TOP + 20, situation, UI_TINYFONT, colorTable[CT_LTBLUE2], 74, 9, 2 ) : 0;
+	int sitLines = situation[0] ? DrawWrapped( 158, OV_TOP + 20, 632, 9, UI_TINYFONT, colorTable[CT_LTBLUE2], situation, 2 ) : 0;
 
 	if ( replies > 0 )
 	{// the order has been given: show the giver's line and the recipient's answer
@@ -457,53 +520,24 @@ void OrderDraw( void )
 			if ( !R.ok ) continue;
 			UI_DrawProportionalString( 158, y, i == 0 ? "THE ORDER" : "THE ANSWER", UI_TINYFONT, colorTable[CT_LTORANGE] );
 			y += 10;
-			UI_DrawProportionalString( 158, y, R.text, UI_TINYFONT,
-				colorTable[i == 0 ? CT_LTGOLD1 : CT_WHITE] );
-			y += 13;
+			// The line or the answer wraps to its column like every other; the y advances by what it took.
+			y += DrawWrapped( 158, y, 632, 8, UI_TINYFONT,
+				colorTable[i == 0 ? CT_LTGOLD1 : CT_WHITE], R.text, 2 ) * 8 + 5;
 		}
 		char note[256];
 		ui.Cvar_VariableStringBuffer( "lwh_ship_order_note", note, sizeof( note ) );
-		if ( note[0] ) Wrapped( 158, 452, note, UI_TINYFONT, colorTable[CT_LTBLUE2], 74, 9, 2 );
+		if ( note[0] ) DrawWrapped( 158, 452, 632, 9, UI_TINYFONT, colorTable[CT_LTBLUE2], note, 2 );
 	}
 	else
 	{// the orders this person can be given, each with what it costs, and the free-text pill
-		int dy = 14;
 		const int pillTop = OV_TOP + 20 + ( sitLines > 0 ? sitLines : 1 ) * 10 + 4;
-		const int rows = options + 1;
-		const int avail = 441 - pillTop;
-		if ( rows > 0 && rows * dy > avail ) dy = avail / rows;
-		if ( dy < 9 ) dy = 9;
-		for ( int i = 0; i < options && i < 6; ++i )
-		{
-			char buf[256], *f[4], label[192], cost[192], whole[192];
-			ui.Cvar_VariableStringBuffer( va( "lwh_ship_order_opt%d", i ), buf, sizeof( buf ) );
-			if ( Split( buf, '|', f, 4 ) < 4 ) continue;
-			Com_sprintf( whole, sizeof( whole ), "%d %s", i + 1, f[0] );
-			FitToColumn( label, sizeof( label ), whole, 172, 350 );
-			FitToColumn( cost, sizeof( cost ), f[1], 356, 632 );
-			const int y = pillTop + i * dy;
-			const bool sel = i == meet.cursor;
-			UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[sel ? CT_DKPURPLE2 : CT_BLACK] );
-			UI_FillRect( 158, y - 1, 7, dy - 1, colorTable[i == 0 ? CT_LTGOLD1 : i == 1 ? CT_LTPURPLE1 : i == 2 ? CT_LTBLUE2 : CT_LTBLUE1] );
-			UI_DrawProportionalString( 172, y, label, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1] );
-			UI_DrawProportionalString( 356, y, cost, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTBLUE2] );
-		}
-		{
-			const int y = pillTop + options * dy;
-			const bool sel = meet.cursor == options;
-			UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[sel ? CT_DKPURPLE2 : CT_DKPURPLE3] );
-			UI_FillRect( 158, y - 1, 7, dy - 1, colorTable[CT_LTPURPLE1] );
-			UI_DrawProportionalString( 172, y, "SAY SOMETHING ELSE", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
-			UI_DrawProportionalString( 356, y, meet.typing ? meet.buf : "type an order", UI_TINYFONT, colorTable[meet.typing ? CT_WHITE : CT_DKGREY] );
-			UI_FillRect( 596, y - 1, 38, dy - 1, colorTable[CT_LTPURPLE1] );
-			UI_DrawProportionalString( 601, y, "VOICE", UI_TINYFONT, colorTable[CT_BLACK] );
-		}
+		DrawPillBlock( pillTop, options, true, true, meet.cursor );
 	}
 	{
 		char hostSaid[320] = "";
 		ui.Cvar_VariableStringBuffer( "lwh_ship_order_said", hostSaid, sizeof( hostSaid ) );
 		const char *said = ( !meet.typing && hostSaid[0] ) ? hostSaid : meet.said;
-		if ( said[0] ) Wrapped( 6, OV_TOP + 98, said, UI_TINYFONT, colorTable[CT_LTORANGE], 24, 9, 4 );
+		if ( said[0] ) DrawWrapped( 6, OV_TOP + 98, 148, 8, UI_TINYFONT, colorTable[CT_LTORANGE], said, 5 );
 	}
 	UI_DrawProportionalString( 158, 470, meet.typing
 		? "type   ENTER submit   ESC cancel"
@@ -733,6 +767,99 @@ void Open( int face )
 
 } // namespace
 
+// The wrap self-check that scripts/computer-check.sh runs, in the engine, against the **live** strings
+// and the **engine's own font** -- the very metric the frame draws with. It wraps every string the
+// overlay is showing into the same column and budget the frame uses, and prints each line's measured
+// width against its column. A line wider than its column, or a string that needs more lines than the
+// budget, is an OVERFLOW: the check fails and names it. This is the test the frames cannot be -- fit
+// proved by the same measurement the frame uses, not by the eye -- and it is the property the wrap is
+// built to: for the real strings, including the longest refusals, every line returned fits.
+namespace {
+
+static int g_wrapStrings = 0, g_wrapLines = 0, g_wrapOverflow = 0;
+
+static void WrapCheckOne( const char *name, const char *text, int x, int right, int style, int maxLines, bool showLines = false )
+{
+	if ( !text || !text[0] ) return;
+	++g_wrapStrings;
+	const LWH_Wrapped w = WrapMeasured( style, text, x, right, maxLines );
+	int widest = 0, over = 0;
+	for ( int i = 0; i < w.count; ++i )
+	{
+		const int width = UI_ProportionalStringWidth( w.line[i], style );
+		if ( width > widest ) widest = width;
+		if ( width > right - x )
+		{
+			++over;
+			ui.Printf( "WRAP: OVERFLOW %s line %d: %d > %d \"%s\"\n", name, i, width, right - x, w.line[i] );
+		}
+		if ( showLines ) ui.Printf( "WRAP:   | %s\n", w.line[i] );
+	}
+	if ( w.overflow )
+	{
+		++over;
+		ui.Printf( "WRAP: OVERFLOW %s: needs more than %d line(s) \"%s\"\n", name, maxLines, text );
+	}
+	g_wrapLines += w.count;
+	g_wrapOverflow += over;
+	ui.Printf( "WRAP: %-16s col %3d..%3d  %2d line(s), widest %3d%s\n", name, x, right, w.count, widest,
+		over ? "  <-- OVERFLOW" : "" );
+}
+
+// Every live surface the overlay draws text on. The columns and budgets are the drawing code's own.
+static void WrapCheck( void )
+{
+	g_wrapStrings = g_wrapLines = g_wrapOverflow = 0;
+
+	const int turns = static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_meeting_turns" ) );
+	for ( int i = 0; i < turns && i < TRANSCRIPT_TURNS; ++i )
+	{
+		char name[32];
+		Com_sprintf( name, sizeof( name ), "transcript%d", i );
+		WrapCheckOne( name, ComposeTranscript( i ), 158, 632, UI_TINYFONT, 4, true );
+	}
+
+	char said[320] = "";
+	ui.Cvar_VariableStringBuffer( "lwh_ship_meeting_said", said, sizeof( said ) );
+	WrapCheckOne( "rail-echo", said, 6, 148, UI_TINYFONT, 5, true );
+
+	const int options = OptionCount();
+	for ( int i = 0; i < options && i < 6; ++i )
+	{
+		char buf[256], *f[4], whole[192], name[32];
+		ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_opt%d", i ), buf, sizeof( buf ) );
+		if ( Split( buf, '|', f, 4 ) < 4 ) continue;
+		Com_sprintf( whole, sizeof( whole ), "%d %s", i + 1, f[0] );
+		Com_sprintf( name, sizeof( name ), "pill%d-label", i + 1 );
+		WrapCheckOne( name, whole, 172, 350, UI_TINYFONT, 2 );
+		Com_sprintf( name, sizeof( name ), "pill%d-cost", i + 1 );
+		WrapCheckOne( name, f[1], 356, 632, UI_TINYFONT, 2 );
+	}
+
+	const int q = QueueCount();
+	for ( int i = 0; i < q && i < 5; ++i )
+	{
+		char buf[256], *f[5], name[32];
+		ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_q%d", i ), buf, sizeof( buf ) );
+		if ( Split( buf, '|', f, 5 ) < 5 ) continue;
+		Com_sprintf( name, sizeof( name ), "queue%d", i );
+		WrapCheckOne( name, f[1], 150, 465, UI_TINYFONT, 2 );
+	}
+
+	const Line L = ReadLine( 0, 0 );
+	if ( L.ok )
+	{
+		WrapCheckOne( "meeting-line", L.text, 158, 632, UI_SMALLFONT, 2 );
+		WrapCheckOne( "rail-name", L.name, 8, 128, UI_SMALLFONT, 1 );
+		WrapCheckOne( "rail-post", L.post, 8, 128, UI_TINYFONT, 1 );
+		WrapCheckOne( "rail-mood", L.mood, 34, 118, UI_TINYFONT, 2 );
+	}
+
+	ui.Printf( "WRAP: checked %d string(s), %d line(s), overflows %d\n", g_wrapStrings, g_wrapLines, g_wrapOverflow );
+}
+
+} // namespace
+
 // Our meeting screens, called from LWH_UI_ConsoleCommand. `lwh_meet_key` drives the screen by name,
 // so what a test presses is exactly what a hand presses.
 qboolean LWH_UI_MeetingScreens( const char *cmd )
@@ -766,6 +893,11 @@ qboolean LWH_UI_MeetingScreens( const char *cmd )
 		char text[128];
 		ui.Argv( 1, text, sizeof( text ) );
 		TypeText( text );
+		return qtrue;
+	}
+	if ( !Q_stricmp( cmd, "lwh_wrap_check" ) )
+	{//the measured fit of every live string, in the engine's own font (scripts/computer-check.sh)
+		WrapCheck();
 		return qtrue;
 	}
 	return qfalse;

@@ -2,6 +2,7 @@
 // `test_ship_core --day` instead prints a simulated day, hour by hour, as evidence.
 
 #include "ship_core.h"
+#include "lwh_textfit.h"
 
 #include <algorithm>
 #include <cmath>
@@ -7571,10 +7572,207 @@ static int PrintAir()
 			AirSourceName(AirSourceOf(back, 9)), Pack(back) == blob ? "yes" : "no");
 	}
 	return 0;
+	}
+
+// ---------------------------------------------------------------------------------------------
+// The wrap's contract, held to the real strings (Task B). The wrap (module/ui/lwh_textfit.h) returns
+// the lines it would draw; the test asserts that **every line fits the column it was wrapped for**,
+// for the strings the ship actually produces -- every meeting's pills and lines, the computer's
+// answers and refusals, the order pills and replies, the queue decisions, the rail's four facts --
+// and not a short sample. `--textfit` prints the wrapped lines; `--textfit-unwrapped` runs the same
+// assertion against a one-line "implementation" and fails on the real long strings, naming them.
+// ---------------------------------------------------------------------------------------------
+struct FitCase { std::string name; std::string text; int x, right, maxLines; };
+
+// The test's own measure: a proportional stand-in for the engine's font. The real metrics are game
+// data (ext_data/fonts.dat) the repository may not carry, so this gives narrow letters less width
+// than wide ones -- the property that makes a character count wrong, which is what the test is for.
+// The frame's own columns are used unchanged; the in-engine `lwh_wrap_check` measures the live
+// strings with UI_ProportionalStringWidth itself, so the absolute widths are proved there.
+static int FitTiny( const void *, const char *text )
+{
+	int w = 0;
+	for ( const unsigned char *p = (const unsigned char *)text; p && *p; ++p )
+	{
+		const char c = (char)*p;
+		if ( c == ' ' ) w += 3;
+		else if ( std::strchr( "ilI.,'!:;|", c ) ) w += 2;
+		else if ( std::strchr( "mwMW", c ) ) w += 9;
+		else if ( c >= 'A' && c <= 'Z' ) w += 7;
+		else if ( c >= '0' && c <= '9' ) w += 6;
+		else w += 5;
+	}
+	return w;
+}
+
+static void AddFit( std::vector<FitCase> &out, const std::string &name, const std::string &text,
+	int x, int right, int maxLines ) { out.push_back( { name, text, x, right, maxLines } ); }
+
+static std::vector<FitCase> FitCorpus()
+{
+	std::vector<FitCase> c;
+
+	// Every meeting: its queue decision, every pill's label and cost, and the line being answered.
+	for ( int k = 0; k < MEET_KIND_COUNT; ++k )
+	{
+		const std::string kind = MeetingKindName( (uint8_t)k );
+		const MeetingSkeleton &sk = AuthoredSkeleton( (uint8_t)k );
+		AddFit( c, "queue:" + kind, sk.decision, 150, 465, 2 );
+		for ( int i = 0; i < sk.outcomeCount; ++i )
+		{
+			char num[16]; std::snprintf( num, sizeof( num ), "%d ", i + 1 );
+			AddFit( c, "pill:" + kind + ":" + std::to_string( i + 1 ), std::string(num) + sk.outcomes[i].option.label, 172, 350, 2 );
+			AddFit( c, "cost:" + kind + ":" + std::to_string( i + 1 ), sk.outcomes[i].option.cost, 356, 632, 2 );
+			for ( int j = 0; j < sk.outcomes[i].lineCount; ++j )
+				AddFit( c, "line:" + kind, sk.outcomes[i].lines[j].text, 158, 632, 2 );
+		}
+	}
+
+	// The computer: the pills, and the answers and refusals it produces from the live state, in the
+	// "ask  ->  answer" the transcript composes.
+	Ship s = NewShip();
+	s.player = 0;
+	for ( int i = 0; i < ComputerPillCount(); ++i )
+	{
+		char num[16]; std::snprintf( num, sizeof( num ), "%d ", i + 1 );
+		AddFit( c, "cpu-pill:" + std::to_string( i + 1 ), std::string(num) + ComputerPillLabel( i ), 172, 350, 2 );
+		AddFit( c, "cpu-cost:" + std::to_string( i + 1 ), ComputerPillCost( i ), 356, 632, 2 );
+	}
+	const char *asks[] = { "status", "log", "personal", "crew", "chart", "jobs", "dilithium", "nav", "patients",
+		"warpnine", "alert red", "ignite 3 1", "personal Janeway", "make it so" };
+	const int junior = 4; // Harry Kim: a junior, so the scope and clearance refusals are reachable
+	for ( const char *ask : asks )
+	{
+		s.player = 0;
+		ComputerReply r = AddressComputer( s, ask );
+		AddFit( c, std::string( "transcript:" ) + ask, std::string( "> " ) + ask + "  ->  " + r.line, 158, 632, 4 );
+		s.player = junior;
+		r = AddressComputer( s, ask );
+		AddFit( c, std::string( "transcript-jr:" ) + ask, std::string( "> " ) + ask + "  ->  " + r.line, 158, 632, 4 );
+	}
+	// The rail's echo of the last exchange, in the rail's own column.
+	s.player = junior;
+	const ComputerReply refusal = AddressComputer( s, "alert red" );
+	AddFit( c, "rail-echo", std::string( "alert red  ->  " ) + refusal.line, 6, 148, 5 );
+
+	// The orders: the derived pills and their costs, the situation, and the replies.
+	{
+		Ship os; int giver, eng, sec;
+		OrderFixture( os, giver, eng, sec );
+		os.crew[sec].post = SYS_PHASERS;
+		for ( int who : { eng, sec } )
+		{
+			const OrderBrief b = BuildOrderBrief( os, giver, who );
+			for ( int i = 0; i < b.optionCount; ++i )
+			{
+				char num[16]; std::snprintf( num, sizeof( num ), "%d ", i + 1 );
+				AddFit( c, "order-pill:" + std::to_string( i + 1 ), std::string(num) + b.options[i].label, 172, 350, 2 );
+				AddFit( c, "order-cost:" + std::to_string( i + 1 ), b.options[i].cost, 356, 632, 2 );
+			}
+			AddFit( c, "order-situation", b.situation, 158, 632, 2 );
+			const OrderOutcome o = DispatchOrder( os, b, 0, giver );
+			for ( int j = 0; j < o.replyCount; ++j )
+				AddFit( c, "order-reply:" + std::to_string( j ), o.reply[j].text, 158, 632, 2 );
+			AddFit( c, "order-note", o.note, 158, 632, 2 );
+		}
+	}
+
+	// The rail's facts: every crew name, and every mood the band can show.
+	for ( const CrewMember &m : s.crew )
+		AddFit( c, "rail-name", m.name, 8, 128, 1 );
+	for ( int m = 0; m <= 10; ++m )
+		AddFit( c, "rail-mood", MoraleBandName( m / 10.0f ), 34, 118, 2 );
+	return c;
+}
+
+// The words of `text` in order, so a wrap that dropped one is caught.
+static std::string FitWords( const std::string &text )
+{
+	std::string out; bool pendingSpace = false;
+	for ( char ch : text )
+	{
+		if ( ch == ' ' ) pendingSpace = !out.empty();
+		else { if ( pendingSpace ) { out += ' '; pendingSpace = false; } out += ch; }
+	}
+	return out;
+}
+static std::string FitJoined( const LWH_Wrapped &w )
+{
+	std::string out;
+	for ( int i = 0; i < w.count; ++i ) { if ( i ) out += ' '; out += w.line[i]; }
+	return out;
+}
+
+static void TestTextFit()
+{
+	g_test = "the wrap returns only lines that fit the column it was given, for the real strings";
+	const std::vector<FitCase> corpus = FitCorpus();
+	CHECK( corpus.size() > 40 );   // not a short sample: every meeting, the computer, the orders, the rail
+	int widest = 0, longest = 0;
+	for ( const FitCase &c : corpus )
+	{
+		const LWH_Wrapped w = LWH_WrapText( c.text.c_str(), c.right - c.x, c.maxLines, FitTiny, nullptr );
+		CHECK( !w.overflow );
+		CHECK( w.count >= 1 );
+		for ( int i = 0; i < w.count; ++i )
+		{
+			const int width = FitTiny( nullptr, w.line[i] );
+			if ( width > c.right - c.x )
+				std::printf( "FAIL  the wrapped line does not fit: %s line %d (%d > %d) \"%s\"\n",
+					c.name.c_str(), i, width, c.right - c.x, w.line[i] );
+			CHECK( width <= c.right - c.x );
+			if ( width > widest ) widest = width;
+		}
+		// Nothing is lost: the wrapped words are the input's words, in order.
+		CHECK( FitJoined( w ) == FitWords( c.text ) );
+		if ( (int)c.text.size() > longest ) longest = (int)c.text.size();
+	}
+	std::printf( "  the wrap: %d real string(s) (longest %d chars), every line measured against its column; widest line %d\n",
+		(int)corpus.size(), longest, widest );
+
+	// The test must be able to fail. Run the same assertion on the unwrapped string -- one line -- and
+	// count the real strings it catches; if it caught none it would be decoration.
+	int unwrappedFails = 0;
+	for ( const FitCase &c : corpus )
+		if ( FitTiny( nullptr, c.text.c_str() ) > c.right - c.x ) ++unwrappedFails;
+	CHECK( unwrappedFails > 0 );
+	std::printf( "  the same assertion on the unwrapped string fails on %d of them (so the test has teeth)\n", unwrappedFails );
+}
+
+static int PrintTextFit( bool wrapped )
+{
+	const std::vector<FitCase> corpus = FitCorpus();
+	int over = 0;
+	for ( const FitCase &c : corpus )
+	{
+		if ( wrapped )
+		{
+			const LWH_Wrapped w = LWH_WrapText( c.text.c_str(), c.right - c.x, c.maxLines, FitTiny, nullptr );
+			for ( int i = 0; i < w.count; ++i )
+			{
+				const int width = FitTiny( nullptr, w.line[i] );
+				if ( width > c.right - c.x ) { ++over; std::printf( "FAIL wrapped   %-24s line %d: %3d > %3d  \"%s\"\n", c.name.c_str(), i, width, c.right - c.x, w.line[i] ); }
+			}
+			if ( w.overflow ) { ++over; std::printf( "FAIL wrapped   %-24s needs more than %d line(s): \"%s\"\n", c.name.c_str(), c.maxLines, c.text.c_str() ); }
+		}
+		else
+		{
+			const int width = FitTiny( nullptr, c.text.c_str() );
+			const bool fits = width <= c.right - c.x;
+			if ( !fits ) ++over;
+			std::printf( "%-15s %-24s %3d %s %3d  \"%s\"\n", fits ? "unwrapped fits" : "FAIL unwrapped",
+				c.name.c_str(), width, fits ? "<=" : ">", c.right - c.x, c.text.c_str() );
+		}
+	}
+	std::printf( "%s: %d of %d string(s) overflowed (%s)\n", wrapped ? "wrapped" : "unwrapped", over,
+		(int)corpus.size(), wrapped ? "the wrap must return zero" : "the check caught them" );
+	return over ? 1 : 0;
 }
 
 int main(int argc, char **argv)
 {
+	if (argc > 1 && !std::strcmp(argv[1], "--textfit")) return PrintTextFit(true);
+	if (argc > 1 && !std::strcmp(argv[1], "--textfit-unwrapped")) return PrintTextFit(false);
 	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
 	if (argc > 1 && !std::strcmp(argv[1], "--orders")) return PrintOrders();
 	if (argc > 1 && !std::strcmp(argv[1], "--manner")) return PrintManner();
@@ -7737,6 +7935,7 @@ int main(int argc, char **argv)
 	TestOrderRecipientAsPerson();
 	TestOrderBespokeAndVoice();
 	TestOrderSaveRoundTrip();
+	TestTextFit();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

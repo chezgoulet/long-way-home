@@ -174,6 +174,21 @@ The computer is drawn by `module/ui/ui_lwh_meeting.cpp`, the meeting overlay's o
 replaced — one transcript function, and one branch in the key handler. The check asserts it by file
 count: `find module/ui -maxdepth 1 -name 'ui_lwh_meeting*.cpp' | wc -l` is `1`.
 
+## The transcript wraps — the fourth surface (corrected 2026-10-10)
+
+The frame this pass produced, `lwh_computer_refused.tga`, showed the refusal **clipped** at the frame
+edge: the transcript read `>> ALERT RED -> THAT IS NOT YOURS TO CALL: THE ALERT IS CALLED BY A` and
+lost the half that explains itself, and the rail's echo of the same line was clipped too. The
+transcript and the echo are drawn on one line and wrapped by a character count, not by measurement —
+the same mistake the configurator and the meeting pills had shipped before.
+
+Fixed in the wrap pass: the transcript and the rail's echo now call the one measured wrap
+(`module/ui/lwh_textfit.h`, `LWH_WrapText`), as every other line on the overlay does. The refusal
+reads whole in both places, and no line is wider than its column, proved in the engine's own font:
+`scripts/computer-check.sh` now asserts `WRAP: checked … overflows 0` and that the refusal's own end
+is a wrapped line of both the transcript and the rail's echo. The frames are regenerated. The full
+record is `docs/evidence/the-wrap.md`.
+
 ## The commands, and what they returned
 
 ```
