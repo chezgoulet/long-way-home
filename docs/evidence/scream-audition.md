@@ -255,3 +255,37 @@ to the branch, not to an issue, not to a pull request. The retail install was re
 references and all eight clips live under the gitignored `voice-scratch/` on this host. **No engine process,
 no agent session and no stray venv was left running.** Nothing was committed to `main`, and no code PR was
 opened.
+
+---
+
+## The owner's ear, and what it corrected (2026-10-09, after the audition)
+
+The cells were played to the owner, who judged them by ear. His verdict, verbatim: **"8 and 7 sound nothing
+like Janeway. 6 does. 5 sounds like a normal human 'whoah'. The rest sound like digital artifacts."** With two
+further cells rendered after that read (below), this settles the question this note opened.
+
+**The screamed reference does not give us screamed words.** The cells conditioned on `pain100` / `death3`
+**lose the speaker** — a scream carries no phonemes and no speaker identity to condition on, so the clone
+leaves the person. That is a property of the mechanism, not of the settings: pushing `exaggeration` to 1.3
+made it worse, not better. **The sliver worth keeping is cell 5**: the mildest sample gave a plausible human
+exclamation, not a scream — and the retail `pain25` asset already *is* that performance, so for a cry of pain
+the right answer is to play the asset, not to synthesize an imitation of it.
+
+**This note's own first answer was too generous, and is withdrawn.** It said the screamed reference "does
+import its register", on the strength of a zero-crossing reading. **Zero-crossing rate cannot separate a
+higher register from a noisier signal**, and the cells it was measuring turned out to be exactly the artifacts
+the owner identified — so the instrument was reading noise and calling it register. The register claim is
+withdrawn; the owner's ear is the evidence for the paragraph above.
+
+**The artifacts were the reference, not the voice.** Every Jaworski cell — *including the control* — used a
+reference built from **two concatenated lines**, which is the thing the reference rule forbids, because the
+seam becomes an artefact in every line that voice speaks. Rebuilt from **one** line (4.29 s), the same two
+lines render at **945** zero-crossings a second against the two-line reference's **1,768** — a 47 per cent
+fall, with level more than doubled. Those cells are `cell9` and `cell10` under the scratch. **The rule is
+confirmed by measurement, and the fix is the reference, not the pool.**
+
+**Recorded and not acted on.** The pool voices are unevenly provisioned: **Jaworski has 40 lines and 54
+seconds of speech** in the entire install, against Munro's 324 lines and Alexa's 321. A thin performance makes
+a thin clone, and the casting map landed at `286535d` casts from that pool **without knowing which of the
+fourteen voices are usable**. The audition pass over the pool that would settle it was declined by the owner;
+the finding stands here for whoever picks the cast up.
