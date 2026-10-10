@@ -77,6 +77,10 @@ struct SystemSpec {
 const SystemSpec &Spec(SystemId id);
 Station StationOf(SystemId id);        // the station that operates it (never STN_ENGINEERING: that one sees all)
 const char *StationName(Station s);
+// The system a word names: a decimal id, or the leading part of a system's own name, matched as the
+// console's arguments have always been matched (case-insensitively). -1 when it names none. The one
+// place both the console (g_ship.cpp's FindSystem) and the computer resolve a system name.
+int SystemIdByName(const char *word);
 bool OperatedFrom(SystemId id, Station s);   // may this station see and switch this system?
 // Reading and operating are different privileges (owner ruling, 2026-10-07). A station may READ a
 // system another station operates -- the sensor picture on Tactical, the comms traffic on Tactical
@@ -1172,14 +1176,36 @@ int NoveltyVerdictCount();
 //
 // docs/staff-meetings.md: "The ship's computer is the same machinery -- options as pills, free text, a
 // pre-generated voice, the same branch model." It is addressed through the meeting overlay; there, the
-// enumerated set **is** the ship's API (the ConsoleVerb table above). A recognised command is answered
-// from the authored lines and minuted; an input outside the set is refused in character and nothing is
-// invented, and no ship state is written either way (docs/evidence/the-computer-api.md, M6).
+// enumerated set **is** the ship's API (the ConsoleVerb table above). The owner's ruling, 2026-10-10,
+// adds the depth: the computer answers about the ship's state and its records, filtered by the rule
+// the records already use (PersonalVisibleTo, LogScopeForCrew), and a request inside the API is
+// **applied by the simulation** -- the model never calls a tool, the player calls and the simulation
+// applies. An input outside the set is refused in character; so is one inside the set the asker's
+// clearance or scope does not reach, and the difference between the refusals is the point.
 //
 // The computer is not crew and is not cast from the non-canon pool: it has its own named voice.
 const char *ComputerVoice();               // "computer"
 // The canonical refusal, in one place: what the computer says to a function it does not have.
 const char *ComputerRefusal();             // "that function is not available"
+
+// Why the computer did not answer, and the five are not the same claim (docs/staff-meetings.md):
+//   ANSWERED       -- it answered; when the input was an act, the simulation applied it (`applied`)
+//   NOT_A_FUNCTION -- the input is outside the enumerated set: the canonical refusal
+//   NOT_CLEARED    -- in the set, but the asker's clearance does not reach the act: a permission
+//   NOT_YOURS      -- in the set, a record whose visibility is not the asker's: a permission
+//   NOT_EXPOSED    -- in the set, but not a function the ship exposes to the computer
+// The last two are permissions and the first is a missing function: the rejection of a request is
+// itself content, so the kinds are named rather than collapsed.
+enum ComputerRefusal : uint8_t {
+	COMPUTER_ANSWERED = 0,
+	COMPUTER_NOT_A_FUNCTION,
+	COMPUTER_NOT_CLEARED,
+	COMPUTER_NOT_YOURS,
+	COMPUTER_NOT_EXPOSED,
+	COMPUTER_REFUSAL_COUNT
+};
+const char *ComputerRefusalName(uint8_t kind);
+
 // The computer's pills: a small, authored subset of the API the room offers. Free text addresses the
 // whole set through FindConsoleVerb. Every pill's verb is a ConsoleVerb, held by scripts/api-check.sh
 // and by the unit test, so a pill can never name a function the computer lacks.
@@ -1189,19 +1215,36 @@ const char *ComputerPillLabel(int i);      // the pill's short description
 const char *ComputerPillCost(int i);
 // The brief the overlay draws when the computer is addressed: the same shape as any meeting's.
 MeetingBrief BuildComputerBrief(const Ship &s);
-// What the computer says to an input. Membership is FindConsoleVerb over the ship's API.
-//   inSet   -- the verb is in the enumerated set; `line` is the computer's answer, `verb` its index
-//   refused -- not in the set: `line` is the canonical refusal, and nothing else happens
-// The simulation applies no outcome here and the caller writes no state: state is untouched either way.
+
+// One exchange in a computer session: what was asked, what the computer said, and how it answered.
+// The session is a run of these so the room shows a conversation rather than one shot (Task A). It is
+// UI state, not ship state: the host owns it beside the save (like the voice cache) and it is never
+// in the save blob. The type lives here so the host, the console and the overlay share one shape.
+const int COMPUTER_TURN_MAX = 8;
+struct ComputerTurn {
+	std::string ask;
+	std::string answer;
+	uint8_t refusal = COMPUTER_ANSWERED;
+};
+
+// What the computer says to an input. Membership is FindConsoleVerb over the ship's API; the asker is
+// the player. The reply says which refusal it was and whether the simulation applied anything.
+//   inSet   -- the verb is in the enumerated set; `verb` is its index
+//   refused -- one of the four refusals: `line` is the refusal, in character
+//   applied -- the simulation changed state (only ever true for an act, inside the asker's clearance)
+// A read is pure and writes nothing; an act inside clearance is applied here; every refusal writes
+// nothing. The model is never called: the input's classification is the API's membership test.
 struct ComputerReply {
 	bool inSet = false;
 	bool refused = false;
-	int verb = -1;                 // FindConsoleVerb index, -1 when refused
+	bool applied = false;
+	uint8_t refusal = COMPUTER_ANSWERED;
+	int verb = -1;                 // FindConsoleVerb index, -1 when not in the set
 	std::string verbName;          // the recognised verb, or the first token the caller offered
-	std::string line;              // the computer's answer (authored, deterministic; never model-written)
+	std::string line;              // the answer or the refusal (never model-written)
 	uint8_t delivery = DELIVERY_REPORT;
 };
-ComputerReply AddressComputer(const Ship &s, const std::string &input);
+ComputerReply AddressComputer(Ship &s, const std::string &input);
 
 // ---- the seam to synthesis (docs/evidence/voice-review.md) ---------------------------------------
 //

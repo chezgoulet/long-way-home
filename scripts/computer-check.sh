@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# The ship's computer (docs/staff-meetings.md, M6): the enumerated set as the ship's API, the same
-# overlay a meeting uses, the computer's own voice, and the refusal -- an input outside the API is
-# refused in character with the ship's state byte-identical, and nothing is invented.
+# The ship's computer, as somewhere to dive in (docs/staff-meetings.md, the depth pass). One headless
+# engine run demonstrates the four tasks: a session on the meeting's own overlay; answers scoped by the
+# records' own rule (PersonalVisibleTo, LogScopeForCrew); the API reachable by asking and applied by the
+# simulation; the three refusals distinct; and no model call. No second UI is built.
 #
 #   scripts/computer-check.sh [--map NAME]
 #
@@ -23,15 +24,17 @@ HOME_DIR="$ROOT/build/g3-home"
 GAME_DIR="$HOME_DIR/baseEF"
 OUT="$GAME_DIR/ship"
 SHOT="$GAME_DIR/screenshots/lwh_computer.tga"
+SHOTS="$GAME_DIR/screenshots/lwh_computer_session.tga"
 SHOTR="$GAME_DIR/screenshots/lwh_computer_refused.tga"
 [ -d "$ROOT/build/baseEF" ] || { echo "no game data at build/baseEF -- run scripts/playtest-host-setup.sh" >&2; exit 1; }
 command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; }
 mkdir -p "$OUT" "$GAME_DIR/screenshots"
-rm -f "${OUT:?}/computer.txt" "${SHOT:?}" "${SHOTR:?}"
+rm -f "${OUT:?}/computer.txt" "${SHOT:?}" "${SHOTS:?}" "${SHOTR:?}"
+rm -rf "$GAME_DIR/ship/meetings"
 
 find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
 echo "==> the ship's computer (g_shipTest 85)"
-SDL_AUDIODRIVER=dummy timeout 200 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
+SDL_AUDIODRIVER=dummy timeout 300 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
     +set s_useOpenAL 0 +set g_ship 1 +set g_shipMode 1 +set g_shipTest 85 +map "$MAP" \
     >"$HOME_DIR/computer.out" 2>&1 || true
 
@@ -39,44 +42,75 @@ grep -h '^SHIP: computer' "$HOME_DIR/computer.out" | sed 's/^SHIP: /    /' || tr
 
 fail() { echo "FAIL  $1"; exit 1; }
 
-# Task A: the API is enumerable, and the computer's pills are its verbs.
+# The API is enumerable, the room is the meeting's own, and the pills are the API's verbs.
 grep -q 'computer test: the ship.s API enumerates [1-9][0-9]* verb(s); the computer.s voice is computer' "$HOME_DIR/computer.out" \
   || fail "the ship's API was not enumerable, or the computer had no voice of its own"
-grep -q 'computer test: the room is the meeting.s own; kind computer, options 6' "$HOME_DIR/computer.out" \
+grep -q 'computer test: the room is the meeting.s own; kind computer, options 4' "$HOME_DIR/computer.out" \
   || fail "the computer did not use the meeting's own room"
 grep -q 'computer test: pill 1: Ship.s status -> status' "$HOME_DIR/computer.out" \
   || fail "the pills were not the API's verbs"
-grep -q 'computer test: the computer is not crew: 14 pool voices, and it is none of them' "$HOME_DIR/computer.out" \
+grep -q 'computer test: pill 4: The job queue -> jobs' "$HOME_DIR/computer.out" \
+  || fail "the pills were not the pass's knowledge topics"
+grep -q 'computer test: the computer is not crew: [0-9]* pool voices, and it is none of them' "$HOME_DIR/computer.out" \
   || fail "the computer was cast from the pool rather than given its own voice"
-
-# Task B/D: the lines are pre-generated during generation, keyed under the computer's own voice, with
-# no inference call.
-grep -q 'computer test: pre-generated during generation: 6 line(s), voice computer, key [0-9a-f]*, inference calls=0' "$HOME_DIR/computer.out" \
+grep -q 'computer test: pre-generated during generation: 4 line(s), voice computer, key [0-9a-f]*, inference calls=0' "$HOME_DIR/computer.out" \
   || fail "the computer's lines were not pre-generated under its own voice with no inference"
 
-# Task C: a recognised command is answered; an input outside the set is refused in character; the state
-# is byte-identical across the refusal; and the log carries what was said.
-grep -q 'computer test: free text "status" (in the API) -> Acknowledged. status.' "$HOME_DIR/computer.out" \
-  || fail "a recognised command was not answered from the API"
-grep -q 'computer test: free text "warpnine" (not in the API) -> that function is not available' "$HOME_DIR/computer.out" \
-  || fail "an out-of-set command was not refused in character"
+# Task A -- a session, not a shot: three exchanges in one sitting, and the room stays open.
+grep -q 'computer test: session: 3 exchange(s) in one sitting' "$HOME_DIR/computer.out" \
+  || fail "the computer did not hold a session of three exchanges"
+grep -q 'computer test:   ask "status" -> alert' "$HOME_DIR/computer.out" \
+  || fail "the session's first exchange was not answered from the ship's state"
+grep -q 'computer test:   ask "jobs" ->' "$HOME_DIR/computer.out" \
+  || fail "the session's second exchange was not answered"
+grep -q 'computer test:   ask "chart" ->' "$HOME_DIR/computer.out" \
+  || fail "the session's third exchange was not answered"
+grep -q 'computer test: the room is still open after 3 exchange(s): yes' "$HOME_DIR/computer.out" \
+  || fail "the room ended when the first answer landed"
+
+# Task B -- the scope by contrast: the same question, two ranks. The junior is refused in character;
+# the captain, who owns the private log, reaches it. The official log's scope differs the same way.
+grep -q 'computer test: the junior asks "personal Janeway" -> not yours: that is Kathryn Janeway.s private log' "$HOME_DIR/computer.out" \
+  || fail "the junior was not refused the captain's private log in character"
+grep -q 'computer test: the captain asks "personal Janeway" -> answered: your private log' "$HOME_DIR/computer.out" \
+  || fail "the captain did not reach his own private log"
+grep -q 'computer test: the captain reads the log -> the official log (all scopes)' "$HOME_DIR/computer.out" \
+  || fail "command did not read all log scopes"
+grep -q 'computer test: the junior reads the same log -> the official log (command)' "$HOME_DIR/computer.out" \
+  || fail "a junior post did not read its own log scope"
+
+# Task C -- the API through the computer, and the three refusals, distinct and named.
+grep -q 'computer test: out of set "warpnine" -> not a function: that function is not available' "$HOME_DIR/computer.out" \
+  || fail "an out-of-set request was not refused as a missing function"
 grep -q 'computer test: the ship.s state is byte-identical across the refusal: yes' "$HOME_DIR/computer.out" \
   || fail "the refusal was not shown to write nothing"
-grep -q 'computer test: log \[command\] the computer: the computer refused: warpnine' "$HOME_DIR/computer.out" \
-  || fail "the log did not carry the refusal"
+grep -q 'computer test: the junior asks "alert red" -> not cleared:' "$HOME_DIR/computer.out" \
+  || fail "an in-set request beyond clearance was not refused as a permission"
+grep -q 'computer test: the alert is unchanged at index 0 (the permission changed nothing)' "$HOME_DIR/computer.out" \
+  || fail "the permission refusal changed ship state"
+grep -q 'computer test: the captain asks "alert yellow" -> answered: the alert is set to yellow; the alert is now index 1' "$HOME_DIR/computer.out" \
+  || fail "a recognised request was not applied by the simulation"
+grep -q 'computer test: log \[command\] the computer: the computer refused (not yours): personal Janeway' "$HOME_DIR/computer.out" \
+  || fail "the scope refusal was not in the record"
+grep -q 'computer test: log \[command\] the computer: the computer applied: alert yellow' "$HOME_DIR/computer.out" \
+  || fail "the applied request was not in the record"
 
-# The pill path, and a replay that costs nothing.
-grep -q 'computer test: pill 1 (status) -> Acknowledged. status.' "$HOME_DIR/computer.out" \
-  || fail "the pill did not route through the same membership test"
-grep -q 'computer test: the same command again -> Acknowledged. status. (the authored line; inference calls=0)' "$HOME_DIR/computer.out" \
-  || fail "the replay was not the authored line with no inference"
+# The model calls nothing, and the classification path is the API's membership test.
+grep -q 'computer test: the classification path is the API.s membership test (FindConsoleVerb), not the embedding seam; model calls=0' "$HOME_DIR/computer.out" \
+  || fail "the classification path was not the membership test, or a model was called"
 grep -q 'computer test: addressed [1-9][0-9]* time(s), inference calls=0; nothing invented: yes' "$HOME_DIR/computer.out" \
   || fail "the computer's call count or the nothing-invented property failed"
 
+# No second UI: the computer is drawn by the one meeting file.
+[ "$(find "$ROOT/module/ui" -maxdepth 1 -name 'ui_lwh_meeting*.cpp' | wc -l)" -eq 1 ] \
+  || fail "the computer has a second UI file"
+
 [ -f "$SHOT" ] || fail "no screenshot of the computer on the meeting overlay"
+[ -f "$SHOTS" ] || fail "no screenshot of the session (three exchanges on the overlay)"
 [ -f "$SHOTR" ] || fail "no screenshot of the refusal on the meeting overlay"
-echo "PASS  the ship's API is enumerable and the computer's pills are its verbs; the computer is answered on"
-echo "      the meeting's own overlay with its own pre-generated voice; a recognised command is answered and"
-echo "      an out-of-set command is refused in character with the state byte-identical and the log carrying"
-echo "      it; a replay costs nothing. No second UI was built."
-echo "      screenshots: $SHOT, $SHOTR"
+echo "PASS  the computer is a session on the meeting's own overlay: three exchanges in one sitting with the"
+echo "      room still open, answered from the ship's state and scoped by PersonalVisibleTo and LogScopeForCrew;"
+echo "      a recognised request applied by the simulation; three refusals distinct and named -- not a function,"
+echo "      not cleared, not yours; the classification is the API's membership test and the model calls nothing."
+echo "      No second UI: module/ui/ui_lwh_meeting.cpp."
+echo "      screenshots: $SHOT, $SHOTS, $SHOTR"

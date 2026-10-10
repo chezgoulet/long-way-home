@@ -512,6 +512,8 @@ spoken content scripted like a meeting's. The register of classes is `module/shi
 | `ComputerPillVerb` | `int i` | the API verb a computer pill submits | play | — | docs/staff-meetings.md |
 | `ComputerPillLabel` | `int i` | a computer pill's short description | play | — | docs/staff-meetings.md |
 | `ComputerPillCost` | `int i` | a computer pill's cost | play | — | docs/staff-meetings.md |
+| `ComputerRefusalName` | `uint8_t kind` | the computer's refusal, by name: answered, not a function, not cleared, not yours, not exposed | play | — | docs/staff-meetings.md |
+| `SystemIdByName` | `const char *word` | The system a word names: a decimal id, or the leading part of a system's own name; -1 when it names none. One place for the console and the computer | play | post | — |
 | `MeetingRoomCount` | `` | how many room rows the table carries | play | — | docs/staff-meetings.md |
 | `MeetingRoomAt` | `int i` | the room and deck one table row names | play | — | docs/staff-meetings.md |
 | `MeetingRoomFor` | `uint8_t kind, uint8_t dept` | the room a meeting of `kind` with subject `dept` is held in | play | — | docs/staff-meetings.md |
@@ -526,15 +528,15 @@ spoken content scripted like a meeting's. The register of classes is `module/shi
 | entry points | 74 |
 | situations the simulation generates | 63 |
 | outcomes | 54 |
-| readers | 187 |
+| readers | 189 |
 | the configurator | 18 |
-| **total** | **396** |
+| **total** | **398** |
 
 **By reachability.**
 
 | state | hooks |
 |---|---|
-| reached in play | 231 |
+| reached in play | 233 |
 | reached only from the developer console | 130 |
 | reached by nothing yet | 35 |
 | — of those, reached only by the tests | 29 |
@@ -595,6 +597,15 @@ table `module/ship/meeting_rooms.def` becomes readable (`MeetingRoomCount`, `Mee
 it, so all four are reached in the meeting path. The counts above are the rows of this register,
 counted: 74 + 63 + 54 + 187 + 18 = 396, and 231 + 130 + 35 = 396. Evidence:
 `docs/evidence/the-meeting-place.md`.
+
+**Re-derived 2026-10-10, the computer as somewhere to dive in.** Two readers are added, both reached
+in play. `SystemIdByName` is the one place the console (`FindSystem`) and the computer resolve a system
+name, so an act the computer is asked for (`on shields`, `priority shields 3`) names the same system the
+console would. `ComputerRefusalName` names the computer's refusal kinds -- answered, not a function, not
+cleared, not yours, not exposed -- and the host publishes one with every answer, so the refusals are
+legible in the record and on the screen. The counts above are the rows of this register, counted:
+74 + 63 + 54 + 189 + 18 = 398, and 233 + 130 + 35 = 398. Evidence:
+`docs/evidence/the-computer-depth.md`.
 
 ### 5. The configurator — the player chooses the start state
 
@@ -686,7 +697,7 @@ post to a person.** The `law` column marks every hook the rule binds.
 
 - **Takes a person** (`36`): the hook accepts a resolved crew index, so content must resolve a
   post to that person and must never write a name into a scenario. They are: `Sicken`, `Cure`, `WorkReading`, `OfferRisingTo`, `AttemptRising`, `RetellRising`, `CoverWithCrew`, `WritePersonalLog`, `PersonalLog`, `SetAllocationBy`, `GrantBand`, `RevokeBand`, `RecoverCaptive`, `Hearing`, `Loyalty`, `EndHolodeckProgram`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`, `Brig`, `Brigged`, `KillCrew`, `Promote`, `Remember`, `MakePromise`, `SignReport`, `RunHolodeck`, `CastVoice`, `CastIsCanon`.
-- **Addressed by a post** (`46`), the compliant form: `Spec`, `StationOf`, `StationName`, `OperatedFrom`, `StationReads`, `WorkContextOf`, `OfferRising`, `BandOf`, `UseSystem`, `UseSystemBy`, `SetEnabled`, `SetPriority`, `SetAllocation`, `AllocationPercent`, `AllocationSource`, `AllocationProvenance`, `DamageSystem`, `Repair`, `CounterHack`, `Hijacked`, `EffectiveDemand`, `MayOperate`, `MayCallAlert`, `BeginOverride`, `ConfirmOverride`, `OverrideActive`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `PlayerMayOperate`, `MeetingLineKey`, `MeetingLineSeconds`.
+- **Addressed by a post** (`47`), the compliant form: `Spec`, `StationOf`, `StationName`, `OperatedFrom`, `StationReads`, `WorkContextOf`, `OfferRising`, `BandOf`, `UseSystem`, `UseSystemBy`, `SetEnabled`, `SetPriority`, `SetAllocation`, `AllocationPercent`, `AllocationSource`, `AllocationProvenance`, `DamageSystem`, `Repair`, `CounterHack`, `Hijacked`, `EffectiveDemand`, `MayOperate`, `MayCallAlert`, `BeginOverride`, `ConfirmOverride`, `OverrideActive`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `PlayerMayOperate`, `MeetingLineKey`, `MeetingLineSeconds`, `SystemIdByName`.
 - **Both forms exist** (`14`; content must use the post): `WorkReading`, `OfferRisingTo`, `AttemptRising`, `SetAllocationBy`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`.
 
 ## What this register cannot answer

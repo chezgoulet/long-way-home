@@ -6927,9 +6927,9 @@ static void TestConsoleApi()
 // ship's state byte-identical. A recognised input is answered and also changes nothing.
 static void TestTheComputer()
 {
-	g_test = "the computer: the enumerated set is its API, and the refusal writes nothing";
+	g_test = "the computer: the enumerated set is its API, the records' rule scopes it, and it applies";
 	Ship s = NewShip();
-	s.player = 0;
+	s.player = 0; // the captain commands
 	const MeetingBrief c = BuildComputerBrief(s);
 	CHECK(c.kind == MEET_COMPUTER);
 	CHECK(c.optionCount == ComputerPillCount());
@@ -6943,29 +6943,60 @@ static void TestTheComputer()
 	CHECK(!key.empty());
 	CHECK(key == RenderKey("computer", sk.outcomes[0].lines[0].text, DELIVERY_REPORT));
 
-	// A recognised pill (and the same verb typed free) is answered, deterministically and in set.
-	ComputerReply pill = AddressComputer(s, ComputerPillVerb(0));
-	ComputerReply typed = AddressComputer(s, "status");
-	CHECK(pill.inSet && !pill.refused);
+	// The pills are the API's verbs, and a pill and the same verb typed free take one path.
+	CHECK(ComputerPillCount() > 0);
+	for (int i = 0; i < ComputerPillCount(); ++i) CHECK(FindConsoleVerb(ComputerPillVerb(i)) >= 0);
+	const ComputerReply pill = AddressComputer(s, ComputerPillVerb(0));
+	const ComputerReply typed = AddressComputer(s, "status");
+	CHECK(pill.inSet && !pill.refused && !pill.applied);
 	CHECK(typed.inSet && !typed.refused);
-	CHECK(pill.line == typed.line);            // one form, so a clip is rendered once and replays
-	CHECK(pill.line == "Acknowledged. status.");
+	CHECK(pill.line == typed.line);            // one answer, from the state
+	CHECK(pill.line.find("alert") != std::string::npos); // it reads the ship, not an authored stub
 	CHECK(pill.verb == typed.verb);
 
-	// THE REFUSAL: an input close to real but not in the enumerated set is refused in character, and
-	// the ship's state is byte-identical across it.
+	// REFUSAL ONE, and the state across it: outside the enumerated set. Byte-identical proves the
+	// refusal writes nothing -- not even a plausible status.
 	const std::vector<uint8_t> before = Pack(s);
 	const ComputerReply miss = AddressComputer(s, "warpnine");
 	CHECK(!miss.inSet && miss.refused);
+	CHECK(miss.refusal == COMPUTER_NOT_A_FUNCTION);
 	CHECK(miss.line == ComputerRefusal());
 	CHECK(std::strcmp(miss.line.c_str(), "that function is not available") == 0);
 	CHECK(AddressComputer(s, "make it so").refused);  // a phrase that is not a console verb
-	const std::vector<uint8_t> after = Pack(s);
-	CHECK(before == after);                    // nothing was written -- not even a plausible status
-
-	// A replay costs nothing: the same input twice is the same authored line, no model in the loop.
-	CHECK(AddressComputer(s, "status").line == typed.line);
 	CHECK(Pack(s) == before);
+
+	// REFUSAL TWO: inside the set, beyond the asker's clearance. The same act is applied for the
+	// captain and refused as a permission for a junior -- not as a missing function.
+	CHECK(PlayerMayCommand(s));
+	const ComputerReply applied = AddressComputer(s, "alert yellow");
+	CHECK(applied.inSet && !applied.refused && applied.applied);
+	CHECK(s.alert == ALERT_YELLOW);
+	const int junior = 4; // Harry Kim: rank 1, communications, not the alert's station
+	s.player = junior;
+	CHECK(!PlayerMayCommand(s));
+	const ComputerReply notCleared = AddressComputer(s, "alert red");
+	CHECK(notCleared.inSet && notCleared.refused);
+	CHECK(notCleared.refusal == COMPUTER_NOT_CLEARED);
+	CHECK(s.alert == ALERT_YELLOW);            // the refusal changed nothing
+
+	// REFUSAL THREE: inside the set, a record whose visibility is not the asker's. PersonalVisibleTo
+	// decides it -- the records' own rule -- and the captain, who owns the log, reaches it.
+	const ComputerReply notYours = AddressComputer(s, "personal Janeway");
+	CHECK(notYours.inSet && notYours.refused);
+	CHECK(notYours.refusal == COMPUTER_NOT_YOURS);
+	CHECK(notYours.line.find("Janeway") != std::string::npos);
+	s.player = 0;
+	const ComputerReply mine = AddressComputer(s, "personal Janeway");
+	CHECK(mine.inSet && !mine.refused);
+
+	// A verb inside the set that is not a function the ship exposes to the computer.
+	const ComputerReply dev = AddressComputer(s, "ignite 3 1");
+	CHECK(dev.inSet && dev.refused);
+	CHECK(dev.refusal == COMPUTER_NOT_EXPOSED);
+
+	// A replay costs nothing: the same input twice, on the same state, is the same answer; no model.
+	s.player = 0;
+	CHECK(AddressComputer(s, "status").line == AddressComputer(s, "status").line);
 }
 
 // M6, second half: voice in is the typed path. The transcription boundary produces a string, and the
