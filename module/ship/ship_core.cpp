@@ -6093,6 +6093,118 @@ static void UpdateJobs(Ship &s)
 	s.jobs = next;
 }
 
+// ---- the ship's API: the enumerated command surface (docs/evidence/the-computer-api.md) ----------
+//
+// console_api.def is the single source: included here as an X-macro it becomes the runtime table the
+// computer reads, and tools/console/verbs.py parses the same file so scripts/api-check.sh can fail
+// when it drifts from Svcmd_Ship_f in either direction. The set is curated (a person named each verb,
+// its arguments and its station) and checked against the console; see the evidence for why.
+
+static const ConsoleVerb CONSOLE_VERBS[] = {
+#define CONSOLE_VERB(v, a, s) ConsoleVerb{ v, a, s },
+#include "console_api.def"
+#undef CONSOLE_VERB
+};
+static const int CONSOLE_VERB_COUNT = static_cast<int>(sizeof(CONSOLE_VERBS) / sizeof(CONSOLE_VERBS[0]));
+
+int ConsoleVerbCount() { return CONSOLE_VERB_COUNT; }
+
+const ConsoleVerb &ConsoleVerbAt(int i)
+{
+	static const ConsoleVerb NONE = { "", "-", "-" };
+	return i >= 0 && i < CONSOLE_VERB_COUNT ? CONSOLE_VERBS[i] : NONE;
+}
+
+// A word equals a verb when they are equal ignoring ASCII case, over the whole token, so `on` is not
+// `onto` and `run` is not `running`.
+static bool WordIs(const char *word, const char *verb)
+{
+	for (; *word && *verb; ++word, ++verb)
+	{
+		char a = *word, b = *verb;
+		if (a >= 'A' && a <= 'Z') a = static_cast<char>(a - 'A' + 'a');
+		if (b >= 'A' && b <= 'Z') b = static_cast<char>(b - 'A' + 'a');
+		if (a != b) return false;
+	}
+	return *word == 0 && *verb == 0;
+}
+
+int FindConsoleVerb(const char *word)
+{
+	if (!word || !word[0]) return -1;
+	for (int i = 0; i < CONSOLE_VERB_COUNT; ++i)
+		if (WordIs(word, CONSOLE_VERBS[i].verb)) return i;
+	return -1;
+}
+
+// ---- the ship's computer: the same machinery, the enumerated set as its API -----------------------
+//
+// The computer is addressed through the meeting overlay (docs/staff-meetings.md): pills for the
+// enumerated options, free text, a pre-generated voice, the same branch model. The enumerated set is
+// the ship's API just above, so membership is FindConsoleVerb and nothing else. The computer is not
+// crew and is not cast from the pool: it has its own named voice, assigned where the cast lives.
+
+const char *ComputerVoice() { return "computer"; }
+const char *ComputerRefusal() { return "that function is not available"; }
+
+// The computer's pills: a small, authored subset of the API the room can offer without a scrolling
+// list of every verb. Free text addresses the whole set. Every verb here is a ConsoleVerb, and both
+// scripts/api-check.sh and the unit test hold that a pill can never name a function the computer lacks.
+// The number below is not fixed: the API's size is ConsoleVerbCount(), and the pills are a curated few.
+struct ComputerPill { const char *verb; const char *label; const char *cost; };
+static const ComputerPill COMPUTER_PILLS[] = {
+	{ "status",   "Ship's status",         "the condition of every system, at once" },
+	{ "alert",    "Set the alert",         "green, yellow or red" },
+	{ "scan",     "Scan the site",         "what is at this beacon" },
+	{ "jump",     "Jump to a beacon",      "one jump, if the drive and the fuel allow" },
+	{ "patients", "Read the ward",         "the casualties, worst first" },
+	{ "report",   "Open the month report", "the record's own summary" },
+};
+static const int COMPUTER_PILL_COUNT = static_cast<int>(sizeof(COMPUTER_PILLS) / sizeof(COMPUTER_PILLS[0]));
+
+int ComputerPillCount() { return COMPUTER_PILL_COUNT; }
+const char *ComputerPillVerb(int i) { return i >= 0 && i < COMPUTER_PILL_COUNT ? COMPUTER_PILLS[i].verb : ""; }
+const char *ComputerPillLabel(int i) { return i >= 0 && i < COMPUTER_PILL_COUNT ? COMPUTER_PILLS[i].label : ""; }
+const char *ComputerPillCost(int i) { return i >= 0 && i < COMPUTER_PILL_COUNT ? COMPUTER_PILLS[i].cost : ""; }
+
+// The first whitespace-delimited token of an input: the console's own verb position.
+static std::string FirstToken(const std::string &in)
+{
+	size_t i = 0;
+	while (i < in.size() && (in[i] == ' ' || in[i] == '\t')) ++i;
+	size_t j = i;
+	while (j < in.size() && in[j] != ' ' && in[j] != '\t') ++j;
+	return in.substr(i, j - i);
+}
+
+// The computer's answer to a recognised verb. Authored and deterministic, and one form whether the
+// verb arrives from a pill or from free text, so the clip is pre-generated once and replays for free.
+static std::string ComputerAnswer(int verb)
+{
+	if (verb < 0 || verb >= ConsoleVerbCount()) return std::string(ComputerRefusal());
+	return std::string("Acknowledged. ") + ConsoleVerbAt(verb).verb + ".";
+}
+
+ComputerReply AddressComputer(const Ship &s, const std::string &input)
+{
+	(void)s; // membership is the API, not the ship: nothing here reads or writes ship state
+	ComputerReply r;
+	r.verbName = FirstToken(input);
+	r.verb = FindConsoleVerb(r.verbName.c_str());
+	if (r.verb < 0)
+	{
+		// THE REFUSAL: an input outside the enumerated set is refused in character. No fabricated
+		// result, no plausible status, no state written.
+		r.refused = true;
+		r.line = ComputerRefusal();
+		return r;
+	}
+	r.inSet = true;
+	r.line = ComputerAnswer(r.verb);
+	r.delivery = DELIVERY_REPORT;
+	return r;
+}
+
 // ---- the meeting: the brief, the skeleton, and the seams (docs/staff-meetings.md) ---------------
 //
 // Phase one: text and state. No model is called, no sound is owned, no audio player is built. The
@@ -6103,7 +6215,8 @@ static void UpdateJobs(Ship &s)
 const char *MeetingKindName(uint8_t kind)
 {
 	static const char *const NAMES[MEET_KIND_COUNT] = {
-		"watch-change", "departmental", "allocation", "dilithium", "casualties", "Borg", "deferred"
+		"watch-change", "departmental", "allocation", "dilithium", "casualties", "Borg", "deferred",
+		"computer"
 	};
 	return kind < MEET_KIND_COUNT ? NAMES[kind] : "?";
 }
@@ -6223,6 +6336,11 @@ static void AddLine(MeetingSkeleton &sk, int speaker, const char *text, uint8_t 
 	l.delivery = delivery;
 }
 
+static void AddLine(MeetingSkeleton &sk, int speaker, const std::string &text, uint8_t delivery)
+{
+	AddLine(sk, speaker, text.c_str(), delivery);
+}
+
 static void BuildSkeletons(MeetingSkeleton (&sk)[MEET_KIND_COUNT])
 {
 	{ // the watch change: the normal case, and it always produces a brief
@@ -6320,6 +6438,19 @@ static void BuildSkeletons(MeetingSkeleton (&sk)[MEET_KIND_COUNT])
 		AddLine(m, SPEAK_COMMAND, "I cannot do it. Note it, and let it stand.", DELIVERY_CONFESSION);
 		AddOutcome(m, Opt(3, "Attend to it later", "a deferred decision, and a mark that waits"));
 		AddLine(m, SPEAK_COMMAND, "Not yet. It waits.", DELIVERY_FLAT);
+	}
+	{ // the ship's computer is addressed (M6): the same machinery as a meeting. The pills are a small
+	  // authored subset of the ship's API; free text addresses the whole set. Each outcome is the
+	  // computer's own voice, answering a recognised function, and EFFECT_RECORD minuted nothing that
+	  // could change the ship: the simulation decides, and here it decides to change nothing.
+		MeetingSkeleton &m = sk[MEET_COMPUTER];
+		m.kind = MEET_COMPUTER;
+		m.decision = "the ship's computer is addressed";
+		for (int i = 0; i < COMPUTER_PILL_COUNT; ++i)
+		{
+			AddOutcome(m, Opt(static_cast<uint8_t>(i + 1), ComputerPillLabel(i), ComputerPillCost(i)));
+			AddLine(m, SPEAK_COMPUTER, ComputerAnswer(FindConsoleVerb(ComputerPillVerb(i))), DELIVERY_REPORT);
+		}
 	}
 }
 
@@ -6489,6 +6620,8 @@ static void ParticipantsFor(const Ship &s, uint8_t kind, MeetingBrief &b)
 			}
 			break;
 		}
+		case MEET_COMPUTER:
+			break; // the computer is addressed, not convened: the player and whoever commands
 		case MEET_WATCH_CHANGE:
 		default:
 			for (int d = 0; d < DEPT_COUNT; ++d) add(DepartmentHead(s, static_cast<Department>(d)));
@@ -6565,6 +6698,9 @@ MeetingBrief BuildBrief(const Ship &s, uint8_t kind)
 	b.stateDigest = StateDigest(s);
 	return b;
 }
+
+// The computer is addressed, not convened: the same brief shape, built from the computer skeleton.
+MeetingBrief BuildComputerBrief(const Ship &s) { return BuildBrief(s, MEET_COMPUTER); }
 
 // The raw threshold, without the latch: whether a fact still calls for this meeting. Used to clear a
 // latch when its episode passes, so a later episode can call a meeting of its own.
@@ -7090,13 +7226,21 @@ float CachedDuration(const VoiceRender &vr, const std::string &key)
 	return 0.0f;
 }
 
+// The cast reference for a line's speaker. The computer is not crew: its speaker is SPEAK_COMPUTER and
+// its voice is its own named reference, assigned here where the cast lives rather than by a pool draw.
+// Everyone else resolves to a crew member and their cast voice (docs/the-entry-point.md).
+static std::string LineVoice(const Ship &s, const MeetingBrief &brief, const MeetingLine &line)
+{
+	if (line.speaker == SPEAK_COMPUTER) return ComputerVoice();
+	const int who = ResolveSpeaker(s, brief, line.speaker);
+	return who < 0 ? std::string() : CastVoice(s, who);
+}
+
 std::string MeetingLineKey(const Ship &s, const MeetingBrief &brief, const MeetingLine &line)
 {
 	SynthesisRequest req;
 	if (!LineToSynthesis(line, req)) return ""; // unmarked: never rendered
-	const int who = ResolveSpeaker(s, brief, line.speaker);
-	if (who < 0) return "";
-	const std::string voice = CastVoice(s, who);
+	const std::string voice = LineVoice(s, brief, line);
 	if (voice.empty()) return "";               // no voice, so nothing was rendered
 	return RenderKey(voice, req.text, req.delivery);
 }
@@ -7120,10 +7264,8 @@ int PlanMeetingAudio(VoiceRender &vr, const Ship &s, const MeetingBrief &brief, 
 			const MeetingLine &line = oc.lines[l];
 			SynthesisRequest req;
 			if (!LineToSynthesis(line, req)) continue; // the unmarked line is marked, not rendered
-			const int who = ResolveSpeaker(s, brief, line.speaker);
-			if (who < 0) continue;                     // a role nobody in the room fills
-			const std::string voice = CastVoice(s, who);
-			if (voice.empty()) continue;               // a canon character who died: no voice, no line
+			const std::string voice = LineVoice(s, brief, line);
+			if (voice.empty()) continue;               // a role nobody fills, or a canon character who died
 			RenderJob job;
 			job.voice = voice;                         // the cast reference, not the display name
 			job.text = req.text;

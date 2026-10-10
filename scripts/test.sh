@@ -37,6 +37,10 @@ echo "==> hooks: the register matches the public surface"
 "$ROOT/scripts/hooks-check.sh"
 
 echo
+echo "==> api: the console's verbs and the ship's API agree, both directions"
+"$ROOT/scripts/api-check.sh"
+
+echo
 echo "==> harness: the g_shipTest case numbers are distinct"
 "$ROOT/scripts/harness-check.sh"
 

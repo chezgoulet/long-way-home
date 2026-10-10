@@ -835,6 +835,24 @@ bool PersonalVisibleTo(const PersonalLogEntry &e, int reader);
 // optionally filtered to one `scope` (empty = all of them). Personal entries are never returned here.
 std::vector<LogEntry> ReadOfficialLog(const Ship &s, int count, const std::string &scope);
 
+// ---- the ship's API: the enumerated command surface (docs/evidence/the-computer-api.md) ----------
+//
+// The console Svcmd_Ship_f (module/ship/g_ship.cpp) answers a fixed, enumerable set of verbs. That set
+// **is** the ship's API: the ship's computer may answer from it (M6), and an input outside it is
+// refused in character rather than invented. This is the one place a program reads it. The rows live
+// in `module/ship/console_api.def`, included here as an X-macro, so the module and the freshness check
+// (`scripts/api-check.sh`) read the same source and cannot drift.
+struct ConsoleVerb {
+	const char *verb;     // the first token the console matches
+	const char *args;     // a terse usage hint; "-" when it takes none
+	const char *stations; // "any", "-", or pipe-separated StationName tokens
+};
+int ConsoleVerbCount();
+const ConsoleVerb &ConsoleVerbAt(int i);
+// The enumerated verb a word names, matched case-insensitively against the first token; -1 when the
+// word is not in the set. This is the computer's membership test, and nothing else's.
+int FindConsoleVerb(const char *word);
+
 // ---- the meeting: the brief, the skeleton, and the seams (docs/staff-meetings.md) ----------------
 //
 // Phase one of the meeting system is text and state. The simulation enqueues a *meeting brief* and it
@@ -861,6 +879,7 @@ enum MeetingKind : uint8_t {
 	MEET_CASUALTIES,       // casualties exceed the beds (docs/gap-triage-and-sickbay.md)
 	MEET_BORG,             // Borg pressure rising (docs/borg-incursion.md)
 	MEET_DEFERRED,         // an open promise has come due: a decision deferred (docs/memory-and-consequence.md)
+	MEET_COMPUTER,         // the ship's computer is addressed (M6): the same machinery as a meeting
 	MEET_KIND_COUNT
 };
 const char *MeetingKindName(uint8_t kind);
@@ -901,6 +920,7 @@ enum MeetingSpeaker : int16_t {
 	SPEAK_SECURITY = -4,
 	SPEAK_SCIENCES = -5,
 	SPEAK_MEDICAL = -6,
+	SPEAK_COMPUTER = -7,   // the ship's own voice: not crew, cast its own reference
 };
 struct MeetingLine {
 	int speaker = SPEAK_ROOM;              // roster index, or a MeetingSpeaker role
@@ -1063,6 +1083,41 @@ uint32_t NoveltyKey(const MeetingBrief &brief, const std::string &text);
 void ClearNoveltyIndex();
 void AddNoveltyVerdict(uint32_t key, bool matched, int outcome, const std::string &note);
 int NoveltyVerdictCount();
+
+// ---- the ship's computer: the same machinery, the enumerated set as its API ----------------------
+//
+// docs/staff-meetings.md: "The ship's computer is the same machinery -- options as pills, free text, a
+// pre-generated voice, the same branch model." It is addressed through the meeting overlay; there, the
+// enumerated set **is** the ship's API (the ConsoleVerb table above). A recognised command is answered
+// from the authored lines and minuted; an input outside the set is refused in character and nothing is
+// invented, and no ship state is written either way (docs/evidence/the-computer-api.md, M6).
+//
+// The computer is not crew and is not cast from the non-canon pool: it has its own named voice.
+const char *ComputerVoice();               // "computer"
+// The canonical refusal, in one place: what the computer says to a function it does not have.
+const char *ComputerRefusal();             // "that function is not available"
+// The computer's pills: a small, authored subset of the API the room offers. Free text addresses the
+// whole set through FindConsoleVerb. Every pill's verb is a ConsoleVerb, held by scripts/api-check.sh
+// and by the unit test, so a pill can never name a function the computer lacks.
+int ComputerPillCount();
+const char *ComputerPillVerb(int i);       // the API verb the pill submits
+const char *ComputerPillLabel(int i);      // the pill's short description
+const char *ComputerPillCost(int i);
+// The brief the overlay draws when the computer is addressed: the same shape as any meeting's.
+MeetingBrief BuildComputerBrief(const Ship &s);
+// What the computer says to an input. Membership is FindConsoleVerb over the ship's API.
+//   inSet   -- the verb is in the enumerated set; `line` is the computer's answer, `verb` its index
+//   refused -- not in the set: `line` is the canonical refusal, and nothing else happens
+// The simulation applies no outcome here and the caller writes no state: state is untouched either way.
+struct ComputerReply {
+	bool inSet = false;
+	bool refused = false;
+	int verb = -1;                 // FindConsoleVerb index, -1 when refused
+	std::string verbName;          // the recognised verb, or the first token the caller offered
+	std::string line;              // the computer's answer (authored, deterministic; never model-written)
+	uint8_t delivery = DELIVERY_REPORT;
+};
+ComputerReply AddressComputer(const Ship &s, const std::string &input);
 
 // ---- the seam to synthesis (docs/evidence/voice-review.md) ---------------------------------------
 //

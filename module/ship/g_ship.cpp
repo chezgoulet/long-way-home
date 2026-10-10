@@ -73,6 +73,7 @@ bool bodyApplied = false;          // S10: the player's model set from the crew 
 ship::MeetingBrief currentMeeting;
 bool meetingOpen = false;
 std::string meetingSaid;
+int computerCalls = 0;       // M6: times the computer was addressed (an authored answer, never a model call)
 
 // The audio plumbing (docs/staff-meetings.md, phase two). The mixer and the render queue are
 // host-local, not ship state: the audio is player-local data, derived from the queued briefs and
@@ -545,12 +546,14 @@ void PublishMeeting( void )
 		for ( int l = 0; l < oc.lineCount && l < ship::MEETING_LINE_MAX; ++l )
 		{
 			const ship::MeetingLine &ln = oc.lines[l];
+			// The computer is not crew: its line's rail is its own name, not a resolved person.
 			const int crew = ship::ResolveSpeaker( vessel, b, ln.speaker );
+			const std::string rail = ln.speaker == ship::SPEAK_COMPUTER ? std::string( "THE COMPUTER||| " ) : speakerRow( crew );
 			// The 7th field is the line's own duration in seconds (M5): the clip's measured length when
 			// it is rendered, else a text-length fallback. The room paces the pills by it, so the options
 			// are offered for as long as the line actually runs.
 			gi.cvar_set( Fmt( "lwh_ship_meeting_line%d_%d", o, l ).c_str(),
-				Fmt( "%s|%s|%s|%.3f", speakerRow( crew ).c_str(), ln.text.c_str(),
+				Fmt( "%s|%s|%s|%.3f", rail.c_str(), ln.text.c_str(),
 					ship::DeliveryName( ln.delivery ), ship::MeetingLineSeconds( voiceRender, vessel, b, ln ) ).c_str() );
 		}
 	}
@@ -1607,6 +1610,106 @@ void RunTest( void )
 			WriteReport( "ship/cast.txt" );
 			gi.SendConsoleCommand( "quit\n" );
 			step = 2;
+		}
+		return;
+	}
+	if ( g_shipTest->integer == 85 )
+	{//the ship's computer (docs/staff-meetings.md, M6): the enumerated set is the ship's API, the room
+	 //is the meeting's own overlay, the voice is the computer's own, and an input outside the set is
+	 //refused in character with the ship's state byte-identical. No model is called by the engine.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2000 )
+		{
+			const int me = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
+			gi.Printf( "SHIP: computer test: the player reports for duty as crew %d (%s)\n", me,
+				me >= 0 ? vessel.crew[me].name.c_str() : "nobody" );
+			gi.Printf( "SHIP: computer test: the ship's API enumerates %d verb(s); the computer's voice is %s\n",
+				ship::ConsoleVerbCount(), ship::ComputerVoice() );
+			gi.SendConsoleCommand( "ship computer open\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 2600 )
+		{
+			gi.Printf( "SHIP: computer test: the room is the meeting's own; kind %s, options %d\n",
+				ship::MeetingKindName( currentMeeting.kind ), currentMeeting.optionCount );
+			for ( int i = 0; i < currentMeeting.optionCount; ++i )
+				gi.Printf( "SHIP: computer test: pill %d: %s -> %s\n", i + 1,
+					currentMeeting.options[i].label.c_str(), ship::ComputerPillVerb( i ) );
+			const ship::MeetingSkeleton &sk = ship::AuthoredSkeleton( ship::MEET_COMPUTER );
+			voiceRender.dir = VOICE_DIR;
+			const int planned = ship::PlanMeetingAudio( voiceRender, vessel, currentMeeting, sk );
+			const std::string key = ship::MeetingLineKey( vessel, currentMeeting, sk.outcomes[0].lines[0] );
+			gi.Printf( "SHIP: computer test: pre-generated during generation: %d line(s), voice %s, key %s, inference calls=0\n",
+				planned, ship::ComputerVoice(), key.c_str() );
+			gi.Printf( "SHIP: computer test: the computer is not crew: %d pool voices, and it is none of them\n",
+				ship::VoicePoolCount() );
+			gi.SendConsoleCommand( "screenshot lwh_computer\n" );
+			// the overlay's own free-text path: exactly what the screen sends
+			gi.SendConsoleCommand( "ship meeting say status\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 3400 )
+		{
+			char said[256] = "";
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
+			gi.Printf( "SHIP: computer test: free text \"status\" (in the API) -> %s\n", said );
+			// The refusal, and the state across it: the same AddressComputer the console calls, with the
+			// ship packed immediately before and after it. Byte-identical is the proof (Task C).
+			const std::vector<uint8_t> before = ship::Pack( vessel );
+			const ship::ComputerReply miss = ship::AddressComputer( vessel, "warpnine" );
+			const std::vector<uint8_t> after = ship::Pack( vessel );
+			gi.Printf( "SHIP: computer test: free text \"warpnine\" (not in the API) -> %s\n", miss.line.c_str() );
+			gi.Printf( "SHIP: computer test: the ship's state is byte-identical across the refusal: %s\n",
+				before == after ? "yes" : "NO" );
+			gi.SendConsoleCommand( "ship meeting say warpnine\n" ); // and through the overlay, to the log
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 4000 )
+		{
+			char said[256] = "";
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
+			gi.Printf( "SHIP: computer test: the overlay's refusal reached the log: %s\n", said );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 4600 )
+		{
+			// The refusal, on the screen the meeting uses. Its own step, so nothing else changes the
+			// room's cvar between the say being processed and the frame being captured.
+			gi.SendConsoleCommand( "screenshot lwh_computer_refused\n" );
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 5000 )
+		{
+			// a pill, the other input surface, through the same membership test the screen sends
+			gi.SendConsoleCommand( "ship meeting choose 1\n" );
+			step = 6;
+		}
+		if ( step == 6 && level.time >= 5600 )
+		{
+			char said[256] = "";
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
+			gi.Printf( "SHIP: computer test: pill 1 (%s) -> %s\n", ship::ComputerPillVerb( 0 ), said );
+			// the same command a second time: from the authored line, no inference
+			gi.SendConsoleCommand( "ship meeting say status\n" );
+			step = 7;
+		}
+		if ( step == 7 && level.time >= 6200 )
+		{
+			char said[256] = "";
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
+			gi.Printf( "SHIP: computer test: the same command again -> %s (the authored line; inference calls=0)\n", said );
+			const ship::ComputerReply replay = ship::AddressComputer( vessel, "status" );
+			gi.Printf( "SHIP: computer test: addressed %d time(s), inference calls=0; nothing invented: %s\n",
+				computerCalls, replay.line == "Acknowledged. status." && !replay.refused ? "yes" : "NO" );
+			// The log carries what was said: the recognised commands and the refusal, in the record.
+			const std::vector<ship::LogEntry> entries = ship::ReadOfficialLog( vessel, 12, "" );
+			for ( const ship::LogEntry &e : entries )
+				if ( e.who == "the computer" )
+					gi.Printf( "SHIP: computer test: log [%s] %s: %s\n", e.scope.c_str(), e.who.c_str(), e.what.c_str() );
+			WriteReport( "ship/computer.txt" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 8;
 		}
 		return;
 	}
@@ -4011,6 +4114,27 @@ void Ship_ReadSave( void )
 	}
 	if ( data ) gi.Free( data );
 }
+
+// The ship's computer (docs/staff-meetings.md, M6). Addressing it is the same path whether the input
+// came from a pill or from free text: membership is the ship's API (FindConsoleVerb), a recognised
+// function is answered from the authored line, and anything else is refused in character. Nothing is
+// invented and no ship state is written; the model is never called. The log carries what was said.
+void AddressComputerToConsole( const std::string &input )
+{
+	const ship::ComputerReply r = ship::AddressComputer( vessel, input );
+	++computerCalls;
+	gi.Printf( "SHIP: computer: \"%s\" -> %s: %s\n", input.c_str(),
+		r.refused ? "REFUSED" : "recognised", r.line.c_str() );
+	gi.cvar_set( "lwh_ship_computer_said", r.line.c_str() );
+	gi.cvar_set( "lwh_ship_computer_refused", r.refused ? "1" : "0" );
+	gi.cvar_set( "lwh_ship_computer_verb", r.verbName.c_str() );
+	ship::LogEvent( vessel, "the computer", "command",
+		r.refused ? ( std::string( "the computer refused: " ) + input + " -- that function is not available" )
+		          : ( std::string( "the computer answered: " ) + r.verbName ) );
+	meetingSaid = input + "  ->  " + r.line;
+	Publish();
+}
+
 void Svcmd_Ship_f( void )
 {
 	if ( !active )
@@ -4735,7 +4859,7 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "meeting" ) )
 	{//the meeting (docs/staff-meetings.md): the brief, and the decision the simulation applies.
 	 //A brief is a read; deciding applies exactly one enumerated outcome.
-		static const char *const KINDS[] = { "watch", "departmental", "allocation", "dilithium", "casualties", "borg", "deferred" };
+		static const char *const KINDS[] = { "watch", "departmental", "allocation", "dilithium", "casualties", "borg", "deferred", "computer" };
 		auto kindOf = []( const char *name ) -> int {
 			if ( name[0] >= '0' && name[0] <= '9' ) return atoi( name );
 			for ( int i = 0; i < ship::MEET_KIND_COUNT; ++i )
@@ -4780,6 +4904,13 @@ void Svcmd_Ship_f( void )
 		{//a pill was picked: exactly one enumerated outcome, applied by the simulation, with the
 		 //person in the room as its provenance (ApplyMeetingOutcome)
 			if ( !meetingOpen ) { gi.Printf( "SHIP: meeting choose: no meeting is open\n" ); return; }
+			if ( currentMeeting.kind == ship::MEET_COMPUTER )
+			{//the computer's own room: a pill is a recognised verb, through the API membership test
+				const int pill = b[0] ? atoi( b ) - 1 : -1;
+				if ( pill < 0 || pill >= ship::ComputerPillCount() ) { gi.Printf( "SHIP: meeting choose: no such option\n" ); return; }
+				AddressComputerToConsole( ship::ComputerPillVerb( pill ) );
+				return;
+			}
 			const int outcome = b[0] ? atoi( b ) : -1;
 			const bool ok = ship::ApplyMeetingOutcome( vessel, currentMeeting, outcome, vessel.player, false );
 			gi.Printf( "SHIP: meeting choose: %s outcome %d %s (decided by %s)\n",
@@ -4794,6 +4925,12 @@ void Svcmd_Ship_f( void )
 		 //deferred to a later beat (SubmitNovelAnswer). It writes no ship state either way.
 			if ( !meetingOpen ) { gi.Printf( "SHIP: meeting say: no room is open, so there is nothing to answer\n" ); return; }
 			const std::string text = b;
+			if ( currentMeeting.kind == ship::MEET_COMPUTER )
+			{//the computer's room: free text is matched against the ship's API. In set, the computer
+			 //answers; out of set, the canonical refusal. No model, no invention, no state written.
+				AddressComputerToConsole( text );
+				return;
+			}
 			const ship::NoveltyResult nr = ship::ClassifyNovelInput( vessel, currentMeeting, text );
 			// The answer is already known when a verdict is loaded, so it resolves inside the pause;
 			// otherwise the worker has not answered yet and the outcome is deferred.
@@ -4882,6 +5019,50 @@ void Svcmd_Ship_f( void )
 			return;
 		}
 		gi.Printf( "SHIP: meeting [list|drain|brief <kind>|decide <kind> <outcome>]\n" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "computer" ) )
+	{//the ship's computer (docs/staff-meetings.md, M6): the same machinery as a meeting, addressed
+	 //through the same overlay. The enumerated set IS the ship's API; an input outside it is refused
+	 //in character and writes nothing. No second UI is built: the room is the meeting's own.
+		if ( !a[0] || !Q_stricmp( a, "open" ) )
+		{
+			currentMeeting = ship::BuildComputerBrief( vessel );
+			meetingOpen = true;
+			meetingSaid.clear();
+			computerCalls = 0;
+			gi.Printf( "SHIP: computer open: %s (%d option(s)); the computer's voice is %s\n",
+				currentMeeting.decision.c_str(), currentMeeting.optionCount, ship::ComputerVoice() );
+			gi.SendConsoleCommand( "ui_lwh_meeting_room\n" ); // the same screen a meeting uses
+			Publish();
+			return;
+		}
+		if ( !Q_stricmp( a, "close" ) )
+		{
+			meetingOpen = false;
+			meetingSaid.clear();
+			gi.Printf( "SHIP: computer close\n" );
+			Publish();
+			return;
+		}
+		std::string input;
+		if ( !Q_stricmp( a, "choose" ) && b[0] )
+		{//a pill: the verb the pill carries, through the same membership test as free text
+			const int pill = atoi( b ) - 1;
+			if ( pill < 0 || pill >= ship::ComputerPillCount() ) { gi.Printf( "SHIP: computer choose: no such option\n" ); return; }
+			input = ship::ComputerPillVerb( pill );
+		}
+		else if ( !Q_stricmp( a, "say" ) )
+		{//free text: everything after `say`, so a phrase with spaces survives
+			for ( int i = first + 2; i < gi.argc(); ++i ) { if ( input.size() ) input += " "; input += gi.argv( i ); }
+		}
+		else
+		{
+			gi.Printf( "SHIP: computer [open|close|choose <n>|say <text>]  (%d verb(s) in the ship's API)\n",
+				ship::ConsoleVerbCount() );
+			return;
+		}
+		AddressComputerToConsole( input );
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "mine" ) )

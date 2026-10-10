@@ -307,7 +307,15 @@ void RoomDraw( void )
 	// Task A: meet.said is drawn in the speaker rail's lower strip (x < 150), not at y=446 in the
 	// free-text row. The rail is entirely left of the version stamp's box (x>=371), so the seam's
 	// answer can never be read as the stamp's contents whatever its length. Named as a call.
-	if ( meet.said[0] ) Wrapped( 6, OV_TOP + 98, meet.said, UI_TINYFONT, colorTable[CT_LTORANGE], 24, 9, 4 );
+	// The host records what was said (ship meeting say / ship computer say) and publishes it; the room
+	// draws that, so the same screen shows a meeting's seam answer and the computer's refusal. The
+	// local buffer is only the fallback for what the screen itself typed before the host answered.
+	{
+		char hostSaid[320] = "";
+		ui.Cvar_VariableStringBuffer( "lwh_ship_meeting_said", hostSaid, sizeof( hostSaid ) );
+		const char *said = ( !meet.typing && hostSaid[0] ) ? hostSaid : meet.said;
+		if ( said[0] ) Wrapped( 6, OV_TOP + 98, said, UI_TINYFONT, colorTable[CT_LTORANGE], 24, 9, 4 );
+	}
 
 	UI_DrawProportionalString( 158, 470, meet.typing
 		? "type   ENTER submit   ESC cancel"
