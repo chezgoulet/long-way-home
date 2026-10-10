@@ -148,6 +148,32 @@ const char *StationName(Station s)
 	return NAMES[s < STN_COUNT ? s : 0];
 }
 
+// The system a word names. A decimal id, or the leading part of a system's own name (case-insensitive),
+// which is how the console has always matched `ship on shields`. -1 when it names none. One place for
+// both the console and the computer.
+int SystemIdByName(const char *word)
+{
+	if (!word || !word[0]) return -1;
+	char *end = NULL;
+	const long n = strtol(word, &end, 10);
+	if (end && *end == '\0') return n >= 0 && n < SYS_COUNT ? static_cast<int>(n) : -1;
+	const size_t len = strlen(word);
+	for (int i = 0; i < SYS_COUNT; ++i)
+	{
+		const char *name = SPECS[i].name;
+		size_t k = 0;
+		for (; k < len && name[k]; ++k)
+		{
+			char a = word[k], b = name[k];
+			if (a >= 'A' && a <= 'Z') a = static_cast<char>(a - 'A' + 'a');
+			if (b >= 'A' && b <= 'Z') b = static_cast<char>(b - 'A' + 'a');
+			if (a != b) break;
+		}
+		if (k == len) return i;
+	}
+	return -1;
+}
+
 bool OperatedFrom(SystemId id, Station s)
 {
 	return s == STN_ENGINEERING || StationOf(id) == s;
@@ -6391,22 +6417,37 @@ int FindConsoleVerb(const char *word)
 // enumerated options, free text, a pre-generated voice, the same branch model. The enumerated set is
 // the ship's API just above, so membership is FindConsoleVerb and nothing else. The computer is not
 // crew and is not cast from the pool: it has its own named voice, assigned where the cast lives.
+//
+// The owner's ruling, 2026-10-10 (docs/staff-meetings.md, "the computer as somewhere to dive in"): the
+// computer answers about the ship's state and its records, and a request inside the API is **applied
+// by the simulation**. The filtering reuses the rules that already exist and invents no second one:
+// PersonalVisibleTo (a private entry is its owner's alone) and LogScopeForCrew (a post reads its own
+// scope, command reads all) for the records, and PlayerMayOperate / PlayerMayCommand for the acts.
+// The model never calls a tool: the input's classification is the API's membership test, and an act it
+// names is applied here, by the simulation, under the asker's own clearance.
 
 const char *ComputerVoice() { return "computer"; }
 const char *ComputerRefusal() { return "that function is not available"; }
 
+const char *ComputerRefusalName(uint8_t kind)
+{
+	static const char *const NAMES[COMPUTER_REFUSAL_COUNT] = {
+		"answered", "not a function", "not cleared", "not yours", "not exposed"
+	};
+	return kind < COMPUTER_REFUSAL_COUNT ? NAMES[kind] : "?";
+}
+
 // The computer's pills: a small, authored subset of the API the room can offer without a scrolling
 // list of every verb. Free text addresses the whole set. Every verb here is a ConsoleVerb, and both
 // scripts/api-check.sh and the unit test hold that a pill can never name a function the computer lacks.
-// The number below is not fixed: the API's size is ConsoleVerbCount(), and the pills are a curated few.
+// The number below is not fixed: the API's size is ConsoleVerbCount(), and the pills are this pass's
+// knowledge topics -- the things the computer can be asked about (docs/staff-meetings.md, Task B).
 struct ComputerPill { const char *verb; const char *label; const char *cost; };
 static const ComputerPill COMPUTER_PILLS[] = {
-	{ "status",   "Ship's status",         "the condition of every system, at once" },
-	{ "alert",    "Set the alert",         "green, yellow or red" },
-	{ "scan",     "Scan the site",         "what is at this beacon" },
-	{ "jump",     "Jump to a beacon",      "one jump, if the drive and the fuel allow" },
-	{ "patients", "Read the ward",         "the casualties, worst first" },
-	{ "report",   "Open the month report", "the record's own summary" },
+	{ "status",   "Ship's status",    "the ship and every system, at once" },
+	{ "log",      "The log",          "the record, as far as you may read it" },
+	{ "personal", "Your private log", "your own entries, and nobody else's" },
+	{ "jobs",     "The job queue",    "the work outstanding, in order" },
 };
 static const int COMPUTER_PILL_COUNT = static_cast<int>(sizeof(COMPUTER_PILLS) / sizeof(COMPUTER_PILLS[0]));
 
@@ -6425,31 +6466,341 @@ static std::string FirstToken(const std::string &in)
 	return in.substr(i, j - i);
 }
 
-// The computer's answer to a recognised verb. Authored and deterministic, and one form whether the
-// verb arrives from a pill or from free text, so the clip is pre-generated once and replays for free.
+// Everything after the first token, with the leading blanks trimmed off: the verb's argument.
+static std::string InputArgs(const std::string &in)
+{
+	size_t i = 0;
+	while (i < in.size() && in[i] != ' ' && in[i] != '\t') ++i;
+	while (i < in.size() && (in[i] == ' ' || in[i] == '\t')) ++i;
+	return in.substr(i);
+}
+
+// The computer's answer to a recognised verb as it would be *spoken*: a short authored line, one form
+// whether the verb arrives from a pill or from free text, so the clip is pre-generated once and
+// replays for free. The state reading is the transcript's (docs/evidence/the-computer-depth.md): the
+// voice acknowledges, the readout answers.
 static std::string ComputerAnswer(int verb)
 {
 	if (verb < 0 || verb >= ConsoleVerbCount()) return std::string(ComputerRefusal());
 	return std::string("Acknowledged. ") + ConsoleVerbAt(verb).verb + ".";
 }
 
-ComputerReply AddressComputer(const Ship &s, const std::string &input)
+// ---- what the computer may answer from, and what it may do (docs/staff-meetings.md) --------------
+//
+// Two curated sets, keyed by enumerated console verb and guarded by the unit test: a verb in either
+// is a ConsoleVerb (FindConsoleVerb finds it), and nothing here invents a function. Everything else in
+// the API is still *inside* the set the guardrail enumerates -- it is simply not a function the ship
+// exposes to the computer (COMPUTER_NOT_EXPOSED), which is the console's own "that is not a console's
+// to do" in the computer's voice.
+
+// The reads: the brief's list -- the systems, the log and the personal log, the roster and the posts,
+// the chart, the job queue, the standings, the stores, the ward.
+static const char *const COMPUTER_READS[] = {
+	"status", "log", "personal", "crew", "chart", "jobs", "dilithium", "nav", "navigation", "patients"
+};
+static const int COMPUTER_READ_COUNT = static_cast<int>(sizeof(COMPUTER_READS) / sizeof(COMPUTER_READS[0]));
+
+// The acts: the enumerated set the simulation applies on the player's behalf. Each is a control the
+// console already carries; the computer is another way to reach it, not a new one.
+static const char *const COMPUTER_ACTS[] = { "alert", "on", "off", "priority" };
+static const int COMPUTER_ACT_COUNT = static_cast<int>(sizeof(COMPUTER_ACTS) / sizeof(COMPUTER_ACTS[0]));
+
+static bool NameIn(const char *word, const char *const *set, int count)
 {
-	(void)s; // membership is the API, not the ship: nothing here reads or writes ship state
+	for (int i = 0; i < count; ++i)
+		if (WordIs(word, set[i])) return true;
+	return false;
+}
+
+static const char *const DEPT_WORD[DEPT_COUNT] = { "command", "engineering", "security", "sciences", "medical" };
+static const char *const ALERT_WORD[3] = { "green", "yellow", "red" };
+
+// The official-log scope a reader reaches: empty (all) for command, the department's own scope
+// otherwise. LogScopeForCrew's display form, turned back into the filter its own read takes.
+static std::string ReaderLogScope(const Ship &s, int reader)
+{
+	if (reader < 0 || reader >= static_cast<int>(s.crew.size())) return std::string();
+	if (MayCommand(s.crew[reader])) return std::string();
+	const char *shown = LogScopeForCrew(s, reader);
+	return std::strcmp(shown, "all scopes") == 0 ? std::string() : std::string(shown);
+}
+
+// A crew member by name, whole and case-insensitive; -1 when nobody aboard answers to it.
+static int CrewByName(const Ship &s, const std::string &name)
+{
+	if (name.empty()) return -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+	{
+		const std::string &full = s.crew[i].name;
+		size_t at = 0;
+		for (;;)
+		{
+			size_t end = full.find(' ', at);
+			if (end == std::string::npos) end = full.size();
+			if (WordIs(full.substr(at, end - at).c_str(), name.c_str())) return i;
+			if (end == full.size()) break;
+			at = end + 1;
+		}
+	}
+	return -1;
+}
+
+// ---- the reads -----------------------------------------------------------------------------------
+
+static std::string ComputerReadStatus(const Ship &s)
+{
+	static const char *const WATCH[] = { "alpha", "beta", "gamma" };
+	char buf[256];
+	std::snprintf(buf, sizeof(buf), "alert %s, %s watch, %d of %d fit; %d power available, %d committed (short %d); "
+		"deuterium %.0f%%, rations %.0f days",
+		ALERT_WORD[s.alert < 3 ? s.alert : 0], WATCH[s.Watch() < 3 ? s.Watch() : 0], s.CrewFit(),
+		static_cast<int>(s.crew.size()), s.PowerAvailable(), PowerCommitted(s), PowerShortfall(s),
+		s.stores.deuterium * 100, s.stores.rations);
+	return buf;
+}
+
+static std::string ComputerReadLog(const Ship &s, int reader)
+{
+	const std::string scope = ReaderLogScope(s, reader);
+	const std::vector<LogEntry> entries = ReadOfficialLog(s, 2, scope);
+	const char *shown = scope.empty() ? "all scopes" : scope.c_str();
+	std::string out = std::string("the official log (") + shown + "):";
+	if (entries.empty()) return out + " no entries you may read";
+	for (const LogEntry &e : entries)
+		out += std::string(" [") + e.scope + "] " + e.who + ": " + e.what + ".";
+	return out;
+}
+
+static std::string ComputerReadPersonal(const Ship &s, int reader, const std::string &args, bool &refused)
+{
+	const std::string name = FirstToken(args);
+	int owner = reader;
+	if (!name.empty())
+	{
+		owner = CrewByName(s, name);
+		if (owner < 0) { refused = true; return std::string("there is no one aboard named ") + name; }
+		if (owner != reader)
+		{
+			// PersonalVisibleTo: a private entry is its owner's alone, whatever the rank. The refusal
+			// is in character and names whose it is -- not silently blanked, not answered anyway.
+			refused = true;
+			return std::string("that is ") + s.crew[owner].name + "'s private log, and it is not yours to read";
+		}
+	}
+	if (reader < 0 || reader >= static_cast<int>(s.crew.size())) { refused = true; return std::string("there is no personal log: nobody is the player"); }
+	const std::vector<PersonalLogEntry> entries = PersonalLog(s, reader);
+	if (entries.empty()) return std::string(s.crew[reader].name) + "'s private log is empty";
+	const PersonalLogEntry &e = entries.back();
+	return std::string("your private log, newest: ") + e.what;
+}
+
+static std::string ComputerReadCrew(const Ship &s, const std::string &args)
+{
+	const std::string deckWord = FirstToken(args);
+	if (!deckWord.empty())
+	{
+		const int deck = std::atoi(deckWord.c_str());
+		const std::vector<int> aboard = CrewOnDeck(s, deck);
+		int duty = 0;
+		for (int i : aboard) if (s.crew[i].activity == ACT_ON_DUTY) ++duty;
+		char buf[160];
+		std::snprintf(buf, sizeof(buf), "deck %d: %d crew, %d on duty", deck, static_cast<int>(aboard.size()), duty);
+		return buf;
+	}
+	int have[DEPT_COUNT] = { 0, 0, 0, 0, 0 };
+	for (const CrewMember &c : s.crew) if (c.dept < DEPT_COUNT) ++have[c.dept];
+	char buf[220];
+	std::snprintf(buf, sizeof(buf), "the complement: %d crew, %d fit; command %d, engineering %d, security %d, sciences %d, medical %d",
+		static_cast<int>(s.crew.size()), s.CrewFit(), have[DEPT_COMMAND], have[DEPT_ENGINEERING],
+		have[DEPT_SECURITY], have[DEPT_SCIENCES], have[DEPT_MEDICAL]);
+	return buf;
+}
+
+static std::string ComputerReadChart(const Ship &s)
+{
+	int charted = 0;
+	for (const Beacon &b : s.sector) if (b.visited || b.surveyed) ++charted;
+	char buf[200];
+	std::snprintf(buf, sizeof(buf), "beacon %d of %d in sector %d; %d of %d charted; here is %s",
+		s.beacon, static_cast<int>(s.sector.size()) - 1, s.sectorNumber + 1, charted,
+		static_cast<int>(s.sector.size()),
+		s.sector.empty() ? "nothing" : BeaconKindName(static_cast<BeaconKind>(s.sector[s.beacon].kind)));
+	return buf;
+}
+
+static std::string ComputerReadJobs(const Ship &s)
+{
+	const std::vector<Job> &jobs = Jobs(s);
+	if (jobs.empty()) return std::string("no jobs outstanding: the crew have no work waiting");
+	const Job &j = jobs.front();
+	char what[48];
+	if (j.kind == JOB_REPAIR) std::snprintf(what, sizeof(what), "%s", Spec(static_cast<SystemId>(j.target)).name);
+	else std::snprintf(what, sizeof(what), "deck %d", j.target);
+	char buf[200];
+	std::snprintf(buf, sizeof(buf), "%d job(s) outstanding; next: %s %s, %d%%, priority %d",
+		static_cast<int>(jobs.size()), JobKindName(j.kind), what, static_cast<int>(j.progress * 100 + 0.5f), j.priority);
+	return buf;
+}
+
+static std::string ComputerReadStores(const Ship &s)
+{
+	char buf[240];
+	std::snprintf(buf, sizeof(buf), "dilithium %d%% (range %d ly, warp %s); parts %.0f, material %.0f, rations %.0f days, "
+		"deuterium %.0f%%, torpedoes %d, probes %d",
+		static_cast<int>(s.dilithium * 100 + 0.5f), DilithiumRange(s), WarpPossible(s) ? "possible" : "impossible",
+		s.stores.spareParts, s.stores.materials, s.stores.rations, s.stores.deuterium * 100, s.stores.torpedoes, s.stores.probes);
+	return buf;
+}
+
+static std::string ComputerReadStandings(const Ship &s, int reader)
+{
+	const Navigation nav = NavigationCounter(s);
+	char buf[200];
+	std::snprintf(buf, sizeof(buf), "%d light years from home; %d years nominal, %d at current capability",
+		static_cast<int>(nav.distanceLy + 0.5f), static_cast<int>(nav.nominalYears + 0.5f),
+		static_cast<int>(nav.currentYears + 0.5f));
+	std::string out = buf;
+	// Command sees the forecasts; the crew see where they are (docs/navigation-counter.md).
+	if (reader >= 0 && reader < static_cast<int>(s.crew.size()) && MayCommand(s.crew[reader]))
+	{
+		const std::vector<NavCourse> routes = NavigationForecasts(s);
+		if (routes.empty()) out += "; no course from here";
+		else out += std::string("; ") + std::to_string(static_cast<int>(routes.size())) + " course(s) forecast from here";
+	}
+	return out;
+}
+
+static std::string ComputerReadWard(const Ship &s)
+{
+	const std::vector<int> ward = Patients(s);
+	char buf[160];
+	std::snprintf(buf, sizeof(buf), "the ward: %d in it, %d beds, %s", static_cast<int>(ward.size()), SICKBAY_BEDS,
+		s.orderTriage == 1 ? "triage rank first" : "triage worst first");
+	return buf;
+}
+
+// ---- the acts, and how the computer applies one --------------------------------------------------
+
+// May the asker reach this act? The console's own clearance, read from the ship: command does
+// everything; otherwise the station that owns the control, with delegation, override and lock-out
+// already folded into PlayerMayOperate.
+static bool ComputerMayAct(const Ship &s, const char *verb, const std::string &args)
+{
+	if (PlayerMayCommand(s)) return true;
+	if (WordIs(verb, "alert"))
+		return MayCallAlert(s, s.player, STN_ENGINEERING) || MayCallAlert(s, s.player, STN_TACTICAL);
+	if (WordIs(verb, "on") || WordIs(verb, "off") || WordIs(verb, "priority"))
+	{
+		const int sys = SystemIdByName(FirstToken(args).c_str());
+		if (sys < 0) return false;
+		return PlayerMayOperate(s, StationOf(static_cast<SystemId>(sys)));
+	}
+	return false;
+}
+
+// The refusal reason for an act the asker cannot reach: in character, and it says who can.
+static std::string ComputerActRefusal(const char *verb)
+{
+	if (WordIs(verb, "alert")) return std::string("that is not yours to call: the alert is called by a lieutenant or above, at Engineering or Tactical, or by command");
+	if (WordIs(verb, "on") || WordIs(verb, "off") || WordIs(verb, "priority")) return std::string("that is not yours to work: it is another station's system");
+	return std::string("you are not cleared for that function");
+}
+
+// Apply a recognised act. Called only when the asker is cleared. The simulation changes state here;
+// the model did not, and does not. A system the ship has lost to an intruder answers nobody, rank or
+// not (hardware beats hierarchy), so the act is refused rather than reported as done.
+static std::string ComputerApplyAct(Ship &s, const char *verb, const std::string &args, bool &applied)
+{
+	if (WordIs(verb, "alert"))
+	{
+		const std::string colour = FirstToken(args);
+		const Alert a = WordIs(colour.c_str(), "red") ? ALERT_RED : WordIs(colour.c_str(), "yellow") ? ALERT_YELLOW : ALERT_GREEN;
+		SetAlert(s, a);
+		applied = true;
+		return std::string("the alert is set to ") + (colour.empty() ? "green" : colour);
+	}
+	const int sys = SystemIdByName(FirstToken(args).c_str());
+	if (sys < 0) return std::string("no system by that name");
+	const SystemId id = static_cast<SystemId>(sys);
+	if (WordIs(verb, "on") || WordIs(verb, "off"))
+	{
+		const bool on = WordIs(verb, "on");
+		if (Hijacked(s, id)) return std::string(Spec(id).name) + " does not answer: it is not ours";
+		SetEnabled(s, id, on);
+		applied = true;
+		return std::string(Spec(id).name) + (on ? " is online" : " is offline");
+	}
+	if (WordIs(verb, "priority"))
+	{
+		const std::string n = FirstToken(InputArgs(args));
+		const int p = std::atoi(n.c_str());
+		if (Hijacked(s, id)) return std::string(Spec(id).name) + " does not answer: it is not ours";
+		SetPriority(s, id, p);
+		applied = true;
+		return std::string(Spec(id).name) + " is priority " + std::to_string(p);
+	}
+	return std::string("that function is not available");
+}
+
+ComputerReply AddressComputer(Ship &s, const std::string &input)
+{
 	ComputerReply r;
 	r.verbName = FirstToken(input);
 	r.verb = FindConsoleVerb(r.verbName.c_str());
 	if (r.verb < 0)
 	{
-		// THE REFUSAL: an input outside the enumerated set is refused in character. No fabricated
-		// result, no plausible status, no state written.
+		// REFUSAL ONE: an input outside the enumerated set. The canonical line, in character; no
+		// fabricated result, no plausible status, and no state written.
 		r.refused = true;
+		r.refusal = COMPUTER_NOT_A_FUNCTION;
 		r.line = ComputerRefusal();
 		return r;
 	}
 	r.inSet = true;
-	r.line = ComputerAnswer(r.verb);
-	r.delivery = DELIVERY_REPORT;
+	const std::string args = InputArgs(input);
+
+	if (NameIn(r.verbName.c_str(), COMPUTER_READS, COMPUTER_READ_COUNT))
+	{
+		bool notYours = false;
+		if (WordIs(r.verbName.c_str(), "status"))        r.line = ComputerReadStatus(s);
+		else if (WordIs(r.verbName.c_str(), "log"))      r.line = ComputerReadLog(s, s.player);
+		else if (WordIs(r.verbName.c_str(), "personal")) r.line = ComputerReadPersonal(s, s.player, args, notYours);
+		else if (WordIs(r.verbName.c_str(), "crew"))     r.line = ComputerReadCrew(s, args);
+		else if (WordIs(r.verbName.c_str(), "chart"))    r.line = ComputerReadChart(s);
+		else if (WordIs(r.verbName.c_str(), "jobs"))     r.line = ComputerReadJobs(s);
+		else if (WordIs(r.verbName.c_str(), "dilithium")) r.line = ComputerReadStores(s);
+		else if (WordIs(r.verbName.c_str(), "nav") || WordIs(r.verbName.c_str(), "navigation")) r.line = ComputerReadStandings(s, s.player);
+		else                                             r.line = ComputerReadWard(s);
+		if (notYours)
+		{
+			// REFUSAL THREE: a record whose visibility is not the asker's. A permission, not a
+			// missing function -- and PersonalVisibleTo, the records' own rule, is what decides it.
+			r.refused = true;
+			r.refusal = COMPUTER_NOT_YOURS;
+		}
+		return r;
+	}
+
+	if (NameIn(r.verbName.c_str(), COMPUTER_ACTS, COMPUTER_ACT_COUNT))
+	{
+		if (!ComputerMayAct(s, r.verbName.c_str(), args))
+		{
+			// REFUSAL TWO: inside the set, beyond the asker's clearance. A permission, and the
+			// difference from REFUSAL ONE is the point.
+			r.refused = true;
+			r.refusal = COMPUTER_NOT_CLEARED;
+			r.line = ComputerActRefusal(r.verbName.c_str());
+			return r;
+		}
+		r.line = ComputerApplyAct(s, r.verbName.c_str(), args, r.applied);
+		return r;
+	}
+
+	// Inside the set, but not a function the ship exposes to the computer: the console's own "that is
+	// not a console's to do", in the computer's voice.
+	r.refused = true;
+	r.refusal = COMPUTER_NOT_EXPOSED;
+	r.line = std::string("the ship does not expose '") + r.verbName + "' to the computer";
 	return r;
 }
 

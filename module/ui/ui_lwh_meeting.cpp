@@ -63,6 +63,17 @@ int QueueCount( void ) { return static_cast<int>( ui.Cvar_VariableValue( "lwh_sh
 int OptionCount( void ) { return static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_meeting_options" ) ); }
 int LineCount( int outcome ) { return static_cast<int>( ui.Cvar_VariableValue( va( "lwh_ship_meeting_lc%d", outcome ) ) ); }
 
+// Is the room open on the ship's computer? The computer is the meeting's own machinery, addressed
+// rather than convened (docs/staff-meetings.md): the host publishes the kind, and the room reads it.
+// The only difference is that a computer session answers and stays open, so the frame shows the
+// conversation instead of one shot (Task A) -- the same file, not a second UI.
+bool ComputerRoom( void )
+{
+	char kind[32];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_meeting_kind", kind, sizeof( kind ) );
+	return Q_stricmp( kind, "computer" ) == 0;
+}
+
 // The room the brief names (docs/staff-meetings.md, the owner's ruling): the place is on the brief,
 // published by the host as `lwh_ship_meeting_room`, and the overlay shows it. LCARS lettering is caps,
 // so the place is upper-cased for the frame; the table keeps the room's own name.
@@ -228,6 +239,35 @@ void QueueDraw( void )
 	UI_DrawProportionalString( 12, 468, "UP/DOWN meeting   ENTER open it   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
+// The computer's session on the same room (docs/staff-meetings.md, the depth pass). A meeting answers
+// one line; the computer keeps talking, so the frame shows the run of exchanges -- ask and answer on a
+// line, a refusal in a colour of its own. The transcript is host state, published as cvars; the screen
+// decides nothing and writes no ship state. `maxLines` bounds it so the pills and the free-text row stay
+// clear of the engine's version stamp; the return is the tiny lines it used. The full answer is in the
+// log and the console; the frame shows the newest turns, one line each.
+int DrawTranscript( int x, int top, int maxLines )
+{
+	const int turns = static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_meeting_turns" ) );
+	if ( turns <= 0 )
+	{
+		UI_DrawProportionalString( x, top, "THE COMPUTER IS READY.  ASK IT SOMETHING.", UI_TINYFONT, colorTable[CT_LTBLUE2] );
+		return 1;
+	}
+	int used = 0;
+	const int first = turns > maxLines ? turns - maxLines : 0;
+	for ( int i = first; i < turns && used < maxLines; ++i )
+	{
+		char buf[768], *f[4], line[512];
+		ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_turn%d", i ), buf, sizeof( buf ) );
+		if ( Split( buf, '|', f, 4 ) < 3 ) continue;
+		const bool refused = Q_stricmp( f[2], "answered" ) != 0;
+		Com_sprintf( line, sizeof( line ), "> %s  ->  %s", f[0], f[1] );
+		used += Wrapped( x, top + used * 8, line, UI_TINYFONT,
+			colorTable[refused ? CT_LTORANGE : CT_WHITE], 68, 8, 1 );
+	}
+	return used > 0 ? used : 1;
+}
+
 void RoomDraw( void )
 {
 	const int options = OptionCount();
@@ -241,20 +281,24 @@ void RoomDraw( void )
 		if ( showLine < 0 ) showLine = 0;
 	}
 	const Line L = ReadLine( showOutcome, showLine );
+	const bool computer = ComputerRoom();
 
 	UI_FillRect( 150, OV_TOP, 490, 480 - OV_TOP, colorTable[CT_BLACK] );
 	UI_FillRect( 0, OV_TOP, 640, 4, colorTable[CT_LTGOLD1] );
 	DrawRail( L );
 
-	// The line being answered. Task A (docs/evidence/model-call.md): the engine's version stamp is
-	// drawn by UI_MenuFrame2 AFTER every menu's content, at (371,445) with the tiny font, so no fill
-	// of ours can hide it and it must be kept in a clear strip. The answer is measured first; the
-	// pills below are then placed against what is left above y=443, so the stamp lands in a gap.
-	UI_DrawProportionalString( 158, OV_TOP + 6, "THE LINE BEING ANSWERED", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	// The line being answered -- or, on the computer, the whole conversation so far. Task A
+	// (docs/evidence/model-call.md): the engine's version stamp is drawn by UI_MenuFrame2 AFTER every
+	// menu's content, at (371,445) with the tiny font, so no fill of ours can hide it and it must be kept
+	// in a clear strip. The answer is measured first; the pills below are then placed against what is
+	// left above y=443, so the stamp lands in a gap.
+	UI_DrawProportionalString( 158, OV_TOP + 6, computer ? "THE COMPUTER  -  ASK IT ANYTHING" : "THE LINE BEING ANSWERED",
+		UI_TINYFONT, colorTable[CT_LTORANGE] );
 	int answerLines = 0;
-	if ( L.ok ) answerLines = Wrapped( 158, OV_TOP + 18, L.text, UI_SMALLFONT, colorTable[CT_WHITE], 74, 11, 2 );
+	if ( computer ) answerLines = DrawTranscript( 158, OV_TOP + 18, 4 );
+	else if ( L.ok ) answerLines = Wrapped( 158, OV_TOP + 18, L.text, UI_SMALLFONT, colorTable[CT_WHITE], 74, 11, 2 );
 
-	if ( meet.mode == MODE_DONE )
+	if ( !computer && meet.mode == MODE_DONE )
 	{
 		char outcome[128];
 		ui.Cvar_VariableStringBuffer( va( "lwh_ship_meeting_opt%d", meet.playOutcome ), outcome, sizeof( outcome ) );
@@ -272,7 +316,8 @@ void RoomDraw( void )
 		// row ~16 units from where M3 drew it, which is what moves the free-text pill clear of the
 		// stamp (a fixed 16px pitch with four outcomes put it at y=438, inside the stamp at y=445).
 		int dy = 14;
-		const int pillTop = OV_TOP + 18 + ( answerLines > 0 ? answerLines : 1 ) * 11 + 6;
+		const int answerPitch = computer ? 8 : 11;   // the transcript is tiny font; a meeting line is small
+		const int pillTop = OV_TOP + 18 + ( answerLines > 0 ? answerLines : 1 ) * answerPitch + 6;
 		const int rows = options + 1;
 		const int avail = 441 - pillTop;
 		if ( rows > 0 && rows * dy > avail ) dy = avail / rows;
@@ -614,14 +659,19 @@ bool Act( int key )
 	case K_UPARROW: if ( options ) meet.cursor = ( meet.cursor + options ) % ( options + 1 ); return true;
 	case K_DOWNARROW: if ( options ) meet.cursor = ( meet.cursor + 1 ) % ( options + 1 ); return true;
 	case '1': case '2': case '3': case '4': case '5': case '6':
-		// A number speaks that option at once: select it and play its branch.
+		// A number speaks that option at once: select it and play its branch. On the computer it asks
+		// at once instead and the room stays open -- the same key, a session rather than one shot.
 		if ( meet.mode == MODE_CHOOSING && key - '0' >= 1 && key - '0' <= options )
 		{
 			meet.cursor = key - '0' - 1;
-			meet.playOutcome = meet.cursor;
-			meet.playLine = 0;
-			meet.playNext = ui.Milliseconds() + LineMs( meet.playOutcome, 0 );
-			meet.mode = MODE_PLAYING;
+			if ( ComputerRoom() ) { Send( va( "ship meeting choose %d", meet.cursor + 1 ) ); }
+			else
+			{
+				meet.playOutcome = meet.cursor;
+				meet.playLine = 0;
+				meet.playNext = ui.Milliseconds() + LineMs( meet.playOutcome, 0 );
+				meet.mode = MODE_PLAYING;
+			}
 		}
 		return true;
 	case 't': case 'T': meet.cursor = options; meet.typing = true; meet.bufLen = 0; meet.buf[0] = 0; return true;
@@ -631,6 +681,7 @@ bool Act( int key )
 	case K_ENTER: case K_KP_ENTER:
 		if ( meet.mode != MODE_CHOOSING ) return true;
 		if ( meet.cursor >= options ) { meet.typing = true; meet.bufLen = 0; meet.buf[0] = 0; return true; }
+		if ( ComputerRoom() ) { Send( va( "ship meeting choose %d", meet.cursor + 1 ) ); return true; }
 		meet.playOutcome = meet.cursor;
 		meet.playLine = 0;
 		meet.playNext = ui.Milliseconds() + 650;

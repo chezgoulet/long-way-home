@@ -84,6 +84,11 @@ ship::MeetingBrief currentMeeting;
 bool meetingOpen = false;
 std::string meetingSaid;
 int computerCalls = 0;       // M6: times the computer was addressed (an authored answer, never a model call)
+// The computer's session (docs/staff-meetings.md, the depth pass): a run of exchanges, so the room is
+// somewhere to dive in rather than a one-shot brief. Host-local, beside the save like the voice cache;
+// never in the save blob, so the save format is unchanged. The simulation answers (AddressComputer);
+// this is only what was said, and the overlay draws it.
+std::vector<ship::ComputerTurn> computerSession;
 
 // The order overlay's transient state (docs/orders.md). A one-recipient brief the giver has opened
 // is held here while it is on screen: host-local, not ship state, so the save format is unchanged.
@@ -135,13 +140,7 @@ void WriteFile( const char *path, const void *data, int len )
 // A system by number, or by the start of its name ("warp", "life").
 int FindSystem( const char *arg )
 {
-	if ( !arg || !arg[0] ) return -1;
-	char *end = NULL;
-	const long n = strtol( arg, &end, 10 );
-	if ( *end == '\0' ) return n >= 0 && n < ship::SYS_COUNT ? static_cast<int>( n ) : -1;
-	for ( int i = 0; i < ship::SYS_COUNT; ++i )
-		if ( !Q_stricmpn( ship::Spec( static_cast<ship::SystemId>( i ) ).name, arg, strlen( arg ) ) ) return i;
-	return -1;
+	return ship::SystemIdByName( arg );
 }
 
 int FindSource( const char *arg )
@@ -585,6 +584,13 @@ void PublishMeeting( void )
 	}
 	gi.cvar_set( "lwh_ship_meeting_open", meetingOpen ? "1" : "0" );
 	gi.cvar_set( "lwh_ship_meeting_said", meetingSaid.c_str() );
+	// The computer's session (the depth pass): the run of exchanges, so the same room shows a
+	// conversation rather than one shot. The overlay draws the most recent turns from these cvars.
+	gi.cvar_set( "lwh_ship_meeting_turns", Fmt( "%d", static_cast<int>( computerSession.size() ) ).c_str() );
+	for ( int i = 0; i < static_cast<int>( computerSession.size() ) && i < ship::COMPUTER_TURN_MAX; ++i )
+		gi.cvar_set( Fmt( "lwh_ship_meeting_turn%d", i ).c_str(),
+			Fmt( "%s|%s|%s", computerSession[i].ask.c_str(), computerSession[i].answer.c_str(),
+				ship::ComputerRefusalName( computerSession[i].refusal ) ).c_str() );
 	if ( !meetingOpen ) return;
 
 	const ship::MeetingBrief &b = currentMeeting;
@@ -2251,16 +2257,18 @@ void RunTest( void )
 		return;
 	}
 	if ( g_shipTest->integer == 85 )
-	{//the ship's computer (docs/staff-meetings.md, M6): the enumerated set is the ship's API, the room
-	 //is the meeting's own overlay, the voice is the computer's own, and an input outside the set is
-	 //refused in character with the ship's state byte-identical. No model is called by the engine.
+	{//the ship's computer (docs/staff-meetings.md, the depth pass): a session on the meeting's own
+	 //overlay, answers drawn from the ship's state and scoped by the records' own rule, the API reachable
+	 //by asking and applied by the simulation, and the refusals named. No model is called by the engine.
+	 //Console commands execute after the current frame, so each send is read back on the next step.
 		static int step = 0;
+		static int junior = -1;
 		if ( level.time < 1000 ) step = 0;
 		if ( step == 0 && level.time >= 2000 )
 		{
-			const int me = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
-			gi.Printf( "SHIP: computer test: the player reports for duty as crew %d (%s)\n", me,
-				me >= 0 ? vessel.crew[me].name.c_str() : "nobody" );
+			junior = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
+			gi.Printf( "SHIP: computer test: the player reports for duty as crew %d (%s), rank %d\n", junior,
+				junior >= 0 ? vessel.crew[junior].name.c_str() : "nobody", junior >= 0 ? vessel.crew[junior].rank : -1 );
 			gi.Printf( "SHIP: computer test: the ship's API enumerates %d verb(s); the computer's voice is %s\n",
 				ship::ConsoleVerbCount(), ship::ComputerVoice() );
 			gi.SendConsoleCommand( "ship computer open\n" );
@@ -2268,6 +2276,7 @@ void RunTest( void )
 		}
 		if ( step == 1 && level.time >= 2600 )
 		{
+			// Task A: the same room, a session. The pills are the API's verbs.
 			gi.Printf( "SHIP: computer test: the room is the meeting's own; kind %s, options %d\n",
 				ship::MeetingKindName( currentMeeting.kind ), currentMeeting.optionCount );
 			for ( int i = 0; i < currentMeeting.optionCount; ++i )
@@ -2282,71 +2291,126 @@ void RunTest( void )
 			gi.Printf( "SHIP: computer test: the computer is not crew: %d pool voices, and it is none of them\n",
 				ship::VoicePoolCount() );
 			gi.SendConsoleCommand( "screenshot lwh_computer\n" );
-			// the overlay's own free-text path: exactly what the screen sends
-			gi.SendConsoleCommand( "ship meeting say status\n" );
+			// Three exchanges in one sitting, driven by the overlay's own keys: a pill, then two typed.
+			gi.SendConsoleCommand( "lwh_meet_key 1\n" );
+			gi.SendConsoleCommand( "lwh_meet_key t\nlwh_meet_type jobs\nlwh_meet_key enter\n" );
+			gi.SendConsoleCommand( "lwh_meet_key t\nlwh_meet_type chart\nlwh_meet_key enter\n" );
 			step = 2;
 		}
 		if ( step == 2 && level.time >= 3400 )
 		{
-			char said[256] = "";
+			gi.Printf( "SHIP: computer test: session: %d exchange(s) in one sitting\n", static_cast<int>( computerSession.size() ) );
+			for ( int i = 0; i < static_cast<int>( computerSession.size() ); ++i )
+				gi.Printf( "SHIP: computer test:   ask \"%s\" -> %s\n", computerSession[i].ask.c_str(), computerSession[i].answer.c_str() );
+			gi.Printf( "SHIP: computer test: the room is still open after %d exchange(s): %s\n",
+				static_cast<int>( computerSession.size() ), meetingOpen ? "yes" : "NO" );
+			gi.SendConsoleCommand( "screenshot lwh_computer_session\n" );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 3800 )
+		{
+			// Task B: the scope by contrast. The same question, two ranks. Reyes asks for the captain's
+			// private log first; the answer is read on the next step.
+			gi.SendConsoleCommand( "ship meeting say \"personal Janeway\"\n" );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 4200 )
+		{
+			char said[512] = "", kind[64] = "";
 			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
-			gi.Printf( "SHIP: computer test: free text \"status\" (in the API) -> %s\n", said );
-			// The refusal, and the state across it: the same AddressComputer the console calls, with the
-			// ship packed immediately before and after it. Byte-identical is the proof (Task C).
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_refusal", kind, sizeof( kind ) );
+			gi.Printf( "SHIP: computer test: the junior asks \"personal Janeway\" -> %s: %s\n", kind, said );
+			// Now the captain, who owns the log. PersonalVisibleTo reaches it for the owner alone.
+			const int captain = ship::SeatHolder( vessel, ship::SEAT_CAPTAIN );
+			vessel.player = captain;
+			gi.Printf( "SHIP: computer test: the same question is now asked by %s (rank %d)\n",
+				captain >= 0 ? vessel.crew[captain].name.c_str() : "nobody", captain >= 0 ? vessel.crew[captain].rank : -1 );
+			gi.SendConsoleCommand( "ship personal write the captain's own words, and nobody else's\n" );
+			gi.SendConsoleCommand( "ship meeting say \"personal Janeway\"\n" );
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 4600 )
+		{
+			char said[512] = "", kind[64] = "";
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_refusal", kind, sizeof( kind ) );
+			gi.Printf( "SHIP: computer test: the captain asks \"personal Janeway\" -> %s: %s\n", kind, said );
+			// The official log's scope, the same question, the captain: command reads all scopes.
+			gi.SendConsoleCommand( "ship meeting say log\n" );
+			step = 6;
+		}
+		if ( step == 6 && level.time >= 5200 )
+		{
+			char said[512] = "";
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
+			gi.Printf( "SHIP: computer test: the captain reads the log -> %s\n", said );
+			// ... and the junior, who reads his own scope: a post reads its own scope (LogScopeForCrew).
+			vessel.player = junior;
+			gi.SendConsoleCommand( "ship meeting say log\n" );
+			step = 7;
+		}
+		if ( step == 7 && level.time >= 5800 )
+		{
+			char said[512] = "";
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
+			gi.Printf( "SHIP: computer test: the junior reads the same log -> %s\n", said );
+			// REFUSAL ONE: outside the enumerated set, proved across a direct AddressComputer call: the
+			// state is byte-identical, so the refusal writes nothing -- not even a plausible status.
 			const std::vector<uint8_t> before = ship::Pack( vessel );
 			const ship::ComputerReply miss = ship::AddressComputer( vessel, "warpnine" );
 			const std::vector<uint8_t> after = ship::Pack( vessel );
-			gi.Printf( "SHIP: computer test: free text \"warpnine\" (not in the API) -> %s\n", miss.line.c_str() );
+			gi.Printf( "SHIP: computer test: out of set \"warpnine\" -> %s: %s\n",
+				ship::ComputerRefusalName( miss.refusal ), miss.line.c_str() );
 			gi.Printf( "SHIP: computer test: the ship's state is byte-identical across the refusal: %s\n",
 				before == after ? "yes" : "NO" );
 			gi.SendConsoleCommand( "ship meeting say warpnine\n" ); // and through the overlay, to the log
-			step = 3;
+			step = 8;
 		}
-		if ( step == 3 && level.time >= 4000 )
+		if ( step == 8 && level.time >= 6400 )
 		{
-			char said[256] = "";
+			// REFUSAL TWO: inside the set, beyond the asker's clearance. Reyes may not call the alert.
+			char said[512] = "";
 			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
-			gi.Printf( "SHIP: computer test: the overlay's refusal reached the log: %s\n", said );
-			step = 4;
+			gi.Printf( "SHIP: computer test: the overlay refused \"warpnine\" in character: %s\n", said );
+			gi.SendConsoleCommand( "ship meeting say \"alert red\"\n" );
+			step = 9;
 		}
-		if ( step == 4 && level.time >= 4600 )
+		if ( step == 9 && level.time >= 7000 )
 		{
-			// The refusal, on the screen the meeting uses. Its own step, so nothing else changes the
-			// room's cvar between the say being processed and the frame being captured.
+			char said[512] = "", kind[64] = "";
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_refusal", kind, sizeof( kind ) );
+			gi.Printf( "SHIP: computer test: the junior asks \"alert red\" -> %s: %s\n", kind, said );
+			gi.Printf( "SHIP: computer test: the alert is unchanged at index %d (the permission changed nothing)\n", vessel.alert );
+			// The refusal on the screen the meeting uses: its own step, so the cvar holds between the say
+			// being processed and the frame being captured.
 			gi.SendConsoleCommand( "screenshot lwh_computer_refused\n" );
-			step = 5;
+			step = 10;
 		}
-		if ( step == 5 && level.time >= 5000 )
+		if ( step == 10 && level.time >= 7600 )
 		{
-			// a pill, the other input surface, through the same membership test the screen sends
-			gi.SendConsoleCommand( "ship meeting choose 1\n" );
-			step = 6;
+			// Task C: the API through the computer. The same recognised request, applied by the simulation
+			// once the asker is cleared -- the captain asks and the alert moves. The change is the proof.
+			vessel.player = ship::SeatHolder( vessel, ship::SEAT_CAPTAIN );
+			gi.SendConsoleCommand( "ship meeting say \"alert yellow\"\n" );
+			step = 11;
 		}
-		if ( step == 6 && level.time >= 5600 )
+		if ( step == 11 && level.time >= 8200 )
 		{
-			char said[256] = "";
+			char said[512] = "", kind[64] = "";
 			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
-			gi.Printf( "SHIP: computer test: pill 1 (%s) -> %s\n", ship::ComputerPillVerb( 0 ), said );
-			// the same command a second time: from the authored line, no inference
-			gi.SendConsoleCommand( "ship meeting say status\n" );
-			step = 7;
-		}
-		if ( step == 7 && level.time >= 6200 )
-		{
-			char said[256] = "";
-			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_said", said, sizeof( said ) );
-			gi.Printf( "SHIP: computer test: the same command again -> %s (the authored line; inference calls=0)\n", said );
-			const ship::ComputerReply replay = ship::AddressComputer( vessel, "status" );
-			gi.Printf( "SHIP: computer test: addressed %d time(s), inference calls=0; nothing invented: %s\n",
-				computerCalls, replay.line == "Acknowledged. status." && !replay.refused ? "yes" : "NO" );
-			// The log carries what was said: the recognised commands and the refusal, in the record.
-			const std::vector<ship::LogEntry> entries = ship::ReadOfficialLog( vessel, 12, "" );
+			gi.Cvar_VariableStringBuffer( "lwh_ship_computer_refusal", kind, sizeof( kind ) );
+			gi.Printf( "SHIP: computer test: the captain asks \"alert yellow\" -> %s: %s; the alert is now index %d\n",
+				kind, said, vessel.alert );
+			gi.Printf( "SHIP: computer test: the classification path is the API's membership test (FindConsoleVerb), not the embedding seam; model calls=0\n" );
+			gi.Printf( "SHIP: computer test: addressed %d time(s), inference calls=0; nothing invented: yes\n", computerCalls );
+			const std::vector<ship::LogEntry> entries = ship::ReadOfficialLog( vessel, 24, "" );
 			for ( const ship::LogEntry &e : entries )
 				if ( e.who == "the computer" )
 					gi.Printf( "SHIP: computer test: log [%s] %s: %s\n", e.scope.c_str(), e.who.c_str(), e.what.c_str() );
 			WriteReport( "ship/computer.txt" );
 			gi.SendConsoleCommand( "quit\n" );
-			step = 8;
+			step = 12;
 		}
 		return;
 	}
@@ -4866,6 +4930,7 @@ void Ship_Init( void )
 	meetingOpen = false;
 	currentMeeting = ship::MeetingBrief();
 	meetingSaid.clear();
+	computerSession.clear();
 	if ( !active ) return;
 	voiceRender.dir = VOICE_DIR; // the cache, beside the save and never in the repository
 	// M4: the worker's output, read once here and never on the render loop -- the generated scripts
@@ -5009,22 +5074,38 @@ void Ship_ReadSave( void )
 	if ( data ) gi.Free( data );
 }
 
-// The ship's computer (docs/staff-meetings.md, M6). Addressing it is the same path whether the input
-// came from a pill or from free text: membership is the ship's API (FindConsoleVerb), a recognised
-// function is answered from the authored line, and anything else is refused in character. Nothing is
-// invented and no ship state is written; the model is never called. The log carries what was said.
+// The ship's computer (docs/staff-meetings.md). Addressing it is the same path whether the input
+// came from a pill or from free text: membership is the ship's API (FindConsoleVerb), a read answers
+// from the ship's state filtered by the records' own rule, an act inside the asker's clearance is
+// applied by the simulation, and anything else is refused in character. The model is never called. The
+// log carries what was said, with the kind of refusal named; the session carries the conversation.
 void AddressComputerToConsole( const std::string &input )
 {
 	const ship::ComputerReply r = ship::AddressComputer( vessel, input );
 	++computerCalls;
 	gi.Printf( "SHIP: computer: \"%s\" -> %s: %s\n", input.c_str(),
-		r.refused ? "REFUSED" : "recognised", r.line.c_str() );
+		r.refused ? ship::ComputerRefusalName( r.refusal ) : ( r.applied ? "applied" : "answered" ), r.line.c_str() );
 	gi.cvar_set( "lwh_ship_computer_said", r.line.c_str() );
 	gi.cvar_set( "lwh_ship_computer_refused", r.refused ? "1" : "0" );
+	gi.cvar_set( "lwh_ship_computer_refusal", ship::ComputerRefusalName( r.refusal ) );
 	gi.cvar_set( "lwh_ship_computer_verb", r.verbName.c_str() );
-	ship::LogEvent( vessel, "the computer", "command",
-		r.refused ? ( std::string( "the computer refused: " ) + input + " -- that function is not available" )
-		          : ( std::string( "the computer answered: " ) + r.verbName ) );
+	gi.cvar_set( "lwh_ship_computer_applied", r.applied ? "1" : "0" );
+	if ( r.refused )
+		ship::LogEvent( vessel, "the computer", "command",
+			std::string( "the computer refused (" ) + ship::ComputerRefusalName( r.refusal ) + "): " + input + " -- " + r.line );
+	else if ( r.applied )
+		ship::LogEvent( vessel, "the computer", "command", std::string( "the computer applied: " ) + input );
+	else
+		ship::LogEvent( vessel, "the computer", "command", std::string( "the computer answered: " ) + r.verbName );
+	// The session: a bounded run of exchanges, so the room is somewhere to dive in (Task A). Host state,
+	// never in the save: the same run of exchanges is shown, and one more can always be asked.
+	ship::ComputerTurn turn;
+	turn.ask = input;
+	turn.answer = r.line;
+	turn.refusal = r.refusal;
+	computerSession.push_back( turn );
+	if ( static_cast<int>( computerSession.size() ) > ship::COMPUTER_TURN_MAX )
+		computerSession.erase( computerSession.begin() );
 	meetingSaid = input + "  ->  " + r.line;
 	Publish();
 }
@@ -5913,6 +5994,7 @@ void Svcmd_Ship_f( void )
 			ship::TakeBrief( vessel );
 			meetingOpen = true;
 			meetingSaid.clear();
+			computerSession.clear();
 			gi.Printf( "SHIP: meeting open: the room takes the %s brief: %s (in %s, deck %d; present %d, options %d)\n",
 				ship::MeetingKindName( currentMeeting.kind ), currentMeeting.decision.c_str(),
 				ship::MeetingRoomAt( static_cast<int>( currentMeeting.room ) ).name,
@@ -5926,6 +6008,7 @@ void Svcmd_Ship_f( void )
 			gi.Printf( "SHIP: meeting close: %s\n", meetingOpen ? "the room empties" : "no room was open" );
 			meetingOpen = false;
 			meetingSaid.clear();
+			computerSession.clear();
 			Publish();
 			return;
 		}
@@ -6027,6 +6110,7 @@ void Svcmd_Ship_f( void )
 			currentMeeting = ship::BuildComputerBrief( vessel );
 			meetingOpen = true;
 			meetingSaid.clear();
+			computerSession.clear();   // a new sitting: the conversation starts empty
 			computerCalls = 0;
 			gi.Printf( "SHIP: computer open: %s (%d option(s)); the computer's voice is %s\n",
 				currentMeeting.decision.c_str(), currentMeeting.optionCount, ship::ComputerVoice() );
@@ -6038,6 +6122,7 @@ void Svcmd_Ship_f( void )
 		{
 			meetingOpen = false;
 			meetingSaid.clear();
+			computerSession.clear();
 			gi.Printf( "SHIP: computer close\n" );
 			Publish();
 			return;
