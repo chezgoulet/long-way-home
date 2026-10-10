@@ -1220,6 +1220,44 @@ void ReportWatchedTrigger( const char *when )
 	gi.Printf( "SHIP: no trigger found at %s\n", g_shipTestWatch->string );
 }
 
+// The room-post anchor (the room-posts pass, Task B). g_shipTestPos may carry a candidate post
+// "x y z" so a room can be re-anchored without rebuilding the map. The trap this closes: an anchor
+// the harness does not honour used to be *used as if it were absent* -- the run quietly stood at the
+// table's own position and printed it, so a planted, wrong anchor looked like a passing check. An
+// anchor is now either honoured or rejected, loudly, here. Returns: 0 = none requested, 1 = honoured
+// (out set), 2 = rejected (a message has been printed; the caller must not photograph).
+//
+// Rejection covers both a bad anchor (not three numbers) and an out-of-bounds one: a point with no
+// world geometry beneath it is not in the ship. The test is a downward trace a little over the deck
+// height -- a point the player can be stood on finds its floor, while a point in the void (outside
+// the map, or above or below it) finds nothing and does not start inside a solid. A point *inside*
+// a solid still starts inside the trace, so it is honoured: standing inside a wall is the defect the
+// legibility assertion is there to catch, not this check's business.
+int RoomPostAnchor( vec3_t out )
+{
+	const char *want = g_shipTestPos->string;
+	if ( !want[0] || !Q_stricmp( want, "0 0 0" ) ) return 0;
+	if ( want[0] == 'c' ) return 0;   // g_shipTest 96's crew-setup token ("crew"), not an anchor
+	vec3_t a;
+	if ( sscanf( want, "%f %f %f", &a[0], &a[1], &a[2] ) != 3 )
+	{
+		gi.Printf( "SHIP: room post: BAD ANCHOR \"%s\" -- not three numbers; refusing to stand anywhere\n", want );
+		return 2;
+	}
+	trace_t tr;
+	vec3_t down, mins = { -16, -16, 0 }, maxs = { 16, 16, 0 };
+	VectorCopy( a, down );
+	down[2] -= 1024.0f;
+	gi.trace( &tr, a, mins, maxs, down, ENTITYNUM_NONE, MASK_SOLID );
+	if ( tr.fraction >= 1.0f && !tr.startsolid )
+	{
+		gi.Printf( "SHIP: room post: ANCHOR OUT OF BOUNDS \"%s\" -- no world geometry beneath it; refusing to stand there\n", want );
+		return 2;
+	}
+	VectorCopy( a, out );
+	return 1;
+}
+
 // Find a usable panel the player can stand in front of and stand there, aiming at it. A panel's
 // facing is its thinnest axis; stand a pace out along it, on the floor, and look back at it. Used
 // by the glance test (13) and the viewscreen test (30). Returns the panel, or NULL; sets
@@ -1731,9 +1769,17 @@ void RunTest( void )
 			}
 			// The room's anchor: the security office's own post, placed by the composition
 			// (tools/shipmap/dressdeck06.py). A "x y z" in g_shipTestPos overrides it, so a candidate
-			// post can be stood on without rebuilding the map. If neither is present, no frames.
-			if ( g_shipTestPos->string[0] && Q_stricmp( g_shipTestPos->string, "0 0 0" )
-				&& sscanf( g_shipTestPos->string, "%f %f %f", &base[0], &base[1], &base[2] ) == 3 )
+			// post can be stood on without rebuilding the map. If neither is present, no frames. An
+			// anchor the harness cannot honour is *rejected* here (RoomPostAnchor), never silently
+			// dropped -- the trap Task B closes.
+			const int anchorResult = RoomPostAnchor( base );
+			if ( anchorResult == 2 )
+			{
+				gi.Printf( "SHIP: dark room: 0 vantage(s) photographed -- the anchor was rejected\n" );
+				step = 9;
+				return;
+			}
+			if ( anchorResult == 1 )
 			{
 				gi.Printf( "SHIP: dark room: the anchor given by g_shipTestPos: %s\n", vtos( base ) );
 			}
@@ -1805,34 +1851,54 @@ void RunTest( void )
 	 //*fails*, naming the room, when a post renders dark. Whether the post reads as the room it is
 	 //named for is the owner's, and the frames are there for him to judge it from.
 	 //
-	 //The points are the rooms' own posts from the dark-room pass (the maps' floor-standing nav
-	 //goals, and the armory post for the security office); the facings are the vantages that measured
-	 //legible at those points. The meeting's own room -- the security office, the ruling's room -- may
-	 //be re-anchored by g_shipTestPos "x y z" (the candidate tool, g_shipTest 96), so a post can be
-	 //tried, or planted in a wall and shown caught, without rebuilding the map.
+	 //The room-reads pass (2026-10-10): the posts were legible but three of them stood in the wrong
+	 //part of the room -- the briefing room's at the conference table's own centre, looking at the
+	 //wall behind it; the ready room's on the captain's desk, looking back at the doorway; main
+	 //engineering's in a corridor, looking at a locker door. Each was moved to a spot inside the room
+	 //and turned to the fixture that names the room, chosen by the frame (the candidate tool,
+	 //g_shipTest 96, and the frame the post produces):
+	 //  * briefing-room: north of the table, looking south across it to the observation windows;
+	 //  * ready-room: inside the doorway, looking west at the captain's desk;
+	 //  * engineering: south of the warp core, looking north at it (the core column, rails, consoles);
+	 //  * security-office: the armory bay's own floor, looking down it. Deck 6 composes `_brig`'s
+	 //    *lockers*, not its office: the room has no desk, and this frame reads as an armory, not an
+	 //    office -- reported in docs/evidence/the-room-reads.md rather than dressed with art.
+	 //The meeting's own room -- the security office, the ruling's room -- may be re-anchored by
+	 //g_shipTestPos "x y z" (the candidate tool, g_shipTest 96), so a post can be tried, or planted
+	 //in a wall and shown caught, without rebuilding the map. An anchor the harness cannot honour is
+	 //rejected loudly (RoomPostAnchor), never used as if it were absent.
 		static const struct { const char *room; float x, y, z, yaw; } POSTS[] = {
-			{ "briefing-room",   -3080.0f, -3440.0f,  -4013.0f,  90.0f },
-			{ "ready-room",      -3950.0f, -3400.0f,  -4008.0f,   0.0f },
+			{ "briefing-room",   -3082.0f, -3320.0f,  -4013.0f, 270.0f },
+			{ "ready-room",      -3778.0f, -3360.0f,  -4013.0f, 180.0f },
 			{ "bridge",          -3450.0f, -3435.0f,  -3995.0f,  90.0f },
 			{ "sickbay",         -3252.0f, -3136.0f, -16296.0f, 270.0f },
 			{ "astrometrics",    -1672.0f, -3040.0f, -25248.0f,   0.0f },
-			{ "engineering",     -3806.0f, -3996.0f, -34688.0f,  90.0f },
-			{ "security-office", -4172.0f, -3906.0f, -19332.0f,  90.0f },
+			{ "engineering",     -3206.0f, -3220.0f, -34688.0f,  90.0f },
+			{ "security-office", -4210.0f, -3990.0f, -19332.0f,  90.0f },
 		};
-		static int r = 0, shotAt = 0, done = 0;
+		static int r = 0, shotAt = 0, done = 0, rejected = 0;
 		static bool parsed = false, haveAnchor = false;
 		static vec3_t anchor = { 0, 0, 0 };
 		if ( !parsed )
 		{//read the optional anchor once, on the first frame the harness is given (the client may not
-		 //be standing until well after level.time has passed any fixed early mark)
+		 //be standing until well after level.time has passed any fixed early mark). A bad or
+		 //out-of-bounds anchor is *rejected* here (RoomPostAnchor): the survey refuses to run rather
+		 //than quietly standing at the table's own position -- the trap Task B closes.
 			parsed = true;
-			if ( g_shipTestPos->string[0] && Q_stricmp( g_shipTestPos->string, "0 0 0" )
-				&& sscanf( g_shipTestPos->string, "%f %f %f", &anchor[0], &anchor[1], &anchor[2] ) == 3 )
+			const int ares = RoomPostAnchor( anchor );
+			if ( ares == 1 )
 			{
 				haveAnchor = true;
 				gi.Printf( "SHIP: room post: the security office anchored at %s by g_shipTestPos\n",
 					vtos( anchor ) );
 			}
+			else if ( ares == 2 ) rejected = 1;
+		}
+		if ( rejected )
+		{//no room is photographed: the check fails on the rejection itself, not on a dark frame
+			if ( !done ) { gi.Printf( "SHIP: room post: 0 room(s) photographed -- the anchor was rejected\n" ); done = 1; shotAt = level.time + 1200; }
+			else if ( level.time >= shotAt ) gi.SendConsoleCommand( "quit\n" );
+			return;
 		}
 		const int nposts = (int)( sizeof( POSTS ) / sizeof( POSTS[0] ) );
 		if ( r >= nposts )
