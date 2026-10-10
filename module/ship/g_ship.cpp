@@ -1795,48 +1795,72 @@ void RunTest( void )
 		return;
 	}
 	if ( g_shipTest->integer == 97 )
-	{//the room survey (the dark-room brief, Task C): every room a meeting can happen in, in front of
-	 //the camera. One frame per (room, facing) is written as screenshots/lwh_room_<room>_<n>.tga and a
-	 //line printed, so the owner has a frame of each and the check can measure legible against dark.
-	 //The points are chosen from the maps' own floor-standing nav goals (the deck offsets are
-	 //stitch.py's pitch: deck n sits (n-1)*3072 below deck 1); the security office is its own post.
-		static const struct { const char *room; float x, y, z; } ROOMS[] = {
-			{ "briefing-room",   -3080.0f, -3440.0f,  -4013.0f },
-			{ "ready-room",      -3950.0f, -3400.0f,  -4008.0f },
-			{ "bridge",          -3450.0f, -3435.0f,  -3995.0f },
-			{ "sickbay",         -3252.0f, -3136.0f, -16296.0f },
-			{ "astrometrics",    -1672.0f, -3040.0f, -25248.0f },
-			{ "engineering",     -3806.0f, -3996.0f, -34688.0f },
-			{ "security-office", -4172.0f, -3906.0f, -19332.0f },
+	{//the room posts (the room-posts brief, Tasks A and B): every room a meeting can happen in, stood
+	 //at the one post the meeting would use and photographed from it. A post is a position *and* a
+	 //facing. The previous survey (the dark-room pass) stood at each room's own point and turned to
+	 //all four facings; a corner, a bulkhead or the back of a console is dark in most rooms, and ten
+	 //of those frames measured dark while the same room read from another facing -- the signature of
+	 //a post problem, not a dark room. So each room has one post here and one frame
+	 //(screenshots/lwh_roompost_<room>.tga); scripts/room-survey-check.sh measures every one and
+	 //*fails*, naming the room, when a post renders dark. Whether the post reads as the room it is
+	 //named for is the owner's, and the frames are there for him to judge it from.
+	 //
+	 //The points are the rooms' own posts from the dark-room pass (the maps' floor-standing nav
+	 //goals, and the armory post for the security office); the facings are the vantages that measured
+	 //legible at those points. The meeting's own room -- the security office, the ruling's room -- may
+	 //be re-anchored by g_shipTestPos "x y z" (the candidate tool, g_shipTest 96), so a post can be
+	 //tried, or planted in a wall and shown caught, without rebuilding the map.
+		static const struct { const char *room; float x, y, z, yaw; } POSTS[] = {
+			{ "briefing-room",   -3080.0f, -3440.0f,  -4013.0f,  90.0f },
+			{ "ready-room",      -3950.0f, -3400.0f,  -4008.0f,   0.0f },
+			{ "bridge",          -3450.0f, -3435.0f,  -3995.0f,  90.0f },
+			{ "sickbay",         -3252.0f, -3136.0f, -16296.0f, 270.0f },
+			{ "astrometrics",    -1672.0f, -3040.0f, -25248.0f,   0.0f },
+			{ "engineering",     -3806.0f, -3996.0f, -34688.0f,  90.0f },
+			{ "security-office", -4172.0f, -3906.0f, -19332.0f,  90.0f },
 		};
-		static const float YAWS[] = { 0.0f, 90.0f, 180.0f, 270.0f };
-		static int r = 0, ci = 0, shotAt = 0, done = 0;
-		if ( level.time < 1000 ) { r = 0; ci = 0; shotAt = 0; done = 0; }
-		const int nrooms = (int)( sizeof( ROOMS ) / sizeof( ROOMS[0] ) );
-		const int ncam = (int)( sizeof( YAWS ) / sizeof( YAWS[0] ) );
-		if ( r >= nrooms )
+		static int r = 0, shotAt = 0, done = 0;
+		static bool parsed = false, haveAnchor = false;
+		static vec3_t anchor = { 0, 0, 0 };
+		if ( !parsed )
+		{//read the optional anchor once, on the first frame the harness is given (the client may not
+		 //be standing until well after level.time has passed any fixed early mark)
+			parsed = true;
+			if ( g_shipTestPos->string[0] && Q_stricmp( g_shipTestPos->string, "0 0 0" )
+				&& sscanf( g_shipTestPos->string, "%f %f %f", &anchor[0], &anchor[1], &anchor[2] ) == 3 )
+			{
+				haveAnchor = true;
+				gi.Printf( "SHIP: room post: the security office anchored at %s by g_shipTestPos\n",
+					vtos( anchor ) );
+			}
+		}
+		const int nposts = (int)( sizeof( POSTS ) / sizeof( POSTS[0] ) );
+		if ( r >= nposts )
 		{
-			if ( !done ) { gi.Printf( "SHIP: room survey: %d room(s) photographed\n", r ); done = 1; shotAt = level.time + 1800; }
+			if ( !done ) { gi.Printf( "SHIP: room post: %d room(s) photographed\n", r ); done = 1; shotAt = level.time + 1800; }
 			else if ( level.time >= shotAt ) gi.SendConsoleCommand( "quit\n" );
 			return;
 		}
 		if ( shotAt == 0 )
-		{//stand at the room, then wait for the client to take the origin and facing
+		{//stand at the room's post, then wait for the client to take the origin and the facing
+			const bool anchored = haveAnchor && !Q_stricmp( POSTS[r].room, "security-office" );
 			vec3_t at, angles;
-			at[0] = ROOMS[r].x; at[1] = ROOMS[r].y; at[2] = ROOMS[r].z + 24.0f;
-			angles[0] = 0.0f; angles[1] = YAWS[ci]; angles[2] = 0.0f;
+			at[0] = anchored ? anchor[0] : POSTS[r].x;
+			at[1] = anchored ? anchor[1] : POSTS[r].y;
+			at[2] = ( anchored ? anchor[2] : POSTS[r].z ) + 24.0f;
+			angles[0] = 0.0f; angles[1] = POSTS[r].yaw; angles[2] = 0.0f;
 			TeleportPlayer( &g_entities[0], at, angles, 0 );
 			if ( g_entities[0].client ) SetClientViewAngle( &g_entities[0], angles );
-			gi.Printf( "SHIP: room survey: %s %d of %d at %s facing %.0f\n",
-				ROOMS[r].room, ci + 1, ncam, vtos( at ), YAWS[ci] );
+			gi.Printf( "SHIP: room post: %s at %s facing %.0f%s\n", POSTS[r].room, vtos( at ),
+				POSTS[r].yaw, anchored ? " (anchored)" : "" );
 			shotAt = level.time + 700;
 			return;
 		}
 		if ( level.time >= shotAt )
 		{
-			gi.SendConsoleCommand( Fmt( "screenshot lwh_room_%s_%d\n", ROOMS[r].room, ci ).c_str() );
+			gi.SendConsoleCommand( Fmt( "screenshot lwh_roompost_%s\n", POSTS[r].room ).c_str() );
 			shotAt = 0;
-			if ( ++ci >= ncam ) { ci = 0; ++r; }
+			++r;
 		}
 		return;
 	}

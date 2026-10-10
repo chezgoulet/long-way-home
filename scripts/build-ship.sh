@@ -86,6 +86,12 @@ cp "$ROOT/tools/shipmap/data/lwh_panel.shader" "$ROOT/build/ship/files/scripts/"
 cp "$ROOT/tools/shipmap/data/lwh_borg.shader" "$ROOT/build/ship/files/scripts/"
 python3 "$ROOT/tools/shipmap/panelart.py" "$ROOT/build/ship/files/gfx/lwh/panel.tga"
 
+# The one room no post could save: astrometrics (deck 8) measured dark from every vantage, so the fix
+# is light, not a post, and it lives here so a rebuild keeps it (docs/evidence/the-room-posts.md). The
+# generated deck08.map is picked up by the stitcher's later --decks, in place of the published one.
+python3 "$ROOT/tools/shipmap/lightdeck08.py" --deck "$DECKS/deck08.map" --out "$ROOT/build/ship/generated" \
+  --report "$ROOT/build/ship/deck08-light.json"
+
 python3 "$ROOT/tools/shipmap/stitch.py" --decks "$DECKS" --decks "$ROOT/build/ship/generated" --out "$ROOT/build/ship/voyager.map" \
   --report "$ROOT/build/ship/stitch-report.json"
 # Visibility and lighting take about three minutes for the whole ship; --fast skips them.
