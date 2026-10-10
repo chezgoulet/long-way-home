@@ -334,6 +334,11 @@ moves when the crew act.
 field over a breach (`SetForceField`, save format **version 10**); the clocks published as `lwh_ship_clocks`
 and drawn on the Operations console. Force fields from the panel, endurance per source, and the clocks at
 deck 12 itself remain.
+**The independent air source (Finding two / O2) built 2026-10-10** on `feat/the-air`
+(`docs/evidence/the-air.md`): the three sources that survive the main grid are separate state, a deck's
+life support can be fed from one of them so the deck holds its air with the grid down, the state says which
+source holds which deck, an over-committed source is reported as a shortfall number, and it is saved
+(version 56). The world half (the clock at a deck, the frame) is named as sasquatch's.
 
 **4. The log as a browsable artifact.** *State:* log entries with time, author, subject and fact. *Control:*
 each post reads its own scope, command sees all, the player can search. *Visible:* the log itself -- and it
@@ -1019,6 +1024,10 @@ evidence and the closing is this ledger's business. The same rule is stated in `
 
 - **O2 — the three independent power sources and the holodeck-matrix trap** (kind 6): `docs/ship-systems.md`,
   `docs/damage-and-budgets.md`, `docs/budget-squaring.md` Finding two, `docs/handoff-lwh-persistent-ship.md`.
+  **The sources are built (2026-10-10, `feat/the-air`, `docs/evidence/the-air.md`)**: the sources that
+  survive the main grid are separate state and a deck can hold its air on one of them. **The trap remains
+  built and unchanged** (`JumpStartFromHolodeck`). What is left of the canon triad is the holodeck reactor
+  as a per-deck source, which the brief for this pass did not build.
 - **O3 — canon named to model and never modelled** (kind 6): `docs/lore-ledger.md`'s closing list — bio-neural
   gel packs, the EMH's dependence on sickbay power and holo-emitters, the variable-geometry nacelles, cargo
   bays, replicator rations as a resource, and holodeck-power incompatibility.

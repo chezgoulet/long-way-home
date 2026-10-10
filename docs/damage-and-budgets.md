@@ -13,8 +13,9 @@ dilithium crystal ages, and what the ship gives up first -- are set out in `docs
   allocation is `docs/power-assignment.md`** (owner's ruling, 2026-10-07): the players and the crew decide each
   system's online state and share, nothing sheds itself, and an over-committed plant is reported as a shortfall.
   The brownout ladder in `docs/ship-systems.md` is the chief engineer's recommendation and automatic mode's
-  policy, not the mechanism. The three independent sources (life support, holodecks, shuttlecraft) that survive
-  the main grid going down remain a gap, as noted there.
+  policy, not the mechanism. The three independent sources that survive the main grid going down are now a
+  per-deck feed — a deck's life support fed from one of the sources that survive the core — built 2026-10-10
+  (`docs/evidence/the-air.md`).
 - **Functionality**: what the ship can *do*. Integrity per system per compartment: how many phaser arrays are
   still working, which doors open, whether the sensors can see, whether a deck still holds air.
 

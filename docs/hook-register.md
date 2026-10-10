@@ -262,6 +262,8 @@ substance of the brief's point and stands.
 | `SetSourceOnline` | `Ship &s, SourceId id, bool on` | set source online | play | — | — |
 | `SetForceField` | `Ship &s, int deck, bool on` | set force field | play | — | — |
 | `SetForceFieldLevel` | `Ship &s, int deck, int level` | set force field level | play | — | — |
+| `SetAirSource` | `Ship &s, int deck, int source` | The independent air feed (docs/budget-squaring.md, Finding two): the player feeds a deck's life support from one of the sources that survive the core (AIR_GRID for the pooled main grid). A decision with a provenance, never shed | play | — | docs/budget-squaring.md |
+| `SetAirSourceBy` | `Ship &s, int deck, int source, int officer` | The same, by an officer acting under a standing grant over the operations band | console | person | docs/budget-squaring.md |
 | `SetSurgicalField` | `Ship &s, bool on` | The surgical bay's force field (the triage gap): raised, it holds the gravest casualty steady even with no medical supplies -- the one case that would otherwise be... | play | — | — |
 | `RecoverCaptive` | `Ship &s, int crew` | Recover someone the Borg have begun to assimilate (wounds in (0, RECOVERY_LIMIT)): sickbay and supplies against the nanoprobes | play | person | — |
 | `Hearing` | `Ship &s, int crew, bool guilty` | hearing | console | person | — |
@@ -424,6 +426,14 @@ spoken content scripted like a meeting's. The register of classes is `module/shi
 | `MinutesOfAir` | `const Ship &s, int deck` | Endurance clocks (the air-and-endurance gap): the numbers a compartment or the whole ship is running on | play | — | — |
 | `MinutesToDark` | `const Ship &s` | minutes to dark | play | — | — |
 | `EnduranceOf` | `const Ship &s, SourceId id` | The endurance of one source at its current draw, in minutes: the batteries' charge, or a reactor's fuel | play | — | — |
+| `DeckLifeSupport` | `const Ship &s, int deck` | The support (0..1) a deck's own air feed is delivering: the pooled main grid, or an independent source holding the deck alone | play | — | docs/budget-squaring.md |
+| `AirSourceOf` | `const Ship &s, int deck` | Which source holds a deck's air: AIR_GRID, or one of the sources that survive the core | play | — | docs/budget-squaring.md |
+| `AirSourceName` | `uint8_t source` | The air feed's source name | console | — | docs/budget-squaring.md |
+| `AirCommitted` | `const Ship &s` | The decks held on their own source, as EPS (one life-support plant per deck) | play | — | docs/budget-squaring.md |
+| `SourceAirCommitment` | `const Ship &s, SourceId id` | The EPS committed to one source's decks | play | — | docs/budget-squaring.md |
+| `SourceAirCapacity` | `const Ship &s, SourceId id` | The EPS one source can hold for decks, at its health | play | — | docs/budget-squaring.md |
+| `SourceDecksHeld` | `const Ship &s, SourceId id` | The decks a source is actually holding now | play | — | docs/budget-squaring.md |
+| `AirShortfall` | `const Ship &s` | The EPS of committed deck air the sources cannot give: a number, never a shed | play | — | docs/budget-squaring.md |
 | `GravityScale` | `const Ship &s, int deck` | Per-person gravity (the environment in the world) | play | — | — |
 | `ScaleGravity` | `int worldGravity, float scale` | scale gravity | play | — | — |
 | `SurgicalField` | `const Ship &s` | surgical field | play | — | — |

@@ -349,6 +349,11 @@ void Draw( void )
 		ui.Cvar_VariableStringBuffer( "lwh_ship_clocks", line, sizeof( line ) );
 		if ( line[0] ) UI_DrawProportionalString( 44, 384, line, UI_TINYFONT,
 			colorTable[ui.Cvar_VariableValue( "lwh_ship_clocks_alarm" ) > 0.5f ? CT_RED : CT_LTBLUE2] );
+		// The independent air feed (O2): which decks are on their own source, and the shortfall when
+		// the sources cannot hold them. Red when the commitments exceed what the sources can give.
+		ui.Cvar_VariableStringBuffer( "lwh_ship_air", line, sizeof( line ) );
+		if ( line[0] ) UI_DrawProportionalString( 44, 370, line, UI_TINYFONT,
+			colorTable[ui.Cvar_VariableValue( "lwh_ship_air_shortfall" ) > 0.0f ? CT_RED : CT_LTBLUE2] );
 		ui.Cvar_VariableStringBuffer( "lwh_ship_kit", line, sizeof( line ) );
 		if ( line[0] ) UI_DrawProportionalString( 44, 398, line, UI_TINYFONT, colorTable[CT_LTGOLD1] );
 		// The beacon-choice block (row 21): what the outside offers here, as keys rather than typed

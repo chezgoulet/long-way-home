@@ -78,9 +78,11 @@ Three design consequences we take from canon rather than inventing:
 
 - **The three independent sources are resilience, not redundancy to ignore.** Life support and the
   holodecks keep running when the main grid dies -- so "this deck still has air while that one does not"
-  is a state the ship can be in. That is dramatic, and it is free. **Not yet built (the largest
-  structural gap):** life support and the holodecks are still ordinary loads on the main grid, so the
-  state cannot occur; the cost of building it is sized in `docs/evidence/the-budgets.md`.
+  is a state the ship can be in. That is dramatic, and it is free. **Built 2026-10-10** on
+  `feat/the-air`: a deck's life support can be fed from one of the sources that survive the main grid
+  (the impulse reactors, the auxiliary fusion reactor, the emergency batteries), so the state occurs,
+  and the state says which source holds which deck's air (`docs/evidence/the-air.md`). The holodeck
+  reactor's jump-start remains the trap below, not a free source.
 - **The holodeck matrix is incompatible.** Jump-starting from a holodeck reactor destroys relays. This is
   a designed failure mode, not a solution: a tempting, canon-backed way to make things worse. **Built:**
   `JumpStartFromHolodeck` ties in a holodeck reactor when the main grid is down, returns a battery

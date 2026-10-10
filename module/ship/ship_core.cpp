@@ -1615,6 +1615,144 @@ bool Coreless(const Ship &s)
 	return s.coreEjected || s.coreShutdown || !core.online || core.health <= 0.0f;
 }
 
+// ---- the independent air feed (O2; docs/budget-squaring.md, Finding two) ------------------------
+//
+// Canon names three things that keep running when the main grid does not -- life support, the
+// holodecks and shuttlecraft -- and the state that hands us free is "this deck still has air while
+// that one does not". In our power model the sources independent of the main grid (the warp core)
+// are the three that survive it, with the capacities docs/budget-squaring.md Part 5 gives them: the
+// impulse reactors (250), the auxiliary fusion reactor (90) and the emergency batteries (60). A deck
+// may be fed from one of them, so it breathes with the grid down, and the state says which source
+// holds which deck's air. The player decides the feed, it has a provenance, and the simulation
+// never sheds it: an over-committed source is reported as a shortfall, a number.
+
+// Whether a source is actually delivering now: online, intact, and with the fuel it lives on. The
+// same test UpdatePower uses, lifted so the air feed and the power tick cannot disagree.
+static bool SourceFuelled(const Ship &s, int i)
+{
+	if (i < 0 || i >= SRC_COUNT) return false;
+	if (i == SRC_BATTERIES) return s.stores.batteries > 0.0f;
+	return s.stores.deuterium > 0.0f && (SOURCES[i].antimatterPerDay == 0.0f || s.stores.antimatter > 0.0f);
+}
+
+static bool SourceAvailable(const Ship &s, SourceId id)
+{
+	const Source &src = s.sources[id];
+	return src.online && src.health > 0.0f && SourceFuelled(s, id);
+}
+
+// The decks a source has been asked to hold, and the decks it can hold: one deck on its own source
+// is served by its own life-support plant (AIR_PLANT_PER_DECK), so a source holds as many decks as
+// its capacity, at health, divides into. The lowest-numbered decks asked are the ones held, so the
+// answer is deterministic.
+static int DecksAssignedTo(const Ship &s, uint8_t source)
+{
+	int n = 0;
+	for (int d = 0; d < DECKS; ++d) if (s.decks[d].airSource == source) ++n;
+	return n;
+}
+
+int SourceAirCapacity(const Ship &s, SourceId id)
+{
+	if (id >= SRC_COUNT) return 0;
+	return SourceCapacity(s, id);
+}
+
+int SourceAirCommitment(const Ship &s, SourceId id)
+{
+	if (id >= SRC_COUNT) return 0;
+	return DecksAssignedTo(s, static_cast<uint8_t>(id)) * AIR_PLANT_PER_DECK;
+}
+
+int SourceDecksHeld(const Ship &s, SourceId id)
+{
+	if (id >= SRC_COUNT || !SourceAvailable(s, id)) return 0;
+	const int can = SourceAirCapacity(s, id) / AIR_PLANT_PER_DECK;
+	return std::min(can, DecksAssignedTo(s, static_cast<uint8_t>(id)));
+}
+
+// A deck on its own source is held if it is within what that source can carry: the lowest-numbered
+// decks asked are the ones it holds.
+static bool DeckHeldBySource(const Ship &s, int deckIndex)
+{
+	const uint8_t src = s.decks[deckIndex].airSource;
+	if (src >= SRC_COUNT) return false;
+	int rank = 0;
+	for (int d = 0; d < deckIndex; ++d) if (s.decks[d].airSource == src) ++rank;
+	return rank < SourceDecksHeld(s, static_cast<SourceId>(src));
+}
+
+float DeckLifeSupport(const Ship &s, int deck)
+{
+	if (deck < 1 || deck > DECKS) return -1.0f;
+	const Deck &d = s.decks[deck - 1];
+	if (d.airSource >= SRC_COUNT) return s.systems[SYS_LIFE_SUPPORT].output; // the pooled main grid
+	return DeckHeldBySource(s, deck - 1) ? 1.0f : 0.0f;                      // its own source, or nothing
+}
+
+const char *AirSourceName(uint8_t source)
+{
+	static const char *const NAMES[SRC_COUNT + 1] = {
+		"warp core", "impulse reactors", "auxiliary fusion", "emergency batteries", "the main grid"
+	};
+	return source <= SRC_COUNT ? NAMES[source] : "?";
+}
+
+int AirSourceOf(const Ship &s, int deck)
+{
+	if (deck < 1 || deck > DECKS) return AIR_GRID;
+	return s.decks[deck - 1].airSource;
+}
+
+int AirCommitted(const Ship &s)
+{
+	int n = 0;
+	for (int d = 0; d < DECKS; ++d) if (s.decks[d].airSource < SRC_COUNT) n += AIR_PLANT_PER_DECK;
+	return n;
+}
+
+int AirShortfall(const Ship &s)
+{
+	int n = 0;
+	for (int d = 0; d < DECKS; ++d)
+		if (s.decks[d].airSource < SRC_COUNT && !DeckHeldBySource(s, d)) n += AIR_PLANT_PER_DECK;
+	return n;
+}
+
+bool SetAirSource(Ship &s, int deck, int source)
+{
+	if (deck < 1 || deck > DECKS) return false;
+	if (source < 0 || source > SRC_COUNT) return false;
+	if (source == SRC_WARP_CORE) return false; // the core is the main grid; AIR_GRID is that feed
+	Deck &d = s.decks[deck - 1];
+	d.airSource = static_cast<uint8_t>(source);
+	d.airBy = ALLOC_PLAYER;
+	d.airCrew = s.player;
+	LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "environmental control"), "life support",
+		"deck " + std::to_string(deck) + "'s air is on " + AirSourceName(d.airSource));
+	Tick(s, 0.0f); // the console reads the result immediately
+	return true;
+}
+
+bool SetAirSourceBy(Ship &s, int deck, int source, int officer)
+{
+	if (deck < 1 || deck > DECKS) return false;
+	if (source < 0 || source > SRC_COUNT || source == SRC_WARP_CORE) return false;
+	if (officer < 0 || officer >= static_cast<int>(s.crew.size())) return false;
+	bool granted = false;
+	for (const BandGrant &g : s.bandGrants)
+		if (g.grantee == officer && static_cast<BudgetBand>(g.band) == BAND_OPERATIONS) { granted = true; break; }
+	if (!granted) return false; // the authority to decide life support is not theirs
+	Deck &d = s.decks[deck - 1];
+	d.airSource = static_cast<uint8_t>(source);
+	d.airBy = ALLOC_DELEGATE;
+	d.airCrew = officer;
+	LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "environmental control"), "life support",
+		"deck " + std::to_string(deck) + "'s air is on " + AirSourceName(d.airSource) + ", under standing orders");
+	Tick(s, 0.0f);
+	return true;
+}
+
 // The systems the coreless ship still runs. Everything else is dark, however much the crew would
 // like the sensors: 390 of the 400 remaining EPS is the whole of the survival set.
 static bool CorelessVital(SystemId id)
@@ -3216,9 +3354,12 @@ static void UpdateFire(Ship &s, float shipSeconds)
 
 static void UpdateDecks(Ship &s, float shipSeconds)
 {
-	const float support = s.systems[SYS_LIFE_SUPPORT].output;
 	const float hours = shipSeconds / 3600.0f;
-	for (Deck &d : s.decks) {
+	for (int di = 0; di < DECKS; ++di) {
+		Deck &d = s.decks[di];
+		// Each deck's support is its own feed (O2): the pooled main grid, or an independent source
+		// holding this deck alone, so a deck can breathe with the grid down.
+		const float support = DeckLifeSupport(s, di + 1);
 		// A force field over a breach holds the air; without one, an open hull vents to vacuum.
 		const float vent = d.forceField ? 0.0f : (1.0f - d.hull) * shipSeconds / (VENT_MINUTES * 60.0f);
 		// Life support cannot hold an atmosphere in a compartment open to space.
@@ -6113,7 +6254,7 @@ float MinutesOfAir(const Ship &s, int deck)
 	if (deck < 1 || deck > DECKS) return -1.0f;
 	const Deck &d = s.decks[deck - 1];
 	if (d.atmosphere < AIRLESS) return 0.0f;
-	const float support = s.systems[SYS_LIFE_SUPPORT].output;
+	const float support = DeckLifeSupport(s, deck); // the deck's own feed (O2), not the ship's alone
 	const float ventPerHour = d.forceField ? 0.0f : (1.0f - d.hull) * 60.0f / VENT_MINUTES;
 	const float regenPerHour = support * d.hull / ATMOSPHERE_REGEN_HOURS;
 	const float stalePerHour = (1.0f - support) / ATMOSPHERE_STALE_HOURS;
@@ -8055,7 +8196,9 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(s.alert);
 	for (const System &sys : s.systems) { w.F(sys.health); w.U8(sys.enabled); w.U16(static_cast<uint16_t>(sys.priority)); w.F(sys.control); }
 	for (const Source &src : s.sources) { w.F(src.health); w.U8(src.online); }
-	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.gravity); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); w.F(d.forceFieldLevel); w.F(d.fire); w.U8(d.boarderKind); w.U8(static_cast<uint8_t>(d.objective)); w.U8(d.compromised ? 1 : 0); w.F(d.dwell); w.U8(d.engaged ? 1 : 0); }
+	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.gravity); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); w.F(d.forceFieldLevel); w.F(d.fire); w.U8(d.boarderKind); w.U8(static_cast<uint8_t>(d.objective)); w.U8(d.compromised ? 1 : 0); w.F(d.dwell); w.U8(d.engaged ? 1 : 0);
+		// The independent air feed (version 56, O2): which source holds the deck, and who set it.
+		w.U8(d.airSource); w.U8(d.airBy); w.U16(static_cast<uint16_t>(d.airCrew + 1)); }
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
 	w.F(s.stores.spareParts); w.F(s.stores.medicalSupplies); w.F(s.stores.rations); w.F(s.stores.materials); w.U8(static_cast<uint8_t>(s.stores.probes)); w.U8(static_cast<uint8_t>(s.stores.tricorders)); w.U8(static_cast<uint8_t>(s.stores.phasers)); w.U8(static_cast<uint8_t>(s.stores.evSuits)); w.F(s.stores.tricorderCharge); w.F(s.stores.kitCondition); w.U8(PhaserYieldOf(s));
@@ -8402,6 +8545,11 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		d.boarderKind = r.U8(); d.objective = r.U8();
 		d.compromised = r.U8() != 0; d.dwell = r.F(); d.engaged = r.U8() != 0;
 		if (d.boarderKind >= BOARDER_KIND_COUNT || d.objective > DECKS) return false;
+		// The independent air feed (version 56, O2): which source holds the deck, and who set it.
+		d.airSource = r.U8(); d.airBy = r.U8(); d.airCrew = static_cast<int16_t>(r.U16()) - 1;
+		if (d.airSource > SRC_COUNT || d.airSource == SRC_WARP_CORE) return false;
+		if (d.airBy >= ALLOC_BY_COUNT) return false;
+		if (d.airCrew < -1 || d.airCrew >= static_cast<int>(count)) return false;
 	}
 	s.stores.deuterium = r.Unit(); s.stores.antimatter = r.Unit(); s.stores.batteries = r.Unit();
 	s.stores.torpedoes = r.U16();
@@ -8967,6 +9115,23 @@ std::string Describe(const Ship &s)
 		std::snprintf(line, sizeof(line), "  source %-22s %4d of %4d  health %3.0f%%%s\n", SOURCES[i].name, s.sources[i].output,
 			SourceCapacity(s, static_cast<SourceId>(i)), s.sources[i].health * 100, s.sources[i].online ? "" : "  OFFLINE");
 		out += line;
+	}
+	// The independent air feed (O2): which decks are on their own source, and the shortfall when
+	// their sources cannot hold them. A number, never a shed.
+	if (AirCommitted(s) > 0 || AirShortfall(s) > 0) {
+		std::snprintf(line, sizeof(line), "  air: %d deck(s) on their own source, %d EPS committed, short %d\n",
+			AirCommitted(s) / AIR_PLANT_PER_DECK, AirCommitted(s), AirShortfall(s));
+		out += line;
+		for (int i = 0; i < SRC_COUNT; ++i) {
+			if (i == SRC_WARP_CORE) continue;
+			const SourceId id = static_cast<SourceId>(i);
+			const int asked = SourceAirCommitment(s, id);
+			if (asked == 0) continue;
+			std::snprintf(line, sizeof(line), "    %-20s holds %d of %d deck(s)  (%d of %d EPS)%s\n",
+				SOURCES[i].name, SourceDecksHeld(s, id), asked / AIR_PLANT_PER_DECK, asked, SourceAirCapacity(s, id),
+				SourceAvailable(s, id) ? "" : "  OFFLINE");
+			out += line;
+		}
 	}
 	for (int i = 0; i < SYS_COUNT; ++i) {
 		const System &sys = s.systems[i];

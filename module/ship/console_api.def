@@ -17,6 +17,7 @@
 CONSOLE_VERB("accept", "-", "engineering")
 CONSOLE_VERB("acquire", "mine|trade|salvage|research", "-")
 CONSOLE_VERB("advance", "<deck>", "-")
+CONSOLE_VERB("air", "<deck> grid|impulse|auxiliary|batteries", "ops")
 CONSOLE_VERB("airponics", "[on|off]", "-")
 CONSOLE_VERB("alert", "green|yellow|red", "engineering|tactical")
 CONSOLE_VERB("alloc", "<system> <percent>", "any")

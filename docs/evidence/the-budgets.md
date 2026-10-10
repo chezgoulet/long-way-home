@@ -126,6 +126,10 @@ exactly full** — and nothing else — draining in **three hours**. Not a syste
    bump the save again. That is a gate-sized change — a new per-deck source model, not a string — which is
    why it is reported rather than half-built. The acceptance is met for the two small checks; this one
    needs its own lane.
+   **Built 2026-10-10 on `feat/the-air`** (`docs/evidence/the-air.md`): the per-deck model was added as
+   this item sized it. The three sources are the ones independent of the main grid — impulse reactors,
+   auxiliary fusion, batteries — and a deck's life support can be fed from one of them. The per-deck
+   draw and the choice of the three are named there as calls.
 3. **The holodeck matrix is a trap** — **built.** `JumpStartFromHolodeck` (`ship jumpstart`): with the
    main grid up it is refused and changes nothing; with the core gone it returns a battery charge **and
    wrecks half the ship's systems**, the holodecks among them. `TestHolodeckTrap` asserts both the charge
