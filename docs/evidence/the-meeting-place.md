@@ -231,3 +231,23 @@ scripts/appearance-check.sh     -> PASS  the face is derived from the record, ne
 6. **The room check is a separate script** (`meeting-place-check.sh`) rather than folded into
    `api-check.sh`, because the console API and the room table are different enumerations with different
    owners. Both follow the same pattern (a `.def` a program reads, a Python check, a planted failure).
+
+## The room is dark — the owner's ruling, and what is known (2026-10-10, after the pass)
+
+The frames this pass produced show the room **named correctly and nearly black** — only the edge of a fixture
+is legible behind the overlay. Put to the owner, his ruling: **"if a room is pitch black it needs its own
+light."** So it is a **defect**, not the look, and it is queued.
+
+**And it is not a missing light entity, which is why the fix was not guessed.** What is established:
+
+- the composed deck 6 carries **31 light entities**, and **six of them sit within a few hundred units** of
+  where the player stood for the Borg meeting (`-4336 -3904 -19308`);
+- the merged ship's BSP **is lit** — the run's own output carries
+  `VKDIAG: registration : 1711 images, 272 MB uploaded ... biggest 8192 KB (*mergedLightmap0)`, so the light
+  pass ran and lightmaps are present;
+- the run records **no alert or emergency-lighting line**, so the dimming state is not the explanation either.
+
+**So the cause is one of three, and the fix differs in each**: the lights nearest the office are weak or
+flagged off; the vantage faces away from the lit part of the room; or that corner is genuinely dark in the
+bake. **Establishing which is a lane of its own** — a guess would ship a light into a room that has six.
+
