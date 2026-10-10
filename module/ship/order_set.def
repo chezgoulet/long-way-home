@@ -1,0 +1,34 @@
+// module/ship/order_set.def -- the common orders, as one place a program can read.
+//
+// docs/orders.md: an order is a one-recipient brief, and its enumerated options are the orders
+// *that* recipient can be given. The set is derived per recipient -- from their post (which systems
+// they hold), their department, their rank, and the giving player's authority over them -- never
+// written out by hand. This file is the single source of the *classes* of order that exist; the
+// derivation (ship_core.cpp, OrderPermitted/DeriveOrders) decides which of them a given person
+// meets, and tools/orders/orders.py checks this register against that derivation in both
+// directions, exactly as tools/console/verbs.py checks the console against console_api.def.
+//
+// It is included (X-macro) by module/ship/ship_core.h to build the OrderClass enum and the spec
+// table, so the module and the check read the same rows and cannot disagree.
+//
+//   ORDER_CLASS(token, name, label, cost, needs, jobKind, defaultTarget)
+//     token         -- the OrderClass id, declared by this same file
+//     name          -- the order's own name, as the ship names it ("see to")
+//     label         -- the pill's short description, with {post}/{deck}/{n} filled by the target
+//     cost          -- what it costs, in words, shown at the choice
+//     needs         -- the requirement over OrderNeed, '|'-joined; the recipient is offered the
+//                      order when ANY named need is met (a post-holder, a department, a junior)
+//     jobKind       -- the JobKind the dispatched order pushes into the work queue
+//     defaultTarget -- a fixed target where the order's target is not resolved from the state;
+//                      -1 means "resolve from the recipient's post and the ship"
+
+// Any system-holder can be told to see to the post they hold.
+ORDER_CLASS(ORDER_SEE_TO, "see to", "see to the {post}", "the party's hours, and the post left standing", ORD_NEED_POST, JOB_REPAIR, -1)
+// Security can be told to a deck: to hold it, or to take it back.
+ORDER_CLASS(ORDER_SECURE_DECK, "secure", "take security to the {deck}", "the squad, and the deck they leave", ORD_NEED_SECURITY, JOB_SECURE, -1)
+ORDER_CLASS(ORDER_ADVANCE_DECK, "advance", "retake the {deck}", "the squad, and the risk of the advance", ORD_NEED_SECURITY, JOB_RECLAIM, -1)
+// Security or command may be told to clear a deck: an evacuation is an authority's order, not a
+// post-holder's.
+ORDER_CLASS(ORDER_EVACUATE_DECK, "evacuate", "clear the {deck}", "the stations there, left unmanned", ORD_NEED_SECURITY|ORD_NEED_COMMAND, JOB_EVACUATE, -1)
+// Engineering can be told to fabricate; the amount is the target.
+ORDER_CLASS(ORDER_BUILD_PARTS, "build", "fabricate {n} spare parts", "material, and the engineers' hours", ORD_NEED_ENGINEERING, JOB_BUILD, 4)

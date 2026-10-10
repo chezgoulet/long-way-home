@@ -6261,7 +6261,7 @@ const std::vector<LossEntry> &WriteOffs(const Ship &s) { return s.losses; }
 
 const char *JobKindName(uint8_t k)
 {
-	static const char *const NAMES[JOB_KIND_COUNT] = {"repair", "seal", "reclaim", "build"};
+	static const char *const NAMES[JOB_KIND_COUNT] = {"repair", "seal", "reclaim", "build", "secure", "evacuate"};
 	return k < JOB_KIND_COUNT ? NAMES[k] : "job";
 }
 
@@ -6296,10 +6296,29 @@ static void UpdateJobs(Ship &s)
 		next.push_back(j);
 	}
 	for (int d = 0; d < DECKS; ++d) {
-		if (s.decks[d].assimilated <= 0.0f) continue;
+		// A deck is reclaimed when it is assimilated, or when a squad has been ordered to retake it:
+		// the order is work with a face in the same queue (docs/orders.md).
+		if (s.decks[d].assimilated <= 0.0f && s.advanceDeck != d + 1) continue;
 		Job j;
 		j.kind = JOB_RECLAIM; j.target = static_cast<int16_t>(d + 1); j.progress = 1.0f - s.decks[d].assimilated;
-		j.priority = static_cast<int16_t>(keepPriority(JOB_RECLAIM, d + 1, 30));
+		j.priority = static_cast<int16_t>(s.advanceDeck == d + 1 && s.decks[d].assimilated <= 0.0f
+			? 15 : keepPriority(JOB_RECLAIM, d + 1, 30));
+		next.push_back(j);
+	}
+	// The standing orders an order dispatches (docs/orders.md): a deck held by security, and a deck
+	// cleared. Both are in the queue while the order stands, and leave it when it is changed.
+	if (s.orderSecurityTo >= 1 && s.orderSecurityTo <= DECKS) {
+		Job j;
+		j.kind = JOB_SECURE; j.target = static_cast<int16_t>(s.orderSecurityTo);
+		j.progress = 1.0f - std::min(1.0f, s.decks[s.orderSecurityTo - 1].intruders);
+		j.priority = static_cast<int16_t>(keepPriority(JOB_SECURE, s.orderSecurityTo, 14));
+		next.push_back(j);
+	}
+	if (s.orderEvacuate >= 1 && s.orderEvacuate <= DECKS) {
+		Job j;
+		j.kind = JOB_EVACUATE; j.target = static_cast<int16_t>(s.orderEvacuate);
+		j.progress = 0.0f;
+		j.priority = static_cast<int16_t>(keepPriority(JOB_EVACUATE, s.orderEvacuate, 25));
 		next.push_back(j);
 	}
 	std::stable_sort(next.begin(), next.end(), [](const Job &a, const Job &b) { return a.priority < b.priority; });
@@ -6314,7 +6333,9 @@ static void UpdateJobs(Ship &s)
 			what += j.kind == JOB_REPAIR ? SPECS[j.target].name
 				: (j.kind == JOB_BUILD && j.target < 0 ? std::string(ShuttleClassName(static_cast<ShuttleClass>(-j.target - 1)))
 				: (std::string("deck ") + std::to_string(j.target)));
-			LogEvent(s, "damage control", j.kind == JOB_REPAIR ? "engineering" : "hull", std::string("work ordered: ") + what);
+			const char *scope = j.kind == JOB_REPAIR ? "engineering"
+				: (j.kind == JOB_SECURE || j.kind == JOB_RECLAIM) ? "security" : "hull";
+			LogEvent(s, "damage control", scope, std::string("work ordered: ") + what);
 		}
 	}
 	s.jobs = next;
@@ -8610,6 +8631,483 @@ std::string Describe(const Ship &s)
 		out += line;
 	}
 	return out;
+}
+
+// ---- orders: the third use of the same machine (docs/orders.md) ---------------------------------
+//
+// An order is a one-recipient brief, and its enumerated options are the orders *that* recipient can
+// be given. The set is derived per recipient -- from their post, their department, their rank, and
+// the giving player's authority over them -- never written out by hand. The register of the classes
+// of order is module/ship/order_set.def; this section is the derivation, the brief, the dispatch (a
+// job), the refusal, and the novelty seam. The invariant is the meeting's: the simulation decides;
+// the model only speaks, and nothing here calls a model.
+
+namespace {
+const OrderClassSpec ORDER_SPECS[] = {
+#define ORDER_CLASS(tok, name, label, cost, needs, jobKind, target) { name, label, cost, needs, jobKind, target },
+#include "order_set.def"
+#undef ORDER_CLASS
+};
+} // namespace
+
+int OrderClassCount() { return ORDER_CLASS_COUNT; }
+const OrderClassSpec &OrderClassSpecOf(uint8_t order)
+{
+	return ORDER_SPECS[order < ORDER_CLASS_COUNT ? order : 0];
+}
+
+const char *OrderNeedName(uint16_t bit)
+{
+	switch (bit) {
+		case ORD_NEED_POST: return "holding a post";
+		case ORD_NEED_COMMAND: return "command";
+		case ORD_NEED_ENGINEERING: return "engineering";
+		case ORD_NEED_SECURITY: return "security";
+		case ORD_NEED_MEDICAL: return "medical";
+		case ORD_NEED_SCIENCE: return "sciences";
+		case ORD_NEED_JUNIOR: return "a junior";
+		default: return "?";
+	}
+}
+
+static bool CrewIsFitS(const Ship &s, int i)
+{
+	return i >= 0 && i < static_cast<int>(s.crew.size())
+		&& s.crew[i].status == CREW_FIT && !s.crew[i].brigged && !s.crew[i].away;
+}
+
+bool MayOrder(const Ship &s, int giver, int recipient)
+{
+	if (giver == recipient) return false;
+	if (!CrewIsFitS(s, giver) || !CrewIsFitS(s, recipient)) return false;
+	// Command authority reaches anyone fit; otherwise authority is seniority (docs/access-and-
+	// authority.md: rank controls access absolutely, and here rank is who may give the order).
+	return MayCommand(s.crew[giver]) || s.crew[giver].rank > s.crew[recipient].rank;
+}
+
+static bool NeedMet(const CrewMember &c, uint16_t bit)
+{
+	switch (bit) {
+		case ORD_NEED_POST: return c.post < SYS_COUNT;
+		case ORD_NEED_COMMAND: return c.dept == DEPT_COMMAND;
+		case ORD_NEED_ENGINEERING: return c.dept == DEPT_ENGINEERING;
+		case ORD_NEED_SECURITY: return c.dept == DEPT_SECURITY;
+		case ORD_NEED_MEDICAL: return c.dept == DEPT_MEDICAL;
+		case ORD_NEED_SCIENCE: return c.dept == DEPT_SCIENCES;
+		case ORD_NEED_JUNIOR: return c.rank <= 2;
+		default: return false;
+	}
+}
+
+static bool RecipientMeets(const Ship &s, int recipient, uint16_t needs)
+{
+	if (!CrewIsFitS(s, recipient)) return false;
+	const CrewMember &c = s.crew[recipient];
+	for (uint16_t bit = 1; bit <= ORD_NEED_JUNIOR; bit = static_cast<uint16_t>(bit << 1))
+		if ((needs & bit) && NeedMet(c, bit)) return true;
+	return false;
+}
+
+bool OrderPermitted(const Ship &s, int giver, int recipient, uint8_t order)
+{
+	if (order >= ORDER_CLASS_COUNT) return false;
+	if (!MayOrder(s, giver, recipient)) return false;
+	return RecipientMeets(s, recipient, OrderClassSpecOf(order).needs);
+}
+
+int DeriveOrders(const Ship &s, int giver, int recipient, uint8_t *out, int maxOut)
+{
+	int n = 0;
+	for (int o = 0; o < ORDER_CLASS_COUNT && n < maxOut; ++o)
+		if (OrderPermitted(s, giver, recipient, static_cast<uint8_t>(o))) out[n++] = static_cast<uint8_t>(o);
+	return n;
+}
+
+// The deck the simulation names when a security or evacuation order is given: the most contested,
+// then the one in most trouble (fire or a hull breach), then wherever the recipient stands.
+static int OrderDeck(const Ship &s, int recipient)
+{
+	const int contested = MostThreatenedDeck(s);
+	if (contested > 0) return contested;
+	int best = 0; float worst = 0.0f;
+	for (int d = 0; d < DECKS; ++d) {
+		const float trouble = s.decks[d].fire + (1.0f - s.decks[d].hull);
+		if (trouble > worst) { worst = trouble; best = d + 1; }
+	}
+	if (best > 0) return best;
+	if (recipient >= 0 && recipient < static_cast<int>(s.crew.size())) return s.crew[recipient].deck;
+	return 1;
+}
+
+int16_t ResolveOrderTarget(const Ship &s, int recipient, uint8_t order)
+{
+	const OrderClassSpec &sp = OrderClassSpecOf(order);
+	if (order == ORDER_SEE_TO) {
+		if (recipient >= 0 && recipient < static_cast<int>(s.crew.size()) && s.crew[recipient].post < SYS_COUNT)
+			return static_cast<int16_t>(s.crew[recipient].post);
+		// No post: the worst system in their own department.
+		const Department d = (recipient >= 0 && recipient < static_cast<int>(s.crew.size())) ? s.crew[recipient].dept : DEPT_ENGINEERING;
+		int worst = -1; float health = 1.0f;
+		for (int i = 0; i < SYS_COUNT; ++i)
+			if (SPECS[i].dept == d && s.systems[i].health < health) { health = s.systems[i].health; worst = i; }
+		return static_cast<int16_t>(worst >= 0 ? worst : SYS_LIFE_SUPPORT);
+	}
+	if (sp.defaultTarget >= 0) return sp.defaultTarget;   // build: a fixed count
+	return static_cast<int16_t>(OrderDeck(s, recipient));
+}
+
+std::string OrderLabel(const Ship &s, int recipient, uint8_t order)
+{
+	const OrderClassSpec &sp = OrderClassSpecOf(order);
+	const int16_t t = ResolveOrderTarget(s, recipient, order);
+	std::string label = sp.label;
+	auto replace = [&label](const char *needle, const std::string &with) {
+		const size_t p = label.find(needle);
+		if (p != std::string::npos) label.replace(p, std::strlen(needle), with);
+	};
+	if (order == ORDER_SEE_TO && t >= 0 && t < SYS_COUNT) replace("{post}", SPECS[t].name);
+	else if (order == ORDER_BUILD_PARTS) replace("{n}", std::to_string(t));
+	else replace("{deck}", std::string("deck ") + std::to_string(t));
+	return label;
+}
+
+std::string OrderRefusalRule(const Ship &s, int giver, int recipient, uint8_t order)
+{
+	const std::string who = (recipient >= 0 && recipient < static_cast<int>(s.crew.size()))
+		? s.crew[recipient].name : "them";
+	if (giver < 0 || giver >= static_cast<int>(s.crew.size())) return "no one gave it";
+	if (giver == recipient) return "a person cannot order themselves";
+	if (s.crew[giver].status != CREW_FIT || s.crew[giver].brigged) return "the order of a person not fit for duty";
+	if (!MayOrder(s, giver, recipient)) return "you have no authority over " + who;
+	if (!RecipientMeets(s, recipient, OrderClassSpecOf(order).needs))
+		return who + " does not hold the post this order needs";
+	return std::string();
+}
+
+bool OrderSetFault(const Ship &s, int giver, int recipient, const uint8_t *set, int n, std::string *fault)
+{
+	auto say = [fault](const std::string &m) { if (fault) *fault = m; };
+	// Direction one: an order in the set the recipient cannot be given.
+	for (int i = 0; i < n; ++i) {
+		if (set[i] >= ORDER_CLASS_COUNT) { say("the set carries a class the register does not have"); return true; }
+		if (!OrderPermitted(s, giver, recipient, set[i])) {
+			say(std::string("the set offers \"") + OrderClassSpecOf(set[i]).name + "\", which " 
+				+ ((recipient >= 0 && recipient < static_cast<int>(s.crew.size())) ? s.crew[recipient].name : std::string("they"))
+				+ " cannot be given");
+			return true;
+		}
+	}
+	// Direction two: an order the recipient can be given that the set omits.
+	for (int o = 0; o < ORDER_CLASS_COUNT; ++o) {
+		bool in = false;
+		for (int i = 0; i < n; ++i) if (set[i] == o) { in = true; break; }
+		if (!in && OrderPermitted(s, giver, recipient, static_cast<uint8_t>(o))) {
+			say(std::string("the set omits \"") + OrderClassSpecOf(o).name + "\", which the order can be given as");
+			return true;
+		}
+	}
+	if (fault) fault->clear();
+	return false;
+}
+
+// The recipient as a person, seen through the brief: the same four facts and the same marks the
+// meeting's per-participant view carries (docs/orders.md, docs/memory-and-consequence.md).
+static void FillRecipient(BriefParticipant &p, const Ship &s, int crew)
+{
+	p.crew = crew;
+	const CrewMember &c = s.crew[crew];
+	p.name = c.name;
+	p.post = c.post;
+	p.watch = c.watch;
+	p.mood = Morale(c);
+	int idx[MEMORY_MAX];
+	int n = 0;
+	for (int i = 0; i < static_cast<int>(c.memories.size()) && n < MEMORY_MAX; ++i) idx[n++] = i;
+	std::stable_sort(idx, idx + n, [&c](int a, int b) { return c.memories[a].salience > c.memories[b].salience; });
+	for (int i = 0; i < n && p.markCount < MEETING_VIEW_MAX; ++i) {
+		const Memory &m = c.memories[idx[i]];
+		BriefMark bm;
+		bm.event = m.event; bm.person = m.person; bm.source = m.source;
+		bm.valence = m.valence; bm.salience = m.salience;
+		p.marks[p.markCount++] = bm;
+	}
+	for (const Promise &pr : s.promises) {
+		if (pr.state != PROMISE_OPEN) continue;
+		if (pr.promiser != crew && pr.beneficiary != crew) continue;
+		if (p.promiseCount >= MEETING_VIEW_MAX) break;
+		BriefPromise &bp = p.promises[p.promiseCount++];
+		bp.kind = pr.kind; bp.promiser = pr.promiser; bp.beneficiary = pr.beneficiary;
+		bp.what = pr.what; bp.deadline = pr.deadline;
+	}
+	for (const LogEntry &e : LogForParticipant(s, crew)) {
+		if (p.logCount >= MEETING_VIEW_MAX) break;
+		p.log[p.logCount++] = e;
+	}
+}
+
+OrderBrief BuildOrderBrief(const Ship &s, int giver, int recipient)
+{
+	OrderBrief b;
+	b.giver = giver;
+	b.recipient = recipient;
+	b.time = s.clock;
+	if (!CrewIsFitS(s, recipient)) return b;   // an empty brief: nobody to order
+	uint8_t orders[ORDER_CLASS_COUNT];
+	const int n = DeriveOrders(s, giver, recipient, orders, ORDER_CLASS_COUNT);
+	b.optionCount = std::min(n, ORDER_OPTION_MAX);
+	for (int i = 0; i < b.optionCount; ++i) {
+		OrderOption &o = b.options[i];
+		o.order = orders[i];
+		o.intent = static_cast<uint8_t>(orders[i] + 1);   // the pill and the novelty seam share it
+		o.target = ResolveOrderTarget(s, recipient, orders[i]);
+		o.label = OrderLabel(s, recipient, orders[i]);
+		o.cost = OrderClassSpecOf(orders[i]).cost;
+	}
+	FillRecipient(b.who, s, recipient);
+	b.alert = s.alert;
+	b.intruders = Intruders(s);
+	b.threatenedDeck = OrderDeck(s, recipient);
+	b.casualties = CasualtyCount(s);
+	{
+		const CrewMember &c = s.crew[recipient];
+		const std::string post = c.post < SYS_COUNT ? SPECS[c.post].name : std::string("department duties");
+		const char *alertName = s.alert == ALERT_RED ? "red" : s.alert == ALERT_YELLOW ? "yellow" : "green";
+		char buf[192];
+		std::snprintf(buf, sizeof(buf), "%s holds %s; the ship is at %s alert", c.name.c_str(), post.c_str(), alertName);
+		b.situation = buf;
+	}
+	b.stateDigest = StateDigest(s);
+	return b;
+}
+
+// Apply a given order: the standing order is set and the queue's face follows (UpdateJobs). Not the
+// player-gated hooks (OrderRepairFirst and its siblings), because the giver may not be the player:
+// the authority was already decided by OrderPermitted, and the log names the hand that gave it.
+static void ApplyOrder(Ship &s, uint8_t order, int16_t target)
+{
+	switch (order) {
+		case ORDER_SEE_TO:
+			s.orderRepairFirst = (target >= 0 && target < SYS_COUNT) ? target : -1;
+			break;
+		case ORDER_SECURE_DECK:
+			s.orderSecurityTo = (target >= 1 && target <= DECKS) ? target : 0;
+			break;
+		case ORDER_ADVANCE_DECK:
+			s.advanceDeck = (target >= 1 && target <= DECKS) ? target : 0;
+			s.advanceAt = 9;
+			s.advanceMs = 0.0f;
+			break;
+		case ORDER_EVACUATE_DECK:
+			s.orderEvacuate = (target >= 1 && target <= DECKS) ? target : 0;
+			break;
+		case ORDER_BUILD_PARTS: {
+			const int parts = target > 0 ? target : 1;
+			bool merged = false;
+			for (Job &j : s.jobs)
+				if (j.kind == JOB_BUILD && j.target > 0) { j.target = static_cast<int16_t>(std::min(999, j.target + parts)); merged = true; break; }
+			if (!merged) {
+				Job j;
+				j.kind = JOB_BUILD;
+				j.target = static_cast<int16_t>(std::min(999, parts));
+				j.priority = 40;
+				s.jobs.push_back(j);
+			}
+			break;
+		}
+		default:
+			break;
+	}
+}
+
+static std::string OrderGiverName(const Ship &s, int giver)
+{
+	return (giver >= 0 && giver < static_cast<int>(s.crew.size())) ? s.crew[giver].name : std::string("command");
+}
+
+OrderOutcome DispatchOrder(Ship &s, const OrderBrief &brief, int option, int giver)
+{
+	OrderOutcome r;
+	if (giver < 0) giver = brief.giver;
+	const int recipient = brief.recipient;
+	if (option < 0 || option >= brief.optionCount || !CrewIsFitS(s, recipient)) {
+		r.refused = true;
+		r.refusal = "no such order";
+		r.note = "no such order";
+		return r;
+	}
+	const OrderOption &o = brief.options[option];
+	r.order = o.order;
+	r.target = o.target;
+	const std::string gname = OrderGiverName(s, giver);
+
+	// The refusal (docs/orders.md, Task D): never silently dropped, and never invented around. The
+	// rule that refuses it is named, spoken in character, and logged; the ship's state is unchanged.
+	if (!OrderPermitted(s, giver, recipient, o.order)) {
+		r.refused = true;
+		r.refusal = OrderRefusalRule(s, giver, recipient, o.order);
+		LogEvent(s, gname, "order", std::string("refused: ") + r.refusal);
+		MeetingLine &l = r.reply[r.replyCount++];
+		l.speaker = recipient;
+		l.text = "With respect, " + r.refusal + ". That order is not yours to give.";
+		l.delivery = DELIVERY_FLAT;
+		r.note = "refused (" + r.refusal + "); the ship is unchanged";
+		return r;
+	}
+
+	// Given: the giver's line (an order, delivered as one), then the simulation applies it.
+	{
+		MeetingLine &l = r.reply[r.replyCount++];
+		l.speaker = giver;
+		l.text = s.crew[recipient].name + " -- " + o.label + ".";
+		l.delivery = DELIVERY_ORDER;
+	}
+	ApplyOrder(s, o.order, o.target);
+	r.given = true;
+	LogEvent(s, gname, "order", "orders " + s.crew[recipient].name + ": " + o.label);
+
+	// The recipient answers as a person (Task D): their morale, conditions and traits move the line,
+	// and an order they take badly leaves a mark. Where a badly-taken order lands is an OPEN QUESTION
+	// in docs/orders.md (Q3); the behaviour chosen here is named in docs/evidence/orders.md.
+	const CrewMember &rec = s.crew[recipient];
+	const float morale = Morale(rec);
+	r.resented = morale < 0.35f || HasTrait(rec, TRAIT_POOR_WITH_AUTHORITY)
+		|| FindCondition(rec, COND_EXHAUSTED) != nullptr || FindCondition(rec, COND_AFRAID) != nullptr;
+	{
+		MeetingLine &l = r.reply[r.replyCount++];
+		l.speaker = recipient;
+		if (r.resented) { l.text = "Aye. Because you asked."; l.delivery = DELIVERY_CONFESSION; }
+		else if (morale >= 0.6f) { l.text = "Aye -- on it."; l.delivery = DELIVERY_REPORT; }
+		else { l.text = "Understood."; l.delivery = DELIVERY_FLAT; }
+		LogEvent(s, rec.name, "order", l.text);
+	}
+	if (r.resented) {
+		Remember(s, recipient, MEM_ORDER, giver, MEM_SAW, -0.6f);
+		r.note = "given and logged; taken badly (a MEM_ORDER mark toward the giver)";
+	} else {
+		r.note = "given and logged";
+	}
+
+	Tick(s, 0.0f); // rebuild the queue so the job the order pushed is visible at once
+	for (int i = 0; i < static_cast<int>(s.jobs.size()); ++i)
+		if (s.jobs[i].kind == OrderClassSpecOf(o.order).jobKind && s.jobs[i].target == o.target) { r.job = i; break; }
+	return r;
+}
+
+// ---- the novelty seam for a bespoke order (Task D) -----------------------------------------------
+//
+// The typed order is classified against the option intent descriptors the pills carry, exactly as a
+// meeting's is. A match dispatches that enumerated option; a miss is refused in character -- the
+// computer's own invariant, that an input outside the set is refused rather than invented. With no
+// classifier verdict loaded every typed order is novel (the embedding classifier is M4), so typed
+// text can never become an order by accident and the same text always classifies the same way.
+
+namespace {
+struct OrderVerdict { uint32_t key; bool matched; int option; std::string note; };
+std::vector<OrderVerdict> g_orderVerdicts;
+} // namespace
+
+uint32_t OrderNoveltyKey(const OrderBrief &brief, const std::string &text)
+{
+	uint32_t h = 2166136261u;
+	auto mix = [&h](uint32_t v) { h ^= v; h *= 16777619u; };
+	auto mixs = [&mix](const std::string &s) {
+		mix(static_cast<uint32_t>(s.size()));
+		for (char c : s) mix(static_cast<uint32_t>(static_cast<unsigned char>(c)));
+	};
+	mix(0x4F524452u); // 'ORDR': an order's key never collides with a meeting's
+	mix(static_cast<uint32_t>(brief.recipient + 1));
+	mixs(text);
+	for (int i = 0; i < brief.optionCount; ++i) {
+		mix(brief.options[i].intent);
+		mixs(brief.options[i].label);
+		mixs(brief.options[i].cost);
+	}
+	return h;
+}
+
+void ClearOrderNoveltyIndex() { g_orderVerdicts.clear(); }
+
+void AddOrderNoveltyVerdict(uint32_t key, bool matched, int option, const std::string &note)
+{
+	for (OrderVerdict &v : g_orderVerdicts)
+		if (v.key == key) { v.matched = matched; v.option = option; v.note = note; return; }
+	OrderVerdict v;
+	v.key = key; v.matched = matched; v.option = option; v.note = note;
+	g_orderVerdicts.push_back(v);
+}
+
+int OrderNoveltyVerdictCount() { return static_cast<int>(g_orderVerdicts.size()); }
+
+OrderNoveltyResult ClassifyNovelOrder(const Ship &s, const OrderBrief &brief, const std::string &text)
+{
+	(void)s;
+	const uint32_t key = OrderNoveltyKey(brief, text);
+	for (const OrderVerdict &v : g_orderVerdicts) {
+		if (v.key != key) continue;
+		OrderNoveltyResult r;
+		r.matched = v.matched && v.option >= 0 && v.option < brief.optionCount;
+		r.option = r.matched ? v.option : -1;
+		r.note = v.note;
+		return r;
+	}
+	OrderNoveltyResult r;
+	r.matched = false;
+	r.option = -1;
+	r.note = "novel: no order descriptor matched (the embedding classifier is M4); the order is "
+		"refused in character and the simulation applies nothing. A replay costs no inference.";
+	return r;
+}
+
+OrderOutcome BespokeOrder(Ship &s, const OrderBrief &brief, int giver, const std::string &text)
+{
+	const OrderNoveltyResult nr = ClassifyNovelOrder(s, brief, text);
+	if (nr.matched) return DispatchOrder(s, brief, nr.option, giver);
+	OrderOutcome r;
+	r.refused = true;
+	r.refusal = "outside the enumerated set";
+	const int recipient = brief.recipient;
+	MeetingLine &l = r.reply[r.replyCount++];
+	l.speaker = recipient;
+	l.text = "That is not something I can be told to do.";
+	l.delivery = DELIVERY_FLAT;
+	LogEvent(s, OrderGiverName(s, giver), "order", "refused (outside the set): \"" + text + "\"");
+	r.note = nr.note;
+	return r;
+}
+
+// ---- the recipient's voice, and the async plan (docs/orders.md, docs/evidence/voice-and-casting.md)
+
+std::string OrderLineKey(const Ship &s, const OrderBrief &brief, const MeetingLine &line)
+{
+	int speaker = line.speaker;
+	if (speaker < 0) speaker = brief.recipient;   // a role line resolves to the person being ordered
+	const std::string voice = CastVoice(s, speaker);
+	if (voice.empty()) return std::string();
+	return RenderKey(voice, line.text, line.delivery);
+}
+
+int PlanOrderAudio(VoiceRender &vr, const Ship &s, const OrderBrief &brief)
+{
+	if (!CrewIsFitS(s, brief.recipient)) return 0;
+	int queued = 0;
+	auto queue = [&](int speaker, const std::string &text, uint8_t delivery) {
+		const std::string voice = CastVoice(s, speaker);
+		if (voice.empty()) return;
+		RenderJob j;
+		j.voice = voice;
+		j.text = text;
+		j.delivery = delivery;
+		j.exaggeration = DeliveryExaggeration(delivery);
+		j.speaker = speaker;
+		j.key = RenderKey(voice, text, delivery);
+		if (QueueRender(vr, j) == 1) ++queued;
+	};
+	for (int i = 0; i < brief.optionCount; ++i)
+		queue(brief.giver, s.crew[brief.recipient].name + " -- " + brief.options[i].label + ".", DELIVERY_ORDER);
+	queue(brief.recipient, "Aye -- on it.", DELIVERY_REPORT);
+	queue(brief.recipient, "Understood.", DELIVERY_FLAT);
+	queue(brief.recipient, "Aye. Because you asked.", DELIVERY_CONFESSION);
+	return queued;
 }
 
 } // namespace ship

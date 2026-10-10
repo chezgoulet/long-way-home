@@ -1435,7 +1435,10 @@ const std::vector<LossEntry> &WriteOffs(const Ship &s);
 // system repaired, a breached hull sealed, an assimilated deck reclaimed -- with its kind, its
 // target, how far it has got, and its place in the order. The damage-control party works it; command
 // sets the order. The queue is bounded and saved, so a thing left undone is still there tomorrow.
-enum JobKind : uint8_t { JOB_REPAIR = 0, JOB_SEAL, JOB_RECLAIM, JOB_BUILD, JOB_KIND_COUNT };
+// The order-created kinds (docs/orders.md) are appended after the four the ship derives from its own
+// condition: a standing order to hold a deck or to clear one is work with a face in the same queue,
+// and it persists while the order stands (UpdateJobs). Appending keeps every existing id unchanged.
+enum JobKind : uint8_t { JOB_REPAIR = 0, JOB_SEAL, JOB_RECLAIM, JOB_BUILD, JOB_SECURE, JOB_EVACUATE, JOB_KIND_COUNT };
 const char *JobKindName(uint8_t k);
 const int JOB_MAX = 24;
 const float BUILD_HOURS_PER_PART = 4.0f; // engineer-hours to fabricate one spare part [inv]
@@ -2485,12 +2488,158 @@ bool OrderSecurityTo(Ship &s, int deck);
 bool OrderEvacuate(Ship &s, int deck);
 bool OrderTriage(Ship &s, int policy);   // 0 worst first, 1 rank first
 
+// ---- orders: the third use of the same machine (docs/orders.md) ---------------------------------
+//
+// An order is *dispatched to a person*, not convened. It is a one-recipient brief: the recipient,
+// the situation, the orders that recipient can be given (each with what it costs), and the free-text
+// path -- and choosing one pushes a job into the existing work queue. The spoken content is scripted
+// exactly as a meeting's is: an authored skeleton with no model present, bespoke lines from the
+// background model, the delivery direction carried per line, and the recipient's own voice.
+//
+// The common set is DERIVED per recipient -- from their **post** (which systems they hold), their
+// **department**, their **rank**, and the giving player's **authority over them** -- never written
+// out by hand. module/ship/order_set.def is the one place a program can read the classes of order
+// that exist; the derivation (OrderPermitted/DeriveOrders) decides which a given person meets;
+// tools/orders/orders.py checks the register against the derivation in both directions, and
+// OrderSetFault checks a returned set against the predicate in both directions at run time.
+//
+// The invariant is the meeting's: the simulation decides; the model only speaks. Nothing here calls
+// a model, and a dispatched order is applied by the simulation (SetAlert's sibling), never by text.
+
+// The requirement a recipient must meet for an order class (docs/orders.md). Each is one reason a
+// person can be given the order; a class's `needs` is a union, and any one met means offered.
+enum OrderNeed : uint16_t {
+	ORD_NEED_POST = 1 << 0,          // they hold a system's station (post < SYS_COUNT)
+	ORD_NEED_COMMAND = 1 << 1,       // they are command department
+	ORD_NEED_ENGINEERING = 1 << 2,   // they are engineering
+	ORD_NEED_SECURITY = 1 << 3,      // they are security
+	ORD_NEED_MEDICAL = 1 << 4,       // they are medical
+	ORD_NEED_SCIENCE = 1 << 5,       // they are sciences
+	ORD_NEED_JUNIOR = 1 << 6,        // rank 2 or below: the "go and look" end of the ladder
+};
+
+// The order classes, declared by order_set.def (the register) so the enumeration and the table
+// cannot drift. OrderClassCount/OrderClassSpecOf read the same rows.
+enum OrderClass : uint8_t {
+#define ORDER_CLASS(tok, name, label, cost, needs, jobKind, target) tok,
+#include "order_set.def"
+#undef ORDER_CLASS
+	ORDER_CLASS_COUNT
+};
+struct OrderClassSpec {
+	const char *name;          // "see to"
+	const char *label;         // "see to the {post}"
+	const char *cost;          // what it costs, in words
+	uint16_t needs;            // the union of OrderNeed a recipient may meet
+	uint8_t jobKind;           // the JobKind the order pushes
+	int16_t defaultTarget;     // a fixed target, or -1 to resolve from the recipient's post and ship
+};
+int OrderClassCount();                     // the register's row count
+const OrderClassSpec &OrderClassSpecOf(uint8_t order);
+const char *OrderNeedName(uint16_t bit);   // the need's own name, for the refusal and the log
+
+// May `giver` give an order to `recipient` at all? The one authority read the derivation and the
+// refusal both use: a fit giver, not themselves, senior to the recipient or holding command
+// (docs/access-and-authority.md). This is the "who may order whom" the console's lock teaches.
+bool MayOrder(const Ship &s, int giver, int recipient);
+
+// The one place the derivation reads: may this order class be given to this recipient by this giver?
+// True when the giver has the authority and the recipient meets one of the class's needs. Pure.
+bool OrderPermitted(const Ship &s, int giver, int recipient, uint8_t order);
+
+// The derived set: every order class this recipient can be given by this giver, in register order.
+// This is the enumerated set the brief's pills show. Pure; the same ship gives the same set.
+int DeriveOrders(const Ship &s, int giver, int recipient, uint8_t *out, int maxOut);
+
+// The target a class resolves to for this recipient: the system they hold (see to), the deck the
+// simulation names (secure/advance/evacuate), or the class's fixed target (build). Pure.
+int16_t ResolveOrderTarget(const Ship &s, int recipient, uint8_t order);
+// The pill's label with its target filled in: "see to the warp drive".
+std::string OrderLabel(const Ship &s, int recipient, uint8_t order);
+// The rule that refuses an order class to a giver, by name -- the string the refusal is spoken from
+// and logged. Empty when the order is permitted.
+std::string OrderRefusalRule(const Ship &s, int giver, int recipient, uint8_t order);
+
+// A returned set is checked against the predicate in BOTH directions (Task B): an order in the set
+// the person cannot be given, and an order the person can be given that the set omits. `fault` names
+// which, when there is one. The guard is given the set, so a planted set can be shown caught.
+bool OrderSetFault(const Ship &s, int giver, int recipient, const uint8_t *set, int n, std::string *fault);
+
+// The recipient as a person, seen through the brief: reused from the meeting so the two surfaces
+// show the same four facts (name, post, watch, mood) and the same marks and readable log.
+const int ORDER_OPTION_MAX = 6;
+struct OrderOption {
+	uint8_t order = 0;         // an OrderClass
+	uint8_t intent = 0;        // the intent descriptor: the pill and the novelty seam share it
+	std::string label;         // "see to the warp drive"
+	std::string cost;          // what it costs, in words
+	int16_t target = 0;        // the resolved target (a system, a deck, or a count)
+};
+struct OrderBrief {
+	int giver = -1;
+	int recipient = -1;
+	double time = 0.0;         // ship seconds when it was built
+	std::string situation;     // why this order is in front of the giver, in words
+	OrderOption options[ORDER_OPTION_MAX]; int optionCount = 0;
+	BriefParticipant who;      // the recipient: name, post, watch, mood, marks, promises, log
+	// The instruments the giver sees when they give it (reads that never lie).
+	uint8_t alert = 0;
+	int intruders = 0;
+	int threatenedDeck = 0;    // the deck the simulation names for a security or evacuation order
+	int casualties = 0;
+	uint32_t stateDigest = 0;
+};
+// The brief generator. A pure read: it writes nothing, and building a brief leaves the ship's state
+// byte-identical. An invalid giver or recipient gives an empty brief.
+OrderBrief BuildOrderBrief(const Ship &s, int giver, int recipient);
+
+// What came of giving an order. `given`/`refused` are exclusive; a refusal names the rule and is
+// logged and spoken in character, and changes nothing. `job` is the queue index the order pushed.
+const int ORDER_REPLY_MAX = 3;
+struct OrderOutcome {
+	bool given = false;
+	bool refused = false;
+	std::string refusal;       // the rule that refused it, by name (docs/orders.md, Task D)
+	uint8_t order = ORDER_CLASS_COUNT;
+	int16_t target = 0;
+	int job = -1;              // the index the order's job landed at, or -1
+	bool resented = false;     // the recipient took it badly (morale/conditions/marks)
+	MeetingLine reply[ORDER_REPLY_MAX]; int replyCount = 0; // the giver's line, then the answer
+	std::string note;          // what happened, in words, for the log
+};
+// Dispatch a chosen enumerated order. The simulation applies it (the standing order is set and a job
+// is pushed) and the recipient answers as a person. Returns refused (changing nothing) when the giver
+// may not give it, by the rule's name. Never calls a model and never invents a target.
+OrderOutcome DispatchOrder(Ship &s, const OrderBrief &brief, int option, int giver);
+
+// The novelty seam for a bespoke order (Task D): the typed text is classified against the brief's
+// option intent descriptors exactly as a meeting's is. A match dispatches that option; a miss is
+// refused in character -- the computer's invariant, that an input outside the enumerated set is
+// refused rather than invented. With no classifier verdict loaded, every typed order is novel.
+struct OrderNoveltyResult { bool matched = false; int option = -1; std::string note; };
+uint32_t OrderNoveltyKey(const OrderBrief &brief, const std::string &text);
+void ClearOrderNoveltyIndex();
+void AddOrderNoveltyVerdict(uint32_t key, bool matched, int option, const std::string &note);
+int OrderNoveltyVerdictCount();
+OrderNoveltyResult ClassifyNovelOrder(const Ship &s, const OrderBrief &brief, const std::string &text);
+OrderOutcome BespokeOrder(Ship &s, const OrderBrief &brief, int giver, const std::string &text);
+
+// The recipient's voice: the key a reply line renders under (the cast map, docs/the-entry-point.md),
+// and the async plan that queues the giver's line and the recipient's answers before dispatch, so a
+// dispatch calls no model and no synthesiser on arrival. Reuses the meeting's render queue and cache.
+std::string OrderLineKey(const Ship &s, const OrderBrief &brief, const MeetingLine &line);
+int PlanOrderAudio(VoiceRender &vr, const Ship &s, const OrderBrief &brief);
+
 // Sets the role; ROLE_MUNRO makes the player Alexander Munro.
 void SetRole(Ship &s, PlayerRole role);
 
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
+// Orders (docs/orders.md) add two JobKinds (JOB_SECURE, JOB_EVACUATE) appended after the four the
+// queue already derives; a job kind is a single byte in the record and the two new values are only
+// ever written by this build, so a save made before them loads and replays identically and the
+// version is deliberately NOT bumped -- a change that makes a save load differently is a defect.
 const uint16_t SAVE_VERSION = 55;  // 55: the meeting's place -- each queued brief now knows the room it is held in and the department whose business it is, derived from the meeting's kind and subject (docs/staff-meetings.md); 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
 
 std::vector<uint8_t> Pack(const Ship &s);
