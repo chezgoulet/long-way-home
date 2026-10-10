@@ -70,6 +70,33 @@ A fresh crew begins rested and reasonably hopeful. The seed colours the outlook 
 that two people do not start identical; fatigue and deficit begin at zero. Conditions arrive in
 play.
 
+### Appearance
+
+**The face is part of the person, so it comes from the same derivation.** `DeriveAppearance(c, rng)`
+sits beside `DeriveCharacter` and draws from **the same stream**, so the traits and the face are one
+person, a save replays identically face and all, and a face can never drift from its record
+(`docs/character-attributes.md`, *Appearance*). It fills an `Appearance { head, build, colour }`:
+the **head** is an index into the shipped pool (the shipped player models, enumerated in
+`docs/evidence/the-appearance.md`); the **build** is the record's own (`crewthin`/`crewfemale`, as
+the game's type carries it); the **colour** is the department's. **It is not stored** — static
+content derived from the seed, exactly as species, skills, traits and drives are, so a hundred and
+forty-one faces cost the save nothing.
+
+Three rules bind it, and each is enforced in code rather than in prose:
+
+- **Species constrains the pool.** `SpeciesHeadCount`/`SpeciesHeadAt` return a species's own part of
+  the pool; the parts are disjoint by construction, so a Vulcan and a human do not share a face.
+  Where the game ships no non-canon face for a species (Vulcan, Ocampa, Talaxian), the pool is a
+  named placeholder carve, and the shortfall is in the evidence rather than hidden.
+- **The generated pool excludes the canon faces in code.** `IsCanonFace` names the show command crew
+  in one place; the derivation refuses a canon face at selection, and `CanonFaceInPool` walks the
+  whole pool — a canon head planted in it is caught by name. A comment is not a mechanism.
+- **Named crew are never re-rolled and never generated.** `DeriveAppearance` leaves a named record
+  unset (`head 0xFFFF`); the one named list (`NamedHeadModel`) keeps the model its type ships.
+
+The whole layer is a pure function of the record and the seed, as the rest of this document is. The
+evidence, tests and the photographed lineup are `docs/evidence/the-appearance.md`.
+
 ## 2. Conditions — the missing layer
 
 A condition is `id · source · valence · magnitude · onset · clears-when · visible`

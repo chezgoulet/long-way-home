@@ -5738,6 +5738,160 @@ static void TestCharacterSaveRoundTrip()
 	}
 }
 
+// A generated record's type is the game's own "GoldM3" / "RedF1" / "blueF2": it ends in a digit.
+// A named record carries a short name ("janeway", "chakotay"). Used to tell the two apart here.
+static bool GeneratedType(const std::string &type)
+{
+	return !type.empty() && type.back() >= '0' && type.back() <= '9';
+}
+
+// The appearance derivation (docs/character-attributes.md, "Appearance"): the face is part of the
+// person, so it comes from the same seed as the traits, and it is never stored.
+static void TestAppearanceDerivation()
+{
+	g_test = "the face comes from the same seed as the person";
+	Ship a = NewShip(), b = NewShip();
+	CHECK(a.crew.size() == b.crew.size());
+	bool same = true;
+	for (size_t i = 0; i < a.crew.size(); ++i) {
+		const CrewMember &x = a.crew[i], &y = b.crew[i];
+		if (x.traits != y.traits || x.appear.head != y.appear.head
+		    || x.appear.build != y.appear.build || x.appear.colour != y.appear.colour) { same = false; break; }
+	}
+	CHECK(same); // the same seed, the same person, face and traits from one stream
+
+	Config cfgA; cfgA.seed = 909; Ship c = NewShip(cfgA);
+	Config cfgB; cfgB.seed = 910; Ship d = NewShip(cfgB);
+	int differences = 0;
+	for (size_t i = 0; i < c.crew.size() && i < d.crew.size(); ++i)
+		if (c.crew[i].appear.head != d.crew[i].appear.head) ++differences;
+	CHECK(differences > 10); // a different seed is a different crew, faces included
+
+	// Generated crew draw a face; named crew are left unset and keep the model their type ships.
+	int generated = 0, generatedHead = 0, namedUnset = 0, named = 0;
+	for (const CrewMember &m : a.crew) {
+		if (GeneratedType(m.type)) { ++generated; if (m.appear.head != 0xFFFF) ++generatedHead; }
+		else { ++named; if (m.appear.head == 0xFFFF) ++namedUnset; }
+	}
+	CHECK(generated > 100);
+	CHECK(generatedHead == generated);
+	CHECK(named > 0 && namedUnset == named);
+
+	// The two derivations are one stream, not two: the same seed with the character derivation
+	// before it draws a different face from the same seed without it.
+	int differ = 0;
+	for (uint32_t seed = 1; seed <= 20; ++seed) {
+		uint32_t ra = seed; CrewMember x; x.type = "GoldM3"; x.dept = DEPT_SECURITY; x.species = SPECIES_HUMAN;
+		DeriveCharacter(x, ra); DeriveAppearance(x, ra);
+		uint32_t rb = seed; CrewMember y; y.type = "GoldM3"; y.dept = DEPT_SECURITY; y.species = SPECIES_HUMAN;
+		DeriveAppearance(y, rb);
+		if (x.appear.head != y.appear.head) ++differ;
+	}
+	CHECK(differ > 0);
+}
+
+// The canon exclusion, in code and over the whole pool: no entry the derivation may draw from
+// resolves to a show face, and the check that says so can fail (a planted face is caught by name).
+static void TestAppearancePoolExcludesCanon()
+{
+	g_test = "the canon exclusion, over the whole pool, and the check can fail";
+	const int n = AppearancePoolCount();
+	CHECK(n > 40);
+	CHECK(n <= 256);
+	const char *dirs[256];
+	for (int i = 0; i < n; ++i) {
+		dirs[i] = AppearancePoolDirectoryAt(i);
+		CHECK(dirs[i] && dirs[i][0]);
+		CHECK(AppearancePoolHeadAt(i) && AppearancePoolHeadAt(i)[0]);
+	}
+	// Walk the WHOLE pool, not a sample: no entry resolves to a canon face.
+	CHECK(CanonFaceInPool(dirs, n) == nullptr);
+	// And the predicate is not vacuous: it names the show faces, case-insensitively.
+	CHECK(IsCanonFace("janeway"));
+	CHECK(IsCanonFace("Tuvok"));
+	CHECK(IsCanonFace("tuvok_h"));
+	CHECK(!IsCanonFace("Garren"));
+	CHECK(!IsCanonFace(nullptr));
+	CHECK(!IsCanonFace(""));
+
+	// Plant a canon head in the pool and show the check catches it, by name.
+	const char *planted[257];
+	for (int i = 0; i < n; ++i) planted[i] = dirs[i];
+	planted[n] = "janeway";
+	const char *offender = CanonFaceInPool(planted, n + 1);
+	CHECK(offender != nullptr);
+	CHECK(offender && std::string(offender) == "janeway");
+
+	// The derivation itself can never select a canon face, for any generated record.
+	Ship s = NewShip();
+	for (const CrewMember &m : s.crew)
+		if (m.appear.head != 0xFFFF) {
+			CHECK(m.appear.head < static_cast<uint16_t>(n));
+			CHECK(!IsCanonFace(AppearancePoolDirectoryAt(m.appear.head)));
+		}
+}
+
+// Species constrains the pool: a Vulcan draws from Vulcan parts, a human from human ones, and the
+// two do not share a face. Nonsense results are what tell a player the roster is a slot machine.
+static void TestSpeciesConstrainsFacePool()
+{
+	g_test = "species constrains the face pool";
+	auto intersects = [](uint8_t x, uint8_t y) {
+		for (int i = 0; i < SpeciesHeadCount(x); ++i)
+			for (int j = 0; j < SpeciesHeadCount(y); ++j)
+				if (std::string(SpeciesHeadAt(x, i)) == std::string(SpeciesHeadAt(y, j))) return true;
+		return false;
+	};
+	CHECK(SpeciesHeadCount(SPECIES_VULCAN) > 0);
+	CHECK(SpeciesHeadCount(SPECIES_HUMAN) > 0);
+	CHECK(SpeciesHeadCount(SPECIES_KLINGON) > 0);
+	CHECK(SpeciesHeadCount(SPECIES_BOLIAN) > 0);
+	CHECK(SpeciesHeadCount(SPECIES_BETAZOID) > 0);
+	CHECK(!intersects(SPECIES_VULCAN, SPECIES_HUMAN));
+	CHECK(!intersects(SPECIES_KLINGON, SPECIES_HUMAN));
+	CHECK(!intersects(SPECIES_BOLIAN, SPECIES_HUMAN));
+	CHECK(!intersects(SPECIES_BETAZOID, SPECIES_HUMAN));
+
+	// A generated Vulcan draws a Vulcan face; a generated human draws a human one.
+	auto inPool = [](const std::string &face, uint8_t sp) {
+		for (int i = 0; i < SpeciesHeadCount(sp); ++i) if (face == SpeciesHeadAt(sp, i)) return true;
+		return false;
+	};
+	Ship s = NewShip();
+	int vulcans = 0, humans = 0, klingons = 0;
+	for (const CrewMember &m : s.crew) {
+		if (m.appear.head == 0xFFFF) continue;
+		const std::string face = AppearanceHeadModel(m.appear);
+		if (m.species == SPECIES_VULCAN) { ++vulcans; CHECK(inPool(face, SPECIES_VULCAN)); }
+		else if (m.species == SPECIES_HUMAN) { ++humans; CHECK(inPool(face, SPECIES_HUMAN)); }
+		else if (m.species == SPECIES_KLINGON) { ++klingons; CHECK(inPool(face, SPECIES_KLINGON)); }
+	}
+	CHECK(vulcans > 0 && humans > 0 && klingons > 0);
+
+	// The pool reaches no canon face.
+	for (int i = 0; i < AppearancePoolCount(); ++i)
+		CHECK(!IsCanonFace(AppearancePoolDirectoryAt(i)));
+}
+
+// The face is derived and not stored, so a save replays identically face and all: pack, unpack, and
+// the same faces are back, with the save blob itself unchanged.
+static void TestAppearanceSaveRoundTrip()
+{
+	g_test = "the face replays identically through a save and a load";
+	Ship s = NewShip();
+	const std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(Pack(back) == blob); // the face is not in the save at all
+	CHECK(back.crew.size() == s.crew.size());
+	for (size_t i = 0; i < s.crew.size(); ++i) {
+		CHECK(back.crew[i].appear.head == s.crew[i].appear.head);
+		CHECK(back.crew[i].appear.build == s.crew[i].appear.build);
+		CHECK(back.crew[i].appear.colour == s.crew[i].appear.colour);
+		CHECK(back.crew[i].traits == s.crew[i].traits);
+	}
+}
+
 // A person with no modifier but their skill: neutral morale, no conditions, no traits, a routine
 // task. The tests below vary one thing at a time from this, so a difference is attributable.
 static CrewMember PlainCrew()
@@ -6752,6 +6906,87 @@ static int PrintStarts()
 	return 0;
 }
 
+// The appearance derivation, printed: the pool, the species split, the canon set in one place, the
+// named crew (unchanged, head by head), and a lineup of generated crew. Evidence for
+// docs/evidence/the-appearance.md, and the transcript the check script greps.
+static void PrintAppearanceLine(const CrewMember &m)
+{
+	if (m.appear.head == 0xFFFF) {
+		// Named: the derivation left it unset, so the player-body path keeps the model its type
+		// ships, exactly as before this pass. A record whose type ships none keeps the game default.
+		const char *h = NamedHeadModel(m.type);
+		std::printf("  %-14s %-16s NAMED  type %-10s head %s (unchanged)\n",
+			m.name.c_str(), SpeciesName(m.species), m.type.c_str(), h ? h : "<the game default>");
+		return;
+	}
+	const char *head = AppearanceHeadModel(m.appear);
+	const char *base = AppearanceBuildName(m.appear.build);
+	std::printf("  %-14s %-16s head %-18s torso %s/%s legs %s/default\n",
+		m.name.c_str(), SpeciesName(m.species), head, base,
+		AppearanceColourName(m.appear.colour), base);
+}
+
+static int PrintAppearance()
+{
+	std::printf("== the appearance derivation (docs/character-attributes.md, \"Appearance\")\n\n");
+	std::printf("the shipped head pool: %d entries, canon faces excluded in code\n", AppearancePoolCount());
+	for (int i = 0; i < AppearancePoolCount(); ++i)
+		std::printf("  head %-20s species %s\n", AppearancePoolHeadAt(i), SpeciesName(AppearancePoolSpeciesAt(i)));
+	std::printf("\nspecies pools (SpeciesHeadCount, disjoint by construction):\n");
+	for (int sp = 0; sp < SPECIES_COUNT; ++sp) {
+		std::printf("  %-16s:", SpeciesName(sp));
+		const int n = SpeciesHeadCount(sp);
+		if (n == 0) std::printf(" (none -- the game ships no non-canon face)");
+		for (int i = 0; i < n; ++i) std::printf(" %s", SpeciesHeadAt(sp, i));
+		std::printf("\n");
+	}
+	std::printf("\ncanon faces, named in one place (IsCanonFace):\n"
+		"  janeway chakotay tuvok tuvok_h paris kim torres doctor seven neelix\n");
+	std::printf("  IsCanonFace(\"Tuvok\")=%d, IsCanonFace(\"Garren\")=%d, IsCanonFace(\"\")=%d\n",
+		IsCanonFace("Tuvok") ? 1 : 0, IsCanonFace("Garren") ? 1 : 0, IsCanonFace("") ? 1 : 0);
+	// The planted failure, shown: a canon head put in the pool is caught, by name.
+	{
+		const char *planted[2] = { "Garren", "janeway" };
+		const char *offender = CanonFaceInPool( planted, 2 );
+		std::printf("  planted failure: CanonFaceInPool({\"Garren\",\"janeway\"}) -> %s\n\n",
+			offender ? offender : "(none -- NOT CAUGHT)");
+	}
+
+	// The named crew, untouched: a fresh (canon) roster, every name left unset (head 0xFFFF).
+	{
+		Ship named = NewShip();
+		std::printf("named crew, unchanged (head 0xFFFF -> the model the type ships):\n");
+		for (const CrewMember &m : named.crew)
+			if (m.appear.head == 0xFFFF) PrintAppearanceLine(m);
+		std::printf("\n");
+	}
+
+	// A lineup of generated crew: the all-fictitious start, so every record is generated.
+	{
+		Config cfg; cfg.fictitious = true;
+		Ship s = NewShip(cfg);
+		std::printf("a lineup of generated crew (all-fictitious roster), the first twenty:\n");
+		int shown = 0;
+		for (const CrewMember &m : s.crew) {
+			if (m.appear.head == 0xFFFF) continue;
+			PrintAppearanceLine(m);
+			if (++shown >= 20) break;
+		}
+		std::printf("\n");
+	}
+
+	// Determinism, shown twice: two ships from the same seed, face and traits.
+	{
+		Ship a = NewShip(), b = NewShip();
+		int same = 0;
+		for (size_t i = 0; i < a.crew.size(); ++i)
+			if (a.crew[i].appear.head == b.crew[i].appear.head && a.crew[i].traits == b.crew[i].traits) ++same;
+		std::printf("determinism: %d of %d records identical on a second derivation from the same seed\n",
+			same, static_cast<int>(a.crew.size()));
+	}
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
@@ -6768,6 +7003,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
 	if (argc > 1 && !std::strcmp(argv[1], "--personal")) return PrintPersonal();
 	if (argc > 1 && !std::strcmp(argv[1], "--starts")) return PrintStarts();
+	if (argc > 1 && !std::strcmp(argv[1], "--appearance")) return PrintAppearance();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -6877,6 +7113,10 @@ int main(int argc, char **argv)
 	TestSpeciesAreCapabilitiesNotBonuses();
 	TestManner();
 	TestCharacterSaveRoundTrip();
+	TestAppearanceDerivation();
+	TestAppearancePoolExcludesCanon();
+	TestSpeciesConstrainsFacePool();
+	TestAppearanceSaveRoundTrip();
 	TestEffectiveSkillReachesTheOdds();
 	TestConditionMovesTheOdds();
 	TestTraitShapesPerformance();
