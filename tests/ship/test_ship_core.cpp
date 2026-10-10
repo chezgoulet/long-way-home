@@ -860,6 +860,88 @@ static void TestAirAndEndurance(){
 	CHECK(MinutesToDark(t) > battery);           // a reactor back on stretches endurance
 }
 
+// O2: the three independent sources (docs/budget-squaring.md, Finding two), and a deck that holds
+// its air on its own when the main grid is down.
+static void TestTheAir()
+{
+	g_test = "the three sources are separate, and a deck breathes on its own when the grid is down";
+
+	// The sources independent of the main grid are the three that survive the warp core, with the
+	// capacities docs/budget-squaring.md Part 5 gives them.
+	Ship s = NewShip();
+	CHECK(SourceAirCapacity(s, SRC_WARP_CORE) == 1400);
+	CHECK(SourceAirCapacity(s, SRC_IMPULSE_REACTORS) == 250);
+	CHECK(SourceAirCapacity(s, SRC_AUXILIARY) == 90);
+	CHECK(SourceAirCapacity(s, SRC_BATTERIES) == 60);
+	CHECK(AirSourceOf(s, 9) == AIR_GRID);            // a new ship is all on the pooled main grid
+
+	// One carrying: a deck fed from its own source holds its air with the grid down.
+	CHECK(SetAirSource(s, 9, SRC_AUXILIARY));
+	CHECK(AirSourceOf(s, 9) == SRC_AUXILIARY);
+	SetSourceOnline(s, SRC_WARP_CORE, false);        // the grid is down
+	SetEnabled(s, SYS_LIFE_SUPPORT, false);          // ... and so is the ship's own life-support plant
+	Tick(s, 1.0f);
+	CHECK(DeckLifeSupport(s, 9) == 1.0f);            // the deck breathes on its own source
+	CHECK(DeckLifeSupport(s, 8) == 0.0f);            // a deck still on the grid does not
+
+	// One isolated and one failed: an offline source and a broken one both stop carrying.
+	CHECK(SourceDecksHeld(s, SRC_AUXILIARY) == 1);
+	SetSourceOnline(s, SRC_AUXILIARY, false);        // isolated
+	CHECK(SourceDecksHeld(s, SRC_AUXILIARY) == 0 && DeckLifeSupport(s, 9) == 0.0f);
+	SetSourceOnline(s, SRC_AUXILIARY, true);
+	DamageSource(s, SRC_AUXILIARY, 1.0f);            // failed
+	CHECK(SourceDecksHeld(s, SRC_AUXILIARY) == 0 && DeckLifeSupport(s, 9) == 0.0f);
+	CHECK(AirShortfall(s) == AIR_PLANT_PER_DECK);    // and it is reported, as a number
+
+	// The breach acceptance, with a source behind it: a number, and the number moves when the crew act.
+	Ship b = NewShip();
+	CHECK(SetAirSource(b, 9, SRC_BATTERIES));
+	SetSourceOnline(b, SRC_WARP_CORE, false);
+	Tick(b, 1.0f);
+	CHECK(MinutesOfAir(b, 9) < 0.0f);                // holding on its own source: no countdown
+	BreachDeck(b, 9, 1.0f);
+	const float losing = MinutesOfAir(b, 9);
+	CHECK(losing > 0.0f && losing < 60.0f);          // open to space: minutes, even on its own source
+	SetForceField(b, 9, true);                       // the crew act
+	CHECK(MinutesOfAir(b, 9) < 0.0f);                // and the countdown goes
+
+	// Over-committed: a source holds only what its capacity divides into. The batteries hold one
+	// deck; asking them for two is reported, and nothing is shed.
+	Ship o = NewShip();
+	CHECK(SetAirSource(o, 9, SRC_BATTERIES));
+	CHECK(SetAirSource(o, 10, SRC_BATTERIES));
+	CHECK(SourceDecksHeld(o, SRC_BATTERIES) == 1);
+	CHECK(AirCommitted(o) == 2 * AIR_PLANT_PER_DECK);
+	CHECK(AirShortfall(o) == AIR_PLANT_PER_DECK);    // the number, not a refusal to act
+	CHECK(AirSourceOf(o, 10) == SRC_BATTERIES);      // the decision stands
+	CHECK(SetAirSource(o, 10, AIR_GRID));            // back on the grid, the shortfall clears
+	CHECK(AirShortfall(o) == 0);
+
+	// The provenance, as every allocation's is: the player's, or an officer's under a grant.
+	Ship p = NewShip();
+	CHECK(SetAirSource(p, 9, SRC_BATTERIES));
+	CHECK(p.decks[8].airBy == ALLOC_PLAYER);
+	const int chief = DepartmentHead(p, DEPT_ENGINEERING);
+	CHECK(GrantBand(p, 0, chief, BAND_OPERATIONS));
+	CHECK(SetAirSourceBy(p, 9, SRC_AUXILIARY, chief));
+	CHECK(p.decks[8].airBy == ALLOC_DELEGATE && p.decks[8].airCrew == chief);
+	CHECK(!SetAirSourceBy(p, 9, SRC_AUXILIARY, 999)); // not a hand aboard
+	CHECK(!SetAirSource(p, 0, SRC_BATTERIES));        // no deck 0
+	CHECK(!SetAirSource(p, 9, SRC_WARP_CORE));        // the core is the main grid
+
+	// And a save replays (version 56): the feed round-trips byte for byte.
+	Ship v = NewShip();
+	CHECK(SetAirSource(v, 9, SRC_BATTERIES));
+	CHECK(SetAirSource(v, 10, SRC_AUXILIARY));
+	const std::vector<uint8_t> blob = Pack(v);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(AirSourceOf(back, 9) == SRC_BATTERIES);
+	CHECK(AirSourceOf(back, 10) == SRC_AUXILIARY);
+	CHECK(back.decks[8].airBy == ALLOC_PLAYER);
+	CHECK(Pack(back) == blob);
+}
+
 // The environment in the world: one person's gravity is the deck's plating scaled onto the world's,
 // and at full plating the world's own value stands again -- the case the engine's own FIXME names.
 static void TestGravity()
@@ -7437,6 +7519,60 @@ static int PrintOrders()
 	return 0;
 }
 
+// The independent air feed (O2) as a readout: `test_ship_core --air`.
+static int PrintAir()
+{
+	std::printf("== the three independent sources, as separate state\n");
+	{
+		Ship s = NewShip();
+		std::printf("  capacities (docs/budget-squaring.md): impulse %d, auxiliary %d, batteries %d EPS\n",
+			SourceAirCapacity(s, SRC_IMPULSE_REACTORS), SourceAirCapacity(s, SRC_AUXILIARY), SourceAirCapacity(s, SRC_BATTERIES));
+		SetAirSource(s, 9, SRC_BATTERIES);
+		SetSourceOnline(s, SRC_IMPULSE_REACTORS, false);   // isolated
+		DamageSource(s, SRC_AUXILIARY, 1.0f);              // failed
+		Tick(s, 1.0f);
+		std::printf("  impulse isolated (online=%d), auxiliary failed (health %.0f%%), batteries carrying deck 9 (holds %d)\n",
+			s.sources[SRC_IMPULSE_REACTORS].online, s.sources[SRC_AUXILIARY].health * 100, SourceDecksHeld(s, SRC_BATTERIES));
+	}
+
+	std::printf("== a deck holding air on its own source, with the main grid down\n");
+	{
+		Ship s = NewShip();
+		SetAirSource(s, 9, SRC_AUXILIARY);
+		SetSourceOnline(s, SRC_WARP_CORE, false);
+		SetEnabled(s, SYS_LIFE_SUPPORT, false);
+		Tick(s, 1.0f);
+		std::printf("  deck 9 feed %s, support %.2f; deck 8 feed %s, support %.2f\n",
+			AirSourceName(AirSourceOf(s, 9)), DeckLifeSupport(s, 9),
+			AirSourceName(AirSourceOf(s, 8)), DeckLifeSupport(s, 8));
+		BreachDeck(s, 9, 1.0f);
+		std::printf("  deck 9 breached: %.1f min of air\n", MinutesOfAir(s, 9));
+		SetForceField(s, 9, true);
+		std::printf("  field raised: %.1f min (-1 = holding)\n", MinutesOfAir(s, 9));
+	}
+
+	std::printf("== the shortfall is a number, and nothing is shed\n");
+	{
+		Ship s = NewShip();
+		SetAirSource(s, 9, SRC_BATTERIES);
+		SetAirSource(s, 10, SRC_BATTERIES);
+		std::printf("  batteries asked for 2 decks, hold %d; committed %d EPS, short %d EPS; deck 10 is still on %s\n",
+			SourceDecksHeld(s, SRC_BATTERIES), AirCommitted(s), AirShortfall(s), AirSourceName(AirSourceOf(s, 10)));
+	}
+
+	std::printf("== the feed round-trips a save (version %d)\n", SAVE_VERSION);
+	{
+		Ship s = NewShip();
+		SetAirSource(s, 9, SRC_BATTERIES);
+		const std::vector<uint8_t> blob = Pack(s);
+		Ship back;
+		const bool ok = Unpack(blob.data(), blob.size(), back);
+		std::printf("  unpack %s; deck 9 feed %s; identical %s\n", ok ? "ok" : "FAILED",
+			AirSourceName(AirSourceOf(back, 9)), Pack(back) == blob ? "yes" : "no");
+	}
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
@@ -7445,6 +7581,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--work")) return PrintWork();
 	if (argc > 1 && !std::strcmp(argv[1], "--rising")) return PrintRising();
 	if (argc > 1 && !std::strcmp(argv[1], "--power")) return PrintPower();
+	if (argc > 1 && !std::strcmp(argv[1], "--air")) return PrintAir();
 	if (argc > 1 && !std::strcmp(argv[1], "--meeting")) return PrintMeeting();
 	if (argc > 1 && !std::strcmp(argv[1], "--place")) return PrintPlace();
 	if (argc > 1 && !std::strcmp(argv[1], "--voice")) return PrintVoice();
@@ -7489,6 +7626,7 @@ int main(int argc, char **argv)
 	TestRadiation();
 	TestTriage();
 	TestAirAndEndurance();
+	TestTheAir();
 	TestGravity();
 	TestLog();
 	TestWrittenOffList();

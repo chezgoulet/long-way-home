@@ -177,6 +177,12 @@ direction is to raise the science load until it can compete with the tactical on
 describes the three independent sources as the thing that makes deck-by-deck survival dramatic; the code
 has no mechanism for it. This is the largest structural gap in the ship's model.
 
+**Built 2026-10-10 on `feat/the-air`.** The sources independent of the main grid — the three that survive
+the warp core, at the capacities in Part 5 — are separate state, and a deck's life support can be fed from
+one of them, so a deck holds its air with the grid down. The state says which source holds which deck, the
+shortfall is a number, and it is saved (version 56). The per-deck draw and the choice of the three are
+judgement calls, named in `docs/evidence/the-air.md`.
+
 **Finding three: the brownout ladder has five rungs in the document and about three in the code.**
 The document sheds holodecks, replicators and non-critical labs first; then non-essential lighting, cargo
 handling and astrometrics; then sensors, comms and transporters. In the code, only the holodecks and the

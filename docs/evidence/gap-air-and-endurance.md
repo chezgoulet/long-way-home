@@ -52,3 +52,7 @@ passes, as do `test.sh`, `scripts/s2-check.sh`, `scripts/s4-check.sh` and `scrip
 - **Environmental control as a place.** The countdown and the field control are on the Operations
   console; deck 12 itself is still a generated hall with a station marker. Drawing the countdown at
   the environmental-control panel is the deck-12 build item in `docs/ship-master-map.md`.
+
+*Added 2026-10-10:* the **independent air source** — a deck holding its air on its own source with the
+main grid down — is built on `feat/the-air`; see `docs/evidence/the-air.md`. It is the deck-by-deck
+survival mechanism (`docs/budget-squaring.md`, Finding two), not part of the original first slice.

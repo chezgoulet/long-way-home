@@ -1001,6 +1001,23 @@ void Publish( void )
 		gi.cvar_set( "lwh_ship_breach_field", breachDeck && worstAir < 1.0f && vessel.decks[breachDeck - 1].forceField ? "1" : "0" );
 	}
 
+	// The independent air feed (O2), for the Operations panel: which decks are on their own source,
+	// and the shortfall when the sources cannot hold them. A number, never a shed.
+	{
+		std::string air;
+		for ( int d = 1; d <= ship::DECKS; ++d )
+		{
+			const int src = ship::AirSourceOf( vessel, d );
+			if ( src >= ship::SRC_COUNT && vessel.decks[d - 1].atmosphere >= 1.0f ) continue; // a grid deck holding: not notable
+			air += Fmt( "DECK %d %s   ", d, ship::AirSourceName( src ) );
+		}
+		const int airShort = ship::AirShortfall( vessel );
+		if ( airShort > 0 ) air += Fmt( "AIR SHORT %d EPS   ", airShort );
+		gi.cvar_set( "lwh_ship_air", air.c_str() );
+		gi.cvar_set( "lwh_ship_air_committed", Fmt( "%d", ship::AirCommitted( vessel ) ).c_str() );
+		gi.cvar_set( "lwh_ship_air_shortfall", Fmt( "%d", ship::AirShortfall( vessel ) ).c_str() );
+	}
+
 	// Standing orders and who the player is, for the command console and the personnel screen.
 	{
 		std::string orders;
@@ -1402,6 +1419,53 @@ void RunTest( void )
 			ship::PowerCommitted( vessel ), vessel.PowerAvailable(), ship::PowerShortfall( vessel ) );
 		WriteReport( "ship/power.txt" );
 		gi.SendConsoleCommand( "quit\n" );
+		return;
+	}
+	if ( g_shipTest->integer == 98 )
+	{//the independent air feed (O2, docs/budget-squaring.md Finding two): the three sources that
+	 //survive the core as separate state -- one isolated, one failed, one carrying a deck -- and a
+	 //deck holding its air on its own source with the grid down, the number before and after the
+	 //crew act, and the shortfall when a source is over-committed.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			gi.Printf( "SHIP: air test: the three independent sources: impulse %d, auxiliary %d, batteries %d EPS\n",
+				ship::SourceAirCapacity( vessel, ship::SRC_IMPULSE_REACTORS ),
+				ship::SourceAirCapacity( vessel, ship::SRC_AUXILIARY ),
+				ship::SourceAirCapacity( vessel, ship::SRC_BATTERIES ) );
+			// One carrying: a deck fed from the auxiliary holds its air with the core off.
+			ship::SetAirSource( vessel, 9, ship::SRC_AUXILIARY );
+			ship::SetSourceOnline( vessel, ship::SRC_WARP_CORE, false );
+			ship::SetEnabled( vessel, ship::SYS_LIFE_SUPPORT, false );
+			ship::Tick( vessel, 1.0f );
+			gi.Printf( "SHIP: air test: deck 9 feed %s support %.2f; deck 8 feed %s support %.2f\n",
+				ship::AirSourceName( ship::AirSourceOf( vessel, 9 ) ), ship::DeckLifeSupport( vessel, 9 ),
+				ship::AirSourceName( ship::AirSourceOf( vessel, 8 ) ), ship::DeckLifeSupport( vessel, 8 ) );
+			// The number before and after the crew act: breach the deck, then field it.
+			ship::BreachDeck( vessel, 9, 1.0f );
+			const float before = ship::MinutesOfAir( vessel, 9 );
+			ship::SetForceField( vessel, 9, true );
+			const float after = ship::MinutesOfAir( vessel, 9 );
+			gi.Printf( "SHIP: air test: deck 9 breached: %.0f min of air; field raised: %.0f min (-1 = holding)\n", before, after );
+			// One isolated, one failed, one carrying.
+			ship::SetSourceOnline( vessel, ship::SRC_IMPULSE_REACTORS, false ); // isolated
+			vessel.sources[ship::SRC_BATTERIES].health = 0.0f;                  // failed
+			gi.Printf( "SHIP: air test: impulse %s, batteries health %.0f%%, auxiliary holds %d deck(s)\n",
+				vessel.sources[ship::SRC_IMPULSE_REACTORS].online ? "online" : "isolated",
+				vessel.sources[ship::SRC_BATTERIES].health * 100, ship::SourceDecksHeld( vessel, ship::SRC_AUXILIARY ) );
+			// Over-commit the batteries: a number, not a refusal, and nothing shed.
+			vessel.sources[ship::SRC_BATTERIES].health = 1.0f;
+			ship::SetAirSource( vessel, 9, ship::AIR_GRID );
+			ship::SetAirSource( vessel, 10, ship::SRC_BATTERIES );
+			ship::SetAirSource( vessel, 11, ship::SRC_BATTERIES );
+			gi.Printf( "SHIP: air test: batteries asked for 2 decks, hold %d; committed %d EPS, short %d EPS\n",
+				ship::SourceDecksHeld( vessel, ship::SRC_BATTERIES ), ship::AirCommitted( vessel ), ship::AirShortfall( vessel ) );
+			WriteReport( "ship/air.txt" );
+			gi.Printf( "SHIP: air test: console report written to ship/air.txt\n" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 1;
+		}
 		return;
 	}
 	if ( g_shipTest->integer == 80 )
@@ -5193,6 +5257,7 @@ void Svcmd_Ship_f( void )
 		const bool isCourse = !Q_stricmp( cmd, "course" );
 		const bool isPatients = !Q_stricmp( cmd, "patients" );
 		const bool isField = !Q_stricmp( cmd, "field" );
+		const bool isAir = !Q_stricmp( cmd, "air" );
 		const bool isSurgical = !Q_stricmp( cmd, "surgical" );
 		const bool isScanComp = !Q_stricmp( cmd, "scancomp" ) || !Q_stricmp( cmd, "scan" );
 		const bool isTarget = !Q_stricmp( cmd, "target" );
@@ -5210,7 +5275,7 @@ void Svcmd_Ship_f( void )
 		const bool isCounterplay = !Q_stricmp( cmd, "remodulate" ) || !Q_stricmp( cmd, "vinculum" );
 		// until a character is chosen the player is nobody in particular, and is not held to a rank
 		const bool anyone = vessel.player < 0 && vessel.cfg.role != ship::ROLE_IN_COMMAND;
-		if ( !isAlert && !isSwitch && !isPriority && !isAlloc && !isFire && !isJump && !isBreach && !isTransport && !isSurvey && !isCourse && !isPatients && !isField && !isSurgical && !isScanComp && !isTarget && !isYield && !isChoice && !isRun && !isTractor && !isFabricate && !isEMH && !isCounterplay )
+		if ( !isAlert && !isSwitch && !isPriority && !isAlloc && !isFire && !isJump && !isBreach && !isTransport && !isSurvey && !isCourse && !isPatients && !isField && !isAir && !isSurgical && !isScanComp && !isTarget && !isYield && !isChoice && !isRun && !isTractor && !isFabricate && !isEMH && !isCounterplay )
 			why = "that is not a console's to do";
 		else if ( !anyone && !ship::PlayerMayOperate( vessel, st ) )
 		{
@@ -5231,6 +5296,7 @@ void Svcmd_Ship_f( void )
 		else if ( isSurvey && st != ship::STN_OPS ) why = "the sensors are read from Operations";
 		else if ( isPatients && st != ship::STN_SICKBAY ) why = "the ward is read from Sickbay";
 		else if ( isField && st != ship::STN_OPS ) why = "environmental control is worked from Operations";
+		else if ( isAir && st != ship::STN_OPS ) why = "environmental control is worked from Operations";
 		else if ( isSurgical && st != ship::STN_SICKBAY ) why = "the surgical bay is Sickbay's";
 		else if ( isScanComp && st != ship::STN_OPS ) why = "the tricorder is read from Operations";
 		else if ( isTarget && st != ship::STN_TACTICAL ) why = "targets are picked at Tactical";
@@ -6747,6 +6813,32 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "counterhack" ) && sys >= 0 && b[0] ) ship::CounterHack( vessel, static_cast<ship::SystemId>( sys ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "source" ) && FindSource( a ) >= 0 && b[0] )
 		ship::SetSourceOnline( vessel, static_cast<ship::SourceId>( FindSource( a ) ), !Q_stricmp( b, "on" ) );
+	else if ( !Q_stricmp( cmd, "air" ) )
+	{//the independent air feed (O2): ship air <deck> <grid|impulse|auxiliary|batteries> | ship air
+		if ( !a[0] )
+		{
+			gi.Printf( "SHIP: air feed: %d deck(s) on their own source, %d EPS committed, short %d\n",
+				ship::AirCommitted( vessel ) / ship::AIR_PLANT_PER_DECK, ship::AirCommitted( vessel ), ship::AirShortfall( vessel ) );
+			for ( int d = 1; d <= ship::DECKS; ++d )
+			{
+				const int src = ship::AirSourceOf( vessel, d );
+				const float air = ship::MinutesOfAir( vessel, d );
+				if ( src >= ship::SRC_COUNT && air < 0.0f ) continue; // a grid deck holding: not notable
+				gi.Printf( "SHIP:   deck %2d  feed %-20s  atmosphere %.0f%%  %s\n", d, ship::AirSourceName( src ),
+					vessel.decks[d - 1].atmosphere * 100, air < 0.0f ? "holding" : Fmt( "%.0f min left", air ).c_str() );
+			}
+			return;
+		}
+		int src = ship::AIR_GRID;
+		if ( b[0] && Q_stricmp( b, "grid" ) ) src = FindSource( b );
+		if ( src < 0 )
+		{
+			gi.Printf( "SHIP: usage: ship air <deck> <grid|impulse|auxiliary|batteries>\n" );
+			return;
+		}
+		if ( !ship::SetAirSource( vessel, atoi( a ), src ) )
+			gi.Printf( "SHIP: no such deck, and the core is the main grid -- use grid\n" );
+	}
 	else
 	{
 		gi.Printf( "usage: ship status | crew <deck> | console | alert green|yellow|red | on|off <system> | priority <system> <n>\n" );
