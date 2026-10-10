@@ -41,6 +41,10 @@ echo "==> api: the console's verbs and the ship's API agree, both directions"
 "$ROOT/scripts/api-check.sh"
 
 echo
+echo "==> orders: the register and the dispatch agree, both directions"
+python3 "$ROOT/tools/orders/orders.py" check
+
+echo
 echo "==> harness: the g_shipTest case numbers are distinct"
 "$ROOT/scripts/harness-check.sh"
 
