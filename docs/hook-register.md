@@ -296,6 +296,34 @@ substance of the brief's point and stands.
 | `OrderTriage` | `Ship &s, int policy` | order triage | play | — | — |
 | `SetRole` | `Ship &s, PlayerRole role` | Sets the role; ROLE_MUNRO makes the player Alexander Munro | console | — | — |
 
+### 3b. Orders (docs/orders.md)
+*20 hooks.* The third use of the meeting machine: an order dispatched to one person. The set is
+derived per recipient (post, department, rank, the giver's authority), dispatched as a job, and its
+spoken content scripted like a meeting's. The register of classes is `module/ship/order_set.def`.
+
+| hook | takes | does (the header's line, or the name) | reach | law | owner |
+|---|---|---|---|---|---|
+| `OrderClassCount` | `` | the register's row count | console | — | docs/orders.md |
+| `OrderClassSpecOf` | `uint8_t order` | the order class's spec (name, label, cost, needs, job, target) | console | — | docs/orders.md |
+| `OrderNeedName` | `uint16_t bit` | the need's own name, for the refusal and the log | console | — | docs/orders.md |
+| `MayOrder` | `const Ship &s, int giver, int recipient` | May giver give an order to recipient at all? | play | person | docs/access-and-authority.md |
+| `OrderPermitted` | `const Ship &s, int giver, int recipient, uint8_t order` | The one place the derivation reads: may this order class be given to this recipient by this giver? | play | person | docs/orders.md |
+| `DeriveOrders` | `const Ship &s, int giver, int recipient, uint8_t *out, int maxOut` | The derived set: every order class this recipient can be given by this giver | play | person | docs/orders.md |
+| `ResolveOrderTarget` | `const Ship &s, int recipient, uint8_t order` | The target a class resolves to: the system they hold, the deck the simulation names, or the fixed target | play | person | docs/orders.md |
+| `OrderLabel` | `const Ship &s, int recipient, uint8_t order` | The pill's label with its target filled in | console | person | docs/orders.md |
+| `OrderRefusalRule` | `const Ship &s, int giver, int recipient, uint8_t order` | The rule that refuses an order class to a giver, by name | play | person | docs/orders.md |
+| `OrderSetFault` | `const Ship &s, int giver, int recipient, const uint8_t *set, int n, std::string *fault` | Check a returned set against the predicate in both directions | play | person | docs/orders.md |
+| `BuildOrderBrief` | `const Ship &s, int giver, int recipient` | The one-recipient brief generator; a pure read | play | person | docs/orders.md |
+| `DispatchOrder` | `Ship &s, const OrderBrief &brief, int option, int giver` | Dispatch a chosen enumerated order; the simulation applies it and the recipient answers as a person | play | person | docs/orders.md |
+| `OrderNoveltyKey` | `const OrderBrief &brief, const std::string &text` | The content-addressed key a typed order and a brief's options hash to | play | person | docs/evidence/model-call.md |
+| `ClearOrderNoveltyIndex` | `` | clear the order novelty verdicts | play | — | docs/evidence/model-call.md |
+| `AddOrderNoveltyVerdict` | `uint32_t key, bool matched, int option, const std::string &note` | load a classifier verdict for an order | play | — | docs/evidence/model-call.md |
+| `OrderNoveltyVerdictCount` | `` | how many order verdicts are loaded | console | — | docs/evidence/model-call.md |
+| `ClassifyNovelOrder` | `const Ship &s, const OrderBrief &brief, const std::string &text` | The novelty seam for a bespoke order | play | — | docs/orders.md |
+| `BespokeOrder` | `Ship &s, const OrderBrief &brief, int giver, const std::string &text` | A bespoke order: classified into the set, applied, or refused in character | play | person | docs/orders.md |
+| `OrderLineKey` | `const Ship &s, const OrderBrief &brief, const MeetingLine &line` | The key a recipient's reply line renders under, through the cast map | console | post | docs/the-entry-point.md |
+| `PlanOrderAudio` | `VoiceRender &vr, const Ship &s, const OrderBrief &brief` | The async plan that queues the giver's line and the recipient's answers before dispatch | console | — | docs/orders.md |
+
 ### 4. Readers content can consult  
 *174 hooks.*
 

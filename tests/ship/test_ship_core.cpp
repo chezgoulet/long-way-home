@@ -7110,9 +7110,306 @@ static int PrintAppearance()
 	return 0;
 }
 
+// ---- orders (docs/orders.md) -------------------------------------------------------------------
+
+static bool SetHas(const uint8_t *set, int n, uint8_t order) { for (int i = 0; i < n; ++i) if (set[i] == order) return true; return false; }
+static int OptionOf(const OrderBrief &b, uint8_t order) { for (int i = 0; i < b.optionCount; ++i) if (b.options[i].order == order) return i; return -1; }
+static bool LogHas(const Ship &s, const char *scope, const char *needle)
+{
+	for (const LogEntry &e : s.log) if (e.scope == scope && e.what.find(needle) != std::string::npos) return true;
+	return false;
+}
+static bool HasMark(const CrewMember &c, uint16_t event, int person)
+{
+	for (const Memory &m : c.memories) if (m.event == event && m.person == person) return true;
+	return false;
+}
+
+// Three hands who can be told things: one who commands, an engineer at a post, and a security
+// officer with no station. The fixture sets the fields the derivation reads and nothing a tick
+// would overwrite.
+static void OrderFixture(Ship &s, int &giver, int &eng, int &sec)
+{
+	s = NewShip();
+	Tick(s, 1.0f);
+	giver = 0; eng = 1; sec = 2;
+	s.crew[giver].status = CREW_FIT; s.crew[giver].brigged = false; s.crew[giver].away = false;
+	s.crew[giver].dept = DEPT_COMMAND; s.crew[giver].rank = 6; s.crew[giver].post = SYS_COUNT;
+	s.crew[eng].status = CREW_FIT; s.crew[eng].brigged = false; s.crew[eng].away = false;
+	s.crew[eng].dept = DEPT_ENGINEERING; s.crew[eng].rank = 4; s.crew[eng].post = SYS_WARP_DRIVE;
+	s.crew[sec].status = CREW_FIT; s.crew[sec].brigged = false; s.crew[sec].away = false;
+	s.crew[sec].dept = DEPT_SECURITY; s.crew[sec].rank = 4; s.crew[sec].post = SYS_COUNT;
+}
+
+// Task B: the set follows the person, and it is checked in both directions.
+static void TestOrderSetDerivation()
+{
+	g_test = "the order set is derived per recipient";
+	Ship s; int giver, eng, sec;
+	OrderFixture(s, giver, eng, sec);
+	uint8_t e[ORDER_CLASS_COUNT], q[ORDER_CLASS_COUNT];
+	const int en = DeriveOrders(s, giver, eng, e, ORDER_CLASS_COUNT);
+	const int sn = DeriveOrders(s, giver, sec, q, ORDER_CLASS_COUNT);
+	// The engineer can be told to see to their system and to build; the security officer cannot.
+	CHECK(SetHas(e, en, ORDER_SEE_TO) && SetHas(e, en, ORDER_BUILD_PARTS));
+	CHECK(!SetHas(e, en, ORDER_SECURE_DECK) && !SetHas(e, en, ORDER_ADVANCE_DECK));
+	// The security officer can be sent to a deck; the engineer cannot.
+	CHECK(SetHas(q, sn, ORDER_SECURE_DECK) && SetHas(q, sn, ORDER_ADVANCE_DECK));
+	CHECK(!SetHas(q, sn, ORDER_SEE_TO) && !SetHas(q, sn, ORDER_BUILD_PARTS));
+	// And the two recipients really do offer different sets, not the same one.
+	CHECK(en > 0 && sn > 0 && !SetHas(q, sn, ORDER_BUILD_PARTS));
+
+	// The set follows the person when their post changes: a security officer given a station can now
+	// be told to see to it, and the set names the system the person now holds.
+	CHECK(!SetHas(q, sn, ORDER_SEE_TO));
+	s.crew[sec].post = SYS_PHASERS;
+	uint8_t q2[ORDER_CLASS_COUNT];
+	const int sn2 = DeriveOrders(s, giver, sec, q2, ORDER_CLASS_COUNT);
+	CHECK(SetHas(q2, sn2, ORDER_SEE_TO));
+	CHECK(OrderLabel(s, sec, ORDER_SEE_TO).find("phasers") != std::string::npos);
+	CHECK(OrderLabel(s, eng, ORDER_SEE_TO).find("warp drive") != std::string::npos);
+
+	// The set is internally consistent: nothing offered that cannot be given, nothing omitted.
+	std::string fault;
+	CHECK(!OrderSetFault(s, giver, eng, e, en, &fault));
+	CHECK(fault.empty());
+
+	// Planted, both ways, and both caught. Foreign: an order the recipient cannot be given.
+	{
+		uint8_t planted[ORDER_CLASS_COUNT + 1];
+		for (int i = 0; i < en; ++i) planted[i] = e[i];
+		planted[en] = ORDER_SECURE_DECK; // the engineer is not security
+		CHECK(OrderSetFault(s, giver, eng, planted, en + 1, &fault));
+		CHECK(fault.find("cannot be given") != std::string::npos);
+	}
+	// Missing: a real order dropped from the set.
+	{
+		uint8_t planted[ORDER_CLASS_COUNT];
+		int n = 0;
+		for (int i = 0; i < en; ++i) if (e[i] != ORDER_SEE_TO) planted[n++] = e[i];
+		CHECK(n == en - 1);
+		CHECK(OrderSetFault(s, giver, eng, planted, n, &fault));
+		CHECK(fault.find("omits") != std::string::npos);
+	}
+	// A brief built for the engineer enumerates the same set, with the targets resolved.
+	const OrderBrief b = BuildOrderBrief(s, giver, eng);
+	CHECK(b.optionCount == en);
+	CHECK(OptionOf(b, ORDER_SEE_TO) >= 0 && b.options[OptionOf(b, ORDER_SEE_TO)].target == SYS_WARP_DRIVE);
+	const int build = OptionOf(b, ORDER_BUILD_PARTS);
+	CHECK(build >= 0 && b.options[build].target == 4);
+}
+
+// Task C: choosing an order pushes a job into the existing queue, with its kind and target.
+static void TestOrderDispatchPushesAJob()
+{
+	g_test = "an order dispatched pushes a job";
+	Ship s; int giver, eng, sec;
+	OrderFixture(s, giver, eng, sec);
+	DamageSystem(s, SYS_WARP_DRIVE, 0.5f);
+	Tick(s, 1.0f);
+	const OrderBrief b = BuildOrderBrief(s, giver, eng);
+	const int idx = OptionOf(b, ORDER_SEE_TO);
+	CHECK(idx >= 0);
+	const OrderOutcome r = DispatchOrder(s, b, idx, giver);
+	CHECK(r.given && !r.refused);
+	CHECK(s.orderRepairFirst == SYS_WARP_DRIVE);           // the simulation applied it
+	CHECK(r.job >= 0);
+	if (r.job >= 0) {
+		const Job &j = Jobs(s)[r.job];
+		CHECK(j.kind == JOB_REPAIR && j.target == SYS_WARP_DRIVE);
+	}
+	// The giver's order and the recipient's answer are both in the log, under the order's own scope.
+	CHECK(LogHas(s, "order", "orders"));
+	CHECK(LogHas(s, "order", "holds") == false);           // the reply line, not a state dump
+	CHECK(r.replyCount >= 2 && r.reply[0].delivery == DELIVERY_ORDER);
+
+	// A security order pushes a secure job with its kind and target.
+	const OrderBrief sb = BuildOrderBrief(s, giver, sec);
+	const int sidx = OptionOf(sb, ORDER_SECURE_DECK);
+	CHECK(sidx >= 0);
+	const OrderOutcome sr = DispatchOrder(s, sb, sidx, giver);
+	CHECK(sr.given && s.orderSecurityTo == sb.options[sidx].target);
+	CHECK(sr.job >= 0);
+	if (sr.job >= 0) CHECK(Jobs(s)[sr.job].kind == JOB_SECURE && Jobs(s)[sr.job].target == s.orderSecurityTo);
+
+	// Build pushes a build job with its count.
+	const OrderBrief bb = BuildOrderBrief(s, giver, eng);
+	const int bidx = OptionOf(bb, ORDER_BUILD_PARTS);
+	CHECK(bidx >= 0);
+	const OrderOutcome br = DispatchOrder(s, bb, bidx, giver);
+	CHECK(br.given && br.job >= 0);
+	if (br.job >= 0) CHECK(Jobs(s)[br.job].kind == JOB_BUILD && Jobs(s)[br.job].target >= 4);
+}
+
+// Task D: an order the giver may not give is refused by name, in character, with the state unchanged.
+static void TestOrderRefusalByRule()
+{
+	g_test = "an unauthorised order is refused by name";
+	Ship s; int giver, eng, sec;
+	OrderFixture(s, giver, eng, sec);
+	int ensign = 3;
+	s.crew[ensign].status = CREW_FIT; s.crew[ensign].brigged = false; s.crew[ensign].away = false;
+	s.crew[ensign].dept = DEPT_ENGINEERING; s.crew[ensign].rank = 1; s.crew[ensign].post = SYS_COUNT;
+
+	const OrderBrief b = BuildOrderBrief(s, giver, eng);   // built by one who may give it
+	const int idx = OptionOf(b, ORDER_SEE_TO);
+	CHECK(idx >= 0);
+	const Ship before = s;
+	const OrderOutcome r = DispatchOrder(s, b, idx, ensign); // ... given by one who may not
+	CHECK(r.refused && !r.given);
+	CHECK(r.refusal.find("authority") != std::string::npos);
+	CHECK(r.replyCount >= 1 && r.reply[0].speaker == eng);
+	CHECK(r.reply[0].text.find("not yours") != std::string::npos);
+	CHECK(s.orderRepairFirst == before.orderRepairFirst);   // unchanged
+	CHECK(s.jobs.size() == before.jobs.size());
+	CHECK(LogHas(s, "order", "refused"));
+	// The rule is named for the log, too.
+	CHECK(OrderRefusalRule(s, ensign, eng, ORDER_SEE_TO).find("authority") != std::string::npos);
+}
+
+// Task D: the recipient answers as a person -- morale, conditions and traits move the line and can
+// leave a mark. Where a badly-taken order lands is an open question in docs/orders.md; the chosen
+// behaviour is a MEM_ORDER mark toward the giver.
+static void TestOrderRecipientAsPerson()
+{
+	g_test = "the recipient answers as a person";
+	Ship s; int giver, eng, sec;
+	OrderFixture(s, giver, eng, sec);
+	s.crew[eng].deficit = 1.0f; s.crew[eng].outlook = 0.0f; s.crew[eng].holdings = 0.0f; // morale 0
+	s.crew[eng].traits = 0; s.crew[eng].conditionCount = 0;
+	const OrderBrief b = BuildOrderBrief(s, giver, eng);
+	const int idx = OptionOf(b, ORDER_SEE_TO);
+	CHECK(idx >= 0);
+	const int marksBefore = MemoryCount(s.crew[eng]);
+	const OrderOutcome r = DispatchOrder(s, b, idx, giver);
+	CHECK(r.given && r.resented);
+	CHECK(r.replyCount >= 2 && r.reply[r.replyCount - 1].text.find("Because you asked") != std::string::npos);
+	CHECK(HasMark(s.crew[eng], MEM_ORDER, giver));
+	CHECK(MemoryCount(s.crew[eng]) >= marksBefore);
+
+	// A person of good morale takes the same order warmly and carries no mark.
+	Ship h; int hg, he, hs;
+	OrderFixture(h, hg, he, hs);
+	h.crew[he].deficit = 0.0f; h.crew[he].outlook = 1.0f; h.crew[he].holdings = 1.0f;
+	h.crew[he].traits = 0; h.crew[he].conditionCount = 0;
+	const OrderBrief hb = BuildOrderBrief(h, hg, he);
+	const int hi = OptionOf(hb, ORDER_SEE_TO);
+	const OrderOutcome hr = DispatchOrder(h, hb, hi, hg);
+	CHECK(hr.given && !hr.resented);
+	CHECK(hr.replyCount >= 2 && hr.reply[hr.replyCount - 1].text.find("on it") != std::string::npos);
+	CHECK(!HasMark(h.crew[he], MEM_ORDER, hg));
+}
+
+// Task D (bespoke) and Task C (voice): a typed order outside the set is refused in character, a
+// matched one dispatches, and the recipient's lines have a voice and an async plan. No model runs.
+static void TestOrderBespokeAndVoice()
+{
+	g_test = "a bespoke order and the recipient's voice";
+	Ship s; int giver, eng, sec;
+	OrderFixture(s, giver, eng, sec);
+	DamageSystem(s, SYS_WARP_DRIVE, 0.5f);
+	Tick(s, 1.0f);
+	const OrderBrief b = BuildOrderBrief(s, giver, eng);
+
+	// With no classifier verdict, a typed order is novel: refused in character, nothing applied.
+	const int seamBefore = s.orderRepairFirst;
+	OrderOutcome n = BespokeOrder(s, b, giver, "vent the shuttlebay");
+	CHECK(n.refused && !n.given && s.orderRepairFirst == seamBefore);
+	CHECK(n.replyCount >= 1 && n.reply[0].text.find("not something") != std::string::npos);
+	CHECK(LogHas(s, "order", "outside the set"));
+
+	// A verdict loaded for the exact text routes it to the enumerated option (M4): it dispatches.
+	ClearOrderNoveltyIndex();
+	const int idx = OptionOf(b, ORDER_SEE_TO);
+	const uint32_t key = OrderNoveltyKey(b, "go and see to it");
+	AddOrderNoveltyVerdict(key, true, idx, "matched the see-to descriptor");
+	CHECK(OrderNoveltyVerdictCount() == 1);
+	OrderOutcome m = BespokeOrder(s, b, giver, "go and see to it");
+	CHECK(m.given && !m.refused);
+	CHECK(s.orderRepairFirst == SYS_WARP_DRIVE);
+	// The same text classifies the same way on replay: no inference, and the key is stable.
+	CHECK(OrderNoveltyKey(b, "go and see to it") == key);
+	CHECK(ClassifyNovelOrder(s, b, "go and see to it").matched);
+
+	// The recipient speaks in their own voice: the line has a cast key and is queued in the async
+	// window before dispatch -- so a dispatch calls no synthesiser on arrival.
+	CHECK(m.replyCount >= 2);
+	const std::string vk = OrderLineKey(s, b, m.reply[1]);
+	CHECK(!vk.empty());
+	CHECK(OrderLineKey(s, b, MeetingLine()).empty() == false); // a role line resolves to the recipient
+	VoiceRender vr;
+	vr.dir = "/tmp/opencode/lwh-order-voice";
+	const int queued = PlanOrderAudio(vr, s, b);
+	CHECK(queued > 0);
+	const int again = PlanOrderAudio(vr, s, b);
+	CHECK(again == 0);                                        // a re-plan is a no-op: already queued
+}
+
+// The order and its job round-trip through a save.
+static void TestOrderSaveRoundTrip()
+{
+	g_test = "an order and its job round-trip";
+	Ship s; int giver, eng, sec;
+	OrderFixture(s, giver, eng, sec);
+	DamageSystem(s, SYS_WARP_DRIVE, 0.5f);
+	Tick(s, 1.0f);
+	const OrderBrief b = BuildOrderBrief(s, giver, eng);
+	const int idx = OptionOf(b, ORDER_SEE_TO);
+	const OrderOutcome r = DispatchOrder(s, b, idx, giver);
+	CHECK(r.given && r.job >= 0);
+
+	const std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.orderRepairFirst == SYS_WARP_DRIVE);
+	bool found = false;
+	for (const Job &j : Jobs(back)) if (j.kind == JOB_REPAIR && j.target == SYS_WARP_DRIVE) found = true;
+	CHECK(found);
+	// A standing security order's job is derived again on load, so it is in the queue too.
+}
+
+// `test_ship_core --orders`: the derivation, the refusal and the job as evidence.
+static int PrintOrders()
+{
+	Ship s; int giver, eng, sec;
+	OrderFixture(s, giver, eng, sec);
+	uint8_t set[ORDER_CLASS_COUNT];
+	std::printf("the common set is derived, not written out:\n");
+	const int en = DeriveOrders(s, giver, eng, set, ORDER_CLASS_COUNT);
+	std::printf("  engineer (%s, %s): ", s.crew[eng].name.c_str(),
+		s.crew[eng].post < SYS_COUNT ? Spec(static_cast<SystemId>(s.crew[eng].post)).name : "no post");
+	for (int i = 0; i < en; ++i) std::printf("%s%s", i ? ", " : "", OrderLabel(s, eng, set[i]).c_str());
+	std::printf("\n");
+	const int sn = DeriveOrders(s, giver, sec, set, ORDER_CLASS_COUNT);
+	std::printf("  security (%s, no post): ", s.crew[sec].name.c_str());
+	for (int i = 0; i < sn; ++i) std::printf("%s%s", i ? ", " : "", OrderLabel(s, sec, set[i]).c_str());
+	std::printf("\n");
+	s.crew[sec].post = SYS_PHASERS;
+	const int sn2 = DeriveOrders(s, giver, sec, set, ORDER_CLASS_COUNT);
+	std::printf("  the same security officer, given the phaser post: ");
+	for (int i = 0; i < sn2; ++i) std::printf("%s%s", i ? ", " : "", OrderLabel(s, sec, set[i]).c_str());
+	std::printf("\n");
+
+	DamageSystem(s, SYS_WARP_DRIVE, 0.5f);
+	Tick(s, 1.0f);
+	const OrderBrief b = BuildOrderBrief(s, giver, eng);
+	const int idx = OptionOf(b, ORDER_SEE_TO);
+	const OrderOutcome r = DispatchOrder(s, b, idx, giver);
+	std::printf("dispatch: given=%d; %s says \"%s\"\n", r.given ? 1 : 0,
+		s.crew[eng].name.c_str(), r.replyCount ? r.reply[r.replyCount - 1].text.c_str() : "");
+	if (r.job >= 0) std::printf("  job %d: kind %s, target %s, priority %d\n", r.job,
+		JobKindName(Jobs(s)[r.job].kind), Spec(static_cast<SystemId>(Jobs(s)[r.job].target)).name, Jobs(s)[r.job].priority);
+	int ensign = 3;
+	s.crew[ensign].status = CREW_FIT; s.crew[ensign].rank = 1; s.crew[ensign].dept = DEPT_ENGINEERING; s.crew[ensign].post = SYS_COUNT;
+	const OrderOutcome rr = DispatchOrder(s, b, idx, ensign);
+	std::printf("  an ensign's attempt: refused=%d, by the rule \"%s\"\n", rr.refused ? 1 : 0, rr.refusal.c_str());
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
+	if (argc > 1 && !std::strcmp(argv[1], "--orders")) return PrintOrders();
 	if (argc > 1 && !std::strcmp(argv[1], "--manner")) return PrintManner();
 	if (argc > 1 && !std::strcmp(argv[1], "--work")) return PrintWork();
 	if (argc > 1 && !std::strcmp(argv[1], "--rising")) return PrintRising();
@@ -7265,6 +7562,12 @@ int main(int argc, char **argv)
 	TestConsoleApi();
 	TestTheComputer();
 	TestVoiceInIsTheTypedPath();
+	TestOrderSetDerivation();
+	TestOrderDispatchPushesAJob();
+	TestOrderRefusalByRule();
+	TestOrderRecipientAsPerson();
+	TestOrderBespokeAndVoice();
+	TestOrderSaveRoundTrip();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

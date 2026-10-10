@@ -83,6 +83,17 @@ bool meetingOpen = false;
 std::string meetingSaid;
 int computerCalls = 0;       // M6: times the computer was addressed (an authored answer, never a model call)
 
+// The order overlay's transient state (docs/orders.md). A one-recipient brief the giver has opened
+// is held here while it is on screen: host-local, not ship state, so the save format is unchanged.
+// `orderSaid` is the last typed order and what the novelty seam did with it; `lastOrder` is the
+// outcome the screen draws (the order being given and the recipient's answer). The simulation
+// applies the chosen order (DispatchOrder) and the screen never writes ship state.
+ship::OrderBrief currentOrder;
+ship::OrderOutcome lastOrder;
+bool orderOpen = false;
+std::string orderSaid;
+int orderCalls = 0;          // times a model was consulted for an order (a bespoke miss; a pill never calls one)
+
 // M6, second half: voice in (docs/staff-meetings.md, "Voice input, and the ship's computer"). The
 // engine has no audio-capture path, so the boundary is an audio file: voice mode makes the module
 // write a transcription request (ship/meetings/voice.jsonl), the STT worker (tools/speech/
@@ -628,6 +639,54 @@ void PublishMeeting( void )
 	}
 }
 
+// The order overlay's published state (docs/orders.md). Same rule as the meeting: the brief is a
+// read, so this publishes the giver, the recipient as a person, the situation, the orders that
+// recipient can be given (each with its cost), and -- once one is given -- the giver's line and the
+// recipient's answer. The screen draws it and sends `ship order` commands back; it decides nothing.
+void PublishOrder( void )
+{
+	static const char *const WATCH[] = { "ALPHA", "BETA", "GAMMA" };
+	gi.cvar_set( "lwh_ship_order_open", orderOpen ? "1" : "0" );
+	gi.cvar_set( "lwh_ship_order_said", orderSaid.c_str() );
+	if ( !orderOpen ) { gi.cvar_set( "lwh_ship_order_options", "0" ); gi.cvar_set( "lwh_ship_order_replies", "0" ); return; }
+	const ship::OrderBrief &b = currentOrder;
+	gi.cvar_set( "lwh_ship_order_giver", ( b.giver >= 0 && b.giver < static_cast<int>( vessel.crew.size() ) )
+		? vessel.crew[b.giver].name.c_str() : "" );
+	if ( b.recipient >= 0 && b.recipient < static_cast<int>( vessel.crew.size() ) ) {
+		const ship::CrewMember &c = vessel.crew[b.recipient];
+		const std::string post = c.post < ship::SYS_COUNT
+			? std::string( ship::Spec( static_cast<ship::SystemId>( c.post ) ).name ) : std::string( "department duties" );
+		gi.cvar_set( "lwh_ship_order_recipient", c.name.c_str() );
+		gi.cvar_set( "lwh_ship_order_post", post.c_str() );
+		gi.cvar_set( "lwh_ship_order_watch", WATCH[c.watch < 3 ? c.watch : 0] );
+		gi.cvar_set( "lwh_ship_order_mood", ship::MoraleBandName( ship::Morale( c ) ) );
+	}
+	gi.cvar_set( "lwh_ship_order_situation", b.situation.c_str() );
+	gi.cvar_set( "lwh_ship_order_options", Fmt( "%d", b.optionCount ).c_str() );
+	for ( int i = 0; i < b.optionCount && i < ship::ORDER_OPTION_MAX; ++i )
+		gi.cvar_set( Fmt( "lwh_ship_order_opt%d", i ).c_str(),
+			Fmt( "%s|%s|%s|%d", b.options[i].label.c_str(), b.options[i].cost.c_str(),
+				ship::OrderClassSpecOf( b.options[i].order ).name, b.options[i].intent ).c_str() );
+	// The outcome on the screen: the giver's line (the order) then the recipient's answer, each with
+	// its speaker rail and its delivery direction carried (never drawn).
+	gi.cvar_set( "lwh_ship_order_replies", Fmt( "%d", lastOrder.replyCount ).c_str() );
+	gi.cvar_set( "lwh_ship_order_note", lastOrder.note.c_str() );
+	for ( int i = 0; i < lastOrder.replyCount && i < ship::ORDER_REPLY_MAX; ++i ) {
+		const ship::MeetingLine &ln = lastOrder.reply[i];
+		const int crew = ln.speaker;
+		std::string rail = "THE ROOM||| ";
+		if ( crew >= 0 && crew < static_cast<int>( vessel.crew.size() ) ) {
+			const ship::CrewMember &c = vessel.crew[crew];
+			const std::string post = c.post < ship::SYS_COUNT
+				? std::string( ship::Spec( static_cast<ship::SystemId>( c.post ) ).name ) : std::string( "department duties" );
+			rail = Fmt( "%s|%s|%s|%s", c.name.c_str(), post.c_str(), WATCH[c.watch < 3 ? c.watch : 0],
+				ship::MoraleBandName( ship::Morale( c ) ) );
+		}
+		gi.cvar_set( Fmt( "lwh_ship_order_reply%d", i ).c_str(),
+			Fmt( "%s|%s|%s", rail.c_str(), ln.text.c_str(), ship::DeliveryName( ln.delivery ) ).c_str() );
+	}
+}
+
 // The UI is a separate module and cannot see the ship, so the ship's state is published as cvars
 // for its screens to read (module/ui). Systems go out in the order power is given to them.
 void Publish( void )
@@ -1095,6 +1154,9 @@ void Publish( void )
 
 	// The meeting overlay's room and queue (docs/staff-meetings.md, M3).
 	PublishMeeting();
+
+	// The order overlay's brief and outcome (docs/orders.md).
+	PublishOrder();
 }
 
 // The configurator's published state (docs/the-entry-point.md, Part three). The UI is a separate
@@ -1624,6 +1686,158 @@ void RunTest( void )
 			WriteReport( "ship/meeting-place.txt" );
 			gi.SendConsoleCommand( "quit\n" );
 			step = 6;
+		}
+		return;
+	}
+	if ( g_shipTest->integer == 92 )
+	{//orders (docs/orders.md): the common set derived per recipient and checked both ways, an order
+	 //dispatched as a job, an unauthorised order refused by name, the bespoke path, the recipient's
+	 //voice and an async plan, and a save round-trip. No model is called and no screen is opened.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2200 )
+		{
+			const int me = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
+			if ( me >= 0 ) { vessel.crew[me].rank = 6; vessel.crew[me].dept = ship::DEPT_COMMAND; vessel.player = me; }
+			const int size = static_cast<int>( vessel.crew.size() );
+			const int eng = ( me + 1 ) % size;
+			const int sec = ( me + 2 ) % size;
+			vessel.crew[eng].status = ship::CREW_FIT; vessel.crew[eng].brigged = false;
+			vessel.crew[eng].dept = ship::DEPT_ENGINEERING; vessel.crew[eng].rank = 4; vessel.crew[eng].post = ship::SYS_WARP_DRIVE;
+			vessel.crew[sec].status = ship::CREW_FIT; vessel.crew[sec].brigged = false;
+			vessel.crew[sec].dept = ship::DEPT_SECURITY; vessel.crew[sec].rank = 4; vessel.crew[sec].post = ship::SYS_COUNT;
+			ship::DamageSystem( vessel, ship::SYS_WARP_DRIVE, 0.5f );
+			ship::Tick( vessel, 1.0f );
+
+			uint8_t set[ship::ORDER_CLASS_COUNT];
+			const int en = ship::DeriveOrders( vessel, vessel.player, eng, set, ship::ORDER_CLASS_COUNT );
+			gi.Printf( "SHIP: order test: engineer set:" );
+			for ( int i = 0; i < en; ++i ) gi.Printf( " %s;", ship::OrderLabel( vessel, eng, set[i] ).c_str() );
+			gi.Printf( "\n" );
+			const int sn = ship::DeriveOrders( vessel, vessel.player, sec, set, ship::ORDER_CLASS_COUNT );
+			gi.Printf( "SHIP: order test: security set:" );
+			for ( int i = 0; i < sn; ++i ) gi.Printf( " %s;", ship::OrderLabel( vessel, sec, set[i] ).c_str() );
+			gi.Printf( "\n" );
+			// The set follows the person when the post changes.
+			vessel.crew[sec].post = ship::SYS_PHASERS;
+			const int sn2 = ship::DeriveOrders( vessel, vessel.player, sec, set, ship::ORDER_CLASS_COUNT );
+			gi.Printf( "SHIP: order test: the same officer given the phaser post:" );
+			for ( int i = 0; i < sn2; ++i ) gi.Printf( " %s;", ship::OrderLabel( vessel, sec, set[i] ).c_str() );
+			gi.Printf( "\n" );
+			vessel.crew[sec].post = ship::SYS_COUNT;
+
+			// The check, both ways, with each failure planted and caught.
+			std::string fault;
+			uint8_t eset[ship::ORDER_CLASS_COUNT];
+			const int en2 = ship::DeriveOrders( vessel, vessel.player, eng, eset, ship::ORDER_CLASS_COUNT );
+			const bool consistent = !ship::OrderSetFault( vessel, vessel.player, eng, eset, en2, &fault );
+			uint8_t planted[ship::ORDER_CLASS_COUNT + 1];
+			for ( int i = 0; i < en2; ++i ) planted[i] = eset[i];
+			planted[en2] = ship::ORDER_SECURE_DECK;   // a foreign order: the engineer is not security
+			const bool foreignCaught = ship::OrderSetFault( vessel, vessel.player, eng, planted, en2 + 1, &fault );
+			uint8_t missing[ship::ORDER_CLASS_COUNT]; int mn = 0;
+			for ( int i = 0; i < en2; ++i ) if ( eset[i] != ship::ORDER_SEE_TO ) missing[mn++] = eset[i];
+			const bool missingCaught = ship::OrderSetFault( vessel, vessel.player, eng, missing, mn, &fault );
+			gi.Printf( "SHIP: order test: tree consistent=%d; planted foreign caught=%d; planted missing caught=%d\n",
+				consistent ? 1 : 0, foreignCaught ? 1 : 0, missingCaught ? 1 : 0 );
+
+			// The dispatch: a job with its kind and target, and the log.
+			const ship::OrderBrief b = ship::BuildOrderBrief( vessel, vessel.player, eng );
+			int idx = -1;
+			for ( int i = 0; i < b.optionCount; ++i ) if ( b.options[i].order == ship::ORDER_SEE_TO ) idx = i;
+			const ship::OrderOutcome r = ship::DispatchOrder( vessel, b, idx, vessel.player );
+			const std::string jobKind = r.job >= 0 ? ship::JobKindName( ship::Jobs( vessel )[r.job].kind ) : "none";
+			gi.Printf( "SHIP: order test: dispatched given=%d; job %d kind %s target %s\n", r.given ? 1 : 0, r.job,
+				jobKind.c_str(), ( r.job >= 0 && ship::Jobs( vessel )[r.job].kind == ship::JOB_REPAIR )
+					? ship::Spec( static_cast<ship::SystemId>( ship::Jobs( vessel )[r.job].target ) ).name : "-" );
+
+			// An ensign may not give it: refused by name, in character, state unchanged.
+			const int ens = ( me + 3 ) % size;
+			vessel.crew[ens].status = ship::CREW_FIT; vessel.crew[ens].brigged = false;
+			vessel.crew[ens].dept = ship::DEPT_ENGINEERING; vessel.crew[ens].rank = 1; vessel.crew[ens].post = ship::SYS_COUNT;
+			const int repairBefore = vessel.orderRepairFirst;
+			const ship::OrderOutcome rr = ship::DispatchOrder( vessel, b, idx, ens );
+			gi.Printf( "SHIP: order test: ensign refused=%d rule \"%s\"; state unchanged=%d\n",
+				rr.refused ? 1 : 0, rr.refusal.c_str(), vessel.orderRepairFirst == repairBefore ? 1 : 0 );
+
+			// The bespoke path: with no classifier, a typed order is novel and refused in character.
+			const ship::OrderOutcome novel = ship::BespokeOrder( vessel, b, vessel.player, "vent the shuttlebay" );
+			ship::ClearOrderNoveltyIndex();
+			const uint32_t key = ship::OrderNoveltyKey( b, "go and see to it" );
+			ship::AddOrderNoveltyVerdict( key, true, idx, "matched" );
+			const ship::OrderOutcome matched = ship::BespokeOrder( vessel, b, vessel.player, "go and see to it" );
+			gi.Printf( "SHIP: order test: bespoke novel refused=%d; matched given=%d\n",
+				novel.refused ? 1 : 0, matched.given ? 1 : 0 );
+
+			// The recipient's voice and the async plan: no inference on arrival.
+			const std::string vk = r.replyCount >= 2 ? ship::OrderLineKey( vessel, b, r.reply[1] ) : std::string();
+			const int planned = ship::PlanOrderAudio( voiceRender, vessel, b );
+			gi.Printf( "SHIP: order test: voice key %s; planned %d line(s); model calls %d\n",
+				vk.empty() ? "(none)" : vk.c_str(), planned, orderCalls );
+
+			// The save: the order and its job round-trip.
+			const std::vector<uint8_t> blob = ship::Pack( vessel );
+			ship::Ship back;
+			const bool loaded = ship::Unpack( blob.data(), blob.size(), back );
+			bool jobBack = false;
+			for ( const ship::Job &j : ship::Jobs( back ) ) if ( j.kind == ship::JOB_REPAIR && j.target == ship::SYS_WARP_DRIVE ) jobBack = true;
+			gi.Printf( "SHIP: order test: save replay loaded=%d, orderRepairFirst=%d, job back=%d\n",
+				loaded ? 1 : 0, back.orderRepairFirst, jobBack ? 1 : 0 );
+
+			WriteReport( "ship/orders.txt" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 1;
+		}
+		return;
+	}
+	if ( g_shipTest->integer == 93 )
+	{//the order on the screen (docs/orders.md): the brief opened, the order being given, and the
+	 //recipient's answer -- because whether being ordered reads as a moment rather than a menu is the
+	 //owner's to judge from the frame. The screen sends `ship order` commands; it writes no state.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			const int me = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
+			if ( me >= 0 ) { vessel.crew[me].rank = 6; vessel.crew[me].dept = ship::DEPT_COMMAND; vessel.player = me; }
+			const int size = static_cast<int>( vessel.crew.size() );
+			const int eng = ( me + 1 ) % size;
+			vessel.crew[eng].status = ship::CREW_FIT; vessel.crew[eng].brigged = false;
+			vessel.crew[eng].dept = ship::DEPT_ENGINEERING; vessel.crew[eng].rank = 4; vessel.crew[eng].post = ship::SYS_WARP_DRIVE;
+			vessel.crew[eng].deficit = 0.3f; vessel.crew[eng].outlook = 0.7f; vessel.crew[eng].holdings = 0.7f;
+			ship::DamageSystem( vessel, ship::SYS_WARP_DRIVE, 0.6f );
+			ship::Tick( vessel, 1.0f );
+			currentOrder = ship::BuildOrderBrief( vessel, vessel.player, eng );
+			lastOrder = ship::OrderOutcome();
+			orderOpen = true;
+			gi.Printf( "SHIP: order overlay: %s -> %s; %d order(s) they can be given\n",
+				vessel.crew[me].name.c_str(), vessel.crew[eng].name.c_str(), currentOrder.optionCount );
+			gi.SendConsoleCommand( "ui_lwh_orders\n" );
+			Publish();
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3200 )
+		{
+			gi.SendConsoleCommand( "screenshot lwh_order_give\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 4000 )
+		{//a pill is picked by key: the screen sends `ship order give 1` (see to the warp drive)
+			gi.SendConsoleCommand( "lwh_order_key 1\n" );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 5200 )
+		{
+			gi.Printf( "SHIP: order overlay: given=%d, job %d; the answer: %s\n", lastOrder.given ? 1 : 0, lastOrder.job,
+				lastOrder.replyCount >= 2 ? lastOrder.reply[lastOrder.replyCount - 1].text.c_str() : "" );
+			gi.SendConsoleCommand( "screenshot lwh_order_answer\n" );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 6200 )
+		{
+			WriteReport( "ship/orders-overlay.txt" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 5;
 		}
 		return;
 	}
@@ -5101,6 +5315,53 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "borg" ) && a[0] && b[0] ) ship::BoardBorg( vessel, atoi( a ), atoi( b ) );
 	else if ( !Q_stricmp( cmd, "order" ) && a[0] )
 	{//ship order repair <system>|security <deck>|evacuate <deck>   (0 or "none" clears it)
+	 // ... and the order to a person (docs/orders.md): brief <crew> builds the one-recipient brief
+	 // and opens it, give <n> dispatches the chosen enumerated order (a pill), say <text> takes the
+	 // bespoke path, close puts it away. The brief is a read; the simulation applies the dispatch.
+		if ( !Q_stricmp( a, "brief" ) )
+		{
+			const int crew = b[0] ? atoi( b ) : vessel.player;
+			currentOrder = ship::BuildOrderBrief( vessel, vessel.player, crew );
+			lastOrder = ship::OrderOutcome();
+			orderOpen = true;
+			orderSaid.clear();
+			gi.Printf( "SHIP: order brief: %s -> %s; %d order(s) they can be given\n",
+				( vessel.player >= 0 && vessel.player < static_cast<int>( vessel.crew.size() ) ) ? vessel.crew[vessel.player].name.c_str() : "command",
+				( crew >= 0 && crew < static_cast<int>( vessel.crew.size() ) ) ? vessel.crew[crew].name.c_str() : "nobody",
+				currentOrder.optionCount );
+			for ( int i = 0; i < currentOrder.optionCount; ++i )
+				gi.Printf( "SHIP:   %d %s [%s]\n", i + 1, currentOrder.options[i].label.c_str(), currentOrder.options[i].cost.c_str() );
+			Publish();
+			return;
+		}
+		if ( !Q_stricmp( a, "give" ) )
+		{//a pill was chosen: exactly one enumerated order, dispatched by the simulation
+			if ( !orderOpen ) { gi.Printf( "SHIP: order give: no order is open\n" ); return; }
+			const int option = b[0] ? atoi( b ) - 1 : -1;
+			lastOrder = ship::DispatchOrder( vessel, currentOrder, option, vessel.player );
+			gi.Printf( "SHIP: order give: %s; job %d; %s\n",
+				lastOrder.refused ? "refused" : ( lastOrder.given ? "given" : "nothing" ), lastOrder.job, lastOrder.note.c_str() );
+			Publish();
+			return;
+		}
+		if ( !Q_stricmp( a, "say" ) )
+		{//typed text, not a pill: the novelty seam; a match dispatches, a miss is refused in character
+			if ( !orderOpen ) { gi.Printf( "SHIP: order say: no order is open\n" ); return; }
+			orderSaid = b;
+			lastOrder = ship::BespokeOrder( vessel, currentOrder, vessel.player, b );
+			++orderCalls;
+			gi.Printf( "SHIP: order say: \"%s\": %s; %s\n", b, lastOrder.refused ? "refused" : "given", lastOrder.note.c_str() );
+			Publish();
+			return;
+		}
+		if ( !Q_stricmp( a, "close" ) )
+		{
+			orderOpen = false;
+			orderSaid.clear();
+			gi.Printf( "SHIP: order close\n" );
+			Publish();
+			return;
+		}
 		bool ok = false;
 		if ( !Q_stricmp( a, "repair" ) ) ok = ship::OrderRepairFirst( vessel, FindSystem( b ) );
 		else if ( !Q_stricmp( a, "security" ) ) ok = ship::OrderSecurityTo( vessel, atoi( b ) );

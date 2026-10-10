@@ -29,8 +29,10 @@ namespace {
 // lower quarter once the 16:9 scene above it is counted. The scene above is never painted.
 const int OV_TOP = 336;
 
-// The room has two faces: the queue the player opens, and the room a brief opens into.
-enum { FACE_QUEUE = 0, FACE_ROOM };
+// The screen has three faces: the queue the player opens, the room a brief opens into, and the
+// order the giver dispatches to one person (docs/orders.md). The last is the same machinery -- a
+// rail, the situation, the orders as pills with their costs, and a free-text pill.
+enum { FACE_QUEUE = 0, FACE_ROOM, FACE_ORDER };
 enum { MODE_CHOOSING = 0, MODE_PLAYING, MODE_DONE };
 
 struct MeetingScreen {
@@ -344,8 +346,179 @@ void RoomDraw( void )
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
+// ---- the order face (docs/orders.md) ------------------------------------------------------------
+//
+// The same machinery as a room, for one person: the recipient's rail, the situation, the orders
+// they can be given as pills with their costs, and a free-text pill. Once one is given, the frame
+// shows the order being given and the recipient's answer. The screen sends `ship order` commands;
+// the simulation dispatches them.
+
+int OrderOptions( void ) { return static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_order_options" ) ); }
+int OrderReplies( void ) { return static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_order_replies" ) ); }
+
+Line RecipientRail( void )
+{
+	Line L;
+	memset( &L, 0, sizeof( L ) );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_order_recipient", L.name, sizeof( L.name ) );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_order_post", L.post, sizeof( L.post ) );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_order_watch", L.watch, sizeof( L.watch ) );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_order_mood", L.mood, sizeof( L.mood ) );
+	L.ok = L.name[0] != 0;
+	return L;
+}
+
+// One reply line as the host published it: rail(name|post|watch|mood)|text|delivery.
+Line ReadOrderReply( int i )
+{
+	Line L;
+	memset( &L, 0, sizeof( L ) );
+	char buf[384];
+	ui.Cvar_VariableStringBuffer( va( "lwh_ship_order_reply%d", i ), buf, sizeof( buf ) );
+	char *f[7];
+	const int n = Split( buf, '|', f, 7 );
+	if ( n < 6 ) return L;
+	Q_strncpyz( L.name, f[0], sizeof( L.name ) );
+	Q_strncpyz( L.post, f[1], sizeof( L.post ) );
+	Q_strncpyz( L.watch, f[2], sizeof( L.watch ) );
+	Q_strncpyz( L.mood, f[3], sizeof( L.mood ) );
+	Q_strncpyz( L.text, f[4], sizeof( L.text ) );
+	Q_strncpyz( L.delivery, f[5], sizeof( L.delivery ) );
+	L.ok = true;
+	return L;
+}
+
+void OrderDraw( void )
+{
+	const int options = OrderOptions();
+	const int replies = OrderReplies();
+	char to[64];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_order_recipient", to, sizeof( to ) );
+	UI_FillRect( 150, OV_TOP, 490, 480 - OV_TOP, colorTable[CT_BLACK] );
+	UI_FillRect( 0, OV_TOP, 640, 4, colorTable[CT_LTGOLD1] );
+	DrawRail( RecipientRail() );
+	UI_DrawProportionalString( 158, OV_TOP + 6, va( "ORDERS  -  TO %s", to[0] ? to : "NOBODY" ),
+		UI_SMALLFONT, colorTable[CT_LTGOLD1] );
+	char situation[256];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_order_situation", situation, sizeof( situation ) );
+	int sitLines = situation[0] ? Wrapped( 158, OV_TOP + 20, situation, UI_TINYFONT, colorTable[CT_LTBLUE2], 74, 9, 2 ) : 0;
+
+	if ( replies > 0 )
+	{// the order has been given: show the giver's line and the recipient's answer
+		int y = OV_TOP + 20 + ( sitLines > 0 ? sitLines : 1 ) * 10 + 2;
+		for ( int i = 0; i < replies && i < 4; ++i )
+		{
+			const Line R = ReadOrderReply( i );
+			if ( !R.ok ) continue;
+			UI_DrawProportionalString( 158, y, i == 0 ? "THE ORDER" : "THE ANSWER", UI_TINYFONT, colorTable[CT_LTORANGE] );
+			y += 10;
+			UI_DrawProportionalString( 158, y, R.text, UI_TINYFONT,
+				colorTable[i == 0 ? CT_LTGOLD1 : CT_WHITE] );
+			y += 13;
+		}
+		char note[256];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_order_note", note, sizeof( note ) );
+		if ( note[0] ) Wrapped( 158, 452, note, UI_TINYFONT, colorTable[CT_LTBLUE2], 74, 9, 2 );
+	}
+	else
+	{// the orders this person can be given, each with what it costs, and the free-text pill
+		int dy = 14;
+		const int pillTop = OV_TOP + 20 + ( sitLines > 0 ? sitLines : 1 ) * 10 + 4;
+		const int rows = options + 1;
+		const int avail = 441 - pillTop;
+		if ( rows > 0 && rows * dy > avail ) dy = avail / rows;
+		if ( dy < 9 ) dy = 9;
+		for ( int i = 0; i < options && i < 6; ++i )
+		{
+			char buf[256], *f[4], label[192], cost[192], whole[192];
+			ui.Cvar_VariableStringBuffer( va( "lwh_ship_order_opt%d", i ), buf, sizeof( buf ) );
+			if ( Split( buf, '|', f, 4 ) < 4 ) continue;
+			Com_sprintf( whole, sizeof( whole ), "%d %s", i + 1, f[0] );
+			FitToColumn( label, sizeof( label ), whole, 172, 350 );
+			FitToColumn( cost, sizeof( cost ), f[1], 356, 632 );
+			const int y = pillTop + i * dy;
+			const bool sel = i == meet.cursor;
+			UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[sel ? CT_DKPURPLE2 : CT_BLACK] );
+			UI_FillRect( 158, y - 1, 7, dy - 1, colorTable[i == 0 ? CT_LTGOLD1 : i == 1 ? CT_LTPURPLE1 : i == 2 ? CT_LTBLUE2 : CT_LTBLUE1] );
+			UI_DrawProportionalString( 172, y, label, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTGOLD1] );
+			UI_DrawProportionalString( 356, y, cost, UI_TINYFONT, colorTable[sel ? CT_WHITE : CT_LTBLUE2] );
+		}
+		{
+			const int y = pillTop + options * dy;
+			const bool sel = meet.cursor == options;
+			UI_FillRect( 158, y - 1, 476, dy - 1, colorTable[sel ? CT_DKPURPLE2 : CT_DKPURPLE3] );
+			UI_FillRect( 158, y - 1, 7, dy - 1, colorTable[CT_LTPURPLE1] );
+			UI_DrawProportionalString( 172, y, "SAY SOMETHING ELSE", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+			UI_DrawProportionalString( 356, y, meet.typing ? meet.buf : "type an order", UI_TINYFONT, colorTable[meet.typing ? CT_WHITE : CT_DKGREY] );
+			UI_FillRect( 596, y - 1, 38, dy - 1, colorTable[CT_LTPURPLE1] );
+			UI_DrawProportionalString( 601, y, "VOICE", UI_TINYFONT, colorTable[CT_BLACK] );
+		}
+	}
+	{
+		char hostSaid[320] = "";
+		ui.Cvar_VariableStringBuffer( "lwh_ship_order_said", hostSaid, sizeof( hostSaid ) );
+		const char *said = ( !meet.typing && hostSaid[0] ) ? hostSaid : meet.said;
+		if ( said[0] ) Wrapped( 6, OV_TOP + 98, said, UI_TINYFONT, colorTable[CT_LTORANGE], 24, 9, 4 );
+	}
+	UI_DrawProportionalString( 158, 470, meet.typing
+		? "type   ENTER submit   ESC cancel"
+		: "UP/DOWN  number  ENTER give  T type an order  ESC queue",
+		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+}
+
+bool OrderAct( int key )
+{
+	if ( meet.typing )
+	{
+		if ( key & K_CHAR_FLAG )
+		{
+			const int c = key & ~K_CHAR_FLAG;
+			if ( c >= 32 && c < 127 && meet.bufLen < static_cast<int>( sizeof( meet.buf ) ) - 1 )
+			{
+				meet.buf[meet.bufLen++] = static_cast<char>( c );
+				meet.buf[meet.bufLen] = 0;
+			}
+			return true;
+		}
+		switch ( key )
+		{
+		case K_BACKSPACE: if ( meet.bufLen > 0 ) meet.buf[--meet.bufLen] = 0; return true;
+		case K_ENTER: case K_KP_ENTER:
+			if ( meet.bufLen > 0 ) Send( va( "ship order say \"%s\"", meet.buf ) );
+			meet.typing = false;
+			return true;
+		case K_ESCAPE: meet.typing = false; return true;
+		}
+		return true;
+	}
+	const int options = OrderOptions();
+	switch ( key )
+	{
+	case K_UPARROW: if ( options ) meet.cursor = ( meet.cursor + options ) % ( options + 1 ); return true;
+	case K_DOWNARROW: if ( options ) meet.cursor = ( meet.cursor + 1 ) % ( options + 1 ); return true;
+	case '1': case '2': case '3': case '4': case '5': case '6':
+		if ( key - '0' >= 1 && key - '0' <= options )
+		{
+			meet.cursor = key - '0' - 1;
+			Send( va( "ship order give %d", key - '0' ) );
+		}
+		return true;
+	case 't': case 'T': meet.cursor = options; meet.typing = true; meet.bufLen = 0; meet.buf[0] = 0; return true;
+	case K_ENTER: case K_KP_ENTER:
+		if ( meet.cursor >= options ) { meet.typing = true; meet.bufLen = 0; meet.buf[0] = 0; return true; }
+		Send( va( "ship order give %d", meet.cursor + 1 ) );
+		return true;
+	case K_ESCAPE:
+		Send( "ship order close" );
+		meet.face = FACE_QUEUE;
+		return true;
+	}
+	return false;
+}
+
 void Draw( void )
 {
+	if ( meet.face == FACE_ORDER ) { OrderDraw(); return; }
 	if ( meet.face == FACE_QUEUE ) { QueueDraw(); return; }
 	// The playback advances on the frame clock: the outcome's lines, one at a time, then the decision.
 	if ( meet.mode == MODE_PLAYING )
@@ -378,6 +551,7 @@ int KeyByName( const char *name )
 
 bool Act( int key )
 {
+	if ( meet.face == FACE_ORDER ) return OrderAct( key );
 	if ( meet.face == FACE_QUEUE )
 	{
 		const int q = QueueCount();
@@ -481,7 +655,7 @@ sfxHandle_t Key( int key )
 // path go through the same buffer, so what a test drives is what a hand drives.
 void TypeText( const char *text )
 {
-	meet.face = FACE_ROOM;
+	// The face is left as it is: the same buffer serves the meeting's free-text pill and the order's.
 	meet.typing = true;
 	for ( const char *p = text; *p && meet.bufLen < static_cast<int>( sizeof( meet.buf ) ) - 1; ++p )
 		meet.buf[meet.bufLen++] = *p;
@@ -514,6 +688,21 @@ qboolean LWH_UI_MeetingScreens( const char *cmd )
 {
 	if ( !Q_stricmp( cmd, "ui_lwh_meeting" ) ) { Open( FACE_QUEUE ); return qtrue; }
 	if ( !Q_stricmp( cmd, "ui_lwh_meeting_room" ) ) { Open( FACE_ROOM ); return qtrue; }
+	if ( !Q_stricmp( cmd, "ui_lwh_orders" ) ) { Open( FACE_ORDER ); return qtrue; }
+	if ( !Q_stricmp( cmd, "lwh_order_key" ) )
+	{
+		char arg[32];
+		ui.Argv( 1, arg, sizeof( arg ) );
+		Act( KeyByName( arg ) );
+		return qtrue;
+	}
+	if ( !Q_stricmp( cmd, "lwh_order_type" ) )
+	{//a test types what a hand types, into the same free-text buffer
+		char text[128];
+		ui.Argv( 1, text, sizeof( text ) );
+		TypeText( text );
+		return qtrue;
+	}
 	if ( !Q_stricmp( cmd, "lwh_meet_key" ) )
 	{
 		char arg[32];

@@ -748,6 +748,40 @@ is borrowed and read in place, and the venv is gitignored.
 it. That needs the microphone this pass does not build and a host with audio; the transcription seam and
 the identity of the path are what are proved here.
 
+### Orders — the third use of the same machine
+
+`docs/orders.md` (the owner's design, 2026-10-10), implemented on `feat/orders` (cut from `testing`;
+`docs/evidence/orders.md`, `TestOrderSetDerivation`, `TestOrderDispatchPushesAJob`, `TestOrderRefusalByRule`,
+`TestOrderRecipientAsPerson`, `TestOrderBespokeAndVoice`, `TestOrderSaveRoundTrip`,
+`module/ship/order_set.def`, `tools/orders/orders.py`, `scripts/order-check.sh`). **Save format unchanged
+(55)** — the two appended `JobKind`s are format-compatible and are only ever written by this build, so an
+older save loads and replays identically; the version is deliberately not bumped.
+
+- **an order is a one-recipient brief**, the meeting's shape for one person ✅
+- **the common set is derived per recipient** from post, department, rank and the giver's authority, and it
+  follows the person: an engineer and a security officer are offered different orders, and the same officer's
+  set changes when their post does ✅
+- **the set is checked both ways, planted and caught** — `OrderSetFault` fails for an order the person cannot
+  be given and for a real order missing from the set; the register check (`tools/orders/orders.py`) fails for
+  a registered class the dispatch does not handle and for a case the register does not name ✅
+- **dispatch pushes a job** with its kind and target (`JOB_SECURE`, `JOB_EVACUATE` appended; the queue derives
+  them from the standing order) ✅
+- **an unauthorised order is refused by name, in character, with the state unchanged** ✅
+- **a bespoke order takes the free-text path** — classified into the set by the novelty seam, applied, and
+  refused in character when it falls outside ✅
+- **the recipient answers as a person** — morale, conditions and traits move the line; an order taken badly
+  leaves a `MEM_ORDER` mark toward the giver (the open mark question in `docs/orders.md` Q3, implemented once
+  and reported) ✅
+- **an order is logged under its own scope (`order`)** — named as a choice ✅
+- **a pill costs no inference** and the recipient's lines carry a cast key and an async plan ✅
+- **a save replays** the order and its job ✅
+- **the picture**: `lwh_order_give.tga` and `lwh_order_answer.tga` — the order being given and the answer ✅
+- `scripts/test.sh`, `scripts/check.sh`, `scripts/api-check.sh` and `scripts/order-check.sh` exit 0 ✅
+
+**The group order is a named seam and is not built** (`docs/orders.md` Q2), and *whether being ordered feels
+like a moment rather than a menu is the owner's* to judge from the two frames. **Where a badly-taken order
+lands is the owner's open question (Q3)**; the behaviour implemented is recorded, not settled.
+
 ### Then, in rough order
 
 **First batch done (2026-10-07)** — `docs/evidence/backlog-materials-and-crew.md`, `scripts/backlog-check.sh`,
