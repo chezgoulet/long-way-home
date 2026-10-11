@@ -279,6 +279,26 @@ Four decisions recorded in `docs/prior-art-rpg-x.md`, each landing somewhere con
   32 co-located crew (the layer's ceiling); the snapshot build is **~0.6 ms/tick**. A real 150-body
   room and the two-machine wire were **not measured**. No lever pulled; the menu is in the evidence.
 
+- **the latent traps → measured and classified 2026-10-11** (`docs/evidence/the-bridge-traps.md`,
+  `patches/0021`, `patches/0022`). The three limits the earlier evidence named and left live, each
+  re-measured on this tree. **(1) the SP bridge's configstring table** was a literal `CS_MAX 1024`
+  (`sp_bridge.cpp:114`) against `MAX_CONFIGSTRINGS` 4096, dropping any index above 1023 with no word —
+  **a defect, fixed**: the table is now `SP_CS_MAX = MAX_CONFIGSTRINGS` and an out-of-range set says
+  so under `developer`; demonstrated by a configstring at index 1500 surviving the bridge with the
+  engine's own "accepted" line, and failing on a build of `0001…0020`
+  (`scripts/bridge-cs-check.sh`). **(2) the two same-named `cg_public.h`**
+  (`efgame/src/cgame/cg_public.h` 1024 for the bridge and the module's cgame;
+  `EFAndroid-SP/app/jni/efcode/cgame/cg_public.h` 256 for the engine's network client) were resolved
+  by include-path order — **a latent defect, pinned** by a preprocessor guard, so the wrong header
+  fails the build instead of silently halving `snapshot_t` (`scripts/bridge-header-check.sh`).
+  **(3) the published decks share shader names** (10 decks, 447 distinct shaders, 190 on more than one,
+  15 on all ten) and `RemapShader` is by name — **a boundary**: the way round is a content rebake
+  under q3map2's vis cap or a new renderer section tag, neither taken; the generated decks'
+  deck-unique sections are the engine's own mechanism (`scripts/deck-shader-check.sh`).
+  **(4) q3map2's `MAX_MAP_VISCLUSTERS`** — the ship measures **3,171 of 8,192 gentities and 15,321 of
+  16,384 vis-clusters (93.5%)**; the cap is a compiler constant in a project we do not own,
+  **priced, not taken** (`scripts/viscluster-check.sh`).
+
 ## G5 — capstone scenario ⏳ pending
 
 ---

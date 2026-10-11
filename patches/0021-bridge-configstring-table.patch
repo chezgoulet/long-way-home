@@ -1,0 +1,134 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 21/21] SP: the bridge's configstring table derives from MAX_CONFIGSTRINGS
+
+The SP bridge stored the game's configstrings in a table sized by a literal `CS_MAX 1024`, while
+`MAX_CONFIGSTRINGS` -- what the gamestate and the save format are sized against -- is 4096. I_SetCS
+dropped any index at or above 1024 and said nothing, so a configstring numbered above the table
+would disappear with no error and be blamed on the content (docs/evidence/engine-content-headroom.md,
+docs/evidence/raise-the-gentity-ceiling.md both record this as the "wrong 1024").
+
+Measured on this tree before the change: `+map borg1` prints "content: 104 configstrings of 4096
+(bridge table CS_MAX 1024)". The table is now `SP_CS_MAX`, derived from `MAX_CONFIGSTRINGS`, so it
+can never again disagree with the ceiling; the table the bridge holds covers every configstring the
+game's layout is allowed to name (bg_public.h errors out on a layout above MAX_CONFIGSTRINGS). The
+name change is not cosmetic: bg_public.h, included for the content blocks, already defines `CS_MAX`
+(the game's own layout bound, CS_PLAYERS + MAX_CLIENTS), and the old `#define` silently redefined it
+under the build's `-w`.
+
+An out-of-range set now says so under `developer`, and an index past the old literal that lands says
+so too, so the two states are distinguishable in the engine's own output. Logging only: with
+`developer` unset (the default) I_SetCS stores and drops exactly as before, and no save changes (the
+save writes only the non-empty entries it always did).
+---
+diff --git a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+index 3cb1eb5..661a0ac 100755
+--- a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
++++ b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+@@ -111,8 +111,17 @@ static qboolean   g_entPortalOpen[SP_MAX_ENT]; // per-door areaportal open state
+ static int SP_EntNum( gentity_t *e ){ return (int)(((unsigned char*)e - (unsigned char*)ge->gentities) / ge->gentitySize); }
+ 
+ 
+-#define CS_MAX 1024
+-static char g_configstrings[CS_MAX][1024];
++// The configstring table the bridge keeps on the game's behalf, hands to the cgame in the gamestate,
++// and persists in a save. It was a literal 1024 -- the wrong 1024: MAX_CONFIGSTRINGS (what the
++// gamestate and the save format are sized against) is 4096, and the game's own layout bound is
++// CS_PLAYERS + MAX_CLIENTS. Anything numbered above the literal was dropped with no word, so content
++// that exceeded the table would disappear and be blamed on the content. Derived from MAX_CONFIGSTRINGS
++// now: the table can never again disagree with the ceiling, and it holds any configstring the game's
++// layout is allowed to name (bg_public.h errors out on a layout above MAX_CONFIGSTRINGS). Renamed
++// from CS_MAX because bg_public.h, included above, already defines CS_MAX (the game's own layout
++// bound) -- the redefinition was silent under the build's -w. See docs/evidence/the-bridge-traps.md.
++#define SP_CS_MAX MAX_CONFIGSTRINGS
++static char g_configstrings[SP_CS_MAX][1024];
+ 
+ // EF1 SP 1:1 load-from-save background: the loaded savegame's 256x256 RGBA 'SHOT' screenshot, stashed by
+ // SP_LoadGameFile so the loading screen's cgi_R_DrawScreenShot (CG_DrawInformation's eFULL branch) can blit it
+@@ -424,16 +433,25 @@ static void  I_SendServerCmd( int n, const char *fmt, ... ){
+     va_end(a);
+ }
+ static void  I_SetCS( int n, const char *s ){
+-    if(n>=0&&n<CS_MAX){
++    if(n>=0&&n<SP_CS_MAX){
+         strncpy(g_configstrings[n], s?s:"", 1023); g_configstrings[n][1023]=0;
++        // The old table was a literal 1024 and dropped anything above it with no word. Say so, both
++        // ways, when `developer` is set: an index past the old literal that now lands, and any index
++        // the table still cannot hold. Logging only, so with it unset the bridge behaves as before.
++        if ( Cvar_VariableIntegerValue( "developer" ) ) {
++            if ( n >= 1024 )
++                blog("SP_SetConfigstring: index %d accepted (bridge table SP_CS_MAX %d)\n", n, SP_CS_MAX);
++        }
+         // Mid-game change (CS_MUSIC, objectives, items, CS_MESSAGE...): push a `cs` server command
+         // so the cgame updates incrementally (cg_servercmds.cpp `cs` handler). Only AFTER the client
+         // is active — at level init the game sets many configstrings that the initial gamestate
+         // already carries (BuildGameState), and emitting them all would overflow the command ring.
+         if(g_spActive) I_SendServerCmd(0, "cs %i \"%s\"", n, g_configstrings[n]);
++    } else if ( Cvar_VariableIntegerValue( "developer" ) ) {
++        blog("SP_SetConfigstring: index %d DROPPED (bridge table SP_CS_MAX %d)\n", n, SP_CS_MAX);
+     }
+ }
+-static void  I_GetCS( int n, char *b, int sz ){ if(n>=0&&n<CS_MAX&&sz>0){ strncpy(b,g_configstrings[n],sz-1); b[sz-1]=0; } else if(sz>0) b[0]=0; }
++static void  I_GetCS( int n, char *b, int sz ){ if(n>=0&&n<SP_CS_MAX&&sz>0){ strncpy(b,g_configstrings[n],sz-1); b[sz-1]=0; } else if(sz>0) b[0]=0; }
+ static void  I_GetUserinfo( int n, char *b, int sz ){
+     (void)n; if(sz<=0) return;
+     // EF parses SEPARATE headModel/torsoModel/legsModel keys (g_client.cpp ClientUserinfoChanged), NOT a
+@@ -662,20 +680,20 @@ extern "C" qboolean SP_SpawnServer( const char *mapname ){
+     blog("SP_SpawnServer: ge->Init done. num_entities=%d linked=%d\n", ge->num_entities, g_numLinked);
+     // Content-limit instrument (docs/prior-art-rpg-x.md, the headroom item): how much of the
+     // configstring budget THIS level spends, so authored content is measured against the ceiling
+-    // instead of assumed. The bridge's own table is sized CS_MAX (models + sounds + players), but
++    // instead of assumed. The bridge's own table is sized SP_CS_MAX (models + sounds + players), but
+     // MAX_CONFIGSTRINGS is what the gamestate and the save format are sized against, so both are
+     // stated. Logging only, and only with `developer` set, so retail behaviour and saves are
+     // untouched with it unset (the default).
+     if ( Cvar_VariableIntegerValue( "developer" ) ) {
+         int csTotal = 0, csModels = 0, csSounds = 0, ci;
+-        for ( ci = 0; ci < CS_MAX; ci++ ) {
++        for ( ci = 0; ci < SP_CS_MAX; ci++ ) {
+             if ( !g_configstrings[ci][0] ) continue;
+             csTotal++;
+             if ( ci >= CS_MODELS && ci < CS_SOUNDS ) csModels++;
+             else if ( ci >= CS_SOUNDS && ci < CS_PLAYERS ) csSounds++;
+         }
+-        blog("SP_SpawnServer: content: %d configstrings of %d (bridge table CS_MAX %d): %d models of %d, %d sounds of %d; gentities %d of %d\n",
+-             csTotal, MAX_CONFIGSTRINGS, CS_MAX, csModels, MAX_MODELS, csSounds, MAX_SOUNDS,
++        blog("SP_SpawnServer: content: %d configstrings of %d (bridge table SP_CS_MAX %d): %d models of %d, %d sounds of %d; gentities %d of %d\n",
++             csTotal, MAX_CONFIGSTRINGS, SP_CS_MAX, csModels, MAX_MODELS, csSounds, MAX_SOUNDS,
+              ge->num_entities, MAX_GENTITIES);
+     }
+     // C1 (reclaim path only): bring the renderer we tore down above back up BEFORE SP_StartClient's CG_INIT
+@@ -709,7 +727,7 @@ static int         g_weaponSelect = 0;
+ static void BuildGameState(void){
+     memset(&g_gameState, 0, sizeof(g_gameState));
+     g_gameState.dataCount = 1;   // index 0 reserved (offset 0 = empty)
+-    for(int i=0;i<CS_MAX;i++){
++    for(int i=0;i<SP_CS_MAX;i++){
+         const char* s = g_configstrings[i];
+         if(!s[0]) continue;
+         int len = (int)strlen(s)+1;
+@@ -1499,9 +1517,9 @@ static void SP_SaveGameInternal(const char* name, qboolean bEAUTO){
+     // model handles (borg2 props drew the RGB null-model axis because a saved s.modelindex landed on an empty
+     // _c1 chunk slot in the now-stale table). Mirrors retail (skip index 1 = systeminfo).
+     { int csn=0;
+-      for(int i=0;i<CS_MAX;i++){ if(i!=1 && g_configstrings[i][0]) csn++; }
++      for(int i=0;i<SP_CS_MAX;i++){ if(i!=1 && g_configstrings[i][0]) csn++; }
+       I_Append('CSCN', &csn, 4);
+-      for(int i=0;i<CS_MAX;i++){
++      for(int i=0;i<SP_CS_MAX;i++){
+           if(i==1 || !g_configstrings[i][0]) continue;
+           I_Append('CSIN', &i, 4);
+           I_Append('CSDA', g_configstrings[i], (int)strlen(g_configstrings[i])+1);
+@@ -1623,11 +1641,11 @@ extern "C" void SP_LoadGameFile(const char* name){
+     // Restoring here (before SP_FinishTransition's ge->Init) makes G_ModelIndex re-find the saved indices, so
+     // the fresh spawn, the ReadLevel'd entities, and the cgame gamestate all agree. cscn==0 (pre-fix saves)
+     // simply clears -> those legacy saves can't be recovered (the table was never written), but new saves are.
+-    for(int i=0;i<CS_MAX;i++) g_configstrings[i][0]=0;
++    for(int i=0;i<SP_CS_MAX;i++) g_configstrings[i][0]=0;
+     for(int i=0;i<cscn;i++){
+         int idx=-1; char dat[1024]; dat[0]=0;
+         I_ReadSG('CSIN',&idx,4,0);
+-        if(idx>=0 && idx<CS_MAX){ I_ReadSG('CSDA', g_configstrings[idx], 0, 0); g_configstrings[idx][sizeof(g_configstrings[0])-1]=0; }
++        if(idx>=0 && idx<SP_CS_MAX){ I_ReadSG('CSDA', g_configstrings[idx], 0, 0); g_configstrings[idx][sizeof(g_configstrings[0])-1]=0; }
+         else                     I_ReadSG('CSDA', dat, 0, 0);   // out-of-range index: consume the chunk + discard
+     }
+     // s_sgFile stays OPEN here, positioned at the WriteLevel game chunks -> SP_FinishTransition ReadLevels it.

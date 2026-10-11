@@ -1,0 +1,49 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 22/22] SP: pin which cg_public.h the bridge compiles against
+
+Two headers of the same name carry different snapshot limits:
+
+  efgame/src/cgame/cg_public.h                          MAX_ENTITIES_IN_SNAPSHOT 1024
+  EFAndroid-SP/app/jni/efcode/cgame/cg_public.h         MAX_ENTITIES_IN_SNAPSHOT 256
+
+The bridge includes `"../cgame/cg_public.h"`. Which one it gets is decided by include-path order, not
+by the source: `sp_game_bridge` puts `${EFG}/src/game` on the path (and not `efcode/`), so the quoted
+include's `../cgame` lands in the module's `efgame/src/cgame`. The two are not interchangeable -- the
+bridge passes a `snapshot_t` to the cgame in process (`CG_GETSNAPSHOT` is a struct copy, no wire), so
+it must share the module's layout, and the module's own header says the two `.so`s must be built from
+one header or `snapshot_t` sizes disagree.
+
+Nothing fails today, because the path happens to resolve to the module's header. Point it at the
+engine's and the 256 header compiles just as happily, silently halving `snapshot_t` and corrupting the
+copy. This adds the guard the build lacks: a preprocessor error when the bridge's
+`MAX_ENTITIES_IN_SNAPSHOT` is not the module's 1024. Compile-time only; no behaviour, save or wire
+change. Named in docs/evidence/performance-survey.md as a hazard; named and fixed in
+docs/evidence/the-bridge-traps.md.
+---
+diff --git a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+index 661a0ac..f04b64d 100755
+--- a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
++++ b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+@@ -22,6 +22,22 @@
+ #include <time.h>
+ #include <android/log.h>
+ 
++// Which cg_public.h this translation unit got, pinned instead of left to the include order
++// (docs/evidence/performance-survey.md records the collision as a hazard; docs/evidence/the-bridge-traps.md
++// names both files by path). Two headers of that name exist in the checkout, with different limits:
++//   ../upstream/efgame/src/cgame/cg_public.h                    MAX_ENTITIES_IN_SNAPSHOT 1024
++//   ../upstream/EFAndroid-SP/app/jni/efcode/cgame/cg_public.h   MAX_ENTITIES_IN_SNAPSHOT 256
++// The bridge hands a snapshot_t to the cgame IN PROCESS -- CG_GETSNAPSHOT is a struct copy, not a
++// packet -- so it must share the module's layout; the module's own header warns that the two .so's
++// must be built from one header or snapshot_t sizes disagree. The "../cgame/cg_public.h" include
++// above resolves to the module's because the sp_game_bridge target puts ${EFG}/src/game on the
++// include path (and efcode/ is not on it), so "<dir>/../cgame" lands in efgame/src/cgame. That
++// resolution is otherwise silent: point the include path at efcode/cgame instead and the engine's
++// 256 header compiles just as happily, with a snapshot_t half the size and a corrupting copy. Pin it.
++#if MAX_ENTITIES_IN_SNAPSHOT != 1024
++#error "sp_bridge.cpp must compile against the module's cg_public.h (MAX_ENTITIES_IN_SNAPSHOT 1024, the in-process SP snapshot), not the engine's network cg_public.h (256): check the sp_game_bridge include paths."
++#endif
++
+ // Save-game description typed in the EF Save menu (set by UII_SG_StoreSaveGameComment,
+ // sp_ui_bridge.cpp). SP_SaveGame writes it into the COMM chunk so the Load list shows a name.
+ extern char g_spSaveComment[128];

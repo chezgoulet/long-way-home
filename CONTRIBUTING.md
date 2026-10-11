@@ -39,7 +39,7 @@ maintenance, and to keep our own delta thin enough to rebase onto it whenever th
 rule, 2026-10-04: *"I'd rather be in the best position to inherit community work than increase our support
 of more stuff."*
 
-Current delta from the pinned upstream: **61 files, +448/−135 lines, in nineteen patches by concern.**
+Current delta from the pinned upstream: **62 files, +508/−145 lines, in twenty-two patches by concern.**
 
 | patch | concern | why it is separate |
 |---|---|---|
@@ -62,6 +62,9 @@ Current delta from the pinned upstream: **61 files, +448/−135 lines, in ninete
 | `0017` | SP: measure a level's content registration | Task A of the headroom brief: one `developer`-gated log line reading the bridge's own configstring table and the game's entity count, so the content limits are measured against a loaded map; silent by default, logging only |
 | `0018` | entities to 8,192, in both trees | a limits policy like `0004`/`0008`, now that the measurement (`0017`) shows the merged ship at 3,896 of 4,096 (95%) and the fifth re-dress projected to cross; `GENTITYNUM_BITS` 12→13 in the engine's and the module's `q_shared.h`, so `MAX_GENTITIES` is 8,192. The bridge tables already follow `MAX_GENTITIES`, so nothing else moves |
 | `0019` | SP: measure the snapshot path | the performance-survey brief: two `developer`-gated log lines in the bridge, once a second — the snapshot's candidate count, entity count, cap count and build time, and the whole render frame's wall time, so the engine's share can be told from the game module's; silent by default, logging only |
+| `0020` | main menu: the Long Way Home line, and a menu that finishes opening | the way in (`docs/the-entry-point.md`): a menu entry that execs the one config, and the small fixes that make the menu open and close; UI only |
+| `0021` | SP: the bridge's configstring table derives from `MAX_CONFIGSTRINGS` | the latent-traps brief (`docs/evidence/the-bridge-traps.md`): the table was a literal 1024 that dropped any configstring above it with no word, while the ceiling is 4096; derived now (so it cannot disagree with the ceiling), and an out-of-range set says so under `developer`. One constant and the uses of it; no behaviour or save change with `developer` unset |
+| `0022` | SP: pin which `cg_public.h` the bridge compiles against | the same brief: two same-named headers carry 256 (the engine's network client) and 1024 (the module's in-process snapshot), and which one the bridge got was left to include-path order; a preprocessor guard now fails the build if it is not the module's 1024. Compile-time only |
 
 Rules that keep this shape:
 
