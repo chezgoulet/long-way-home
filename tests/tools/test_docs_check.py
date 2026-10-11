@@ -218,6 +218,22 @@ class RegisterCheckTests(unittest.TestCase):
                   "marker=check:scripts/not-yet.sh --> |\n")
             self.assertEqual(check_register.main(["--root", d, "--register", "docs/reg.md"]), 0)
 
+    def test_pass_when_a_partly_row_marker_resolves(self):
+        # A half row: the built half's proof resolves, and the state says the row is not fully closed.
+        with tempfile.TemporaryDirectory() as d:
+            write(d, "scripts/prove.sh", "#!/bin/sh\n")
+            write(d, "docs/reg.md",
+                  "| O1 | the mechanism shipped, the content remains <!-- register-row id=O1 "
+                  "state=partly marker=check:scripts/prove.sh --> |\n")
+            self.assertEqual(check_register.main(["--root", d, "--register", "docs/reg.md"]), 0)
+
+    def test_fail_when_a_partly_row_marker_is_absent(self):
+        with tempfile.TemporaryDirectory() as d:
+            write(d, "docs/reg.md",
+                  "| O1 | half <!-- register-row id=O1 state=partly "
+                  "marker=check:scripts/gone.sh --> |\n")
+            self.assertEqual(check_register.main(["--root", d, "--register", "docs/reg.md"]), 1)
+
     def test_fail_on_a_malformed_marker(self):
         with tempfile.TemporaryDirectory() as d:
             write(d, "docs/reg.md",
