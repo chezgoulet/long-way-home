@@ -485,12 +485,68 @@ static void TestJudge()
 	CHECK(failsWith(st, m, bytes, "crew present: 4"));
 }
 
+// The floor a member can be below: per deck, from that deck's own lowest post. A deck with no post
+// has no floor, so nothing under it is judged (docs/g3-reactive-crew.md, the post bullets).
+static void TestPerDeckFloor()
+{
+	g_test = "per-deck floor";
+	const float base = 1636.0f, pitch = 3072.0f, drop = 2048.0f;
+
+	std::vector<Post> posts;
+	auto add = [&](const char *name, float z) {
+		Post p;
+		p.name = name;
+		p.hasOrigin = true;
+		p.origin[2] = z;
+		posts.push_back(p);
+	};
+	add("deck1a", -3997.0f);
+	add("deck1b", -3990.0f);
+	add("deck3a", -10152.0f);   // the ship's lowest post: on deck 3, not the one that matters elsewhere
+	add("deck12a", -37670.0f);
+	add("deck12b", -37660.0f);
+
+	// The deck mapping: deck 1 at -base, each deck `pitch` tall.
+	CHECK(DeckOfHeight(-3997.0f, base, pitch) == 1);
+	CHECK(DeckOfHeight(-10152.0f, base, pitch) == 3);
+	CHECK(DeckOfHeight(-37670.0f, base, pitch) == 12);
+	CHECK(DeckOfHeight(-3997.0f, base, 0.0f) == 1); // a map of one deck, or one that does not say
+	CHECK(DeckOfHeight(0.0f, base, pitch) == 1);    // above deck 1 is still deck 1
+
+	const std::vector<Floor> f = PostFloors(posts, base, pitch, 15);
+	CHECK(f[1].known && f[1].z == -3997.0f); // the lower of the two deck 1 posts
+	CHECK(!f[2].known);                      // deck 2 has no post at all: no floor
+	CHECK(f[3].known && f[3].z == -10152.0f);
+	CHECK(f[12].known && f[12].z == -37670.0f);
+
+	auto outOfWorld = [&](float z, int deck) { return f[deck].known && z < f[deck].z - drop; };
+	// Dropped through its own deck: caught.
+	CHECK(outOfWorld(-3997.0f - drop - 1.0f, 1));
+	// On a lower deck, far below the ship's lowest post but standing on its own floor: not caught.
+	CHECK(!outOfWorld(-37670.0f, 12));
+	CHECK(!outOfWorld(-37670.0f - drop + 1.0f, 12));
+	// The same deck, genuinely dropped: caught.
+	CHECK(outOfWorld(-37670.0f - drop - 1.0f, 12));
+	// A deck with no post: no floor, so nothing is judged -- not even a body far below every post.
+	CHECK(!outOfWorld(-80000.0f, 2));
+
+	// A post above deck 1 and one below the last deck are attributed to the nearest deck.
+	std::vector<Post> odd;
+	Post hi;
+	hi.hasOrigin = true;
+	hi.origin[2] = 100.0f;
+	odd.push_back(hi);
+	const std::vector<Floor> fo = PostFloors(odd, base, pitch, 15);
+	CHECK(fo[1].known && fo[1].z == 100.0f);
+}
+
 int main()
 {
 	TestArbitrationOrder();
 	TestScriptAndCombatYield();
 	TestInterruptionIsAPause();
 	TestDecideEdges();
+	TestPerDeckFloor();
 	TestAssignNearest();
 	TestAssignAuthoredHolders();
 	TestRestaff();

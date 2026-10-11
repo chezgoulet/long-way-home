@@ -36,4 +36,8 @@ void Crew_ToggleBoots(void);
 bool Crew_BootsOn(void);
 int Crew_Floating(void);   // embodied crew floating on BS_FLY right now (the deck's plating)
 
+// Where the layer's next fire effect on a deck will appear (the navigation goal it lights first),
+// so a check can put its camera on the fire before the deck is alight. False when there is none.
+bool Crew_FireNode(int deck, int index, float *out);
+
 #endif

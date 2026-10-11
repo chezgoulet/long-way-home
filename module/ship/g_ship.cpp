@@ -1351,9 +1351,144 @@ bool TeleportPlayerTo( const char *name, const char *label )
 	return true;
 }
 
+// A thing's centre: a brush's bounding-box centre, or a point entity's origin with a standing
+// height, so a marker on the floor is looked at and not looked through.
+static void EntityCentre( const gentity_t *e, vec3_t out )
+{
+	if ( e->model && e->model[0] == '*' )
+	{
+		for ( int a = 0; a < 3; ++a ) out[a] = ( e->absmin[a] + e->absmax[a] ) * 0.5f;
+	}
+	else
+	{
+		VectorCopy( e->currentOrigin, out );
+		out[2] += 24.0f;
+	}
+}
+
+// Put the player where it can see a point, and aim at it. The world-effect checks (damage, fire,
+// breach, emergency) claim a thing is visible in the world; this is what makes the frame contain
+// that thing rather than whatever stood in front of the arrival point -- the wall the four checks
+// used to photograph. Tries the player's own spot first, then a ring of vantages around the point,
+// and takes the first with a clear line and a floor. False when nothing can see it; the caller
+// then keeps its old vantage. Sets glanceAngles so the frame loop holds the aim.
+static bool StandWhereVisibleAt( const vec3_t centre, float range, const char *what, const char *label )
+{
+	gentity_t *player = &g_entities[0];
+	auto visible = [&]( const vec3_t eye ) {
+		trace_t tr;
+		gi.trace( &tr, eye, vec3_origin, vec3_origin, centre, 0,
+			MASK_OPAQUE | CONTENTS_BODY | CONTENTS_ITEM | CONTENTS_CORPSE );
+		if ( tr.fraction == 1.0f ) return true;
+		return Distance( tr.endpos, centre ) < 96.0f;   // the target's own surface: close enough
+	};
+	auto standAt = [&]( const vec3_t xyz, vec3_t out ) {
+		vec3_t to = { xyz[0], xyz[1], xyz[2] - 768.0f };
+		trace_t tr;
+		gi.trace( &tr, xyz, vec3_origin, vec3_origin, to, 0, MASK_PLAYERSOLID );
+		if ( tr.fraction == 1.0f || tr.startsolid ) return false;
+		out[0] = xyz[0]; out[1] = xyz[1]; out[2] = tr.endpos[2] + 24.0f;
+		return true;
+	};
+
+	const float rad = 3.14159265f / 180.0f;
+	vec3_t best = { 0, 0, 0 }, stand, eye;
+	bool have = false;
+	{
+		vec3_t p;
+		VectorCopy( player->currentOrigin, p );
+		if ( standAt( p, stand ) && Distance( stand, centre ) > 48.0f )
+		{
+			eye[0] = stand[0]; eye[1] = stand[1]; eye[2] = stand[2] + 20.0f;
+			if ( visible( eye ) ) { VectorCopy( stand, best ); have = true; }
+		}
+	}
+	for ( int k = 0; k < 16 && !have; ++k )
+	{
+		vec3_t cand = { centre[0] + cosf( k * 22.5f * rad ) * range,
+			centre[1] + sinf( k * 22.5f * rad ) * range, centre[2] };
+		if ( !standAt( cand, stand ) ) continue;
+		eye[0] = stand[0]; eye[1] = stand[1]; eye[2] = stand[2] + 20.0f;
+		if ( !visible( eye ) ) continue;
+		VectorCopy( stand, best ); have = true;
+	}
+	if ( !have ) return false;
+
+	vec3_t dir, angles;
+	VectorSubtract( centre, best, dir );
+	vectoangles( dir, angles );
+	TeleportPlayer( player, best, angles, 0 );
+	VectorCopy( angles, glanceAngles );
+	haveGlanceAim = true;
+	if ( label ) gi.Printf( "SHIP: %s: standing at %s, looking at %s at %s\n",
+		label, vtos( best ), what, vtos( centre ) );
+	return true;
+}
+
+// The nearest thing carrying a targetname, to a reference point. The emergency strips are matched
+// by prefix and exist on more than one deck; the nearest to the deck the player was sent to is the
+// one in this room. (The player's own currentOrigin is stale until the next frame, so the caller
+// passes the place it means.)
+static gentity_t *NearestTargetnameTo( const char *prefix, const vec3_t ref )
+{
+	gentity_t *chosen = NULL;
+	float best = -1.0f;
+	const int len = static_cast<int>( strlen( prefix ) );
+	for ( int n = 1; n < globals.num_entities; ++n )
+	{
+		gentity_t *e = &g_entities[n];
+		if ( !e->inuse || !e->targetname || Q_stricmpn( e->targetname, prefix, len ) ) continue;
+		vec3_t c;
+		EntityCentre( e, c );
+		const float d = Distance( c, ref );
+		if ( best < 0.0f || d < best ) { best = d; chosen = e; }
+	}
+	return chosen;
+}
+
+// A named entity's origin, if the map has one.
+bool TargetOrigin( const char *name, vec3_t out )
+{
+	for ( int n = 1; n < globals.num_entities; ++n )
+	{
+		gentity_t *e = &g_entities[n];
+		if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, name ) )
+		{
+			VectorCopy( e->currentOrigin, out );
+			return true;
+		}
+	}
+	return false;
+}
+
+// Stand where a named thing can be seen, and look at it.
+bool StandWhereVisible( const char *targetname, float range, const char *label )
+{
+	gentity_t *t = NearestTargetnameTo( targetname, g_entities[0].currentOrigin );
+	if ( !t ) return false;
+	vec3_t c;
+	EntityCentre( t, c );
+	return StandWhereVisibleAt( c, range, targetname, label );
+}
+
+// Stand where the nearest thing carrying a name prefix to `near` can be seen, and look at it.
+bool StandWhereVisiblePrefix( const char *prefix, const vec3_t near, float range, const char *label )
+{
+	gentity_t *t = NearestTargetnameTo( prefix, near );
+	if ( !t ) return false;
+	vec3_t c;
+	EntityCentre( t, c );
+	return StandWhereVisibleAt( c, range, prefix, label );
+}
+
+// Stand where a point can be seen, and look at it.
+bool StandWhereVisiblePoint( const vec3_t centre, float range, const char *what, const char *label )
+{
+	return StandWhereVisibleAt( centre, range, what, label );
+}
+
 // The last free-text entry the seam wrote for this input, or "". The voice path and the typed path
-// write the identical entry ("a novel answer was given: ..." / "an answer matched the branch: ..."),
-// which is the provenance-neutral wording SubmitRoomInput uses so that identity can be read here.
+// write the identical entry ("a novel answer was given: ..." / "an answer matched the branch: ..."),// which is the provenance-neutral wording SubmitRoomInput uses so that identity can be read here.
 static std::string SeamLogFor( const ship::Ship &s, const std::string &text )
 {
 	const std::vector<ship::LogEntry> entries = ship::ReadOfficialLog( s, 64, "" );
@@ -2994,69 +3129,62 @@ void RunTest( void )
 		return;
 	}
 	if ( g_shipTest->integer == 34 )
-	{//S6: damage is visible -- a damaged system sparks where it is worked on the player's deck
+	{//S6: damage is visible -- a damaged system sparks where it is worked on the player's deck.
+	 //The camera is put where the damaged system's own station is in view: the claim is about the
+	 //spark, so the frame must contain it (docs/evidence/the-frame-assertions.md: four checks
+	 //photographed a wall). Two frames are taken at the same vantage, before and after the damage.
 		static int step = 0;
 		if ( level.time < 1000 ) step = 0;
 		if ( step == 0 && level.time >= 2500 )
 		{
-			gentity_t *arrival = NULL;
-			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
+			if ( !StandWhereVisible( "lwh_station_0", 640.0f, "damage test" ) )
 			{
-				gentity_t *e = &g_entities[i];
-				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "d12_arrival" ) ) arrival = e;
+				TeleportPlayerTo( "d12_arrival", "damage test" );
+				gi.Printf( "SHIP: damage test: no lwh_station_0 in view; at the arrival instead\n" );
 			}
-			if ( arrival )
-			{
-				vec3_t at, angles = { 0, 0, 0 };
-				VectorCopy( arrival->currentOrigin, at );
-				at[2] += 24.0f;
-				TeleportPlayer( &g_entities[0], at, angles, 0 );
-				VectorCopy( angles, glanceAngles );
-				haveGlanceAim = true;
-				gi.Printf( "SHIP: damage test: standing on deck 12 at %s\n", vtos( at ) );
-			}
-			else gi.Printf( "SHIP: damage test: no d12_arrival on this map\n" );
-			ship::DamageSystem( vessel, ship::SYS_LIFE_SUPPORT, 0.4f );
-			gi.Printf( "SHIP: damage test: life support at %d%% health\n", static_cast<int>( vessel.systems[ship::SYS_LIFE_SUPPORT].health * 100 + 0.5f ) );
 			step = 1;
 		}
 		if ( haveGlanceAim && g_entities[0].client )
 			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
-		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_damage\n" ); step = 2; }
-		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		if ( step == 1 && level.time >= 3600 ) { gi.SendConsoleCommand( "screenshot lwh_damage_before\n" ); step = 2; }
+		if ( step == 2 && level.time >= 4200 )
+		{
+			ship::DamageSystem( vessel, ship::SYS_LIFE_SUPPORT, 0.4f );
+			gi.Printf( "SHIP: damage test: life support at %d%% health\n", static_cast<int>( vessel.systems[ship::SYS_LIFE_SUPPORT].health * 100 + 0.5f ) );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 6500 ) { gi.SendConsoleCommand( "screenshot lwh_damage\n" ); step = 4; }
+		if ( step == 4 && level.time >= 8000 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
 		return;
 	}
 	if ( g_shipTest->integer == 35 )
-	{//S6: a burning deck is seen to burn -- smoke and flame across the deck the player is on
+	{//S6: a burning deck is seen to burn -- smoke and flame across the deck the player is on. The
+	 //camera is put where the deck's own fire appears (the first place the layer will light), and
+	 //two frames are taken at that vantage, before and after the deck is set alight.
 		static int step = 0;
-		if ( level.time < 1000 ) step = 0;
+		vec3_t fireAt = { 0, 0, 0 };
+		bool haveFire = false;
+		if ( level.time < 1000 ) { step = 0; haveFire = false; }
 		if ( step == 0 && level.time >= 2500 )
 		{
-			gentity_t *arrival = NULL;
-			for ( int i = 1; i < globals.num_entities && !arrival; ++i )
-			{
-				gentity_t *e = &g_entities[i];
-				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "d12_arrival" ) ) arrival = e;
-			}
-			if ( arrival )
-			{
-				vec3_t at, angles = { 0, 0, 0 };
-				VectorCopy( arrival->currentOrigin, at );
-				at[2] += 24.0f;
-				TeleportPlayer( &g_entities[0], at, angles, 0 );
-				VectorCopy( angles, glanceAngles );
-				haveGlanceAim = true;
-				gi.Printf( "SHIP: fire test: standing on deck 12 at %s\n", vtos( at ) );
-			}
-			else gi.Printf( "SHIP: fire test: no d12_arrival on this map\n" );
-			ship::IgniteDeck( vessel, 12, 0.6f );
-			gi.Printf( "SHIP: fire test: deck 12 alight at %d%%\n", static_cast<int>( vessel.decks[11].fire * 100 + 0.5f ) );
+			if ( !TeleportPlayerTo( "d12_arrival", "fire test" ) )
+				gi.Printf( "SHIP: fire test: no d12_arrival on this map\n" );
+			haveFire = Crew_FireNode( 12, 0, fireAt );
+			if ( haveFire && !StandWhereVisiblePoint( fireAt, 220.0f, "the deck's first fire", "fire test" ) )
+				gi.Printf( "SHIP: fire test: the first fire is not visible from the deck\n" );
 			step = 1;
 		}
 		if ( haveGlanceAim && g_entities[0].client )
 			VectorCopy( glanceAngles, g_entities[0].client->ps.viewangles );
-		if ( step == 1 && level.time >= 5000 ) { gi.SendConsoleCommand( "screenshot lwh_fire\n" ); step = 2; }
-		if ( step == 2 && level.time >= 6500 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
+		if ( step == 1 && level.time >= 3600 ) { gi.SendConsoleCommand( "screenshot lwh_fire_before\n" ); step = 2; }
+		if ( step == 2 && level.time >= 4200 )
+		{
+			ship::IgniteDeck( vessel, 12, 0.6f );
+			gi.Printf( "SHIP: fire test: deck 12 alight at %d%%\n", static_cast<int>( vessel.decks[11].fire * 100 + 0.5f ) );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 6500 ) { gi.SendConsoleCommand( "screenshot lwh_fire\n" ); step = 4; }
+		if ( step == 4 && level.time >= 8000 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
 		return;
 	}
 	if ( g_shipTest->integer == 36 )
@@ -4077,8 +4205,9 @@ void RunTest( void )
 		if ( level.time < 1000 ) step = 0;
 		if ( step == 0 && level.time >= 2500 )
 		{
-			if ( !TeleportPlayerTo( "lwh_breach", "breach test" ) )
-				TeleportPlayerTo( "d12_arrival", "breach test" );
+			if ( !StandWhereVisible( "lwh_breach_field", 200.0f, "breach test" ) )
+				if ( !TeleportPlayerTo( "lwh_breach", "breach test" ) )
+					TeleportPlayerTo( "d12_arrival", "breach test" );
 			vessel.decks[11].gravity = 1.0f; // gravity is not the subject of this test
 			ship::SetForceFieldLevel( vessel, 12, 0 );
 			ship::BreachDeck( vessel, 12, 1.0f );
@@ -4100,17 +4229,18 @@ void RunTest( void )
 				p->health, vtos( p->client->ps.velocity ), vessel.decks[11].atmosphere, ship::MinutesOfAir( vessel, 12 ) );
 			step = 3;
 		}
-		if ( step == 3 && level.time >= 4800 ) { gi.SendConsoleCommand( "ship field 12 on\n" ); step = 4; }
-		if ( step == 4 && level.time >= 6300 )
+		if ( step == 3 && level.time >= 4400 ) { gi.SendConsoleCommand( "screenshot lwh_breach_before\n" ); step = 4; }
+		if ( step == 4 && level.time >= 4800 ) { gi.SendConsoleCommand( "ship field 12 on\n" ); step = 5; }
+		if ( step == 5 && level.time >= 6300 )
 		{
 			gentity_t *p = &g_entities[0];
 			gi.Printf( "SHIP: breach test: field on: health %d, velocity %s, minutes of air %.1f, published field %s\n",
 				p->health, vtos( p->client->ps.velocity ), ship::MinutesOfAir( vessel, 12 ),
 				gi.cvar( "lwh_ship_breach_field", "", 0 )->string );
-			step = 5;
+			step = 6;
 		}
-		if ( step == 5 && level.time >= 6800 ) { gi.SendConsoleCommand( "screenshot lwh_breach\n" ); step = 6; }
-		if ( step == 6 && level.time >= 8300 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
+		if ( step == 6 && level.time >= 6800 ) { gi.SendConsoleCommand( "screenshot lwh_breach\n" ); step = 7; }
+		if ( step == 7 && level.time >= 8300 ) { gi.SendConsoleCommand( "quit\n" ); step = 8; }
 		return;
 	}
 	if ( g_shipTest->integer == 56 )
@@ -4229,9 +4359,14 @@ void RunTest( void )
 		{
 			if ( !TeleportPlayerTo( "lwh_station_0", "emergency test" ) )
 				TeleportPlayerTo( "d12_arrival", "emergency test" );
-			vec3_t look = { -25, 90, 0 };  // look up along the room, at the light strips
-			VectorCopy( look, glanceAngles );
-			haveGlanceAim = true;
+			vec3_t here = { 0, 0, 0 };
+			if ( !TargetOrigin( "lwh_station_0", here ) ) VectorCopy( g_entities[0].currentOrigin, here );
+			if ( !StandWhereVisiblePrefix( "lwh_light_emergency", here, 200.0f, "emergency test" ) )
+			{
+				vec3_t look = { -25, 90, 0 };  // look up along the room, at the light strips
+				VectorCopy( look, glanceAngles );
+				haveGlanceAim = true;
+			}
 			gi.Printf( "SHIP: emergency test: alert %d, life support %d%%\n",
 				static_cast<int>( vessel.alert ),
 				static_cast<int>( ship::SystemCondition( vessel.systems[ship::SYS_LIFE_SUPPORT] ) * 100.0f + 0.5f ) );
@@ -4257,9 +4392,14 @@ void RunTest( void )
 		{
 			if ( !TeleportPlayerTo( "lwh_plant_post", "emergency test 13" ) )
 				TeleportPlayerTo( "d13_arrival", "emergency test 13" );
-			vec3_t look = { 0, 270, 0 };  // look south from the catwalk, at the machinery hall
-			VectorCopy( look, glanceAngles );
-			haveGlanceAim = true;
+			vec3_t here = { 0, 0, 0 };
+			if ( !TargetOrigin( "lwh_plant_post", here ) ) VectorCopy( g_entities[0].currentOrigin, here );
+			if ( !StandWhereVisiblePrefix( "lwh_light_emergency", here, 200.0f, "emergency test 13" ) )
+			{
+				vec3_t look = { 0, 270, 0 };  // look south from the catwalk, at the machinery hall
+				VectorCopy( look, glanceAngles );
+				haveGlanceAim = true;
+			}
 			gi.Printf( "SHIP: emergency test 13: alert %d, life support %d%%\n",
 				static_cast<int>( vessel.alert ),
 				static_cast<int>( ship::SystemCondition( vessel.systems[ship::SYS_LIFE_SUPPORT] ) * 100.0f + 0.5f ) );
@@ -4329,9 +4469,14 @@ void RunTest( void )
 		{
 			if ( !TeleportPlayerTo( "lwh_stasis_post", "emergency test 14" ) )
 				TeleportPlayerTo( "d14_arrival", "emergency test 14" );
-			vec3_t look = { 0, 270, 0 };  // look south into the room, at the ceiling strips
-			VectorCopy( look, glanceAngles );
-			haveGlanceAim = true;
+			vec3_t here = { 0, 0, 0 };
+			if ( !TargetOrigin( "lwh_stasis_post", here ) ) VectorCopy( g_entities[0].currentOrigin, here );
+			if ( !StandWhereVisiblePrefix( "lwh_light_emergency", here, 200.0f, "emergency test 14" ) )
+			{
+				vec3_t look = { 0, 270, 0 };  // look south into the room, at the ceiling strips
+				VectorCopy( look, glanceAngles );
+				haveGlanceAim = true;
+			}
 			gi.Printf( "SHIP: emergency test 14: alert %d, life support %d%%\n",
 				static_cast<int>( vessel.alert ),
 				static_cast<int>( ship::SystemCondition( vessel.systems[ship::SYS_LIFE_SUPPORT] ) * 100.0f + 0.5f ) );
@@ -4399,9 +4544,14 @@ void RunTest( void )
 		{
 			if ( !TeleportPlayerTo( "lwh_core_post", "emergency test 7" ) )
 				TeleportPlayerTo( "d07_arrival", "emergency test 7" );
-			vec3_t look = { 0, 270, 0 };  // look into the room, at the ceiling strips
-			VectorCopy( look, glanceAngles );
-			haveGlanceAim = true;
+			vec3_t here = { 0, 0, 0 };
+			if ( !TargetOrigin( "lwh_core_post", here ) ) VectorCopy( g_entities[0].currentOrigin, here );
+			if ( !StandWhereVisiblePrefix( "lwh_light_emergency", here, 200.0f, "emergency test 7" ) )
+			{
+				vec3_t look = { 0, 270, 0 };  // look into the room, at the ceiling strips
+				VectorCopy( look, glanceAngles );
+				haveGlanceAim = true;
+			}
 			gi.Printf( "SHIP: emergency test 7: alert %d, life support %d%%\n",
 				static_cast<int>( vessel.alert ),
 				static_cast<int>( ship::SystemCondition( vessel.systems[ship::SYS_LIFE_SUPPORT] ) * 100.0f + 0.5f ) );
@@ -4414,6 +4564,44 @@ void RunTest( void )
 		if ( step == 3 && level.time >= 5600 ) { ship::SetAlert( vessel, ship::ALERT_GREEN ); step = 4; }
 		if ( step == 4 && level.time >= 6200 ) { gi.SendConsoleCommand( "screenshot lwh_emergency_07_off\n" ); step = 5; }
 		if ( step == 5 && level.time >= 7600 ) { gi.SendConsoleCommand( "quit\n" ); step = 6; }
+		return;
+	}
+	if ( g_shipTest->integer == 88 )
+	{//the crew layer's floor is per deck (docs/g3-reactive-crew.md): a member standing on a deck
+	 // whose posts are far above the ship's own lowest post is not reported fallen, and a member
+	 // dropped below its own deck's posts is. The first half is the absence of a "fell out of the
+	 // world" line before the drop; the second is that line after it.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			if ( !TeleportPlayerTo( "lwh_station_0", "floor test" ) )
+				TeleportPlayerTo( "d12_arrival", "floor test" );
+			gi.Printf( "SHIP: floor test: on deck 12; before the drop no member is out of the world\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3500 )
+		{
+			bool dropped = false;
+			for ( int n = 1; n < globals.num_entities && !dropped; ++n )
+			{
+				gentity_t *e = &g_entities[n];
+				if ( !e->inuse || !e->NPC ) continue;
+				const char *name = e->script_targetname && e->script_targetname[0] ? e->script_targetname
+					: e->NPC_targetname && e->NPC_targetname[0] ? e->NPC_targetname : e->targetname;
+				if ( !name || Q_strncmp( name, "lwh_crew_", 9 ) ) continue;
+				vec3_t at = { e->currentOrigin[0], e->currentOrigin[1], e->currentOrigin[2] - 3000.0f };
+				VectorCopy( at, e->currentOrigin );
+				VectorCopy( at, e->s.origin );
+				VectorCopy( at, e->s.pos.trBase );
+				VectorCopy( at, e->client->ps.origin );
+				gi.Printf( "SHIP: floor test: dropped %s to %s, 3000 below its deck\n", name, vtos( at ) );
+				dropped = true;
+			}
+			if ( dropped ) step = 2;                       // caught: report and quit
+			else if ( level.time >= 12000 ) { gi.Printf( "SHIP: floor test: no crew embodied to drop\n" ); step = 2; }
+		}
+		if ( step == 2 && level.time >= 6200 ) { gi.SendConsoleCommand( "quit\n" ); step = 3; }
 		return;
 	}
 	if ( g_shipTest->integer == 63 )
