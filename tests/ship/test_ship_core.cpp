@@ -27,6 +27,19 @@ static const char *g_test = "";
 // Simulated seconds that advance the ship by the given ship-hours.
 static float Hours(const Ship &s, float h) { return h * 3600.0f / s.cfg.dayScale; }
 
+// Holdings is a fold over the marks (Holdings()), not a stored value, so a test that wants a
+// particular regard gives the person the single mark that yields it: target in [0,1] -> net regard
+// in [-1,1]. Clearing the marks first makes the reading exactly the target.
+static void RegardTo(CrewMember &c, float target)
+{
+	c.memories.clear();
+	Memory m;
+	m.event = MEM_ORDER; m.person = -1; m.source = MEM_SAW;
+	m.valence = std::max(-1.0f, std::min(1.0f, 2.0f * target - 1.0f));
+	m.salience = 1.0f;
+	c.memories.push_back(m);
+}
+
 static void TestNominalShip()
 {
 	g_test = "a new ship is whole and consistent";
@@ -525,7 +538,7 @@ static void TestMoraleAndFatigue()
 	// The same hands, spent and gone through the motions, deliver much less. Morale is a read of
 	// the three components; a wholly short, hopeless, unheld person reads 0.2.
 	for (CrewMember &c : s.crew)
-		if (c.post == SYS_SENSORS) { c.fatigue = 1.0f; c.deficit = 0.5f; c.outlook = 0.0f; c.holdings = 0.0f; }
+		if (c.post == SYS_SENSORS) { c.fatigue = 1.0f; c.deficit = 0.5f; c.outlook = 0.0f; RegardTo(c, 0.0f); }
 	Tick(s, 0.0f);
 	const float spent = s.systems[SYS_SENSORS].output;
 	CHECK(spent < 1.0f);
@@ -534,28 +547,28 @@ static void TestMoraleAndFatigue()
 
 	// Rested and willing again: the post is a whole hand once more.
 	for (CrewMember &c : s.crew)
-		if (c.post == SYS_SENSORS) { c.fatigue = 0.0f; c.deficit = 0.0f; c.outlook = 1.0f; c.holdings = 1.0f; }
+		if (c.post == SYS_SENSORS) { c.fatigue = 0.0f; c.deficit = 0.0f; c.outlook = 1.0f; RegardTo(c, 1.0f); }
 	Tick(s, 0.0f);
 	CHECK(s.systems[SYS_SENSORS].output == 1.0f);
 
 	// The drivers move: a watch raises fatigue, and green lifts the reading.
 	Ship t = NewShip();
 	t.crew[0].watch = 0; t.crew[0].post = SYS_SENSORS; t.crew[0].dept = DEPT_SCIENCES;
-	t.crew[0].fatigue = 0.0f; t.crew[0].deficit = 0.2f; t.crew[0].outlook = 0.2f; t.crew[0].holdings = 0.2f;
+	t.crew[0].fatigue = 0.0f; t.crew[0].deficit = 0.2f; t.crew[0].outlook = 0.2f; RegardTo(t.crew[0], 0.2f);
 	const float before = Morale(t.crew[0]);
 	Tick(t, Hours(t, 8.0f));                       // 0800 to 1600, alpha watch on duty throughout
 	CHECK(t.crew[0].fatigue > 0.0f);
 	CHECK(Morale(t.crew[0]) > before);
 
 	// The three components, and the reading they produce, survive a save and a load.
-	for (CrewMember &c : t.crew) { c.deficit = 0.30f; c.outlook = 0.40f; c.holdings = 0.50f; }
+	for (CrewMember &c : t.crew) { c.deficit = 0.30f; c.outlook = 0.40f; RegardTo(c, 0.50f); }
 	const float read = Morale(t.crew[0]);
 	std::vector<uint8_t> blob = Pack(t);
 	Ship u = NewShip();
 	CHECK(Unpack(blob.data(), blob.size(), u));
 	CHECK(std::fabs(u.crew[0].deficit - 0.30f) < 1e-4f);
 	CHECK(std::fabs(u.crew[0].outlook - 0.40f) < 1e-4f);
-	CHECK(std::fabs(u.crew[0].holdings - 0.50f) < 1e-4f);
+	CHECK(std::fabs(Holdings(u.crew[0]) - 0.50f) < 1e-4f);
 	CHECK(std::fabs(Morale(u.crew[0]) - read) < 1e-4f);
 }
 
@@ -1771,7 +1784,7 @@ static void TestCrewJusticeAndBorg()
 
 	// A funeral lifts the crew, and only whoever commands holds one.
 	Ship f = NewShip();
-	for (CrewMember &c : f.crew) { c.deficit = 0.4f; c.outlook = 0.1f; c.holdings = 0.1f; }
+	for (CrewMember &c : f.crew) { c.deficit = 0.4f; c.outlook = 0.1f; RegardTo(c, 0.1f); }
 	CHECK(!HoldFuneral(f));                                   // nobody in particular
 	SetRole(f, ROLE_IN_COMMAND);
 	const float before = Morale(f.crew[0]);
@@ -3051,7 +3064,7 @@ static void TestHolodeckAndQuarters()
 	Ship s = NewShip();
 	Tick(s, 1.0f);
 	// Recreation lifts the mood.
-	s.crew[0].deficit = 0.2f; s.crew[0].outlook = 0.3f; s.crew[0].holdings = 0.3f; // reads 0.5
+	s.crew[0].deficit = 0.2f; s.crew[0].outlook = 0.3f; RegardTo(s.crew[0], 0.3f); // reads 0.5
 	CHECK(RunHolodeck(s, HOLO_RECREATION, 0) && Morale(s.crew[0]) > 0.5f);
 	// Training grants the credential for the crew member's own department station.
 	CHECK(!Qualified(s.crew[0], STN_CONN));  // Janeway, command: the Conn is the department's station
@@ -3610,9 +3623,9 @@ static void TestAccessAndAuthority()
 	CHECK(!MayOperate(s, junior, STN_ENGINEERING)); // not their department, no credential, no grant
 	// Access and authority stay two things: a crew member with no morale still operates their station.
 	CHECK(MayOperate(s.crew[head], STN_ENGINEERING));
-	s.crew[head].deficit = 1.0f; s.crew[head].outlook = 0.0f; s.crew[head].holdings = 0.0f; // reads 0.0
+	s.crew[head].deficit = 1.0f; s.crew[head].outlook = 0.0f; RegardTo(s.crew[head], 0.0f); // reads 0.0
 	CHECK(MayOperate(s.crew[head], STN_ENGINEERING)); // access is not morale-governed
-	s.crew[head].deficit = 0.0f; s.crew[head].outlook = 1.0f; s.crew[head].holdings = 1.0f;
+	s.crew[head].deficit = 0.0f; s.crew[head].outlook = 1.0f; RegardTo(s.crew[head], 1.0f);
 
 	// Delegation: the head grants Engineering for a shift. The grantee is not already cleared (a
 	// credential would mask it), so check a station the junior does not hold, then revoke it.
@@ -5822,7 +5835,7 @@ static void TestMoraleIsReadFromThree()
 	Tick(s, 1.0f);
 	CrewMember c = s.crew[30];
 	c.conditionCount = 0;
-	c.deficit = 0.2f; c.outlook = 0.6f; c.holdings = 0.6f;
+	c.deficit = 0.2f; c.outlook = 0.6f; RegardTo(c, 0.6f);
 	CHECK(std::fabs(Morale(c) - (0.40f * 0.8f + 0.35f * 0.6f + 0.25f * 0.6f)) < 1e-5f);
 	const float before = Morale(c);
 	c.outlook = 0.0f;
@@ -5833,7 +5846,7 @@ static void TestMoraleIsReadFromThree()
 	CHECK(std::string(MoraleReason(c)) == "short of what they need" ||
 	      std::string(MoraleReason(c)) == "short on sleep");
 	// And the log carries it: the person carrying the most of it is named by component.
-	s.crew[30].deficit = 1.0f; s.crew[30].outlook = 0.0f; s.crew[30].holdings = 0.0f;
+	s.crew[30].deficit = 1.0f; s.crew[30].outlook = 0.0f; RegardTo(s.crew[30], 0.0f);
 	s.lastMoodLog = -1.0e9;
 	Tick(s, Hours(s, 1.0f));
 	bool named = false;
@@ -5841,6 +5854,85 @@ static void TestMoraleIsReadFromThree()
 		if (e.what.find("short of what they need") != std::string::npos ||
 		    e.what.find("short on sleep") != std::string::npos) named = true;
 	CHECK(named);
+}
+
+// The owner's ruling, built: holdings is a fold over the marks, not a stored float (docs/morale.md,
+// C2). Regard rises from repeated good marks and falls from bad, computed from the marks alone; a
+// person with no marks reads the base; a faded or orphaned mark stops counting.
+static void TestHoldingsIsAFold()
+{
+	g_test = "holdings is a fold over the marks: regard rises from good marks and falls from bad";
+	CrewMember c;
+	c.status = CREW_FIT;
+	const float fresh = Holdings(c);
+	CHECK(std::fabs(fresh - HOLDINGS_BASE) < 1e-5f);   // no marks: neither held nor lost
+	// One good mark, folded exactly as the bond fold folds one: valence * salience.
+	Memory good;
+	good.event = MEM_RESCUE; good.person = 7; good.source = MEM_SAW;
+	good.valence = 0.4f; good.salience = 1.0f;
+	c.memories.push_back(good);
+	const float one = Holdings(c);
+	CHECK(std::fabs(one - (HOLDINGS_BASE + HOLDINGS_SLOPE * 0.4f)) < 1e-5f);
+	// Repeated good: regard rises again, additively.
+	Memory good2 = good;
+	good2.event = MEM_PROMISE; good2.person = 9; good2.valence = 0.3f;
+	c.memories.push_back(good2);
+	const float two = Holdings(c);
+	CHECK(two > one);
+	// Repeated bad turns it, and enough of it takes regard below the fresh reading.
+	Memory bad;
+	bad.event = MEM_LIE; bad.person = 7; bad.source = MEM_SAW; bad.valence = -0.5f; bad.salience = 1.0f;
+	c.memories.push_back(bad);
+	Memory bad2 = bad;
+	bad2.event = MEM_VIOLATION; bad2.person = 9;
+	c.memories.push_back(bad2);
+	const float withBad = Holdings(c);
+	CHECK(withBad < two && withBad < HOLDINGS_BASE);
+	// What fades stops counting -- a memory, not a stored state: the same mark, faded, restores regard.
+	c.memories.back().salience = 0.0f;
+	const float faded = Holdings(c);
+	CHECK(faded > withBad);
+	// And an orphaned mark -- a citation that a purge removed -- holds no weight either.
+	c.memories.back().salience = 1.0f;
+	c.memories.back().orphaned = true;
+	const float orphaned = Holdings(c);
+	CHECK(orphaned > withBad);
+	// The fold is clamped, so no stack of marks can drive it out of 0..1.
+	for (int i = 0; i < 40; ++i) {
+		Memory m = good;
+		m.event = static_cast<uint16_t>(MEM_ORDER + i);
+		c.memories.push_back(m);
+	}
+	CHECK(Holdings(c) <= 1.0f && Holdings(c) >= 0.0f);
+	std::printf("  holdings fold: no marks %.3f, one good mark %.3f, two good %.3f, with a bad mark %.3f,"
+		" bad mark faded %.3f, bad mark orphaned %.3f\n", fresh, one, two, withBad, faded, orphaned);
+}
+
+// The consequence the ruling names rather than discovering later: purging the records moves regard
+// (docs/morale.md, docs/the-record-and-the-log.md). A mark sourced "read it in the log" is left
+// held -- they do not forget -- but holds no weight once its citation is gone, so regard falls.
+static void TestPurgeMovesRegard()
+{
+	g_test = "a purge of the records moves regard, from the marks alone";
+	Ship s = NewShip();
+	const int who = 10;
+	s.crew[who].memories.clear();
+	// What this person knows: one thing witnessed, one read in the published log. Both positive.
+	Remember(s, who, MEM_RESCUE, 5, MEM_SAW, 0.5f);
+	Remember(s, who, MEM_PROMISE, 7, MEM_LOG, 0.5f);
+	LogEvent(s, "the bridge", "crew", "the report is published");
+	const float before = Holdings(s.crew[who]);
+	CHECK(before > HOLDINGS_BASE);
+	// A new save, purged: the log is gone, and the marks sourced to it are orphaned, not erased.
+	CHECK(PurgeLogs(s));
+	CHECK(MemoryCount(s.crew[who]) == 2);             // they do not forget
+	CHECK(Recall(s.crew[who], MEM_RESCUE));           // the witnessed mark still stands
+	CHECK(Recall(s.crew[who], MEM_PROMISE));          // and the read mark is still held...
+	const float after = Holdings(s.crew[who]);
+	CHECK(after < before);                            // ...but it no longer holds their regard
+	CHECK(std::fabs(after - (HOLDINGS_BASE + HOLDINGS_SLOPE * 0.5f)) < 1e-5f); // only the saw mark counts
+	std::printf("  regard before the purge %.3f, after %.3f (the MEM_LOG mark is held but orphaned)\n",
+		before, after);
 }
 
 // Species are capabilities, needs and susceptibilities -- never bonuses. The record carries words
@@ -5903,9 +5995,9 @@ static void TestManner()
 	Ship s = NewShip();
 	CrewMember c = s.crew[30];
 	c.conditionCount = 0;
-	c.deficit = 0.80f; c.outlook = 0.10f; c.holdings = 0.10f; const char *lo = MannerLine(c);
-	c.deficit = 0.30f; c.outlook = 0.50f; c.holdings = 0.50f; const char *mid = MannerLine(c);
-	c.deficit = 0.00f; c.outlook = 0.90f; c.holdings = 0.90f; const char *hi = MannerLine(c);
+	c.deficit = 0.80f; c.outlook = 0.10f; RegardTo(c, 0.10f); const char *lo = MannerLine(c);
+	c.deficit = 0.30f; c.outlook = 0.50f; RegardTo(c, 0.50f); const char *mid = MannerLine(c);
+	c.deficit = 0.00f; c.outlook = 0.90f; RegardTo(c, 0.90f); const char *hi = MannerLine(c);
 	CHECK(lo && mid && hi);
 	CHECK(std::string(lo) != std::string(mid));
 	CHECK(std::string(mid) != std::string(hi));
@@ -5925,7 +6017,7 @@ static void TestCharacterSaveRoundTrip()
 	Ship s = NewShip();
 	Tick(s, 1.0f);
 	s.crew[30].conditionCount = 0;
-	s.crew[30].deficit = 0.33f; s.crew[30].outlook = 0.22f; s.crew[30].holdings = 0.44f;
+	s.crew[30].deficit = 0.33f; s.crew[30].outlook = 0.22f; RegardTo(s.crew[30], 0.44f);
 	const uint8_t all = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
 	CHECK(Sicken(s, 30, COND_GRIEVING, "lost someone in the coolant bay", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SALIENCE, all));
 	std::vector<uint8_t> blob = Pack(s);
@@ -5933,7 +6025,7 @@ static void TestCharacterSaveRoundTrip()
 	CHECK(Unpack(blob.data(), blob.size(), u));
 	CHECK(std::fabs(u.crew[30].deficit - 0.33f) < 1e-4f);
 	CHECK(std::fabs(u.crew[30].outlook - 0.22f) < 1e-4f);
-	CHECK(std::fabs(u.crew[30].holdings - 0.44f) < 1e-4f);
+	CHECK(std::fabs(Holdings(u.crew[30]) - 0.44f) < 1e-4f);
 	const Condition *k = FindCondition(u.crew[30], COND_GRIEVING);
 	CHECK(k && k->source == "lost someone in the coolant bay" && k->clears == CLEAR_SALIENCE);
 	// The static half came back identical, because it is derived from the same seed.
@@ -6106,7 +6198,7 @@ static CrewMember PlainCrew()
 	c.name = "Test Crewman";
 	c.conditionCount = 0;
 	c.fatigue = 0.0f;
-	c.deficit = 0.65f; c.outlook = 0.6f; c.holdings = 0.6f; // morale exactly 0.5: the morale factor is neutral
+	c.deficit = 0.65f; c.outlook = 0.6f; RegardTo(c, 0.6f); // morale exactly 0.5: the morale factor is neutral
 	c.traits = 0;
 	c.desire = DESIRE_A_PERSON; c.need = NEED_SLEEP; c.fear = FEAR_DYING_ALONE;
 	c.species = SPECIES_HUMAN;
@@ -6247,8 +6339,8 @@ static void TestDriveBiasesBehaviour()
 static void TestMoraleReachesTheWork()
 {
 	g_test = "morale reaches the work, and the component responsible is named";
-	CrewMember low = PlainCrew(); low.deficit = 1.0f; low.outlook = 0.0f; low.holdings = 0.0f;
-	CrewMember high = PlainCrew(); high.deficit = 0.0f; high.outlook = 1.0f; high.holdings = 1.0f;
+	CrewMember low = PlainCrew(); low.deficit = 1.0f; low.outlook = 0.0f; RegardTo(low, 0.0f);
+	CrewMember high = PlainCrew(); high.deficit = 0.0f; high.outlook = 1.0f; RegardTo(high, 1.0f);
 	WorkFactor lf[WORK_FACTOR_MAX], hf[WORK_FACTOR_MAX];
 	const int ln = WorkFactors(low, SKILL_ENGINEERING, WORK_ROUTINE, 0.15f, lf, WORK_FACTOR_MAX);
 	const int hn = WorkFactors(high, SKILL_ENGINEERING, WORK_ROUTINE, 0.15f, hf, WORK_FACTOR_MAX);
@@ -6273,7 +6365,7 @@ static void TestReasonsRecoverableFromOutcome()
 	s.crew[op].traits = static_cast<uint16_t>(1u << TRAIT_STEADY_UNDER_FIRE);
 	s.crew[op].species = SPECIES_HUMAN;
 	s.crew[op].skills[SKILL_ENGINEERING] = 0;
-	s.crew[op].deficit = 0.8f; s.crew[op].outlook = 0.2f; s.crew[op].holdings = 0.2f;
+	s.crew[op].deficit = 0.8f; s.crew[op].outlook = 0.2f; RegardTo(s.crew[op], 0.2f);
 	const uint8_t all = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
 	CHECK(Sicken(s, op, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_CLEAR,
 		CLEAR_END_OF_WATCH, all));
@@ -6335,7 +6427,7 @@ static RisingFixture MakeRising()
 	h.status = CREW_FIT; h.brigged = false; h.away = false;
 	h.post = static_cast<uint8_t>(f.post); h.dept = DEPT_ENGINEERING; h.deck = 11;
 	h.species = SPECIES_HUMAN; h.traits = 0; h.conditionCount = 0;
-	h.fatigue = 0.0f; h.deficit = 0.0f; h.outlook = 0.8f; h.holdings = 0.8f;
+	h.fatigue = 0.0f; h.deficit = 0.0f; h.outlook = 0.8f; RegardTo(h, 0.8f);
 	for (int k = 0; k < SKILL_COUNT; ++k) h.skills[k] = 0;
 	h.desire = DESIRE_A_PERSON; h.fear = FEAR_DYING_ALONE;
 	f.s.systems[f.post].health = 0.4f;
@@ -6394,10 +6486,10 @@ static void TestRisingDriveDecides()
 	CHECK(o.offered);
 	CHECK(o.drive.find("decompression") != std::string::npos);
 	// At good morale the desire carries them, and the drive still colours it.
-	h.deficit = 0.0f; h.outlook = 0.9f; h.holdings = 0.9f;
+	h.deficit = 0.0f; h.outlook = 0.9f; RegardTo(h, 0.9f);
 	CHECK(o.choice != RISING_REFUSED);
 	// The same person, low morale and wanting home: they will not spend themselves.
-	h.deficit = 1.0f; h.outlook = 0.0f; h.holdings = 0.0f; h.desire = DESIRE_HOME;
+	h.deficit = 1.0f; h.outlook = 0.0f; RegardTo(h, 0.0f); h.desire = DESIRE_HOME;
 	RisingOffer r = OfferRisingTo(f.s, f.post, f.hero);
 	CHECK(r.choice == RISING_REFUSED);
 	CHECK(r.reason.find("go home") != std::string::npos);
@@ -6427,9 +6519,9 @@ static void TestRisingCostAndWitnesses()
 	RisingFixture f = MakeRising();
 	CrewMember &h = f.s.crew[f.hero];
 	h.fear = FEAR_USELESSNESS; h.desire = DESIRE_HOME; // goes anyway despite the low morale
-	h.deficit = 1.0f; h.outlook = 0.0f; h.holdings = 0.0f;
+	h.deficit = 1.0f; h.outlook = 0.0f; RegardTo(h, 0.0f);
 	const int beforeW = MemoryCount(f.s.crew[f.w1]);
-	const float holdBefore = f.s.crew[f.w1].holdings;
+	const float holdBefore = Holdings(f.s.crew[f.w1]);
 	std::string account;
 	const uint8_t outcome = AttemptRising(f.s, f.post, f.hero, 0xFFFFFFFFu, &account);
 	CHECK(outcome == RISING_SUCCEEDED);
@@ -6439,11 +6531,18 @@ static void TestRisingCostAndWitnesses()
 	if (!k) k = FindCondition(h, COND_HYPOXIC);
 	CHECK(k != nullptr);
 	if (k) CHECK(!k->source.empty());
-	// The witnesses: a positive mark naming the hero, and the regard moves with it.
+	// The witnesses: a positive mark naming the hero, and the regard moves with it -- through the
+	// mark, not a stored number, so this is the occasion moving regard by the ruling's own path.
 	CHECK(MemoryCount(f.s.crew[f.w1]) > beforeW);
 	CHECK(SalienceOf(f.s.crew[f.w1], f.hero) > 0.9f);
 	CHECK(Bond(f.s, f.w1, f.hero) > 0.0f);
-	CHECK(f.s.crew[f.w1].holdings > holdBefore);
+	const float held = Holdings(f.s.crew[f.w1]);
+	CHECK(held > holdBefore);
+	// The mark IS the regard: drop its weight and the witness's holdings fall back to where they began.
+	for (Memory &m : f.s.crew[f.w1].memories) if (m.event == MEM_RESCUE && m.person == f.hero) m.salience = 0.0f;
+	CHECK(std::fabs(Holdings(f.s.crew[f.w1]) - holdBefore) < 1e-4f);
+	for (Memory &m : f.s.crew[f.w1].memories) if (m.event == MEM_RESCUE && m.person == f.hero) m.salience = 1.0f;
+	CHECK(std::fabs(Holdings(f.s.crew[f.w1]) - held) < 1e-4f);
 	// The one elsewhere was not a witness: presence is the provenance.
 	CHECK(SalienceOf(f.s.crew[50], f.hero) == 0.0f);
 	// It is legible later: the mark decays unless reinforced, and a retelling sharpens it.
@@ -6463,7 +6562,7 @@ static void TestRisingFailureStillCostsAndIsRemembered()
 	RisingFixture f = MakeRising();
 	CrewMember &h = f.s.crew[f.hero];
 	h.fear = FEAR_USELESSNESS; h.desire = DESIRE_HOME;
-	h.deficit = 1.0f; h.outlook = 0.0f; h.holdings = 0.0f;
+	h.deficit = 1.0f; h.outlook = 0.0f; RegardTo(h, 0.0f);
 	f.s.alert = ALERT_YELLOW; // stress 0.5 at 40%: an acute failure, a wound, not yet death
 	const int beforeW = MemoryCount(f.s.crew[f.w1]);
 	std::string account;
@@ -6482,7 +6581,7 @@ static void TestRisingAtTheExtremeKills()
 	RisingFixture f = MakeRising();
 	CrewMember &h = f.s.crew[f.hero];
 	h.fear = FEAR_USELESSNESS; h.desire = DESIRE_HOME;
-	h.deficit = 1.0f; h.outlook = 0.0f; h.holdings = 0.0f;
+	h.deficit = 1.0f; h.outlook = 0.0f; RegardTo(h, 0.0f);
 	f.s.alert = ALERT_RED; // stress 1.0 at 40% condition: the catastrophic severity
 	std::string account;
 	const uint8_t outcome = AttemptRising(f.s, f.post, f.hero, 0u, &account);
@@ -6501,7 +6600,7 @@ static void TestRisingOddsBeyondSkill()
 	RisingFixture f = MakeRising();
 	CrewMember &h = f.s.crew[f.hero];
 	h.fear = FEAR_USELESSNESS; h.desire = DESIRE_A_PERSON;
-	h.deficit = 0.0f; h.outlook = 0.8f; h.holdings = 0.8f;
+	h.deficit = 0.0f; h.outlook = 0.8f; RegardTo(h, 0.8f);
 	RisingOffer low = OfferRisingTo(f.s, f.post, f.hero);
 	WorkFactor lf[WORK_FACTOR_MAX];
 	const int ln = WorkFactors(h, low.skill, low.context, low.stress, lf, WORK_FACTOR_MAX);
@@ -6525,7 +6624,7 @@ static void TestRisingSaveRoundTrip()
 	RisingFixture f = MakeRising();
 	CrewMember &h = f.s.crew[f.hero];
 	h.fear = FEAR_USELESSNESS;
-	h.deficit = 1.0f; h.outlook = 0.0f; h.holdings = 0.0f;
+	h.deficit = 1.0f; h.outlook = 0.0f; RegardTo(h, 0.0f);
 	CHECK(AttemptRising(f.s, f.post, f.hero, 0xFFFFFFFFu, nullptr) == RISING_SUCCEEDED);
 	const int conds = f.s.crew[f.hero].conditionCount;
 	const int mems = MemoryCount(f.s.crew[f.hero]);
@@ -6546,7 +6645,7 @@ static int PrintRising()
 	CrewMember &h = f.s.crew[f.hero];
 	// Two hands, the same post and the same crisis, and only the drive is different.
 	h.fear = FEAR_DECOMPRESSION; h.desire = DESIRE_HOME;
-	h.deficit = 1.0f; h.outlook = 0.05f; h.holdings = 0.05f;
+	h.deficit = 1.0f; h.outlook = 0.05f; RegardTo(h, 0.05f);
 	RisingOffer refused = OfferRisingTo(f.s, f.post, f.hero);
 	std::printf("\n  the same person, the same post, two drives:\n");
 	std::printf("    wants home, afraid of decompression: %s\n", refused.reason.c_str());
@@ -6559,7 +6658,7 @@ static int PrintRising()
 	// failing are worse for the hand beyond their skill, and success is not impossible for either.
 	RisingFixture q = MakeRising();
 	CrewMember &lq = q.s.crew[q.hero];
-	lq.fear = FEAR_USELESSNESS; lq.deficit = 0.0f; lq.outlook = 0.8f; lq.holdings = 0.8f;
+	lq.fear = FEAR_USELESSNESS; lq.deficit = 0.0f; lq.outlook = 0.8f; RegardTo(lq, 0.8f);
 	RisingOffer lo = OfferRisingTo(q.s, q.post, q.hero);
 	WorkFactor lf[WORK_FACTOR_MAX];
 	const int ln = WorkFactors(lq, lo.skill, lo.context, lo.stress, lf, WORK_FACTOR_MAX);
@@ -6579,7 +6678,7 @@ static int PrintRising()
 	RisingFixture g = MakeRising();
 	CrewMember &u = g.s.crew[g.hero];
 	u.fear = FEAR_USELESSNESS; u.desire = DESIRE_HOME;
-	u.deficit = 1.0f; u.outlook = 0.05f; u.holdings = 0.05f;
+	u.deficit = 1.0f; u.outlook = 0.05f; RegardTo(u, 0.05f);
 	std::printf("\n  a different hand and a different drive, the same post and crisis:\n");
 	std::string account2;
 	const uint8_t outcome = AttemptRising(g.s, g.post, g.hero, 0xFFFFFFFFu, &account2);
@@ -6588,7 +6687,7 @@ static int PrintRising()
 	if (!k) k = FindCondition(g.s.crew[g.hero], COND_HYPOXIC);
 	std::printf("    what it cost: %s\n", k ? (std::string(ConditionName(k->id)) + " (" + k->source + ")").c_str() : "a wound");
 	std::printf("    the witnesses now carry %s: bond %.2f, holdings %.2f, salience %.2f\n",
-		g.s.crew[g.w1].name.c_str(), Bond(g.s, g.w1, g.hero), g.s.crew[g.w1].holdings,
+		g.s.crew[g.w1].name.c_str(), Bond(g.s, g.w1, g.hero), Holdings(g.s.crew[g.w1]),
 		SalienceOf(g.s.crew[g.w1], g.hero));
 	// A heroism nobody retells fades; one the crew keep retelling persists.
 	Tick(g.s, Hours(g.s, 60.0f));
@@ -6632,7 +6731,7 @@ static void PrintOneCrew(const CrewMember &c, int idx)
 	}
 	std::printf("\n");
 	std::printf("      morale %.2f (%s) = deficit %.2f (heart %.2f) / outlook %.2f / holdings %.2f -- %s\n",
-		Morale(c), MoraleBandName(Morale(c)), c.deficit, 1.0f - c.deficit, c.outlook, c.holdings, MoraleReason(c));
+		Morale(c), MoraleBandName(Morale(c)), c.deficit, 1.0f - c.deficit, c.outlook, Holdings(c), MoraleReason(c));
 	std::printf("      says: \"%s\"\n", MannerLine(c));
 }
 
@@ -6677,7 +6776,7 @@ static int PrintManner()
 		{"at breaking point", 0.80f, 0.10f, 0.15f},
 	};
 	for (const Level &l : levels) {
-		c.deficit = l.deficit; c.outlook = l.outlook; c.holdings = l.holdings;
+		c.deficit = l.deficit; c.outlook = l.outlook; RegardTo(c, l.holdings);
 		std::printf("  %-16s morale %.2f (%s): \"%s\"\n", l.label, Morale(c), MoraleBandName(Morale(c)), MannerLine(c));
 	}
 	return 0;
@@ -6714,9 +6813,9 @@ static int PrintWork()
 
 	// One task, one person, two conditions.
 	CrewMember fresh = person;
-	fresh.fatigue = 0.0f; fresh.deficit = 0.05f; fresh.outlook = 0.80f; fresh.holdings = 0.80f;
+	fresh.fatigue = 0.0f; fresh.deficit = 0.05f; fresh.outlook = 0.80f; RegardTo(fresh, 0.80f);
 	CrewMember worn = person;
-	worn.fatigue = 0.8f; worn.deficit = 0.5f; worn.outlook = 0.4f; worn.holdings = 0.5f;
+	worn.fatigue = 0.8f; worn.deficit = 0.5f; worn.outlook = 0.4f; RegardTo(worn, 0.5f);
 	AddCondition(worn, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_SLIGHT,
 		CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW);
 	AddCondition(worn, COND_HUNGRY, "the galley is empty", CVAL_DEBUFF, CMAG_CLEAR,
@@ -6746,7 +6845,7 @@ static int PrintWork()
 	all.traits = static_cast<uint16_t>((1u << TRAIT_STEADY_UNDER_FIRE) | (1u << TRAIT_CLAUSTRAPHOBIC));
 	all.fear = FEAR_DECOMPRESSION;
 	all.desire = DESIRE_HOME;
-	all.deficit = 0.6f; all.outlook = 0.2f; all.holdings = 0.2f;
+	all.deficit = 0.6f; all.outlook = 0.2f; RegardTo(all, 0.2f);
 	all.conditionCount = 0;
 	AddCondition(all, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_CLEAR,
 		CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW);
@@ -6758,7 +6857,7 @@ static int PrintWork()
 	std::printf("\n  the Betazoid's empathy, two-sided (one faculty, two situations)\n");
 	CrewMember bet = person;
 	bet.species = SPECIES_BETAZOID; bet.traits = 0; bet.conditionCount = 0;
-	bet.deficit = 0.05f; bet.outlook = 0.80f; bet.holdings = 0.80f;
+	bet.deficit = 0.05f; bet.outlook = 0.80f; RegardTo(bet, 0.80f);
 	bet.fear = FEAR_DYING_ALONE; bet.desire = DESIRE_A_PERSON;
 	CrewMember hum = bet; hum.species = SPECIES_HUMAN;
 	WorkFactor bmf[WORK_FACTOR_MAX], hmf[WORK_FACTOR_MAX], bhf[WORK_FACTOR_MAX], hhf[WORK_FACTOR_MAX];
@@ -6781,7 +6880,7 @@ static int PrintWork()
 	u.crew[op].conditionCount = 0;
 	u.crew[op].skills[SKILL_ENGINEERING] = 0;
 	u.crew[op].species = SPECIES_HUMAN;
-	u.crew[op].deficit = 0.8f; u.crew[op].outlook = 0.2f; u.crew[op].holdings = 0.2f;
+	u.crew[op].deficit = 0.8f; u.crew[op].outlook = 0.2f; RegardTo(u.crew[op], 0.2f);
 	AddCondition(u.crew[op], COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_CLEAR,
 		CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW);
 	std::printf("    console: %s\n", WorkReading(u, op, SYS_TRANSPORTERS).c_str());
@@ -7389,7 +7488,7 @@ static void TestOrderRecipientAsPerson()
 	g_test = "the recipient answers as a person";
 	Ship s; int giver, eng, sec;
 	OrderFixture(s, giver, eng, sec);
-	s.crew[eng].deficit = 1.0f; s.crew[eng].outlook = 0.0f; s.crew[eng].holdings = 0.0f; // morale 0
+	s.crew[eng].deficit = 1.0f; s.crew[eng].outlook = 0.0f; RegardTo(s.crew[eng], 0.0f); // morale 0
 	s.crew[eng].traits = 0; s.crew[eng].conditionCount = 0;
 	const OrderBrief b = BuildOrderBrief(s, giver, eng);
 	const int idx = OptionOf(b, ORDER_SEE_TO);
@@ -7404,7 +7503,7 @@ static void TestOrderRecipientAsPerson()
 	// A person of good morale takes the same order warmly and carries no mark.
 	Ship h; int hg, he, hs;
 	OrderFixture(h, hg, he, hs);
-	h.crew[he].deficit = 0.0f; h.crew[he].outlook = 1.0f; h.crew[he].holdings = 1.0f;
+	h.crew[he].deficit = 0.0f; h.crew[he].outlook = 1.0f; RegardTo(h.crew[he], 1.0f);
 	h.crew[he].traits = 0; h.crew[he].conditionCount = 0;
 	const OrderBrief hb = BuildOrderBrief(h, hg, he);
 	const int hi = OptionOf(hb, ORDER_SEE_TO);
@@ -7899,6 +7998,8 @@ int main(int argc, char **argv)
 	TestTheDerivation();
 	TestConditionLifecycle();
 	TestMoraleIsReadFromThree();
+	TestHoldingsIsAFold();
+	TestPurgeMovesRegard();
 	TestSpeciesAreCapabilitiesNotBonuses();
 	TestManner();
 	TestCharacterSaveRoundTrip();
