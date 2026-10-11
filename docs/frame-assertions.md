@@ -115,6 +115,15 @@ claim means, and it is not where it does not.
   difference assertion as its siblings, and `meeting-place` and `room-survey` were moved onto the
   instrument; the rest are named here as remaining, not silently counted as fixed.
 
+**The count as of 2026-10-11 (`feat/the-residue`, `docs/evidence/the-residue.md`).** Counted by the
+checks' own text — a check is path-only when it runs `[ -f … ]` on a screenshot and does not call
+`tools/frames/frame.py` — **33 scripts reference a written frame, 21 assert on the picture, 12 remain
+path-only**: `borg-deck`, `borgfx`, `breach`, `fire`, `gaps`, `gravity`, `meeting-overlay`,
+`reachability`, `s4-glance`, `s9`, `screens`, `viewscreen`. Of the 12, `breach`, `fire`, `gravity` and
+`viewscreen` are the behavioural class above (their frames do not carry the claim, so a path assertion
+and the log line are the honest pair); the other eight are the wider class. **Whether the 21 that now
+see their picture see the *right* picture is the owner's eye**, and only his.
+
 ## The register
 
 The instrument and its tests: `tools/frames/frame.py`, `tests/tools/test_frames.py`. The evidence

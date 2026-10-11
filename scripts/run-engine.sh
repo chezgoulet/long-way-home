@@ -68,8 +68,12 @@ echo "log:       $LOG"
 echo
 
 # Tee rather than exec: what the engine prints is the evidence for whether a session worked,
-# and a playtest that leaves no trace tells us nothing afterwards.
+# and a playtest that leaves no trace tells us nothing afterwards. The engine's own status is
+# captured from the pipe and *returned*: a launcher that always exits 0 makes every check built
+# on it decoration, because `if ! run-engine.sh` and a caller's `set -e` can never fire.
 set +e
 "$ENGINE" +set fs_basepath "$BUILD_DIR" +set fs_homepath "$HOME_DIR" "$@" 2>&1 | tee "$LOG"
+status=${PIPESTATUS[0]}
 echo
-echo "exit: ${PIPESTATUS[0]}"
+echo "exit: $status"
+exit "$status"

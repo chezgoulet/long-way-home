@@ -967,6 +967,31 @@ meeting that plays them.
   expansion's scripts. Worth resolving before G2 content work.
 - **Retail PC saves are incompatible** with the port (upstream documents this). Start new campaigns.
 
+### From the whole-project review (2026-10-10) — `docs/audit-whole-project.md`
+
+The review's residue list, each item's verdict re-established on the tree and the ones that stood closed
+(**2026-10-11, `feat/the-residue`**; evidence `docs/evidence/the-residue.md`). The review itself is corrected
+in place, findings kept:
+
+- **The launcher that always exits 0 — CLOSED.** `scripts/run-engine.sh` now returns the engine's own status,
+  so `g3-measure`'s `if !` and a caller's `set -e` can fire (demonstrated failing on a stub engine that cannot
+  succeed, exit 7, and succeeding on one that can, exit 0).
+- **The committed generated file nothing reads — CLOSED.** `data/posts/deck04.posts.json` removed; `data/posts/`
+  gitignored and the generator (`tools/posts/gen-posts.py`) is the source.
+- **The two silent catches — CLOSED.** `dressdeck14.py`'s live swallow now reports and falls back;
+  `dressdeck07.py`'s was unreachable (corrected in the review) and the real silent parse above it is now
+  visible.
+- **The launcher's exit code was the load-bearing one**; the others are counts and censuses:
+  - **existence-only checks — partly landed since:** 21 of 33 scripts that reference a frame now assert on the
+    picture (`tools/frames/frame.py`); **12 remain** (four behavioural by measurement, eight in the wider
+    class), named in `docs/frame-assertions.md` and the evidence.
+  - **ignored returns — re-derived:** **51** call sites on this tree; the **3 `ship::Unpack` discards fixed**,
+    the other **48 left** with reasons (idempotent `false`, cannot-fail-as-called, or nothing depends on it).
+  - **duplication — censused, not refactored:** five dress tools, 3,415 lines, 38 shared helper names (18
+    byte-identical, 20 divergent); `KeyByName` three times with the divergences named.
+  - **hard-coded scratch paths — partly:** two fixed (`test_ship_core.cpp`, `test_voice_render.py`), and
+    `run-engine.sh`'s `/tmp/sysroot` left (a guarded fallback); none would in fact trip a fresh clone.
+
 ### From the omissions audit (2026-10-07) — `docs/omissions.md`
 
 A sweep of the whole design corpus against this ledger and `docs/path-to-playtest.md` for work the corpus
