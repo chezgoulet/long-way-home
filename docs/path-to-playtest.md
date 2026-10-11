@@ -157,3 +157,39 @@ of the judgement, and that gap grows with every stage.
   predated it, so its first act was a failed read.
 - Every stage closes with its own evidence document under `docs/evidence/`, in the house form: PASS lines
   stating what was observed, and the command that produced them.
+
+## The primitive crossing — what is queued, and in what order
+
+**Gap coverage has two halves, and they are different instruments.** `docs/omissions.md` asks *is this
+commitment registered?* — it finds what nobody wrote down. The **designs-against-the-code** pass asks *does the
+game do what the document says?* — it finds where what was written down and what was built disagree, which the
+register cannot see by construction because those commitments are already on the roadmap. Both belong before
+content, and neither replaces the other.
+
+**A primitive is ready when three questions and a fourth are answered** — and the third and fourth are what the
+content engine needs, not the player:
+
+1. **Does it exist?** — `docs/hook-register.md`, guarded both ways by `scripts/hooks-check.sh` (479 public
+   functions, all registered).
+2. **Does it behave as the design says?** — the designs-against-the-code reconciliation.
+3. **Can a caller reach it?** — `docs/hook-triage.md`: of the register's hooks, 122 are reachable only from the
+   developer console and 35 from nothing at all, each sorted into *diagnostic by design*, *simulation-raised*,
+   or **genuine gap** (62 of them, per the reachability pass).
+4. **Which declaration does it answer?** — because content here is *declared*, not thrown: a scenario states its
+   breeding conditions, the systems it stresses, the staff it needs, the cost to answer or ignore, its residue,
+   visibility and warmth, and is instantiated **through the post** rather than a named person (O15, and the
+   post-not-name law that makes an all-fictitious crew possible).
+
+**Queued, in this order, decided 2026-10-11:**
+
+1. **The deck-12 environmental readout** (walkthrough G18) — the air/endurance countdown drawn *where the
+   problem is*, not only in a console, because the per-deck air ruling (C4) made deck-by-deck survival a
+   mechanism and this is the surface that makes it legible to a person standing there.
+2. **The holodeck reactor as a per-deck source** — the last piece of canon's three independent power sources
+   (O2's remainder), behind the sources that already survive the main grid.
+3. **The derivation — declaration → primitive → call path** — the crossing instrument: for every field a
+   scenario must be able to state, the primitive that answers it and the way the engine calls it. A primitive
+   nothing can declare is neither a gap nor finished; it is inventory. **This is the table a content author
+   works against, and it is the check that says the crossing is safe.**
+4. **Then content** (O15's nine-scenario slate), authored under the two laws already recorded: the
+   post-not-name rule, and the delivery direction per line.
