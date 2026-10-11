@@ -840,6 +840,44 @@ older save loads and replays identically; the version is deliberately not bumped
 like a moment rather than a menu is the owner's* to judge from the two frames. **Where a badly-taken order
 lands is the owner's open question (Q3)**; the behaviour implemented is recorded, not settled.
 
+### The bills — who does what when it goes wrong (O6)
+
+`docs/crew-manifest.md` (*"The bills"*, *"Who reports to whom"*), implemented 2026-10-11 on
+`feat/the-bills` (`docs/evidence/the-bills.md`, `TestTheBills`, `TestOodAuthority`,
+`test_ship_core --bills`, `scripts/bills-check.sh`; the screen `ui_lwh_bills`, the console verb
+`ship bill`). **Save format 59** (the per-record assignments and the called state), the cost named in
+the evidence.
+
+**The census first, because a bill built twice is worse than one built late:** the **watch bill** and
+**the queue** already existed (`watch`, `ScheduledActivity`, the watch-change meeting; `Jobs`,
+`SetJobPriority`, the `ui_lwh_jobs` board) and were **extended, not rebuilt**. What was built is the
+**organisation on top of them**:
+
+- **a battle station and an emergency assignment per crew record**, derived from department and post
+  and stored, so the reconfiguration is data and the holes can be named;
+- **battle stations** (`CallBattleStations`/`StandDownBattleStations`): condition red, and hands off
+  their posts to the repair parties, casualty clearing, sickbay and armed response — demonstrated by
+  the warp drive's own hands **falling 3 → 0** while the sensors gain a repair party, and returning on
+  stand-down;
+- **the emergency bills** fire, decompression, intruder and **abandon ship** (`CallEmergency`/
+  `StandDownEmergency`): a fire leaves **0 non-party hands** on its deck; abandon ship musters **130
+  of 141** at the shuttlebay;
+- **the damage-control organisation** (`EngineerOfTheWatch`): the parties answer to the engineer of
+  the watch, whatever the rank of anyone present;
+- **the officer of the deck** (`OfficerOfTheDeck`, `OodMayOrder`, `OodRefusal`): a lieutenant holds
+  the deck, orders a senior officer (Tuvok, rank 4), and is refused the captain;
+- **the surface**: `ui_lwh_bills` (`B` at the command console) draws the watch bill, the battle bill
+  by role, the emergency bill, the holes and the two watch posts, and sends `ship bill …` for every
+  act.
+
+**The fork is recorded, not smoothed over.** The brief called the deck's authority an *access* rule;
+`docs/crew-manifest.md` gives it authority *over officers senior to them*, and
+`docs/access-and-authority.md` says rank controls access absolutely. The two do not contradict,
+because access-and-authority separates the axes itself: **the deck's authority is authority, not
+access** — it orders Tuvok and cannot operate the engine room (`MayOperate 0`). Extending the deck's
+access to match is the fork, and is not taken. Recorded as ours in the evidence.
+<!-- register-row id=O6 state=closed marker=check:scripts/bills-check.sh -->
+
 ### The wrap — text is never clipped to fit
 
 The owner's ruling (*on-screen text is never clipped to fit — it wraps*), broken three times — the
@@ -1165,8 +1203,11 @@ evidence and the closing is this ledger's business. The same rule is stated in `
 - **O4 — first contact, awareness and reputation**: `docs/exploration-and-science.md` item 5,
   `docs/memory-and-consequence.md`, `docs/scenario-atlas.md`.
 - **O5 — discipline from home, the live link to Starfleet**: `docs/gap-analysis.md` §4, `docs/scenario-atlas.md`.
-- **O6 — the crew manifest's bills**: watch bill, battle stations, emergency bills, the damage-control
-  organisation, and the officer of the deck's authority (`docs/crew-manifest.md`).
+- **O6 — the crew manifest's bills** *(CLOSED 2026-10-11, `feat/the-bills`; see "The bills — who does
+  what when it goes wrong", above)*: the watch bill and the queue already existed and were extended;
+  the battle station, the emergency bills, the damage-control organisation and the officer of the
+  deck's authority are built (`docs/crew-manifest.md`, `docs/evidence/the-bills.md`,
+  `scripts/bills-check.sh`). <!-- register-row id=O6b state=closed marker=check:scripts/bills-check.sh -->
 - **O7 — the Hazard Team as a standing unit**: two squads, a unit layer above departments
   (`docs/crew-manifest.md`, `docs/crew-roster.md` §6).
 - **O8 — the character layer** *(CLOSED 2026-10-08, PR #72; the wiring 2026-10-08, `feat/the-work-bites`;

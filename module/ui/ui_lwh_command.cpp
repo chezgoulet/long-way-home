@@ -7,11 +7,29 @@
 #include "ui_local.h"
 
 #include "lwh_ui.h"
+#include "lwh_textfit.h"
 
 #include <cstdlib>
 #include <cstring>
 
 namespace {
+
+// The one wrap (lwh_textfit.h): on-screen text is never clipped to fit. A column that cannot hold
+// one string is reported rather than silently cut, per the owner's ruling. The bills screen's holes
+// line is the string that can run long, so it wraps.
+int MeasureStyle( const void *ctx, const char *text )
+{
+	return UI_ProportionalStringWidth( text, static_cast<int>( reinterpret_cast<intptr_t>( ctx ) ) );
+}
+
+int DrawWrapped( int x, int y, int right, int lineHeight, int style, vec4_t colour, const char *text )
+{
+	const LWH_Wrapped w = LWH_WrapText( text ? text : "", right - x, LWH_WRAP_MAX_LINES, MeasureStyle,
+		reinterpret_cast<const void *>( static_cast<intptr_t>( style ) ) );
+	for ( int i = 0; i < w.count; ++i ) UI_DrawProportionalString( x, y + i * lineHeight, w.line[i], style, colour );
+	if ( w.overflow ) ui.Printf( "LWH: bills: the column %d..%d cannot hold the holes line in %d line(s)\n", x, right, LWH_WRAP_MAX_LINES );
+	return w.count;
+}
 
 // ---- the command console ----------------------------------------------------------------------
 
@@ -144,7 +162,7 @@ void CommandDraw( void )
 
 	UI_DrawProportionalString( 44, 412, "UP/DOWN system   LEFT/RIGHT deck   R see to it first   G guard deck   V evacuate deck   W write it off   S squad",
 		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
-	UI_DrawProportionalString( 44, 426, "T triage order   O month report   J job queue   A chart   M meetings   C clear orders   P promote   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+	UI_DrawProportionalString( 44, 426, "B bills   T triage order   O month report   J job queue   A chart   M meetings   C clear orders   P promote   ESC leave", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
 }
 
 bool CommandAct( int key )
@@ -175,6 +193,7 @@ bool CommandAct( int key )
 	case 'o': case 'O': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_report\n" ); return true;
 	case 'j': case 'J': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_jobs\n" ); return true;
 	case 'a': case 'A': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_chart\n" ); return true;
+	case 'b': case 'B': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_bills\n" ); return true; // the bills
 	case 'm': case 'M': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_meeting\n" ); return true; // the staff meetings waiting
 	case 'p': case 'P':
 	{
@@ -520,6 +539,88 @@ sfxHandle_t ChartKey( int key )
 	return Menu_DefaultKey( &chart.menu, key );
 }
 
+// ---- the bills: who does what when it goes wrong (docs/crew-manifest.md) ------------------------
+//
+// The watch bill, battle stations, the emergency bills and the officer of the deck on one screen.
+// It is command's or the bridge watch's -- the ship refuses anyone else by name -- and every act
+// sends the same `ship bill ...` the console answers, so the screen and the transcript cannot
+// disagree. The state is published by the module (lwh_ship_bill_*).
+
+struct {
+	menuframework_s menu;
+	int deck;      // 1..15: the deck an emergency bill names
+} bills;
+
+void BillsDraw( void )
+{
+	char line[512], battle[256], holes[1024];
+	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
+	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTGOLD1] );
+	UI_FillRect( 20, 42, 14, 396, colorTable[CT_DKPURPLE1] );
+	UI_FillRect( 20, 442, 600, 10, colorTable[CT_DKPURPLE1] );
+	UI_DrawProportionalString( 44, 19, "COMMAND  -  THE BILLS", UI_SMALLFONT, colorTable[CT_BLACK] );
+
+	ui.Cvar_VariableStringBuffer( "lwh_ship_bill_watch", line, sizeof( line ) );
+	UI_DrawProportionalString( 44, 46, line[0] ? line : "THE WATCH BILL", UI_TINYFONT, colorTable[CT_LTBLUE2] );
+
+	ui.Cvar_VariableStringBuffer( "lwh_ship_bill_battle_state", line, sizeof( line ) );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_bill_battle", battle, sizeof( battle ) );
+	const bool quarters = Q_stricmp( line, "GENERAL QUARTERS" ) == 0;
+	UI_DrawProportionalString( 44, 72, va( "BATTLE STATIONS: %s", line[0] ? line : "the watch" ), UI_SMALLFONT,
+		colorTable[quarters ? CT_RED : CT_LTGOLD1] );
+	DrawWrapped( 44, 88, 620, 12, UI_TINYFONT, colorTable[CT_LTPURPLE1], battle );
+
+	ui.Cvar_VariableStringBuffer( "lwh_ship_bill_emergency", line, sizeof( line ) );
+	UI_DrawProportionalString( 44, 116, "EMERGENCY BILL", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	UI_DrawProportionalString( 44, 130, line[0] ? line : "none called", UI_SMALLFONT, colorTable[CT_WHITE] );
+
+	UI_DrawProportionalString( 44, 160, va( "DECK  %d   (UP/DOWN)", bills.deck ), UI_TINYFONT, colorTable[CT_LTGOLD1] );
+	UI_DrawProportionalString( 44, 178, "B  call / stand down battle stations", UI_TINYFONT, colorTable[CT_LTGOLD1] );
+	UI_DrawProportionalString( 44, 192, "F  fire      D  decompression      I  intruder      A  abandon ship      X  stand down",
+		UI_TINYFONT, colorTable[CT_LTGOLD1] );
+
+	ui.Cvar_VariableStringBuffer( "lwh_ship_bill_ood", line, sizeof( line ) );
+	UI_DrawProportionalString( 300, 46, line, UI_TINYFONT, colorTable[CT_LTBLUE2] );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_bill_eow", line, sizeof( line ) );
+	UI_DrawProportionalString( 300, 60, line, UI_TINYFONT, colorTable[CT_LTBLUE2] );
+
+	// The holes: the manifest's "posts with one qualified holder, and stations no living crew member
+	// can fill" -- the read that makes the thin watch visible. The list wraps; it is never clipped.
+	ui.Cvar_VariableStringBuffer( "lwh_ship_bill_holes", holes, sizeof( holes ) );
+	char *bar = strchr( holes, '|' );
+	const char *count = holes;
+	if ( bar ) { *bar = 0; }
+	UI_DrawProportionalString( 44, 224, va( "THE HOLES: %s", count ), UI_TINYFONT, colorTable[CT_LTORANGE] );
+	DrawWrapped( 44, 238, 620, 12, UI_TINYFONT, colorTable[CT_LTPURPLE1], bar ? bar + 1 : "" );
+
+	ui.Cvar_VariableStringBuffer( "lwh_ship_refusal", line, sizeof( line ) );
+	if ( line[0] ) UI_DrawProportionalString( 44, 420, va( "REFUSED: %s", line ), UI_TINYFONT, colorTable[CT_RED] );
+
+	UI_DrawProportionalString( 44, 426, "the watch, battle stations, the emergency bills, and who holds the deck", UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+}
+
+bool BillsAct( int key )
+{
+	switch ( key )
+	{
+	case K_UPARROW: if ( bills.deck < 15 ) ++bills.deck; return true;
+	case K_DOWNARROW: if ( bills.deck > 1 ) --bills.deck; return true;
+	case 'b': case 'B': ui.Cmd_ExecuteText( EXEC_APPEND, "ship bill battle\n" ); return true;
+	case 'x': case 'X': ui.Cmd_ExecuteText( EXEC_APPEND, "ship bill standdown\n" ); return true;
+	case 'f': case 'F': ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship bill fire %d\n", bills.deck ) ); return true;
+	case 'd': case 'D': ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship bill decomp %d\n", bills.deck ) ); return true;
+	case 'i': case 'I': ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship bill intruder %d\n", bills.deck ) ); return true;
+	case 'a': case 'A': ui.Cmd_ExecuteText( EXEC_APPEND, "ship bill abandon\n" ); return true;
+	}
+	return false;
+}
+
+sfxHandle_t BillsKey( int key )
+{
+	if ( BillsAct( key ) ) return menu_null_sound;
+	return Menu_DefaultKey( &bills.menu, key );
+}
+
 void Push( menuframework_s *menu, void ( *draw )( void ), sfxHandle_t ( *key )( int ) )
 {
 	memset( menu, 0, sizeof( *menu ) );
@@ -578,6 +679,7 @@ qboolean LWH_UI_CommandScreens( const char *cmd )
 	if ( !Q_stricmp( cmd, "ui_lwh_report" ) ) { report.cursor = 0; Push( &report.menu, ReportDraw, ReportKey ); return qtrue; }
 	if ( !Q_stricmp( cmd, "ui_lwh_jobs" ) ) { jobs.cursor = 0; Push( &jobs.menu, JobsDraw, JobsKey ); return qtrue; }
 	if ( !Q_stricmp( cmd, "ui_lwh_chart" ) ) { chart.cursor = 0; Push( &chart.menu, ChartDraw, ChartKey ); return qtrue; }
+	if ( !Q_stricmp( cmd, "ui_lwh_bills" ) ) { if ( bills.deck < 1 || bills.deck > 15 ) bills.deck = 9; Push( &bills.menu, BillsDraw, BillsKey ); return qtrue; }
 	if ( !Q_stricmp( cmd, "lwh_report_key" ) )
 	{
 		ui.Argv( 1, arg, sizeof( arg ) );
@@ -594,6 +696,12 @@ qboolean LWH_UI_CommandScreens( const char *cmd )
 	{
 		ui.Argv( 1, arg, sizeof( arg ) );
 		ChartAct( KeyByName( arg ) );
+		return qtrue;
+	}
+	if ( !Q_stricmp( cmd, "lwh_bills_key" ) )
+	{
+		ui.Argv( 1, arg, sizeof( arg ) );
+		BillsAct( KeyByName( arg ) );
 		return qtrue;
 	}
 	return qfalse;

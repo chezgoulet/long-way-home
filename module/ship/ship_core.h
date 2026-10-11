@@ -457,6 +457,42 @@ struct Appearance {
 	uint8_t  colour = COLOUR_DEFAULT;
 };
 
+// ---- the bills: the organisation over the watch (docs/crew-manifest.md) ---------------------------
+//
+// A crew member has one post and a set of bill assignments. The **watch bill** is the daily roster
+// and it is already the simulation's: the `watch` field, `ScheduledActivity`, and the watch-change
+// meeting. The **reconfiguration** bills are the organisation on top of that work: when the
+// situation changes, almost nobody's battle station is their normal post ("Battle stations",
+// docs/crew-manifest.md). These are assignments on the crew record, not a second crew model.
+//
+// Canon calls Voyager's general quarters **code-blue stations**. The battle station is derived from
+// the department and the post (the document's own examples: the kitchen goes to casualty clearing,
+// the labs to damage control, the Doctor's staff triage, the shuttlebay arms for boarding). The
+// simulation's five departments are coarser than the manifest's nine, so the department-to-role
+// mapping is ours and is recorded as a judgement call in docs/evidence/the-bills.md.
+enum BillRole : uint8_t {
+	ROLE_POST = 0,        // hold their own station (the bridge, the conn, ops, tactical)
+	ROLE_DAMAGE_CONTROL,  // join the repair parties (engineering, and the labs)
+	ROLE_CASUALTY,        // casualty clearing and stretcher parties (support and the galley)
+	ROLE_TRIAGE,          // sickbay (medical)
+	ROLE_ARMED,           // armed response and the boarding party (security, the shuttlebay)
+	ROLE_COUNT
+};
+const char *BillRoleName(uint8_t r);
+
+// The emergency bills (docs/crew-manifest.md): fire, decompression, intruder alert, abandon ship.
+// Each names the deck where it applies, except abandon ship, which names none and musters the crew.
+enum EmergencyKind : uint8_t {
+	EMERG_NONE = 0,
+	EMERG_FIRE,
+	EMERG_DECOMPRESSION,
+	EMERG_INTRUDER,
+	EMERG_ABANDON,
+	EMERG_COUNT
+};
+const char *EmergencyKindName(uint8_t k);
+const char *EmergencyDeckPhrase(uint8_t k);  // "fire on deck", "the deck without air", ...
+
 struct CrewMember {
 	std::string name;
 	std::string type;        // the game's NPC type used to embody them (an existing character)
@@ -464,6 +500,11 @@ struct CrewMember {
 	Department dept = DEPT_COMMAND;
 	uint8_t watch = 0;       // 0 alpha (0800-1600), 1 beta (1600-2400), 2 gamma (0000-0800)
 	uint8_t post = SYS_COUNT;   // the system whose station they stand; SYS_COUNT = department duties
+	// The bills (docs/crew-manifest.md): the station this person mans at battle stations, and under
+	// an emergency bill. Derived from the department and the post at roster build, and stored, so a
+	// save replays identical and the holes can be named by symbol.
+	uint8_t battle = ROLE_POST;
+	uint8_t emergency = ROLE_POST;
 	uint8_t quartersDeck = 0;
 	uint8_t status = CREW_FIT;
 	float fatigue = 0.0f;    // 0 rested .. 1 exhausted
@@ -841,6 +882,7 @@ struct Shuttle {
 
 const int SECTOR_BEACONS = 12;
 const int SHUTTLE_BAY_DECK = 10;         // shuttlebay 1, aft dorsal [lore]
+const int MESS_DECK = 2;                 // the mess hall: where the galley and casualty clearing are [inv]
 const float SHUTTLE_REBUILD_MATERIALS = 30.0f; // material to construct a replacement [inv]
 const float SHUTTLE_REBUILD_HOURS = 8.0f;      // crew-hours of the second bay's work [inv]
 const float JUMP_DEUTERIUM = 0.01f;      // fraction of tankage per jump [inv]
@@ -1590,6 +1632,65 @@ bool OrderAdvance(Ship &s, int deck);
 
 enum Alert : uint8_t { ALERT_GREEN = 0, ALERT_YELLOW, ALERT_RED };
 
+// ---- the bills: who does what when it goes wrong (docs/crew-manifest.md) --------------------------
+//
+// The manifest's four bills -- the watch bill, battle stations, the emergency bills and the
+// damage-control organisation -- are the organisation over the crew records. A bill is three things
+// and all three are the deliverable: **state the simulation holds, an effect the player can observe,
+// and a surface the player can reach**. Calling one reconfigures the watch, logs who called it, and
+// moves the hands; standing down returns the routine.
+//
+// Battle stations sets the condition red (canon: Voyager's general quarters is "code-blue stations")
+// and moves each hand to their *battle* station, which is usually not their post. A plain red alert
+// -- `SetAlert(ALERT_RED)` -- still means "all hands to their own station", the behaviour that
+// already existed; the two are separate state so the difference can be demonstrated.
+//
+// The damage-control organisation is a *reporting* rule, not a crowd: under it a repair party
+// reports to the engineer of the watch, whatever the rank of anyone present.
+
+struct Ship;
+
+// The engineer of the watch: the senior fit engineering hand on duty now. Under the damage-control
+// organisation this is who the repair parties answer to (docs/crew-manifest.md, "Who reports to
+// whom"). -1 when no engineer is on duty.
+int EngineerOfTheWatch(const Ship &s);
+// The officer of the deck: the senior fit officer on duty at the bridge -- the watch bill's bridge
+// watch officer. The OOD is a *post*, not a rank, so a lieutenant may hold the deck while a
+// lieutenant commander is asleep. -1 when nobody holds it.
+int OfficerOfTheDeck(const Ship &s);
+// The OOD's authority, kept apart from access (docs/access-and-authority.md separates the two axes).
+// Under their watch the officer of the deck may give an operational order to anyone aboard,
+// **including officers senior to them who are not the captain** (docs/crew-manifest.md, "Who reports
+// to whom"). This is authority, not access: it opens no console and grants no clearance, so a
+// department head's station still refuses an OOD who does not hold it.
+bool OodMayOrder(const Ship &s, int ood, int other);
+// Why not, in words; empty when the order may be given. The refusal names what the deck may not do.
+const char *OodRefusal(const Ship &s, int ood, int other);
+
+// Call and stand down the battle bill. `by` is the crew index calling it; the console gates who may,
+// and these record it in the log. Calling sets the condition red; standing down returns it green.
+bool CallBattleStations(Ship &s, int by);
+bool StandDownBattleStations(Ship &s, int by);
+bool BattleStations(const Ship &s);            // the state, for the screen
+int  BattleCalledBy(const Ship &s);            // who called it, or -1
+
+// Call and stand down an emergency bill. `deck` is 1..15 and ignored by abandon ship (which musters
+// the crew at the shuttlebay instead). One emergency stands at a time; calling another replaces it.
+bool CallEmergency(Ship &s, uint8_t kind, int deck, int by);
+bool StandDownEmergency(Ship &s, int by);
+uint8_t Emergency(const Ship &s);
+int  EmergencyDeck(const Ship &s);
+int  EmergencyCalledBy(const Ship &s);
+
+// The reads the surface draws. Pure, and the same strings the console verb prints, so the screen and
+// the transcript cannot disagree.
+std::string WatchBillLine(const Ship &s);      // the watch in force, who is on duty, who is at a post
+std::string BattleBillLine(const Ship &s);     // the roster grouped by battle station
+std::string EmergencyBillLine(const Ship &s);  // what the called bill does, or what each would
+// The holes (docs/crew-manifest.md, "The holes are the game"): posts with one qualified holder, and
+// stations no living crew member can fill. One line for the screen and the log; returns the count.
+int BillHoles(const Ship &s, std::string *out);
+
 // ---- how it is played (S10) -------------------------------------------------------------------------
 
 // Ironman is the game: one ship, no going back. Holodeck is for learning and testing: saves allowed.
@@ -1833,6 +1934,17 @@ struct Ship {
 	int advanceDeck = 0;         // the deck a security squad is advancing to retake; 0 = none
 	int advanceAt = 0;           // the deck the squad is on now, on its way
 	float advanceMs = 0.0f;      // progress toward the next deck
+
+	// The bills (docs/crew-manifest.md): the state a situation leaves. Battle stations and one
+	// emergency bill may stand; each names who called it and when, so a stand-down is recorded. The
+	// per-person assignments live on the crew records (`battle`/`emergency`), derived at build.
+	bool battleStations = false;
+	int battleCalledBy = -1;
+	double battleAt = 0.0;
+	uint8_t emergency = EMERG_NONE;   // EMERG_NONE, or the called emergency bill
+	uint8_t emergencyDeck = 0;        // the deck it names, 1..15; 0 for abandon ship
+	int emergencyCalledBy = -1;
+	double emergencyAt = 0.0;
 
 	// Access: delegations granted for a shift, the one emergency override in progress, and the
 	// lock-outs a senior officer has imposed (docs/access-and-authority.md). All are recorded in
@@ -2789,7 +2901,7 @@ const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
 // queue already derives; a job kind is a single byte in the record and the two new values are only
 // ever written by this build, so a save made before them loads and replays identically and the
 // version is deliberately NOT bumped -- a change that makes a save load differently is a defect.
-const uint16_t SAVE_VERSION = 58;  // 58: the minds the Collective holds -- a bounded list of the crew the drones have begun taking, so a save taken mid-window replays and a recovery ends the transfer (docs/the-record-and-the-log.md, docs/evidence/the-assimilation.md). Deliberate cost, named: an older save does not load. 57: holdings is a fold over the marks, not a stored float (the owner's C2 ruling, "Derived"; docs/morale.md). The per-person `float holdings` is gone from the record and from the save, and the character layer's morale block loses one float per person. Deliberate cost, named: an older save does not load. 56: the independent air feed (O2) -- each deck's air source and who set it, so a deck holds its air on its own source with the main grid down (docs/budget-squaring.md, Finding two); 55: the meeting's place -- each queued brief now knows the room it is held in and the department whose business it is, derived from the meeting's kind and subject (docs/staff-meetings.md); 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
+const uint16_t SAVE_VERSION = 59;  // 59: the bills -- battle stations and one emergency bill as called state, each with who called it and when, and a per-crew battle and emergency assignment derived at roster build (docs/crew-manifest.md, docs/evidence/the-bills.md). Deliberate cost, named: an older save does not load. 58: the minds the Collective holds -- a bounded list of the crew the drones have begun taking, so a save taken mid-window replays and a recovery ends the transfer (docs/the-record-and-the-log.md, docs/evidence/the-assimilation.md). Deliberate cost, named: an older save does not load. 57: holdings is a fold over the marks, not a stored float (the owner's C2 ruling, "Derived"; docs/morale.md). The per-person `float holdings` is gone from the record and from the save, and the character layer's morale block loses one float per person. Deliberate cost, named: an older save does not load. 56: the independent air feed (O2) -- each deck's air source and who set it, so a deck holds its air on its own source with the main grid down (docs/budget-squaring.md, Finding two); 55: the meeting's place -- each queued brief now knows the room it is held in and the department whose business it is, derived from the meeting's kind and subject (docs/staff-meetings.md); 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

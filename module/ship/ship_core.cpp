@@ -240,7 +240,7 @@ const float GRAVITY_REGEN_HOURS = 1.0f;    // ... and a supplied deck gets it ba
 
 static const int DEPT_SIZE[DEPT_COUNT] = {20, 50, 25, 30, 16}; // sums to COMPLEMENT [inv split]
 static const int DEPT_DECK[DEPT_COUNT] = {1, 11, 4, 8, 5};     // where department duties are done
-const int MESS_DECK = 2;
+// MESS_DECK is declared in ship_core.h (the casualty-clearing deck the bills read).
 // The deck crew go to for recreation by default -- not "the holodeck". Holodeck 1 is on deck 14 and
 // Holodeck 2 on deck 6, per docs/locations/deck14-stasis.brief.md; SYS_HOLODECKS is one system and
 // this is the *recreational* deck the routine sends people to, which is deck 6, where the crew
@@ -254,6 +254,7 @@ static void NoteDeath(Ship &s, int deadIndex);      // who was there to see it (
 static void MemoryDecay(Ship &s, float shipSeconds); // salience fades unless reinforced
 static void MaturePromises(Ship &s);                 // a deadline that passes unresolved is broken
 static void UpdateJobs(Ship &s);                     // the queue of outstanding work (docs/crew-work.md)
+static void DeriveBills(Ship &s);                    // the per-record bill assignments (docs/crew-manifest.md)
 static uint32_t AnomalyRoll(uint32_t counter, uint32_t seed); // a deterministic draw (the ruling)
 
 // What the alert condition switches off, whatever its console says. Green: weapons and shields
@@ -1001,6 +1002,11 @@ static void BuildRoster(Ship &s)
 	int maquis = 0;
 	for (const CrewMember &c : s.crew) if (c.faction == 1) ++maquis;
 	s.resentment = std::min(0.3f, maquis * 0.05f);
+
+	// The bills (docs/crew-manifest.md): each record's battle station and emergency bill, derived
+	// from its department and post, so the reconfiguration is data on the record and the holes can be
+	// named. The assignments are static content and are stored with the record (they survive a save).
+	DeriveBills(s);
 }
 
 // The bay's complement at the start of the run [lore]: a Class 2, a Type 6 and a Type 8 shuttle and
@@ -1276,6 +1282,10 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		// Red alert is all hands: anyone awake goes to their station.
 		if (s.alert == ALERT_RED && a != ACT_SLEEP) a = ACT_ON_DUTY;
 		if (c.status == CREW_INJURED) a = ACT_PERSONAL; // off the watch bill until sickbay returns them
+		// The battle bill (docs/crew-manifest.md): which hands leave their post for a battle station,
+		// and which join the damage-control parties. Declared here so the post-manning and the
+		// damage-control blocks below read the same decision.
+		bool billLeftPost = false, billDc = false;
 		c.activity = a;
 
 		switch (a) {
@@ -1292,6 +1302,28 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 			if (a == ACT_ON_DUTY && c.post < SYS_COUNT && SPECS[c.post].deck == s.orderEvacuate) {
 				c.activity = ACT_PERSONAL; // off their station, by order
 				a = ACT_PERSONAL;
+			}
+		}
+
+		// The bills reconfigure the watch (docs/crew-manifest.md). Battle stations moves each hand to
+		// their battle station, which is usually not their post: the labs and the engineers join the
+		// repair parties, the galley goes to casualty clearing, security arms. An emergency bill
+		// musters the deck it names -- the hands not sent to it leave it -- and abandon ship musters
+		// everyone at the shuttlebay, whatever the watch.
+		if (a == ACT_ON_DUTY && s.battleStations) {
+			switch (c.battle) {
+			case ROLE_DAMAGE_CONTROL: billDc = billLeftPost = true; break;
+			case ROLE_CASUALTY: c.deck = MESS_DECK; billLeftPost = true; c.activity = a = ACT_PERSONAL; break;
+			case ROLE_TRIAGE: c.deck = SICKBAY_DECK; if (c.post != SYS_SICKBAY) billLeftPost = true; break;
+			case ROLE_ARMED: c.deck = static_cast<uint8_t>(DEPT_DECK[DEPT_SECURITY]); billLeftPost = true; break;
+			default: break;
+			}
+		}
+		if (s.emergency != EMERG_NONE) {
+			if (s.emergency == EMERG_ABANDON) { c.deck = SHUTTLE_BAY_DECK; billLeftPost = true; }
+			else if ((s.emergency == EMERG_FIRE || s.emergency == EMERG_DECOMPRESSION)
+				&& c.deck == s.emergencyDeck && !billDc && c.dept != DEPT_SECURITY) {
+				c.deck = MESS_DECK; billLeftPost = true; c.activity = a = ACT_PERSONAL;
 			}
 		}
 
@@ -1423,8 +1455,11 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		UpdateConditions(s, static_cast<int>(&c - s.crew.data()), a, airless, fed, hours);
 
 
-		// Security on duty with no station answers a boarding: enough to outnumber each party, worst first.
-		if (a == ACT_ON_DUTY && c.post == SYS_COUNT && c.dept == DEPT_SECURITY) {
+		// Security on duty with no station answers a boarding: enough to outnumber each party, worst
+		// first. Under the battle bill, security hands whose battle station is armed post leave their
+		// post for this too (docs/crew-manifest.md).
+		if (a == ACT_ON_DUTY && c.dept == DEPT_SECURITY
+			&& (c.post == SYS_COUNT || (s.battleStations && c.battle == ROLE_ARMED))) {
 			// ordered to a deck: a guard of four goes there first, whether or not anyone has boarded it
 			if (s.orderSecurityTo >= 1 && s.orderSecurityTo <= DECKS && posted < 4) {
 				++posted;
@@ -1452,7 +1487,7 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		}
 
 		placed:
-		if (a == ACT_ON_DUTY && c.post < SYS_COUNT) {
+		if (a == ACT_ON_DUTY && c.post < SYS_COUNT && !billLeftPost) {
 			++s.systems[c.post].manned;
 			float eff = Effectiveness(c);
 			// Memory read by the simulation: a grudge toward whoever commands is going through the motions.
@@ -1461,8 +1496,9 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 			s.systems[c.post].staffing += eff;
 		}
 
-		// An engineer on duty with no station of their own joins the damage-control party.
-		if (a == ACT_ON_DUTY && c.post == SYS_COUNT && c.dept == DEPT_ENGINEERING) {
+		// An engineer on duty with no station of their own joins the damage-control party -- and under
+		// the battle bill, so does every hand whose battle station is damage control (docs/crew-manifest.md).
+		if (a == ACT_ON_DUTY && (billDc || (c.post == SYS_COUNT && c.dept == DEPT_ENGINEERING))) {
 			bool busy = false;
 			for (int k = 0; k < nWant && !busy; ++k) {
 				System &sys = s.systems[wantRepair[k]];
@@ -5755,6 +5791,274 @@ void SetAlert(Ship &s, Alert a)
 	LogEvent(s, AuthorFor(s, DEPT_COMMAND, "the bridge"), "bridge", std::string("condition ") + N[a]);
 }
 
+// ---- the bills (docs/crew-manifest.md) ----------------------------------------------------------
+//
+// The watch bill is the roster the crew already have (`watch`, ScheduledActivity, the watch-change
+// meeting). These are the reconfiguration bills: battle stations, the emergency bills, and the
+// damage-control organisation. A bill is state, an effect and a surface; the state lives on the
+// Ship and on each record, the effect is in UpdateCrew, and the surface is `ship bill` and the
+// `ui_lwh_bills` screen. Evidence: docs/evidence/the-bills.md.
+
+const char *BillRoleName(uint8_t r)
+{
+	static const char *const N[ROLE_COUNT] = {
+		"own post", "damage control", "casualty clearing", "sickbay", "armed"
+	};
+	return r < ROLE_COUNT ? N[r] : "own post";
+}
+
+const char *EmergencyKindName(uint8_t k)
+{
+	static const char *const N[EMERG_COUNT] = { "none", "fire", "decompression", "intruder", "abandon ship" };
+	return k < EMERG_COUNT ? N[k] : "none";
+}
+
+const char *EmergencyDeckPhrase(uint8_t k)
+{
+	switch (k) {
+	case EMERG_FIRE: return "fire on deck";
+	case EMERG_DECOMPRESSION: return "the deck without air";
+	case EMERG_INTRUDER: return "boarders on deck";
+	case EMERG_ABANDON: return "abandon ship";
+	default: return "no emergency";
+	}
+}
+
+// The battle station, derived from the department and the post (docs/crew-manifest.md, "Battle
+// stations": the kitchen goes to casualty clearing, the labs to damage control, the Doctor's staff
+// triage, the shuttlebay arms for boarding). The simulation's five departments are coarser than the
+// manifest's nine, so this mapping is ours and is recorded in docs/evidence/the-bills.md. The
+// command crew hold the bridge; the captain is not sent to a stretcher party.
+static uint8_t BattleRoleFor(const CrewMember &c)
+{
+	if (c.rank >= 4) return ROLE_POST;
+	switch (c.dept) {
+	case DEPT_ENGINEERING: return ROLE_DAMAGE_CONTROL;
+	case DEPT_SCIENCES:    return ROLE_DAMAGE_CONTROL; // the labs go to damage control
+	case DEPT_MEDICAL:     return ROLE_TRIAGE;         // the Doctor's staff triage
+	case DEPT_SECURITY:    return ROLE_ARMED;          // armed response and the boarding party
+	default:               return c.post == SYS_COUNT ? ROLE_CASUALTY : ROLE_POST;
+	}
+}
+
+static void DeriveBills(Ship &s)
+{
+	for (CrewMember &c : s.crew) {
+		const uint8_t role = BattleRoleFor(c);
+		c.battle = role;
+		c.emergency = role; // the deck bills use the same organisation at the record level
+	}
+}
+
+// The watch in force, for the read. Alpha 0800-1600, beta 1600-2400, gamma 0000-0800.
+static const char *WatchNameOf(int w)
+{
+	static const char *const N[WATCHES] = { "ALPHA", "BETA", "GAMMA" };
+	return w >= 0 && w < WATCHES ? N[w] : "?";
+}
+
+int EngineerOfTheWatch(const Ship &s)
+{
+	int best = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT || c.brigged || c.away || c.dept != DEPT_ENGINEERING) continue;
+		if (c.activity != ACT_ON_DUTY) continue;
+		if (best < 0 || c.rank > s.crew[best].rank) best = i;
+	}
+	return best;
+}
+
+int OfficerOfTheDeck(const Ship &s)
+{
+	// The watch bill's bridge watch officer: a lieutenant or a lieutenant commander, on duty, of the
+	// bridge's own department. The captain and the first officer command the ship, not the deck, so
+	// they are not picked while anyone junior can hold it; a lieutenant holds the deck while a
+	// lieutenant commander sleeps.
+	int best = -1;
+	auto better = [&](int i) {
+		if (best < 0) return true;
+		const uint8_t a = s.crew[i].rank, b = s.crew[best].rank;
+		if (a != b) return a > b;
+		return s.crew[i].dept == DEPT_COMMAND && s.crew[best].dept != DEPT_COMMAND;
+	};
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT || c.brigged || c.away) continue;
+		if (c.activity != ACT_ON_DUTY) continue;
+		if (c.rank < 3 || c.rank > 4) continue;
+		if (c.dept != DEPT_COMMAND) continue;
+		if (better(i)) best = i;
+	}
+	if (best < 0)
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+			const CrewMember &c = s.crew[i];
+			if (c.status != CREW_FIT || c.brigged || c.away || c.activity != ACT_ON_DUTY) continue;
+			if (c.rank < 3 || c.rank > 5) continue;
+			if (better(i)) best = i;
+		}
+	return best;
+}
+
+const char *OodRefusal(const Ship &s, int ood, int other)
+{
+	if (ood < 0 || ood >= static_cast<int>(s.crew.size())) return "no officer of the deck is on watch";
+	const CrewMember &o = s.crew[ood];
+	if (o.status != CREW_FIT || o.brigged) return "the officer of the deck is not on watch";
+	if (other < 0 || other >= static_cast<int>(s.crew.size())) return "there is no one there to order";
+	if (other == ood) return "the officer of the deck does not order themselves";
+	const CrewMember &t = s.crew[other];
+	if (t.status == CREW_DEAD || t.status == CREW_ASSIMILATED) return "there is no one there to order";
+	if (t.rank >= 6) return "the captain is not the deck's to order";
+	return "";
+}
+
+bool OodMayOrder(const Ship &s, int ood, int other) { return OodRefusal(s, ood, other)[0] == '\0'; }
+
+static std::string BillAuthor(const Ship &s, int by)
+{
+	if (by >= 0 && by < static_cast<int>(s.crew.size())) return s.crew[by].name;
+	return CommandingOfficer(s);
+}
+
+bool CallBattleStations(Ship &s, int by)
+{
+	if (s.battleStations) return false;
+	s.battleStations = true;
+	s.battleCalledBy = by;
+	s.battleAt = s.clock;
+	SetAlert(s, ALERT_RED); // general quarters is the condition red (canon: code-blue stations)
+	LogEvent(s, BillAuthor(s, by), "bridge", "battle stations: all hands to their battle stations");
+	return true;
+}
+
+bool StandDownBattleStations(Ship &s, int by)
+{
+	if (!s.battleStations) return false;
+	s.battleStations = false;
+	SetAlert(s, ALERT_GREEN);
+	LogEvent(s, BillAuthor(s, by), "bridge", "battle stations stood down; the watch returns to the routine");
+	return true;
+}
+
+bool BattleStations(const Ship &s) { return s.battleStations; }
+int BattleCalledBy(const Ship &s) { return s.battleCalledBy; }
+
+bool CallEmergency(Ship &s, uint8_t kind, int deck, int by)
+{
+	if (kind <= EMERG_NONE || kind >= EMERG_COUNT) return false;
+	if (kind != EMERG_ABANDON && (deck < 1 || deck > DECKS)) return false;
+	s.emergency = kind;
+	s.emergencyDeck = kind == EMERG_ABANDON ? 0 : static_cast<uint8_t>(deck);
+	s.emergencyCalledBy = by;
+	s.emergencyAt = s.clock;
+	std::string what, scope;
+	switch (kind) {
+	case EMERG_FIRE: what = "the fire bill is called on deck " + std::to_string(deck); scope = "hull"; break;
+	case EMERG_DECOMPRESSION: what = "the decompression bill is called on deck " + std::to_string(deck); scope = "hull"; break;
+	case EMERG_INTRUDER: what = "the intruder bill is called on deck " + std::to_string(deck); scope = "security"; break;
+	default:
+		what = "abandon ship: all hands to their lifeboat stations, " + std::to_string(ShuttlesInBay(s)) + " shuttle(s) in the bay";
+		scope = "command";
+		break;
+	}
+	LogEvent(s, BillAuthor(s, by), scope, what);
+	return true;
+}
+
+bool StandDownEmergency(Ship &s, int by)
+{
+	if (s.emergency == EMERG_NONE) return false;
+	const std::string was = EmergencyKindName(s.emergency);
+	s.emergency = EMERG_NONE;
+	s.emergencyDeck = 0;
+	LogEvent(s, BillAuthor(s, by), "bridge", "the " + was + " bill is stood down");
+	return true;
+}
+
+uint8_t Emergency(const Ship &s) { return s.emergency; }
+int EmergencyDeck(const Ship &s) { return s.emergencyDeck; }
+int EmergencyCalledBy(const Ship &s) { return s.emergencyCalledBy; }
+
+std::string WatchBillLine(const Ship &s)
+{
+	const int w = s.Watch();
+	int onDuty = 0, atPost = 0, off = 0;
+	for (const CrewMember &c : s.crew) {
+		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) continue;
+		if (c.activity == ACT_ON_DUTY) { ++onDuty; if (c.post < SYS_COUNT) ++atPost; }
+		else if (c.activity != ACT_PERSONAL && c.activity != ACT_MEAL && c.activity != ACT_RECREATION) ++off;
+	}
+	const int start = (8 + 8 * w) % 24, end = (start + 8) % 24;
+	char buf[160];
+	std::snprintf(buf, sizeof(buf), "%s WATCH %04d-%04d: %d on duty, %d at a post, %d off watch",
+		WatchNameOf(w), start * 100, end * 100, onDuty, atPost, off);
+	return buf;
+}
+
+std::string BattleBillLine(const Ship &s)
+{
+	int n[ROLE_COUNT] = {0};
+	for (const CrewMember &c : s.crew)
+		if (c.status == CREW_FIT) ++n[c.battle < ROLE_COUNT ? c.battle : 0];
+	std::string out;
+	for (int r = 0; r < ROLE_COUNT; ++r) {
+		if (!n[r]) continue;
+		if (!out.empty()) out += "; ";
+		out += std::string(BillRoleName(r)) + " " + std::to_string(n[r]);
+	}
+	return out;
+}
+
+std::string EmergencyBillLine(const Ship &s)
+{
+	if (s.emergency == EMERG_NONE)
+		return "no emergency bill is called";
+	if (s.emergency == EMERG_ABANDON)
+		return "abandon ship: all hands muster at the shuttlebay";
+	const std::string deck = std::to_string(s.emergencyDeck);
+	if (s.emergency == EMERG_FIRE)
+		return "the fire bill: damage control fights it on deck " + deck + "; everyone else leaves the deck";
+	if (s.emergency == EMERG_DECOMPRESSION)
+		return "the decompression bill: the deck " + deck + " is cleared and the seal party goes to it";
+	return "the intruder bill: security goes to deck " + deck + " and everyone else clears it";
+}
+
+int BillHoles(const Ship &s, std::string *out)
+{
+	// "The holes are the game" (docs/crew-manifest.md): a post with one qualified holder, and a
+	// station no living crew member can fill. Read for the watch in force, so the thin night watch
+	// shows as what it is.
+	int holes = 0;
+	std::string line;
+	const int w = s.Watch();
+	for (int id = 0; id < SYS_COUNT; ++id) {
+		int aboard = 0, onWatch = 0, sole = -1;
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+			const CrewMember &c = s.crew[i];
+			if (c.status != CREW_FIT || c.post != id) continue;
+			++aboard;
+			sole = i;
+			if (c.watch == w) ++onWatch;
+		}
+		const int need = SPECS[id].crewNeeded;
+		if (need <= 0) continue; // a system with no dedicated hands is not a hole
+		if (aboard == 0) {
+			++holes;
+			line += std::string(SPECS[id].name) + " has no hand aboard; ";
+		} else if (aboard == 1) {
+			++holes;
+			line += std::string(SPECS[id].name) + " rests on one hand (" + s.crew[sole].name + "); ";
+		} else if (need > 1 && onWatch < need) {
+			++holes;
+			line += std::string(SPECS[id].name) + " has " + std::to_string(onWatch) + " of "
+				+ std::to_string(need) + " hands on this watch; ";
+		}
+	}
+	if (out) *out = line;
+	return holes;
+}
+
 // A hijacked system refuses its console. Power can still be cut at the source (SetSourceOnline),
 // and the system can still be shot (DamageSystem): both are ways of denying it to the boarders.
 void SetEnabled(Ship &s, SystemId id, bool on)
@@ -8373,6 +8677,15 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(static_cast<uint8_t>(s.sectorNumber)); w.U8(s.reachedEnd ? 1 : 0); w.U8(s.won ? 1 : 0);
 	w.U16(static_cast<uint16_t>(s.refugees));
 	w.F(s.pylonHealth); w.U8(s.mobileEmitter ? 1 : 0); w.F(s.resentment); w.U8(s.airponics ? 1 : 0); w.F(s.borgAwareness);
+	// The bills (docs/crew-manifest.md): battle stations and one emergency bill, each with who
+	// called it and when. Placed after the fixed state so the earlier offsets are unchanged.
+	w.U8(s.battleStations ? 1 : 0);
+	w.U16(static_cast<uint16_t>(s.battleCalledBy + 1));
+	w.U64(static_cast<uint64_t>(std::llround(s.battleAt * 1000.0)));
+	w.U8(s.emergency);
+	w.U8(s.emergencyDeck);
+	w.U16(static_cast<uint16_t>(s.emergencyCalledBy + 1));
+	w.U64(static_cast<uint64_t>(std::llround(s.emergencyAt * 1000.0)));
 	// Names, types, departments and stations come back from the seed; only what changes is stored.
 	// A transporter copy is the exception: it is a new record beyond the complement, so its name and
 	// type have no seed to come back from and are stored.
@@ -8385,6 +8698,8 @@ std::vector<uint8_t> Pack(const Ship &s)
 			for (size_t k = 0; k < c.type.size() && k < 31; ++k) w.U8(static_cast<uint8_t>(c.type[k]));
 		}
 		w.U8(c.status); w.U8(c.rank); w.F(c.fatigue); w.U8(c.watch); w.U8(c.post); w.F(c.exposure); w.F(c.recovery); w.F(c.wounds); w.F(c.assimScar); w.F(c.severity);
+		// The bills (docs/crew-manifest.md): this record's battle station and emergency assignment.
+		w.U8(c.battle); w.U8(c.emergency);
 		w.U8(c.away ? 1 : 0); w.U8(c.credentials); w.U8(c.faction); w.U8(c.brigged ? 1 : 0); w.F(c.quartersQuality); w.F(c.holoCompulsion); w.U8(c.quartersSealed ? 1 : 0);
 		const int mem = std::min(static_cast<int>(c.memories.size()), MEMORY_MAX);
 		w.U8(static_cast<uint8_t>(mem));
@@ -8764,6 +9079,22 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	s.refugees = r.U16();
 	if (s.refugees > 100000) return false;
 	s.pylonHealth = r.Unit(); s.mobileEmitter = r.U8() != 0; s.resentment = r.Unit(); s.airponics = r.U8() != 0; s.borgAwareness = r.Unit();
+	// The bills (docs/crew-manifest.md).
+	s.battleStations = r.U8() != 0;
+	const uint16_t battleBy = r.U16();
+	s.battleAt = static_cast<double>(r.U64()) / 1000.0;
+	const uint8_t emergency = r.U8();
+	const uint8_t emergencyDeck = r.U8();
+	const uint16_t emergencyBy = r.U16();
+	s.emergencyAt = static_cast<double>(r.U64()) / 1000.0;
+	if (emergency >= EMERG_COUNT || emergencyDeck > DECKS) return false;
+	if (emergency == EMERG_ABANDON && emergencyDeck != 0) return false;
+	if (emergency != EMERG_NONE && emergency != EMERG_ABANDON && emergencyDeck < 1) return false;
+	s.emergency = emergency; s.emergencyDeck = emergencyDeck;
+	s.battleCalledBy = static_cast<int>(battleBy) - 1;
+	s.emergencyCalledBy = static_cast<int>(emergencyBy) - 1;
+	if (s.battleCalledBy < -1 || s.battleCalledBy >= static_cast<int>(count)) return false;
+	if (s.emergencyCalledBy < -1 || s.emergencyCalledBy >= static_cast<int>(count)) return false;
 	for (size_t i = 0; i < count; ++i) {
 		if (i >= s.crew.size()) {
 			// A transporter copy: its name and type came from no seed, so they are in the record.
@@ -8786,6 +9117,10 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		c.wounds = r.Unit();
 		c.assimScar = r.Unit();
 		c.severity = r.Unit();
+		// The bills (docs/crew-manifest.md): this record's battle station and emergency assignment.
+		c.battle = r.U8();
+		c.emergency = r.U8();
+		if (c.battle >= ROLE_COUNT || c.emergency >= ROLE_COUNT) return false;
 		c.away = r.U8() != 0;
 		c.credentials = r.U8();
 		c.faction = r.U8();
