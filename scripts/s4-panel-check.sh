@@ -34,5 +34,11 @@ grep -h 'SHIP: panel test' "$HOME_DIR/s4-panel.out" | sed 's/^EFSP: /    /' || t
 grep -q 'SHIP: panel test: standing on deck 6' "$HOME_DIR/s4-panel.out" \
   || fail "the harness did not reach the status screen (see $HOME_DIR/s4-panel.out)"
 [ -f "$SHOT" ] || fail "no screenshot of the panel"
+# The picture, not the path (tools/frames/frame.py; its limits in its header: a floor proves the
+# frame is legible, not that it is the right surface -- the owner judges that). The panel case
+# drives no state change, so no reference frame for a difference exists; the floor is what its
+# frame can carry. The behavioural half (the harness reached the screen) is the log line above.
+python3 "$ROOT/tools/frames/frame.py" floor --min-median 0 --min-p90 80 --min-spread 40 --require "$SHOT" \
+  || fail "the panel frame is dark or uniform: the status screen does not read"
 echo "PASS  the ship's live state is painted onto the panel surface"
 echo "      screenshot: $SHOT"

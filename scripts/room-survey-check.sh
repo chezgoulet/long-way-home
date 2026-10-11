@@ -10,7 +10,7 @@
 # own point and turned to four facings, and ten of those frames measured dark while the same room read
 # from another facing. That is a *post* problem, so this pass gives every room one post -- a position
 # and a facing -- the meeting would use, and this check asserts it: the frame each post produces
-# (g_shipTest 97, screenshots/lwh_roompost_<room>.tga) is measured with tools/meetings/legibility.py,
+# (g_shipTest 97, screenshots/lwh_roompost_<room>.tga) is measured with tools/frames/frame.py,
 # and a post that measures dark **fails and names the room**. A survey that prints a dark frame and
 # passes is the defect this whole line of work came out of.
 #
@@ -76,13 +76,13 @@ echo "==> the verdicts (the middle band of each frame; legible = a visible room 
 for room in $POSTS; do
     f="$GAME_DIR/screenshots/lwh_roompost_${room}.tga"
     [ -f "$f" ] || fail "no frame of the $room post"
-    python3 "$ROOT/tools/meetings/legibility.py" "$f"
+    python3 "$ROOT/tools/frames/frame.py" floor --band 0.10,0.55 "$f"
 done
 
 echo
 echo "==> every meeting room's post must read (the assertion this pass adds)"
 for room in $POSTS; do
-    python3 "$ROOT/tools/meetings/legibility.py" --require-legible \
+    python3 "$ROOT/tools/frames/frame.py" floor --band 0.10,0.55 --require \
         "$GAME_DIR/screenshots/lwh_roompost_${room}.tga" >/dev/null \
         || fail "the $room post renders dark -- the room a meeting would use has no legible post"
 done

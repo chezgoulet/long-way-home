@@ -29,7 +29,8 @@ SHOTR="$GAME_DIR/screenshots/lwh_computer_refused.tga"
 [ -d "$ROOT/build/baseEF" ] || { echo "no game data at build/baseEF -- run scripts/playtest-host-setup.sh" >&2; exit 1; }
 command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; }
 mkdir -p "$OUT" "$GAME_DIR/screenshots"
-rm -f "${OUT:?}/computer.txt" "${SHOT:?}" "${SHOTS:?}" "${SHOTR:?}"
+rm -f "${OUT:?}/computer.txt" "${SHOT:?}" "${SHOTS:?}" "${SHOTR:?}" \
+      "${GAME_DIR:?}/screenshots/lwh_computer_closed.tga"
 rm -rf "$GAME_DIR/ship/meetings"
 
 find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
@@ -119,6 +120,14 @@ grep -q 'computer test: addressed [1-9][0-9]* time(s), inference calls=0; nothin
   || fail "the computer has a second UI file"
 
 [ -f "$SHOT" ] || fail "no screenshot of the computer on the meeting overlay"
+[ -f "$GAME_DIR/screenshots/lwh_computer_closed.tga" ] || fail "no before frame for the overlay assertion"
+# The picture, not the path: the frame must differ from a frame taken at the same vantage before
+# the change, in the region the claim lives in. (tools/frames/frame.py; its limits in its header:
+# a difference proves the region *changed*, not that it changed into the thing meant -- the owner
+# judges that. A frame that does not differ is the defect an existence check cannot see.)
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_computer_closed.tga" "$SHOT" \
+  || fail "the overlay frame is unchanged from the world: the computer's room did not open on screen"
 [ -f "$SHOTS" ] || fail "no screenshot of the session (three exchanges on the overlay)"
 [ -f "$SHOTR" ] || fail "no screenshot of the refusal on the meeting overlay"
 echo "PASS  the computer is a session on the meeting's own overlay: three exchanges in one sitting with the"

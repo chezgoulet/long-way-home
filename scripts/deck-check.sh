@@ -36,5 +36,10 @@ grep -h "^SHIP: deck $DECK blockout" "$HOME_DIR/deck$DECK.out" | sed 's/^SHIP: /
 grep -q "^SHIP: deck $DECK blockout: standing at " "$HOME_DIR/deck$DECK.out" || fail "the player did not reach deck $DECK on the merged ship"
 grep -q 'in solid' "$HOME_DIR/deck$DECK.out" && fail "a waypoint is in solid on deck $DECK"
 [ -f "$SHOT" ] || fail "no screenshot of the deck $DECK blockout"
+# The picture, not the path: the frame must carry a lit, structured picture -- a black frame or a
+# flat fill is the defect an existence check cannot see. (tools/frames/frame.py, its limits in its
+# header: this proves the picture is legible, not that it is the right room. The owner judges that.)
+python3 "$ROOT/tools/frames/frame.py" floor --min-median 0 --min-p90 80 --min-spread 40 --require "$SHOT" \
+  || fail "the deck $DECK blockout frame is dark or uniform: the photograph does not read as a deck"
 echo "PASS  the deck $DECK blockout loads, is reachable on foot, and is photographed for approval"
 echo "      screenshot: $SHOT"

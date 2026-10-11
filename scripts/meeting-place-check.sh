@@ -80,7 +80,7 @@ grep -q '^SHIP: meeting place: present .* (security)' "$HOME_DIR/meeting-place.o
 # the lights are not counted -- so this check can fail for the reason the ruling is about. The cause
 # and the fix are in docs/evidence/the-dark-room.md.
 echo "==> the room is legible (measured, not counted)"
-python3 "$ROOT/tools/meetings/legibility.py" --require-legible "$SHOT_A" \
+python3 "$ROOT/tools/frames/frame.py" floor --band 0.10,0.55 --require "$SHOT_A" \
   || fail "the meeting room renders dark: the room the security matter meets in is not legible"
 echo "PASS  every kind of meeting has a room; a command decision named the briefing room and a security"
 echo "      matter the security office with the chief present; the room was on the brief before the"

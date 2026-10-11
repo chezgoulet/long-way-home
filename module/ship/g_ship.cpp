@@ -1371,6 +1371,7 @@ void RunTest( void )
 	if ( g_shipTest->integer == 3 )
 	{//operate the Engineering console the way a hand would, a step at a time, then photograph it
 		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 2600, "screenshot lwh_engineering_closed\n" },                    // the world, before the console
 			{ 3000, "ui_lwh_engineering\n" },
 			{ 3500, "lwh_eng_key 3\n" },                                        // condition red
 			{ 4000, "lwh_eng_key down\n" }, { 4200, "lwh_eng_key down\n" },     // to the third system
@@ -1398,6 +1399,7 @@ void RunTest( void )
 	{//the allocation console (docs/power-assignment.md, Task B): set a share by key, turn automatic
 	 //mode on and off, and photograph the FTL surface. Everything is a key a hand would press.
 		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 2600, "screenshot lwh_power_closed\n" },   // the world, before the console
 			{ 3000, "ui_lwh_engineering\n" },
 			{ 3600, "lwh_eng_key -\n" },   // the selected system (life support, first in the order) to 90%
 			{ 3900, "lwh_eng_key -\n" },   // ... and to 80%
@@ -2106,7 +2108,13 @@ void RunTest( void )
 	 //recipient's answer -- because whether being ordered reads as a moment rather than a menu is the
 	 //owner's to judge from the frame. The screen sends `ship order` commands; it writes no state.
 		static int step = 0;
-		if ( level.time < 1000 ) step = 0;
+		static int closed = 0;
+		if ( level.time < 1000 ) { step = 0; closed = 0; }
+		if ( step == 0 && level.time >= 1600 && !closed )
+		{
+			gi.SendConsoleCommand( "screenshot lwh_order_closed\n" );  // the world, before the overlay
+			closed = 1;
+		}
 		if ( step == 0 && level.time >= 2500 )
 		{
 			const int me = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
@@ -2327,7 +2335,13 @@ void RunTest( void )
 	 //Console commands execute after the current frame, so each send is read back on the next step.
 		static int step = 0;
 		static int junior = -1;
-		if ( level.time < 1000 ) step = 0;
+		static int closed = 0;
+		if ( level.time < 1000 ) { step = 0; closed = 0; }
+		if ( step == 0 && level.time >= 1600 && !closed )
+		{
+			gi.SendConsoleCommand( "screenshot lwh_computer_closed\n" );  // the world, before the overlay
+			closed = 1;
+		}
 		if ( step == 0 && level.time >= 2000 )
 		{
 			junior = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
@@ -2878,6 +2892,7 @@ void RunTest( void )
 	if ( g_shipTest->integer == 6 )
 	{//walk up to the Tactical panel as the retail game would have it opened, and operate it
 		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 2600, "screenshot lwh_tactical_closed\n" },  // the world, before the console opens
 			{ 3000, "ui_tactical\n" },            // the retail panel's own command
 			{ 3500, "lwh_eng_key 3\n" },          // condition red
 			{ 4500, "lwh_eng_key down\n" },       // second of Tactical's systems
@@ -3403,8 +3418,10 @@ void RunTest( void )
 	if ( g_shipTest->integer == 14 )
 	{//the other station panels open the working console, and Sickbay shows the medical state
 		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 2600, "screenshot lwh_ops_closed\n" },      // the world, before a console opens
 			{ 3000, "genericmenu transporter\n" },   // the transporter panel: worked from Operations
 			{ 4000, "screenshot lwh_ops\n" },
+			{ 4600, "screenshot lwh_sickbay_closed\n" },  // the world, before Sickbay opens
 			{ 5200, "ui_lwh_station 4\n" },          // the Sickbay console
 			{ 6400, "screenshot lwh_sickbay\n" },
 		};
@@ -3720,6 +3737,7 @@ void RunTest( void )
 	{//the panels that are not stations: the log terminal, the ready room and the personnel padd open
 		//the ship's own screens, driven by the command a map's interface fires
 		static const struct { int ms; const char *command; } STEPS[] = {
+			{ 2600, "screenshot lwh_nonstation_closed\n" },  // the world, before a panel opens
 			{ 3000, "genericmenu log7\n" },
 			{ 4200, "genericmenu readyroom\n" },
 			{ 5400, "genericmenu personnel\n" },
@@ -3926,6 +3944,7 @@ void RunTest( void )
 		// must ride the engine's own command buffer behind it; `wait` lets frames pass first.
 		static const struct { int ms; const char *command; } STEPS[] = {
 			{ 3000, "lwh_ui_turbolift\n" },        // what the UI's FS loads for the menu
+			{ 3400, "screenshot lwh_turbolift_closed\n" },  // the world, before the menu opens
 			{ 4000, "genericmenu turbolift\nwait 60\nscreenshot lwh_turbolift\nwait 20\nquit\n" },
 		};
 		static size_t step = 0;
@@ -4511,9 +4530,10 @@ void RunTest( void )
 		if ( level.time < 1000 ) step = 0;
 		if ( step == 0 && level.time >= 2000 ) { gi.SendConsoleCommand( "ship character Reyes 0 4\n" ); step = 1; }
 		if ( step == 1 && level.time >= 2600 ) { gi.SendConsoleCommand( "ship personal write I did not put this in the report\n" ); step = 2; }
-		if ( step == 2 && level.time >= 3200 ) { gi.SendConsoleCommand( "ui_lwh_log\n" ); step = 3; }
-		if ( step == 3 && level.time >= 3800 ) { gi.SendConsoleCommand( "screenshot lwh_log\n" ); gi.SendConsoleCommand( "ui_lwh_personal\n" ); step = 4; }
-		if ( step == 4 && level.time >= 4600 )
+		if ( step == 2 && level.time >= 3000 ) { gi.SendConsoleCommand( "screenshot lwh_personal_closed\n" ); step = 3; }
+		if ( step == 3 && level.time >= 3200 ) { gi.SendConsoleCommand( "ui_lwh_log\n" ); step = 4; }
+		if ( step == 4 && level.time >= 3800 ) { gi.SendConsoleCommand( "screenshot lwh_log\n" ); gi.SendConsoleCommand( "ui_lwh_personal\n" ); step = 5; }
+		if ( step == 5 && level.time >= 4600 )
 		{
 			const int me = vessel.player;
 			const int mine = me >= 0 ? static_cast<int>( ship::PersonalLog( vessel, me ).size() ) : 0;
@@ -4527,10 +4547,10 @@ void RunTest( void )
 			gi.Printf( "SHIP: personal test: another person's read has %d\n", theirs );
 			gi.Printf( "SHIP: personal test: the private screen reads \"%s\" for %s\n",
 				gi.cvar( "lwh_ship_personal", "", 0 )->string, gi.cvar( "lwh_ship_personal_who", "", 0 )->string );
-			step = 5;
+			step = 6;
 		}
-		if ( step == 5 && level.time >= 5200 ) { gi.SendConsoleCommand( "screenshot lwh_personal\n" ); step = 6; }
-		if ( step == 6 && level.time >= 6000 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
+		if ( step == 6 && level.time >= 5200 ) { gi.SendConsoleCommand( "screenshot lwh_personal\n" ); step = 7; }
+		if ( step == 7 && level.time >= 6000 ) { gi.SendConsoleCommand( "quit\n" ); step = 8; }
 		return;
 	}
 	if ( g_shipTest->integer == 66 )

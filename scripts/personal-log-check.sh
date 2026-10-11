@@ -21,6 +21,7 @@ command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; 
 fail() { echo "FAIL  $1"; exit 1; }
 pass() { echo "PASS  $1"; }
 
+rm -f "${SHOT:?}" "${GAME_DIR:?}/screenshots/lwh_personal_closed.tga"
 find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
 echo "==> the personal log screen"
 SDL_AUDIODRIVER=dummy timeout 180 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
@@ -45,6 +46,14 @@ grep -q "personal test: another person's read has 0" "$OUT" \
 pass "no other person's read returns it -- the visibility rule is the model's, not the screen's"
 
 [ -f "$SHOT" ] || fail "no screenshot of the personal log screen"
+[ -f "$GAME_DIR/screenshots/lwh_personal_closed.tga" ] || fail "no before frame for the screen assertion"
+# The picture, not the path: the frame must differ from a frame taken at the same vantage before
+# the change, in the region the claim lives in. (tools/frames/frame.py; its limits in its header:
+# a difference proves the region *changed*, not that it changed into the thing meant -- the owner
+# judges that. A frame that does not differ is the defect an existence check cannot see.)
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_personal_closed.tga" "$SHOT" \
+  || fail "the personal frame is unchanged from the world: the personal log did not open on screen"
 echo "      screenshot: $SHOT"
 echo
 echo "PASS  the personal log screen exists, is private, and reads only its owner's store"

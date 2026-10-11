@@ -85,7 +85,7 @@ grep -q 'beacon test: hail by key wrote to the log: yes' "$HOME_DIR/every-screen
   || fail "the hail key at Operations did not reach the ship"
 pass "the beacon's choices are keys on Operations now, and the hail reaches the ship"
 
-# ---- the rendered screens, photographed -------------------------------------------------------
+# ---- the rendered screens, photographed, and measured -----------------------------------------
 echo
 echo "==> the rendered screens"
 for shot in lwh_report_locked lwh_report lwh_jobs_locked lwh_jobs lwh_chart lwh_survey lwh_ops_beacon; do
@@ -93,6 +93,26 @@ for shot in lwh_report_locked lwh_report lwh_jobs_locked lwh_jobs lwh_chart lwh_
   echo "      $GAME_DIR/screenshots/$shot.tga"
 done
 pass "every new screen was rendered and photographed"
+
+# The picture, not the path (tools/frames/frame.py; its limits in its header: a difference proves
+# the region *changed*, not that it changed into the thing meant -- the owner judges that, and a
+# frame that does not differ is the defect an existence check cannot see).
+# The two-lock changes the same screen's content: the locked frame and the open frame must differ.
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.02 --require \
+  "$GAME_DIR/screenshots/lwh_report_locked.tga" "$GAME_DIR/screenshots/lwh_report.tga" \
+  || fail "the report frame does not differ from the locked one: nothing on the screen changed"
+# The board opens in place of the report, and each screen replaces the last: the report, the jobs
+# board, the chart, the survey and the beacon's Operations console.
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.02 --require \
+  "$GAME_DIR/screenshots/lwh_report.tga" "$GAME_DIR/screenshots/lwh_jobs.tga" \
+  || fail "the jobs frame is unchanged from the report: the board did not open on screen"
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_chart.tga" "$GAME_DIR/screenshots/lwh_survey.tga" \
+  || fail "the survey frame is unchanged from the chart: the survey did not open on screen"
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_survey.tga" "$GAME_DIR/screenshots/lwh_ops_beacon.tga" \
+  || fail "the Operations frame is unchanged from the survey: the beacon's choices did not open on screen"
+pass "the screens' own pixels carry the change: the two-lock and each screen against the last"
 
 # ---- contrast and rendered type height, measured against what each colour sits on -------------
 echo

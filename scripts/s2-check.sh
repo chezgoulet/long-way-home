@@ -32,7 +32,7 @@ OUT="$GAME_DIR/ship"
 command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; }
 mkdir -p "$OUT" "$GAME_DIR/saves"
 rm -f "${OUT:?}/acted.txt" "${OUT:?}/restored.txt" "${OUT:?}/operated.txt" "${GAME_DIR:?}/saves/shiprun.sav" \
-      "${GAME_DIR:?}/screenshots/lwh_engineering.tga"
+      "${GAME_DIR:?}/screenshots/lwh_engineering.tga" "${GAME_DIR:?}/screenshots/lwh_engineering_closed.tga"
 
 engine() {
   local label="$1"; shift
@@ -74,6 +74,14 @@ grep -q '^SHIP: life support priority 2, structural integrity priority 1' "$HOME
   || fail "the console's priority key did not demote the selected system by one place"
 grep -q 'structural integrity .* power  80/ 80' "$OUT/operated.txt" || fail "structural integrity lost power"
 [ -f "$GAME_DIR/screenshots/lwh_engineering.tga" ] || fail "no screenshot of the console"
+[ -f "$GAME_DIR/screenshots/lwh_engineering_closed.tga" ] || fail "no before frame for the console assertion"
+# The picture, not the path: the frame must differ from a frame taken at the same vantage before
+# the change, in the region the claim lives in. (tools/frames/frame.py; its limits in its header:
+# a difference proves the region *changed*, not that it changed into the thing meant -- the owner
+# judges that. A frame that does not differ is the defect an existence check cannot see.)
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_engineering_closed.tga" "$GAME_DIR/screenshots/lwh_engineering.tga" \
+  || fail "the console frame is unchanged from the world: the Engineering console did not open on screen"
 echo "PASS  the Engineering console, operated key by key with the game running, changed the ship"
 echo "      screenshot: $GAME_DIR/screenshots/lwh_engineering.tga"
 echo

@@ -36,5 +36,10 @@ grep -h '^SHIP: deck 12 room' "$HOME_DIR/deck12.out" | sed 's/^SHIP: /    /' || 
 grep -q '^SHIP: deck 12 room: standing at ' "$HOME_DIR/deck12.out" || fail "the player did not reach deck 12 on the merged ship"
 grep -q 'in solid' "$HOME_DIR/deck12.out" && fail "a waypoint is in solid on deck 12"
 [ -f "$SHOT" ] || fail "no screenshot of the deck 12 re-dress"
+# The picture, not the path: the frame must carry a lit, structured picture -- a black frame or a
+# flat fill is the defect an existence check cannot see. (tools/frames/frame.py, its limits in its
+# header: this proves the picture is legible, not that it is the right room. The owner judges that.)
+python3 "$ROOT/tools/frames/frame.py" floor --min-median 0 --min-p90 80 --min-spread 40 --require "$SHOT" \
+  || fail "the deck 12 frame is dark or uniform: the re-dress does not read as a deck"
 echo "PASS  the deck 12 re-dress loads, is reachable on foot, and is photographed for the walkthrough"
 echo "      screenshot: $SHOT"
