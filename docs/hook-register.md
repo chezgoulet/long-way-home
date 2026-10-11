@@ -156,7 +156,7 @@ substance of the brief's point and stands.
 | `Unpack` | `const uint8_t *data, size_t len, Ship &s` | False, leaving `s` untouched, on a truncated, foreign or newer record | play | — | — |
 
 ### 2. Situations the simulation generates on its own  
-*74 hooks.*
+*87 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "74 hooks"; 87 rows follow.)*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -249,7 +249,7 @@ substance of the brief's point and stands.
 | `AddressComputer` | `const Ship &s, const std::string &input` | What the computer says to an input: membership in the ship's API (FindConsoleVerb); a recognised command answered from the authored line, an input outside the set refused in character ("that function is not available") with nothing invented and no state written | play | — | docs/staff-meetings.md |
 
 ### 3. Outcomes content can ask for  
-*54 hooks.*
+*56 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "54 hooks"; 56 rows follow.)*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -368,7 +368,7 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `BillHoles` | `const Ship &s, std::string *out` | the holes: posts with one holder, and stations no living crew member can fill | play | — | docs/crew-manifest.md |
 
 ### 4. Readers content can consult  
-*180 hooks.*
+*203 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "180 hooks"; 203 rows follow.)*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -669,11 +669,27 @@ reached from a play surface: the transfer's two edges and its five reads -- `Tak
 `HeldByCollective`, `CollectiveLog`, `CollectiveMarks`, `CollectiveOperates`, `CollectiveRefusal`,
 `CollectiveVoice` (docs/the-record-and-the-log.md). `TakeMind` is called by the Borg tick in the normal
 case and by a scenario directly; the reads are reached from the developer console (`ship collective`),
-whose verb is enumerated in `module/ship/console_api.def` and checked by `scripts/api-check.sh`. **The
-tables above are now 449 hooks, counted from the rows: 268 play / 146 console / 35 nothing.** (This is
-the row count, and it is corrected here in place: the dated paragraphs above count a smaller,
-differently split register and are left as their history.) Evidence:
+whose verb is enumerated in `module/ship/console_api.def` and checked by `scripts/api-check.sh`. Evidence:
 `docs/evidence/the-assimilation.md`.
+
+**Re-derived 2026-10-11, the count corrected in place (D6-27 / D6-28).** The paragraph directly above
+asserted *"the tables above are now 449 hooks, counted from the rows: 268 play / 146 console / 35 nothing"*.
+That was an under-count, and the table higher up (*398*) is staler still. The register's rows are **479**,
+derived as follows:
+
+- **by section** (counting the table rows under each heading) — entry points **75**, situations **87**,
+  outcomes **56**, orders (3b) **20**, the bills (3c) **20**, readers **203**, the configurator **18**;
+  **total 479**;
+- **by reachability** (`python3 tools/hooks/reach_report.py --detail`) — **276** reached in play, **152**
+  only from the developer console (console or harness), **51** by nothing yet (**42** reached only by the
+  tests and **9** by nothing at all).
+- `scripts/hooks-check.sh` independently fixes the row count at **479** against `ship_core.h`.
+
+**Nine** hooks have no caller anywhere, not six: `SpeciesCapability`, `SpeciesNeed`, `SpeciesSusceptibility`,
+`PromiseKindName`, `LogVisibilityName`, `MannerPurpose`, `BandGrantCount`, `OrderClassCount`,
+`OrderNeedName`. The by-group and by-reachability tables higher up are the 2026-10-08/10 snapshots and are
+left as their history, per this section's own convention. Evidence: this pass's
+`docs/evidence/the-doc-contradictions.md`.
 
 ### 5. The configurator — the player chooses the start state
 

@@ -46,9 +46,15 @@ result — not in the repository, not in an issue, not in a pull request, not in
 
 ## And what never changes
 
-**Nothing generated and nothing extracted enters the repository.** No game assets, no third-party images, no
-generated meshes or skins committed as content — the same rule the audio work already follows. The repository
-carries the mechanism and never the output; a clean clone plus a retail install remains the whole requirement.
+**No game assets, no third-party images, and no generated audio or meshes enter the repository as content.**
+No game assets, no third-party images, no generated meshes or skins committed as content — the same rule the
+audio work already follows. The repository carries the mechanism and never the output; a clean clone plus a
+retail install remains the whole requirement. *(**Corrected 2026-10-11 (C-20):** this paragraph led with
+"**Nothing generated and nothing extracted enters the repository.**", an absolute the repository does not keep —
+our own **rendering** `docs/art/lcars-meeting-overlay.png` is tracked and is referenced by
+`docs/staff-meetings.md`. The practice is sound: the image is **ours**, not a game asset and not a third-party
+image. The absolute was the wrong party, so it is narrowed to what is meant rather than the tracked file
+removed.)*
 
 ## Why this matters to the programme
 

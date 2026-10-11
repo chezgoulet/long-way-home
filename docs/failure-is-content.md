@@ -141,8 +141,15 @@ containment is back above half), `ship core eject` (the canon last resort — no
 and plain repair of the warp drive. Ignored past the countdown, the ship is **lost** — the one
 unwinnable end.
 
-Not built: each modelled system's three designed failure states (this covers the core; the other
-systems still fail one way), and the written consequence of every catastrophe in the crew records.
+**CORRECTED 2026-10-11 (C-22).** *This paragraph read:* "Not built: each modelled system's three designed
+failure states (this covers the core; the other systems still fail one way), and the written consequence of
+every catastrophe in the crew records." **The first clause is false, and this document already superseded it
+two subsections below:** *System failure states (2026-10-07)* records that every modelled system's three
+states are mechanised (`FailureStateOf` / `UpdateSystemStates` in `module/ship/ship_core.cpp`, `SystemState`
+in `module/ship/ship_core.h`, save format 40, `TestSystemStates`), and the acceptance line above takes it as
+done. **The paragraph's second clause — a written consequence for *every* catastrophe in the crew records — is
+not what C-22 covers, and is not claimed built here.** A reader who stopped at the old sentence was misled by
+the document's own history; the sentence is kept above as that history.
 
 ### System failure states (2026-10-07)
 

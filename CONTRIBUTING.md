@@ -76,9 +76,14 @@ Rules that keep this shape:
 - **New game logic lives behind the module boundary**, in a game module the engine loads — never in the
   engine. Anything placed in the engine is a delta we own forever and a rebase cost on every release.
 - **And it lives in `module/`, not in a patch.** Our own source files are compiled into the game module
-  from this repository (`-DLWH_MODULE_DIR`); the patch carries only the calls into them. The direction
-  layer is some 1,600 lines of ours and 51 added lines of delta. Keep that ratio: a new system gets a
-  directory here and, at most, another line in `lwh_hooks.h`.
+  from this repository (`-DLWH_MODULE_DIR`); the patch carries only the calls into them. The module is
+  **27,883** lines of ours (the crew direction layer, `module/crew/`, is **3,131**), and the attach-point
+  patch `patches/0005` carries **116** added lines. Keep that ratio: a new system gets a directory here and,
+  at most, another line in `lwh_hooks.h`. *(**Corrected 2026-10-11 (C-19):** this read "The direction layer
+  is some 1,600 lines of ours and 51 added lines of delta." Measured: `find module -name '*.cpp' -o -name
+  '*.h' | xargs wc -l` = 27,883 (`module/`), 3,131 (`module/crew/`); `git apply --numstat
+  patches/0005-direction-layer-hooks.patch` = 116 added, 1 removed. The `docs/engine-extension-policy.md`
+  figures are corrected with this one.)*
 - **Where the engine must change, ask upstream first.** The multiplayer programme's engine-level needs in
   particular belong to the projects maintaining those engines, so the maintenance is shared rather than
   duplicated.

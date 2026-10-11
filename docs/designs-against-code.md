@@ -42,6 +42,7 @@ worth quoting.
 - **Which side is wrong: the document.** Conflict 2 was never annotated, unlike conflict 1 beside it
   (`docs/story-and-semantics.md:123`), so a reader meets a false description of the record. The walkthrough's
   **G14** already calls conflict 2 closed; the conflict itself was not corrected.
+- **Disposition 2026-10-11:** corrected — `docs/story-and-semantics.md` conflict **2** is now marked RESOLVED 2026-10-11 (save 53): the single `float morale` is gone and `Morale(c)` reads the three components. <!-- register-row id=C-1 state=closed marker=symbol:module/ship/ship_core.h:Morale -->
 
 ### C-2 — The save format is quoted at a version it left two bumps ago
 
@@ -51,6 +52,7 @@ worth quoting.
 - **Which side is wrong: the document.** The moral claim it makes — the per-person `float` left the save — is
   true; the number is stale. `tools/docs/check_claims.py` polices only the claims registered in
   `tools/docs/owned_claims.json`, and this one is not among them.
+- **Disposition 2026-10-11:** corrected — `docs/morale.md` now says the save format is **59**. <!-- register-row id=C-2 state=closed marker=symbol:module/ship/ship_core.h:SAVE_VERSION -->
 
 ### C-3 — Sickbay's bed count is six in the ledger and four in the code
 
@@ -61,6 +63,7 @@ worth quoting.
   `docs/evidence/gap-triage-and-sickbay.md:34` tests *"exactly `SICKBAY_BEDS` under care"*.
 - **Which side is wrong: the ledger.** Four is the built and better-sourced number (the surgical bay is a
   separate constant); the ledger row is the outlier.
+- **Disposition 2026-10-11:** corrected — `docs/lore-ledger.md` now says sickbay is **4** (`SICKBAY_BEDS`). <!-- register-row id=C-3 state=closed marker=symbol:module/ship/ship_core.h:SICKBAY_BEDS -->
 
 ### C-4 — The sector's composition cannot be produced by the sector's own roll
 
@@ -74,6 +77,7 @@ worth quoting.
 - **Which side is wrong: the ledger**, as a description of the code. Either the divisor moves to `% 10` to
   honour the stated split, or the row is corrected to the roll. The evidence does not say which was intended,
   so the *fix* is a fork — but the number as written is not what the game does.
+- **Disposition 2026-10-11:** corrected to what the game does — `docs/lore-ledger.md` now states the `% 15` roll and the four extra beacon kinds; **the design fork is handed to the code list** (move the divisor, or keep the roll). <!-- register-row id=C-4 state=closed marker=symbol:module/ship/ship_core.cpp:BEACON_PREWARP -->
 
 ### C-5 — "Each recomposition costs her a fifteenth" — it costs 15 per cent, not a fifteenth
 
@@ -84,6 +88,7 @@ worth quoting.
   Part five states the constant as `0.15` (`docs/budget-squaring.md:298`).
 - **Which side is wrong: the document's prose** (a "15 per cent" slip), and it contradicts the same document's
   table twenty lines above.
+- **Disposition 2026-10-11:** corrected — `docs/budget-squaring.md` now says **15 per cent**, not a fifteenth. <!-- register-row id=C-5 state=closed marker=symbol:module/ship/ship_core.h:RECOMPOSITE_CEILING_DROP -->
 
 ### C-6 — "Eighteen systems" is the shape before the five the owner added
 
@@ -94,6 +99,7 @@ worth quoting.
   (`SPECS[]` in `module/ship/ship_core.cpp:36-64`).
 - **Which side is wrong: the walkthrough's route stops.** The gap list's **G12** records the addition; the
   body was not brought with it.
+- **Disposition 2026-10-11:** corrected — `docs/walkthrough.md` now says **23** systems. <!-- register-row id=C-6 state=closed marker=symbol:module/ship/ship_core.h:SYS_COUNT -->
 
 ### C-7 — "There is no nominal-against-current power display" — there is
 
@@ -104,6 +110,7 @@ worth quoting.
   vessel.PowerCapacityNow()`; `module/ship/ship_core.h:2123-2124` declares both.
 - **Which side is wrong: the walkthrough's route stop.** Its own **G12** row is marked CLOSED and names this
   exact proof.
+- **Disposition 2026-10-11:** corrected — `docs/walkthrough.md` now records the fresh-against-now display as built. <!-- register-row id=C-7 state=closed marker=symbol:module/ship/ship_core.h:PowerCapacityFresh -->
 
 ### C-8 — "There is no way to start Long Way Home from the game's menus" — there is
 
@@ -115,6 +122,7 @@ worth quoting.
   2026-10-08.
 - **Which side is wrong: the walkthrough's route stop.** Its own **G1** row is CLOSED and names
   `configs/lwh-start.cfg` as the proof.
+- **Disposition 2026-10-11:** corrected — `docs/walkthrough.md` §1 now records the menu line (G1 CLOSED). <!-- register-row id=C-8 state=closed marker=file:configs/lwh-start.cfg -->
 
 ### C-9 — "No labs, no astrometrics, no lighting, no cargo loads" — all four are loads now
 
@@ -127,6 +135,7 @@ worth quoting.
   (`module/ship/ship_core.h:183-184`), proved by `scripts/air-check.sh`.
 - **Which side is wrong: the walkthrough's route stop** (its G12 row already corrects it). The one thing the
   code does *not* do is per-*compartment* atmosphere, which is the separate, ruled **C4** question.
+- **Disposition 2026-10-11:** corrected — `docs/walkthrough.md`'s deck-11 stop and G12's finding text now record the five loads and the independent air feed. <!-- register-row id=C-9 state=closed marker=check:scripts/air-check.sh -->
 
 ### C-10 — "The crew's manner … still open" — the manner is built
 
@@ -136,6 +145,7 @@ worth quoting.
   (`module/ship/ship_core.h:1166`), save-safe (`TestMannerDeterminismAndSave`), and `scripts/manner-check.sh`
   passes and fails on a planted unwired state. The gate is `docs/gates.md` G14, ✅ built 2026-10-11.
 - **Which side is wrong: the walkthrough's body.** Its G14 row is CLOSED.
+- **Disposition 2026-10-11:** corrected — `docs/walkthrough.md` §6 and the completeness verdict now record the manner as built (G14 CLOSED). <!-- register-row id=C-10 state=closed marker=check:scripts/manner-check.sh -->
 
 ### C-11 — The officer of the deck's authority is documented, unit-tested, and wired to nothing
 
@@ -147,6 +157,7 @@ worth quoting.
 - **Which side is wrong: fork.** The predicate and its test are real; no decision consumes it, so the deck's
   documented authority cannot actually dispatch an order at a rank-3 lieutenant over a rank-4 commander. The
   code has the rule and does not use it — an `implemented` predicate that is `absent` as authority.
+- **Disposition 2026-10-11:** **handed to the code list** — a fork: `OodMayOrder`/`OodRefusal` exist and are unit-tested but no decision consumes them, so the deck's documented authority cannot dispatch an order. Decide the code (`DispatchOrder` should consult the OOD rule) or the document.
 
 ### C-12 — "Assigning a repair empties a station" — the repair party is stationless
 
@@ -158,6 +169,7 @@ worth quoting.
   `ORDER_SEE_TO` only sets a queue priority (`:10140`).
 - **Which side is wrong: fork.** The stationless party is the deliberate, commented design; two documents
   promise a cost the code does not charge.
+- **Disposition 2026-10-11:** **handed to the code list** — a fork: the stationless repair party is the deliberate, commented design, and two documents promise a cost the code does not charge.
 
 ### C-13 — Rumour is a provenance the enum declares and nothing writes
 
@@ -167,6 +179,7 @@ worth quoting.
   declares all four; a repository-wide search finds no writer of `MEM_RUMOUR` anywhere in `module/` or
   `tests/`.
 - **Which side is wrong: the code.** Half the promise is unimplemented and the enum is decoration for it.
+- **Disposition 2026-10-11:** **handed to the code list** — the code is the wrong side: `MEM_RUMOUR` is declared and nothing writes it.
 
 ### C-14 — Six shield sections and fourteen grids are one scalar
 
@@ -175,6 +188,7 @@ worth quoting.
 - **Code:** `module/ship/ship_core.h:1956` — `float shieldStrength = 1.0f;` — one number, used by the combat
   path (`module/ship/ship_core.cpp:3596-3597`). No section, no grid, no per-arc state.
 - **Which side is wrong: the code** (incomplete). The document is ahead of the build.
+- **Disposition 2026-10-11:** **handed to the code list** — the code is incomplete: one `shieldStrength` scalar, no sections or grids.
 
 ### C-15 — "At most twelve shots penetrate" vs a continuous adaptation ramp
 
@@ -185,6 +199,7 @@ worth quoting.
   no shot counter and no twelve-shot cap.
 - **Which side is wrong: fork.** If the twelve-shot number is the design it is unbuilt; if the ramp is, the
   document is stale.
+- **Disposition 2026-10-11:** **handed to the code list** — a fork: the canon twelve-shot counter against the continuous adaptation ramp.
 
 ### C-16 — "Ship-level failure is the Borg reaching the core" — the only loss is the core breach
 
@@ -194,6 +209,7 @@ worth quoting.
   (`module/ship/ship_core.cpp:6522`). There is no Borg-capture or self-destruct loss.
 - **Which side is wrong: superseded by `docs/endings.md:73`** — *"exactly one unwinnable end state, the core
   breach"* — which the code matches. The ship-systems sentence is the out-of-date side.
+- **Disposition 2026-10-11:** corrected — `docs/ship-systems.md` now records the core breach as the one loss, matching `docs/endings.md`. <!-- register-row id=C-16 state=closed marker=check:scripts/core-check.sh -->
 
 ### C-17 — "Crew cannot open doors" — they can, and the check proves it
 
@@ -202,6 +218,7 @@ worth quoting.
 - **Code:** `module/crew/g_crew.cpp:258` `OpenDoorFor`, gated by `LayerMayOpen` (`:248`), with
   `g_crewDoorOpen` defaulting to `1` (`:1954`), and `scripts/crew-door-check.sh` as the regression.
 - **Which side is wrong: the document** (a stale residual; the doors pass closed it).
+- **Disposition 2026-10-11:** corrected — `docs/ship-programme.md` now records the crew door handling as built. <!-- register-row id=C-17 state=closed marker=check:scripts/crew-door-check.sh -->
 
 ### C-18 — "Every engine extension is cvar-gated … saves must round-trip" — the ceiling patches do neither
 
@@ -216,6 +233,7 @@ worth quoting.
 - **Which side is wrong: the policy's absolute wording** (and its restatement in `AGENTS.md`). The patches
   are honest about the break; the rules say "every" and "must". The honest rule is the one the hook patches
   follow — *behaviour-changing hooks* are gated; a limit raise is not, and its save cost is stated.
+- **Disposition 2026-10-11:** corrected — `docs/engine-extension-policy.md` rules 3–4 are narrowed (a limit raise is not gated; the save cost is stated), and `AGENTS.md` is narrowed with them. <!-- register-row id=C-18 state=closed marker=file:patches/0018-entities-to-8192.patch -->
 
 ### C-19 — The module is thirty thousand lines, not three
 
@@ -225,6 +243,7 @@ worth quoting.
 - **Code:** `module/` is **27,883** lines of `.cpp`/`.h`; `patches/0005` is 325 lines of file with ~103 added
   lines. The two documents also disagree with each other by a factor of two.
 - **Which side is wrong: both documents** (the ratio argument still holds; the counts are stale).
+- **Disposition 2026-10-11:** corrected — `docs/engine-extension-policy.md` and `CONTRIBUTING.md` now carry the measured counts. <!-- register-row id=C-19 state=closed marker=file:patches/0005-direction-layer-hooks.patch -->
 
 ### C-20 — "Nothing generated … enters the repository" — a generated image is tracked
 
@@ -235,6 +254,7 @@ worth quoting.
 - **Which side is wrong: the document's absolute sentence.** The practice is sound — the image is our own
   rendering, not a game asset or a third-party image — but the sentence as written is false; it should be
   narrowed to game and third-party content.
+- **Disposition 2026-10-11:** corrected — `docs/asset-doctrine.md`'s absolute is narrowed to game and third-party content. <!-- register-row id=C-20 state=closed marker=file:docs/art/lcars-meeting-overlay.png -->
 
 ### C-21 — "Standing distance (24-64 units)" — the tool the document tells you to run uses 24-96
 
@@ -243,6 +263,7 @@ worth quoting.
   post generator (`docs/authoring-a-location.md:112`).
 - **Code:** `tools/posts/gen-posts.py:37` — `STANDING_MIN, STANDING_MAX = 24.0, 96.0`, applied at `:82`.
 - **Which side is wrong: fork.** The document and the instrument it mandates disagree on the threshold.
+- **Disposition 2026-10-11:** corrected to the tool — `docs/authoring-a-location.md` and `docs/location-brief-template.md` now say **24-96**, and name `tools/posts/gen-posts.py`. <!-- register-row id=C-21 state=closed marker=symbol:tools/posts/gen-posts.py:STANDING_MAX -->
 
 ### C-22 — "Not built: each modelled system's three designed failure states" — built two sections below
 
@@ -253,6 +274,7 @@ worth quoting.
   (`module/ship/ship_core.h:93`), save format 40, `TestSystemStates`.
 - **Which side is wrong: the stale sentence**, inside a section whose own dated subsection supersedes it. A
   reader who stops at line 145 is misled by the document's own history.
+- **Disposition 2026-10-11:** corrected — `docs/failure-is-content.md`'s stale 'not built' sentence is marked superseded by its own next subsection. <!-- register-row id=C-22 state=closed marker=symbol:module/ship/ship_core.h:SystemState -->
 
 ### C-23 — The failure roll uses the factors, not `EffectiveSkill`
 
@@ -264,6 +286,7 @@ worth quoting.
   through a parallel construction, not through `EffectiveSkill`.
 - **Which side is wrong: fork.** Both encode the same design; the document names a function the roll does not
   call, so the two can drift without either failing a test.
+- **Disposition 2026-10-11:** **handed to the code list** — a fork: the failure roll uses raw skills via `WorkFactors`, not `EffectiveSkill`; the document names a function the roll does not call.
 
 ---
 
@@ -365,7 +388,7 @@ Two things that table will not say by itself, and should:
 | 53 | "ironman is the game: one autosaved ship" (`ship-programme.md:30`) | implemented | `module/ship/g_ship.cpp:5334,5458`; `patches/0012` | |
 | 54 | "an engine-independent library a multiplayer server can host unchanged" (`ship-programme.md:32`) | implemented | `module/ship/ship_core.h:6-7` (std headers only) | |
 | 55 | "crew cannot open doors (found in G3)" (`ship-programme.md:76`) | contradicted | `module/crew/g_crew.cpp:258,1954` | **C-17** |
-| 56 | "Borg asset replacement … an engine capability that does not exist yet" (`ship-programme.md:79`) | contradicted | `module/ship/g_ship.cpp:5154` `BorgAssets`; `scripts/borg-deck-check.sh` | stale; the swap is built |
+| 56 | "Borg asset replacement … an engine capability that does not exist yet" (`ship-programme.md:79`) | contradicted | `module/ship/g_ship.cpp:5154` `BorgAssets`; `scripts/borg-deck-check.sh` | stale; the swap is built **Disposition 2026-10-11:** corrected — `docs/ship-programme.md` now records the Borg asset swap as built. <!-- register-row id=D1-56 state=closed marker=symbol:module/ship/g_ship.cpp:BorgAssets --> |
 | 57 | "four thousand teradynes per second" (`ship-systems.md:34`) | unverified | power is an invented EPS scale (`ship_core.h:10`) | the canon figure cannot appear |
 | 58 | "343 m, 700,000 t, 257 rooms" (`ship-systems.md:38`) | unverified | not in `ship_core`; no check | |
 | 59 | "47 million data channels … 47 spares" (`ship-systems.md:46`) | unverified | no code witness | |
@@ -394,7 +417,7 @@ Two things that table will not say by itself, and should:
 | 13 | "the five added systems and a demand of 1,730" (`budget-squaring.md:9`) | implemented | `module/ship/ship_core.cpp:53-63`; `SPECS` sums to 1730 | |
 | 14 | "warp core 1,400 … impulse 250, auxiliary 90, batteries 60, fresh 1,800" (`budget-squaring.md:9-11`) | implemented | `module/ship/ship_core.cpp:226-231`; `PowerCapacityFresh()==1800` | |
 | 15 | "the ceiling-scaled warp core; … the torpedo complement at 38" (`budget-squaring.md:11-12`) | implemented | `module/ship/ship_core.cpp:1910,3712,3719`; `ship_core.h:244` | |
-| 16 | "the number set below is the one in the code" (`budget-squaring.md:3`) | contradicted | Part two (`:106,136`) and Part 4a (`:207-211`) still carry 1,000/1,500/1,540 | **C-23** in the top section |
+| 16 | "the number set below is the one in the code" (`budget-squaring.md:3`) | contradicted | Part two (`:106,136`) and Part 4a (`:207-211`) still carry 1,000/1,500/1,540 | **C-23** in the top section **Disposition 2026-10-11:** corrected — `docs/budget-squaring.md`'s header, Parts two, three and four are now marked, so the implemented set is unambiguous. <!-- register-row id=D2-16 state=closed marker=symbol:module/ship/ship_core.h:SYS_CARGO_HANDLING --> |
 | 17 | "covered with sixty to spare" (`budget-squaring.md:147`) | superseded | `SOURCES` now 60/90/250; ten spare | Part five |
 | 18 | "lose the warp core and 500 EPS remain" (`budget-squaring.md:149-151`) | superseded | `module/ship/ship_core.cpp:1914-1921`; coreless slope 400 | |
 | 19 | "at priority 9 … the warp drive is the largest single load" (`budget-squaring.md:153-157`) | superseded | `module/ship/ship_core.cpp:47` warp drive `priority 4` | shed last |
@@ -431,8 +454,8 @@ Two things that table will not say by itself, and should:
 | # | claim (doc:line) | verdict | witness | note |
 |---|---|---|---|---|
 | 1 | rank / post / department are three separate fields (`crew-manifest.md:23-32`) | implemented | `module/ship/ship_core.h:499-502` | |
-| 2 | "the Doctor is a post without a rank … holds no Starfleet commission" (`crew-manifest.md:29-32`) | contradicted | `module/ship/ship_core.cpp:1093` gives rank 3 | **C-3** family; the code is the likely wrong side |
-| 3 | nine departments whose sizes add to 141 (`crew-manifest.md:52-71`) | contradicted | `DEPT_SIZE[5] = {20,50,25,30,16}` (`ship_core.cpp:241`) | fork: the nine-way split is not in code |
+| 2 | "the Doctor is a post without a rank … holds no Starfleet commission" (`crew-manifest.md:29-32`) | contradicted | `module/ship/ship_core.cpp:1093` gives rank 3 | **C-3** family; the code is the likely wrong side **Disposition 2026-10-11:** **handed to the code list** — the register's own reading: the code is the likely wrong side (the Doctor is given rank 3). |
+| 3 | nine departments whose sizes add to 141 (`crew-manifest.md:52-71`) | contradicted | `DEPT_SIZE[5] = {20,50,25,30,16}` (`ship_core.cpp:241`) | fork: the nine-way split is not in code **Disposition 2026-10-11:** **handed to the code list** — a fork: the nine-way department split is a proposal, not the code's five-way `DEPT_SIZE`. |
 | 4 | three 8-hour watches Alpha/Beta/Gamma (`crew-manifest.md:75-76`) | implemented | `module/ship/ship_core.h:25,501`; `ScheduledActivity` | hours exact |
 | 5 | "one post and a set of bill assignments" (`crew-manifest.md:105-107`) | implemented | `module/ship/ship_core.h:506-507`; `DeriveBills` `ship_core.cpp:6095` | |
 | 6 | battle stations; "almost nobody's battle station is their normal post" (`crew-manifest.md:109-112`) | implemented | `BattleRoleFor` `ship_core.cpp:6083`; `UpdateCrew:1558-1566` | |
@@ -449,10 +472,10 @@ Two things that table will not say by itself, and should:
 | 17 | drives in three parts (`crew-roster.md:41-46`) | implemented | `module/ship/ship_core.h:299-310` | |
 | 18 | "bonds … stored bidirectionally" (`crew-roster.md:51-52`) | superseded | `Holdings`/`Bond` fold (`ship_core.cpp:759,4772`) | the C2 ruling |
 | 19 | "the static record … lives in data files in the repository" (`crew-roster.md:88-92`) | superseded | `DeriveCharacter` `ship_core.cpp:1188,1210,9216` | seed-derived, not stored (`character-derivation.md:30-35`) |
-| 20 | "25 bytes per crew member" (`crew-roster.md:94`) | contradicted | `SAVE_MEMBER_BYTES=20` (`crew_core.h:220`); `g3-reactive-crew.md:157` says 20 | **C-4** family; also `docs/gates.md:197` |
+| 20 | "25 bytes per crew member" (`crew-roster.md:94`) | contradicted | `SAVE_MEMBER_BYTES=20` (`crew_core.h:220`); `g3-reactive-crew.md:157` says 20 | **C-4** family; also `docs/gates.md:197` **Disposition 2026-10-11:** **the evidence will not decide; handed to the code list** — 25 bytes is a *measurement* (`docs/evidence/g3-reactive-crew-measured.md`) and 20 is the packed `SAVE_MEMBER_BYTES`; `docs/evidence/the-number-owners.md` already recorded this as the owner's to reconcile. **Disagreement with this row's `contradicted` verdict**: the document matches its measurement, so correcting it to 20 would replace a measured number with a different one. |
 | 21 | a collision check on desire/allegiance/trait, failing the build (`crew-roster.md:105-107`) | absent | no such check | |
 | 22 | per-character `provenance` field (`crew-roster.md:139-141`) | absent | `CrewMember` has none | |
-| 23 | job kind "maintenance, repair, build, reclaim" (`crew-work.md:20`) | contradicted | `JobKind` enum `ship_core.h:1689` | no maintenance; seal/secure/evacuate added |
+| 23 | job kind "maintenance, repair, build, reclaim" (`crew-work.md:20`) | contradicted | `JobKind` enum `ship_core.h:1689` | no maintenance; seal/secure/evacuate added **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's four job kinds against the code's six. |
 | 24 | job carries required skill, crew-hours, state, blocking (`crew-work.md:22-29`) | partial | `Job{kind,target,progress,priority}` `ship_core.h:1693-1698` | the named fields are absent |
 | 25 | "department heads queue their department's work" (`crew-work.md:69-75`) | partial | `SetJobPriority:4148` command-only | |
 | 26 | measure backlog-by-age, crew-hours/kind/watch, post-vacancy hours (`crew-work.md:77-81`) | unverified | `UpdateJobs:7101` exists; none produced | |
@@ -568,7 +591,7 @@ Two things that table will not say by itself, and should:
 | # | claim (doc:line) | verdict | witness | note |
 |---|---|---|---|---|
 | 1 | "a security matter meets with the security chief in security" (`staff-meetings.md:14`) | implemented | `module/ship/meeting_rooms.def:32,41,44`; `MeetingRoomFor:7649` | keyed by kind + subject |
-| 2 | "a meeting is not bound to one today … and no place" (`staff-meetings.md:20-24`) | contradicted | `MeetingBrief.room` `ship_core.h:1302`; `BuildBrief:8147-8148` | the correction paragraph is stale (place landed 2026-10-10) |
+| 2 | "a meeting is not bound to one today … and no place" (`staff-meetings.md:20-24`) | contradicted | `MeetingBrief.room` `ship_core.h:1302`; `BuildBrief:8147-8148` | the correction paragraph is stale (place landed 2026-10-10) **Disposition 2026-10-11:** corrected — `docs/staff-meetings.md` now records the room as landed 2026-10-10 (save 55). <!-- register-row id=D6-2 state=closed marker=symbol:module/ship/ship_core.h:MeetingBrief --> |
 | 3 | the brief carries kind, trigger, decision, participants, options, instruments, systems, digest (`staff-meetings.md:22`) | implemented | `module/ship/ship_core.h:1299-1319` | plus subject and room |
 | 4 | "a background worker … hands that brief to a local model and gets back a meeting script" (`staff-meetings.md:32-34`) | implemented | `tools/meetings/worker.py` `generate`, `build_prompt` | external, off the render loop |
 | 5 | "no model is called and no latency exists, because every branch was written before" (`staff-meetings.md:37`) | implemented | `module/ui/ui_lwh_meeting.cpp:357,395-416` | |
@@ -593,8 +616,8 @@ Two things that table will not say by itself, and should:
 | 24 | systems map decks: power 11, life support 12/13, computer 10/7, sensors 8, medical 5, transporters 4, shuttles 10 (`ship-master-map.md:50-57`) | implemented | `SPECS` deck column `ship_core.cpp:36-64` | matches incl. fore tubes 10 / aft 4 |
 | 25 | "139 edges"; "`deck04` reaches all eight holodeck programmes" (`ship-master-map.md:41-44`) | unverified | map sources absent | needs the `.map` sources |
 | 26 | `hooks-check.sh` "re-derives the surface and compares it" (`hook-register.md:31-34`) | implemented | `tools/hooks/check_register.py` → 479 functions, 479 hooks, PASS | |
-| 27 | "the tables above are now 449 hooks" (`hook-register.md:673`) | contradicted | header has 479; register rows 479 | under-count by 30 |
-| 28 | section headings "Situations … 74 hooks", "Readers … 180 hooks", counts total 398 (`hook-register.md:159,371,583-590`) | contradicted | actual rows 87 / 203 / 479 | not re-derived |
+| 27 | "the tables above are now 449 hooks" (`hook-register.md:673`) | contradicted | header has 479; register rows 479 | under-count by 30 **Disposition 2026-10-11:** corrected — `docs/hook-register.md`'s count is re-derived to **479**. <!-- register-row id=D6-27 state=closed marker=check:scripts/hooks-check.sh --> |
+| 28 | section headings "Situations … 74 hooks", "Readers … 180 hooks", counts total 398 (`hook-register.md:159,371,583-590`) | contradicted | actual rows 87 / 203 / 479 | not re-derived **Disposition 2026-10-11:** corrected — the section headings are re-derived (87, 56, 203) and the counts paragraph carries the 479 derivation. <!-- register-row id=D6-28 state=closed marker=check:scripts/hooks-check.sh --> |
 | 29 | "the six with no caller anywhere" (`hook-register.md:603`) | implemented | grep: each declaration-only outside `ship_core.cpp` | confirmed |
 | 30 | `AtEnd` opens the next sector; the third crossed is home (`hook-register.md:243`) | implemented | `AdvanceSector:3529`; `SECTORS_TO_CROSS=3` | |
 | 31 | there is no way to start Long Way Home from the menus (`walkthrough.md:25-28`) | contradicted | `module/ui/ui_lwh_start.cpp:289`; `configs/lwh-start.cfg` | **C-8** |
@@ -716,8 +739,8 @@ Two things that table will not say by itself, and should:
 | 49 | "persistent ship state. damage is stored per compartment and per system" (`design-north-star.md:29`) | implemented | `Ship` `ship_core.h:1934` | |
 | 50 | "the crew as a load-bearing system … deaths that leave a post empty" (`design-north-star.md:36`) | implemented | `ship_core.h:509-533`; `FillVacancies` | |
 | 51 | "the ship's state carries between missions; the save is the ship, not the level" (`design-north-star.md:40`) | implemented | `Pack`/`Unpack`; `g_ship.cpp:5361-5371` | |
-| 52 | "the ceiling is 64 played characters — the engine's `MAX_CLIENTS`" (`design-north-star.md:175`) | contradicted | `patches/0018:21` (MP 64) vs `:32` (SP 1) | fork: the shipped SP path is 1 |
-| 53 | "the complement is hull data, not a constant" (`design-north-star.md:192`) | contradicted | `const int COMPLEMENT = 141` `ship_core.h:23` | fork: one hard-coded hull |
+| 52 | "the ceiling is 64 played characters — the engine's `MAX_CLIENTS`" (`design-north-star.md:175`) | contradicted | `patches/0018:21` (MP 64) vs `:32` (SP 1) | fork: the shipped SP path is 1 **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's 64-client ceiling against the shipped single-player path's 1. |
+| 53 | "the complement is hull data, not a constant" (`design-north-star.md:192`) | contradicted | `const int COMPLEMENT = 141` `ship_core.h:23` | fork: one hard-coded hull **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's 'the complement is hull data' against the hard-coded `COMPLEMENT`. |
 | 54 | "the unit is the post, not the character … a player who takes a post displaces the NPC" (`design-north-star.md:196`) | partial | `seatHolder[]:2065`; seat model | no player/NPC handover across a server |
 | 55 | "one ship equals one server" (`design-north-star.md:142`) | absent | Track D unbuilt | |
 | 56 | "scenarios have breeding conditions" is the content layer; no director (`walkthrough.md:494-498`) | absent | only the crew restaffing rule | G4 |

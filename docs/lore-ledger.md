@@ -206,7 +206,7 @@ All invented. Canon shows repair teams, casualties and a sickbay that fills up; 
 | Spare parts aboard | 100 |
 | A deck is unbreathable below | 25% atmosphere |
 | Exposure injures / kills after | 60 s / 300 s |
-| Sickbay | 6 under treatment at once; 12 hours each at full output |
+| Sickbay | **4** under treatment at once (three standard and one surgical, `SICKBAY_BEDS`); 12 hours each at full output — **CORRECTED 2026-10-11 (C-3): this row read "6 under treatment", the outlier against `SICKBAY_BEDS = 4` in `module/ship/ship_core.h` and `docs/ship-systems.md`'s "three biobeds plus a surgical bed"; four is the built and better-sourced number** |
 
 ## Intruders and control
 
@@ -239,7 +239,7 @@ All invented, FTL being the model the owner named.
 
 | fact | value |
 |---|---|
-| A sector | 12 beacons: 40% empty, 30% hostile, 20% derelict, 10% Borg |
+| A sector | 12 beacons: 40% empty, 30% hostile, 20% derelict, 10% Borg — **the design split; the code does not produce it. CORRECTED 2026-10-11 (C-4):** `module/ship/ship_core.cpp` rolls `next() % 15`, so the interior beacons land **4/15 empty, 3/15 hostile, 2/15 derelict, 1/15 Borg**, plus four kinds this row does not list (trader, distress, belt, pre-warp); beacon 0 is forced empty and beacon 11 is the goal. Whether the divisor should move to `% 10` to honour the split, or the roll is the design, is a fork — the register hands it to the code list (`docs/designs-against-code.md`, C-4) |
 | A jump costs | 1% deuterium, 1% antimatter; needs the warp drive at half output or better |
 | Full phasers strip an enemy's shields, or hole a bare hull, in | 6 minutes |
 | One torpedo on an unshielded hull | 34% (three to destroy) |
