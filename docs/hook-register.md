@@ -75,7 +75,7 @@ substance of the brief's point and stands.
 ## The register, by group
 
 ### 1. Entry points — what content can call  
-*74 hooks.*
+*75 hooks.*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -86,6 +86,7 @@ substance of the brief's point and stands.
 | `RetellRising` | `Ship &s, int hero` | The crew retell it: the mark is reinforced, so a heroism the crew keep telling persists, and one nobody retells fades (a mark's salience decays unless reinforced) | nothing | person | — |
 | `LogEvent` | `Ship &s, const std::string &who, const std::string &scope, const std::string &what` | log event | play | — | — |
 | `WritePersonalLog` | `Ship &s, int owner, const std::string &what` | Write a private entry | console | person | — |
+| `TakeMind` | `Ship &s, int crew` | The Collective takes a mind: the Borg tick's take site calls it the moment it begins taking a person, and a scenario may call it directly | console | person | docs/the-record-and-the-log.md |
 | `VoiceWrite` | `VoiceMixer &m, uint8_t producer, uint8_t track, const std::string &asset, int cue = -1` | Start a reply on `track` as `producer` | console | — | — |
 | `VoiceRetire` | `VoiceMixer &m, uint8_t producer, int replyId` | Retire a reply | console | — | — |
 | `EmitCue` | `Ship &s, VoiceMixer &m, uint8_t cue, const std::string &reason` | THE CUE EMIT SITE | console | — | — |
@@ -328,7 +329,7 @@ spoken content scripted like a meeting's. The register of classes is `module/shi
 | `PlanOrderAudio` | `VoiceRender &vr, const Ship &s, const OrderBrief &brief` | The async plan that queues the giver's line and the recipient's answers before dispatch | console | — | docs/orders.md |
 
 ### 4. Readers content can consult  
-*174 hooks.*
+*180 hooks.*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -370,6 +371,12 @@ spoken content scripted like a meeting's. The register of classes is `module/shi
 | `PersonalLog` | `const Ship &s, int owner` | The private read: this person's entries, newest last, and nobody else's -- not a scope, not command, not a post's clearance | play | person | — |
 | `PersonalVisibleTo` | `const PersonalLogEntry &e, int reader` | The visibility rule, in one place: a personal entry is visible only to its owner | play | — | — |
 | `ReadOfficialLog` | `const Ship &s, int count, const std::string &scope` | The official read, factored out so the search itself is testable: the newest `count` entries, optionally filtered to one `scope` (empty = all of them) | play | — | — |
+| `HeldByCollective` | `const Ship &s, int crew` | Whether the Collective holds this mind: taken, or being taken | console | person | docs/the-record-and-the-log.md |
+| `CollectiveLog` | `const Ship &s` | The private entries the Collective now holds: the personal logs of everyone it holds, whether or not the published log was purged | console | — | docs/the-record-and-the-log.md |
+| `CollectiveMarks` | `const Ship &s` | The marks that came with the minds: the memories of everyone the Collective holds | console | — | docs/the-record-and-the-log.md |
+| `CollectiveOperates` | `const Ship &s, Station st` | The authority the Collective can operate: a station is the Collective's when someone it holds could have operated it | console | post | docs/the-record-and-the-log.md |
+| `CollectiveRefusal` | `const Ship &s, Station st` | The named refusal: the Collective operates only what was taken | console | post | docs/the-record-and-the-log.md |
+| `CollectiveVoice` | `const Ship &s, int crew` | The voice the Collective speaks a taken person's lines in: the cast reference that person already had | console | person | docs/the-record-and-the-log.md |
 | `MeetingKindName` | `uint8_t kind` | meeting kind name | play | — | — |
 | `DeliveryName` | `uint8_t d` | delivery name | console | — | — |
 | `DeliveryExaggeration` | `uint8_t d` | What the delivery asks the synthesizer for, in the review's own knob | console | — | — |
@@ -618,6 +625,17 @@ legible in the record and on the screen. The counts above are the rows of this r
 74 + 63 + 54 + 189 + 18 = 398, and 233 + 130 + 35 = 398. Evidence:
 `docs/evidence/the-computer-depth.md`.
 
+**Re-derived 2026-10-11, assimilation takes the log and the access.** Seven hooks are added, none yet
+reached from a play surface: the transfer's two edges and its five reads -- `TakeMind`,
+`HeldByCollective`, `CollectiveLog`, `CollectiveMarks`, `CollectiveOperates`, `CollectiveRefusal`,
+`CollectiveVoice` (docs/the-record-and-the-log.md). `TakeMind` is called by the Borg tick in the normal
+case and by a scenario directly; the reads are reached from the developer console (`ship collective`),
+whose verb is enumerated in `module/ship/console_api.def` and checked by `scripts/api-check.sh`. **The
+tables above are now 449 hooks, counted from the rows: 268 play / 146 console / 35 nothing.** (This is
+the row count, and it is corrected here in place: the dated paragraphs above count a smaller,
+differently split register and are left as their history.) Evidence:
+`docs/evidence/the-assimilation.md`.
+
 ### 5. The configurator — the player chooses the start state
 
 *docs/the-entry-point.md, part three; docs/start-states.md.* The entry point is a configurator with
@@ -653,7 +671,7 @@ developer console reaches it too (`ship startstate ...`).
 scenario author and the owner should read first: every one of these is a mechanism the simulation
 has and the game does not yet offer.
 
-### Reached only from the developer console (130)
+### Reached only from the developer console (137)
 
 **1. Entry points** (37): `OfferRising`, `OfferRisingTo`, `AttemptRising`, `NextRisingRoll`, `WritePersonalLog`, `VoiceWrite`, `VoiceRetire`, `EmitCue`, `QueueRender`, `CacheRendered`, `PruneVoiceCache`, `PlanMeetingAudio`, `WarmVoice`, `Repair`, `RepairDeck`, `LoadAwayKit`, `LaunchShuttle`, `RecallShuttle`, `LoseShuttle`, `ShuttleBayHit`, `RebuildShuttle`, `TractorWreck`, `TractorHold`, `LaunchProbe`, `RespondPhenomenon`, `FabricateParts`, `FabricateRations`, `MineBelt`, `EVA`, `TakeSurvivors`, `ObservePreWarp`, `InterferePreWarp`, `ReconcileFactions`, `Survey`, `CatchUp`, `Suspend`, `Sleep`
 
@@ -662,6 +680,9 @@ has and the game does not yet offer.
 **3. Outcomes content can ask for** (18): `SetAllocationBy`, `Hearing`, `SetMobileEmitter`, `EndHolodeckProgram`, `SetAirponics`, `Delegate`, `RevokeDelegation`, `RevokeCredential`, `LockOut`, `ClearLockout`, `Train`, `Brig`, `HoldFuneral`, `Brief`, `MakePromise`, `RunHolodeck`, `ImproveQuarters`, `SetRole`
 
 **4. Readers content can consult** (61): `OperatedFrom`, `AllocationByName`, `ControllerName`, `RisingOutcomeName`, `RisingDriveAtStake`, `RisingOdds`, `DeliveryName`, `DeliveryExaggeration`, `DeliveryKnown`, `MeetingEffectName`, `ResolveSpeaker`, `LineToSynthesis`, `VoiceProducerName`, `TrackOwner`, `OwnsTrack`, `TrackBusy`, `CueName`, `CueClip`, `CuePurpose`, `RenderKey`, `VoiceCachePath`, `VoiceCached`, `VoiceQueued`, `VoicePoolCount`, `VoicePoolName`, `VoiceIsCanonType`, `CastVoice`, `CastIsCanon`, `CachedDuration`, `MeetingLineKey`, `AllocationProvenance`, `ShuttleLocationName`, `ShuttlesInBay`, `ShuttlesAway`, `PhenomenonResponseName`, `Refugees`, `Resentment`, `BorgAwareness`, `MobileEmitter`, `Airponics`, `Target`, `MaySuspend`, `LeftStanding`, `MayOperate`, `MayCallAlert`, `DelegatedTo`, `OverrideActive`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `Brigged`, `PlayerDead`, `Recall`, `RecallSource`, `MemoryCount`, `Promises`, `PlayerMayOperate`, `CaptainLog`
+
+**5. Assimilation — what the Collective takes** (7, docs/the-record-and-the-log.md): `TakeMind`, `HeldByCollective`, `CollectiveLog`, `CollectiveMarks`, `CollectiveOperates`, `CollectiveRefusal`, `CollectiveVoice`. The Borg tick calls `TakeMind` in the normal case, and the console `ship collective` reads the rest; nothing in play yet shows the room the design's horror scene needs.
+
 
 ### Reached by nothing yet (35)
 
@@ -706,9 +727,9 @@ has and the game does not yet offer.
 `docs/the-entry-point.md`, part three: **content addresses a post; the simulation resolves the
 post to a person.** The `law` column marks every hook the rule binds.
 
-- **Takes a person** (`36`): the hook accepts a resolved crew index, so content must resolve a
-  post to that person and must never write a name into a scenario. They are: `Sicken`, `Cure`, `WorkReading`, `OfferRisingTo`, `AttemptRising`, `RetellRising`, `CoverWithCrew`, `WritePersonalLog`, `PersonalLog`, `SetAllocationBy`, `GrantBand`, `RevokeBand`, `RecoverCaptive`, `Hearing`, `Loyalty`, `EndHolodeckProgram`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`, `Brig`, `Brigged`, `KillCrew`, `Promote`, `Remember`, `MakePromise`, `SignReport`, `RunHolodeck`, `CastVoice`, `CastIsCanon`.
-- **Addressed by a post** (`47`), the compliant form: `Spec`, `StationOf`, `StationName`, `OperatedFrom`, `StationReads`, `WorkContextOf`, `OfferRising`, `BandOf`, `UseSystem`, `UseSystemBy`, `SetEnabled`, `SetPriority`, `SetAllocation`, `AllocationPercent`, `AllocationSource`, `AllocationProvenance`, `DamageSystem`, `Repair`, `CounterHack`, `Hijacked`, `EffectiveDemand`, `MayOperate`, `MayCallAlert`, `BeginOverride`, `ConfirmOverride`, `OverrideActive`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `PlayerMayOperate`, `MeetingLineKey`, `MeetingLineSeconds`, `SystemIdByName`.
+- **Takes a person** (`39`): the hook accepts a resolved crew index, so content must resolve a
+  post to that person and must never write a name into a scenario. They are: `Sicken`, `Cure`, `WorkReading`, `OfferRisingTo`, `AttemptRising`, `RetellRising`, `CoverWithCrew`, `WritePersonalLog`, `PersonalLog`, `TakeMind`, `HeldByCollective`, `CollectiveVoice`, `SetAllocationBy`, `GrantBand`, `RevokeBand`, `RecoverCaptive`, `Hearing`, `Loyalty`, `EndHolodeckProgram`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`, `Brig`, `Brigged`, `KillCrew`, `Promote`, `Remember`, `MakePromise`, `SignReport`, `RunHolodeck`, `CastVoice`, `CastIsCanon`.
+- **Addressed by a post** (`49`), the compliant form: `Spec`, `StationOf`, `StationName`, `OperatedFrom`, `StationReads`, `WorkContextOf`, `OfferRising`, `BandOf`, `UseSystem`, `UseSystemBy`, `SetEnabled`, `SetPriority`, `SetAllocation`, `AllocationPercent`, `AllocationSource`, `AllocationProvenance`, `DamageSystem`, `Repair`, `CounterHack`, `Hijacked`, `EffectiveDemand`, `MayOperate`, `MayCallAlert`, `BeginOverride`, `ConfirmOverride`, `OverrideActive`, `AccessRefusal`, `OperatedFromRefusal`, `CollectiveOperates`, `CollectiveRefusal`, `Qualified`, `PlayerMayOperate`, `MeetingLineKey`, `MeetingLineSeconds`, `SystemIdByName`.
 - **Both forms exist** (`14`; content must use the post): `WorkReading`, `OfferRisingTo`, `AttemptRising`, `SetAllocationBy`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`.
 
 ## What this register cannot answer

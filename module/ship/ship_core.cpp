@@ -13,6 +13,19 @@
 
 namespace ship {
 
+// ---- the minds the Collective holds (docs/the-record-and-the-log.md) ----------------------------
+//
+// The read side is below, beside the private log; the two edges are TakeMind (the tick's take site,
+// and a scenario's direct call) and CollectiveRelease (a recovery, a death). Kept in one place so
+// every site that ends a transfer calls the same rule. Which minds are held is the single fact the
+// whole transfer rests on; the private log, the marks, the access and the voice are read from the
+// crew records, so nothing of the mind is copied into this list.
+static void CollectiveRelease(Ship &s, int crew)
+{
+	for (size_t i = 0; i < s.collective.size(); ++i)
+		if (s.collective[i] == crew) { s.collective.erase(s.collective.begin() + static_cast<long>(i)); return; }
+}
+
 // ---- the tables -------------------------------------------------------------------------------
 
 // Demand is in EPS units [inv]. Deck and station are [lore] where the ledger says so. Priority is
@@ -2312,13 +2325,18 @@ static void UpdateIntruders(Ship &s, float shipSeconds)
 			s.borgAwareness = std::min(1.0f, s.borgAwareness + drones * minutes * 0.0005f); // the Collective learns
 			deck.assimilated = std::min(1.0f, deck.assimilated + drones * minutes / (ASSIMILATE_DECK_HOURS * 60.0f));
 			float taking = drones * minutes / ASSIMILATE_CREW_MINUTES;
-			for (CrewMember &c : s.crew) {
+			for (int ci = 0; ci < static_cast<int>(s.crew.size()); ++ci) {
 				if (taking <= 0.0f) break;
+				CrewMember &c = s.crew[ci];
 				if (c.status != CREW_FIT && c.status != CREW_INJURED) continue;
 				if (c.deck != d + 1) continue;
 				const float taken = std::min(taking, 1.0f - c.wounds);
 				c.wounds += taken;
 				taking -= taken;
+				// The Collective is adding this mind: from the moment the drones begin taking it
+				// (docs/the-record-and-the-log.md). The private log, the marks, the access and the
+				// voice are the Collective's from here until the mind is got back or the record closes.
+				if (taken > 0.0f) TakeMind(s, ci);
 				if (c.wounds >= 1.0f) {
 					c.status = CREW_ASSIMILATED; // one of ours is now one of theirs
 					c.deck = 0;
@@ -3510,13 +3528,22 @@ static bool DepartmentOperates(Department dept, Station st)
 	}
 }
 
-bool MayOperate(const CrewMember &who, Station st)
+// The clearance a record carries, ignoring whether its holder is fit: rank (ship-wide at 4 and
+// above), an earned cross-qualification, or the record's own department. MayOperate adds the status
+// and brig checks; the Collective reads this half alone, because a taken mind is not a fit hand and
+// yet its authority is what transferred (docs/the-record-and-the-log.md).
+static bool RecordOperates(const CrewMember &who, Station st)
 {
-	if (who.status != CREW_FIT || who.brigged) return false;
 	if (who.rank >= 4) return true;
 	if (st < STN_COUNT && (who.credentials & (1u << st))) return true; // a trained cross-qualification
 	if (st >= STN_COUNT) return false;
 	return DepartmentOperates(who.dept, st);
+}
+
+bool MayOperate(const CrewMember &who, Station st)
+{
+	if (who.status != CREW_FIT || who.brigged) return false;
+	return RecordOperates(who, st);
 }
 
 bool MayCallAlert(const CrewMember &who, Station st)
@@ -4002,6 +4029,7 @@ bool KillCrew(Ship &s, int crew, const std::string &cause)
 	if (c.status == CREW_DEAD) return false;
 	c.status = CREW_DEAD;
 	c.recovery = 0.0f;
+	CollectiveRelease(s, crew); // the record is closed: the mind is not the Collective's to speak with
 	LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "crew", c.name + " is dead: " + (cause.empty() ? std::string("unknown cause") : cause));
 	NoteDeath(s, crew);
 	return true;
@@ -4847,6 +4875,11 @@ bool SignReport(Ship &s, int signer, uint8_t audience)
 			const float v = std::max(-1.0f, -0.6f * factor);
 			Remember(s, i, MEM_LIE, signer, MEM_SAW, v);
 			LogEvent(s, w.name, "crew", w.name + " saw " + l.draft + ", and heard it denied");
+			// The truth goes where it cannot go in the report (docs/the-record-and-the-log.md): the
+			// witness writes it privately, in their own store. This is how an NPC comes to have a
+			// personal log at all -- content does not have to author one -- and it is exactly the
+			// entry the Collective reads if they are later taken (CollectiveLog).
+			WritePersonalLog(s, i, "I saw " + l.draft + ", and the report says otherwise");
 		}
 	}
 
@@ -5783,6 +5816,7 @@ bool RecoverCaptive(Ship &s, int crew)
 	c.wounds = 0.0f;
 	c.status = CREW_INJURED;
 	c.severity = std::max(c.severity, c.assimScar * 0.5f);
+	CollectiveRelease(s, crew); // the mind is got back: it is the person's again, not the Collective's
 	Remember(s, crew, MEM_VIOLATION, -1, MEM_SAW, -0.6f); // "I was taken, and I came back changed"
 	LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "sickbay", c.name + " is de-assimilated, with lasting residue");
 	return true;
@@ -6396,6 +6430,65 @@ std::vector<LogEntry> ReadOfficialLog(const Ship &s, int count, const std::strin
 		out.push_back(e);
 	}
 	return out;
+}
+
+// ---- assimilation: what the Collective takes (docs/the-record-and-the-log.md) ---------------------
+//
+// One rule decides the whole transfer: which minds the Collective holds. The private entries, the
+// marks, the access and the voice are then read from those crew records -- nothing is copied, so a
+// purge of the published log cannot touch it, and a recovery or a death cannot leave a ghost behind.
+
+bool HeldByCollective(const Ship &s, int crew)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return false;
+	const CrewMember &c = s.crew[crew];
+	if (c.status == CREW_DEAD) return false;            // the record is closed: no mind to speak with
+	if (c.status == CREW_ASSIMILATED) return true;      // wholly taken
+	for (int16_t i : s.collective) if (i == crew) return true; // being taken: the tick recorded it
+	return false;
+}
+
+void TakeMind(Ship &s, int crew)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return;
+	if (s.crew[crew].status == CREW_DEAD) return;
+	for (int16_t i : s.collective) if (i == crew) return; // already held
+	if (static_cast<int>(s.collective.size()) >= COLLECTIVE_MAX) return; // bounded; the roster caps it
+	s.collective.push_back(static_cast<int16_t>(crew));
+}
+
+std::vector<PersonalLogEntry> CollectiveLog(const Ship &s)
+{
+	std::vector<PersonalLogEntry> out;
+	for (const PersonalLogEntry &e : s.personalLog)
+		if (HeldByCollective(s, e.owner)) out.push_back(e);
+	return out;
+}
+
+std::vector<Memory> CollectiveMarks(const Ship &s)
+{
+	std::vector<Memory> out;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		if (!HeldByCollective(s, i)) continue;
+		for (const Memory &m : s.crew[i].memories) out.push_back(m);
+	}
+	return out;
+}
+
+bool CollectiveOperates(const Ship &s, Station st)
+{
+	if (st >= STN_COUNT) return false;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (HeldByCollective(s, i) && RecordOperates(s.crew[i], st)) return true;
+	return false;
+}
+
+std::string CollectiveRefusal(const Ship &s, Station st)
+{
+	if (st >= STN_COUNT) return "that station does not exist";
+	if (CollectiveOperates(s, st)) return std::string();
+	return std::string("the Collective does not operate ") + StationName(st)
+		+ ": nobody it holds was cleared for it (it operates only what was taken)";
 }
 
 // ---- what the ship has given up -----------------------------------------------------------------
@@ -7982,14 +8075,31 @@ bool CastIsCanon(const Ship &s, int crew)
 	return VoiceIsCanonType(c.type);
 }
 
+// The cast reference a record speaks with, regardless of whether its holder is still fit: a canon
+// type keeps its own retail voice, a generated member draws from the pool. CastVoice refuses a person
+// who is dead or taken; the Collective reads this half, because it speaks in a taken person's voice.
+static std::string CastVoiceOfRecord(const Ship &s, const CrewMember &c)
+{
+	if (VoiceIsCanonType(c.type)) return c.type; // the character's own retail voice
+	if (VOICE_POOL_COUNT <= 0) return "";
+	return VoicePoolName(static_cast<int>(CastHash(s.cfg.seed, c) % static_cast<uint64_t>(VOICE_POOL_COUNT)));
+}
+
 std::string CastVoice(const Ship &s, int crew)
 {
 	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return "";
 	const CrewMember &c = s.crew[crew];
 	if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) return ""; // no voice, no line
-	if (VoiceIsCanonType(c.type)) return c.type; // the character's own retail voice
-	if (VOICE_POOL_COUNT <= 0) return "";
-	return VoicePoolName(static_cast<int>(CastHash(s.cfg.seed, c) % static_cast<uint64_t>(VOICE_POOL_COUNT)));
+	return CastVoiceOfRecord(s, c);
+}
+
+// The Collective's voice is the voice a taken person already had -- its own retail voice for a canon
+// character, the pool casting for a generated one. It reaches the reference even though the ordinary
+// cast has stopped answering for them, which is the whole of "the Collective speaks in their voice".
+std::string CollectiveVoice(const Ship &s, int crew)
+{
+	if (!HeldByCollective(s, crew)) return "";
+	return CastVoiceOfRecord(s, s.crew[crew]);
 }
 
 // A character's small set of pause cues: the four non-verbal clips are the set, and the person's own
@@ -8057,12 +8167,16 @@ float CachedDuration(const VoiceRender &vr, const std::string &key)
 
 // The cast reference for a line's speaker. The computer is not crew: its speaker is SPEAK_COMPUTER and
 // its voice is its own named reference, assigned here where the cast lives rather than by a pool draw.
-// Everyone else resolves to a crew member and their cast voice (docs/the-entry-point.md).
+// Everyone else resolves to a crew member: their cast voice, or -- when the Collective speaks a taken
+// person's line, which is the one scene the design puts the log and the Borg in together -- the voice
+// the Collective took (docs/the-record-and-the-log.md).
 static std::string LineVoice(const Ship &s, const MeetingBrief &brief, const MeetingLine &line)
 {
 	if (line.speaker == SPEAK_COMPUTER) return ComputerVoice();
 	const int who = ResolveSpeaker(s, brief, line.speaker);
-	return who < 0 ? std::string() : CastVoice(s, who);
+	if (who < 0) return std::string();
+	if (HeldByCollective(s, who)) return CollectiveVoice(s, who);
+	return CastVoice(s, who);
 }
 
 std::string MeetingLineKey(const Ship &s, const MeetingBrief &brief, const MeetingLine &line)
@@ -8373,6 +8487,14 @@ std::vector<uint8_t> Pack(const Ship &s)
 			WriteStrCap(w, e.who, 63);
 			WriteStrCap(w, e.what, PERSONAL_LOG_TEXT_MAX);
 		}
+	}
+	// The minds the Collective holds (version 58, docs/the-record-and-the-log.md): the crew the drones
+	// have begun taking. The list only; the private log, the marks, the access and the voice are read
+	// from the crew records on load, as they are in play.
+	{
+		const int n = std::min(static_cast<int>(s.collective.size()), COLLECTIVE_MAX);
+		w.U8(static_cast<uint8_t>(n));
+		for (int i = 0; i < n; ++i) w.U16(static_cast<uint16_t>(s.collective[i] + 1));
 	}
 	// Access (version 48): the grants for a shift, the one override in progress, and the lock-outs.
 	{
@@ -8802,6 +8924,18 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		if (e.owner < 0 || e.owner >= static_cast<int>(count)) return false;
 		if (e.visibility >= LOG_VISIBILITY_COUNT) return false;
 		s.personalLog.push_back(e);
+	}
+	// The minds the Collective holds (version 58): the crew the drones have begun taking.
+	s.collective.clear();
+	{
+		const int collectiveCount = r.U8();
+		if (collectiveCount > COLLECTIVE_MAX) return false;
+		for (int i = 0; i < collectiveCount && r.ok; ++i) {
+			const int held = static_cast<int>(r.U16()) - 1;
+			if (held < 0 || held >= static_cast<int>(count)) return false;
+			for (int16_t prev : s.collective) if (prev == held) return false; // no duplicates
+			s.collective.push_back(static_cast<int16_t>(held));
+		}
 	}
 	// Access (version 48): the grants for a shift, the one override in progress, and the lock-outs.
 	s.delegations.clear();

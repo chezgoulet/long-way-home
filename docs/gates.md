@@ -438,8 +438,15 @@ since version 18; this is its missing wiring, not a rebuild.
 - save and load carry the report, its diff, the promises and the orphaned mark byte-for-byte ✅
 
 Remaining (specified, not built): assimilation taking the personal log **and** the access levels, with the
-Collective speaking in the assimilated person's voice. (**The meeting brief built per participant from
-marks and log is now built** — see *The meeting, phase one*, below.)
+Collective speaking in the assimilated person's voice. **BUILT 2026-10-11** on `feat/the-assimilation`
+(`docs/evidence/the-assimilation.md`, `TestTheAssimilation`, `test_ship_core --assimilation`, console
+`ship collective`, save format **58**): the Collective reads the taken person's private entries and holds
+their marks, operates the stations their authority opened and nothing else, and speaks in their own cast
+voice; the transfer is a read over the records it took — not a copy — so a purge does not end it and a
+de-assimilation in the window, or a death, does. The finding is kept; the row is corrected in place.
+(**The meeting brief built per participant from marks and log is now built** — see *The meeting, phase
+one*, below.)
+<!-- register-row id=assimilation state=closed marker=check:scripts/assimilation-check.sh -->
 
 ### The two logs — the official record and the private one
 
@@ -461,8 +468,15 @@ already in; this is the **second store**, not a rebuild of it.
 - a unit test, and `scripts/test.sh` and `scripts/check.sh` both exit 0 ✅
 
 Remaining (specified, not built): assimilation taking the personal log **and** the access levels, with the
-Collective speaking in the assimilated person's voice. (**The meeting brief built per participant from
-marks and log is now built** — see *The meeting, phase one*, below.)
+Collective speaking in the assimilated person's voice. **BUILT 2026-10-11** on `feat/the-assimilation`
+(`docs/evidence/the-assimilation.md`, `TestTheAssimilation`, `test_ship_core --assimilation`, console
+`ship collective`, save format **58**): the Collective reads the taken person's private entries and holds
+their marks, operates the stations their authority opened and nothing else, and speaks in their own cast
+voice; the transfer is a read over the records it took — not a copy — so a purge does not end it and a
+de-assimilation in the window, or a death, does. The finding is kept; the row is corrected in place.
+(**The meeting brief built per participant from marks and log is now built** — see *The meeting, phase
+one*, below.)
+<!-- register-row id=assimilation state=closed marker=check:scripts/assimilation-check.sh -->
 
 ### The navigation counter
 

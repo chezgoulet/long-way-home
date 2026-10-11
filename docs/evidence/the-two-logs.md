@@ -145,8 +145,13 @@ rather than asserted above: the draft is **identical** with a private entry pres
    the crew record, so a later rename does not rewrite what was said. This matches the official
    log's `who`.
 4. **The player's store is `s.player`'s.** `WritePersonalLog` takes any crew index, but the console
-   wires only the player. NPC private entries (and the Collective reading them on assimilation) are
-   the document's other acceptance items and are **not** built here.
+   wires only the player. **NPC private entries, and the Collective reading them on assimilation, were
+   the document's other acceptance items and were not built here; both are built as of 2026-10-11**
+   (`feat/the-assimilation`, `docs/evidence/the-assimilation.md`): a witness to a signed report that
+   contradicts what they saw now writes it privately in their own store (`SignReport`), so an NPC has a
+   personal log without content authoring one; and assimilation takes the private entries, the marks
+   and the access of the people the Collective holds, and speaks in their voice (`CollectiveLog`,
+   `TakeMind`, `CollectiveVoice`). The finding is kept; the boundary is closed.
 5. **`ship personal` is a developer command, like `ship log` and `ship report`.** It is not gated to
    a console station; the ready-room terminal that would open it in the world is the deck-build item,
    as it is for the official log. The private read at the console is the player's; no other scope can
