@@ -1,5 +1,6 @@
 {
-  "_comment": "Owned numbers for tools/docs/check_claims.py. Each claim names its owning document, the value the owner fixes, a pattern that captures the value in the owner, and the other files that state it (including module/ship/ship_core.cpp, the arbiter for what is built). A source whose capture disagrees, or stops matching, fails the check. Scope: only registered claims are checked; docs/evidence/ is deliberately not scanned because it is a dated record allowed to hold superseded values with an annotation.",
+  "_comment": "Owned numbers for tools/docs/check_claims.py. Each claim names its owning file (a document, or the code file that defines a code constant), the value the owner fixes, and -- for a claim carried by a coded constant -- the assertion form whose every occurrence must agree. A source whose capture disagrees, or stops matching, fails the check. Scope: only registered claims are checked; docs/evidence/ is deliberately not scanned because it is a dated record allowed to hold superseded values with an annotation. For a claim with a 'current_form', files outside docs/evidence/ are scanned for that form and every hit must equal the owner's value.",
+  "_tense_convention": "A number is read as CURRENT-TENSE only when a document writes it in the owner's own assertion form -- for a code constant, its assignment, 'SAVE_VERSION = <n>'. That is how a document tells a reader what the constant IS, and it must agree with the file that defines it. Every prose form -- 'save version 54', 'save format unchanged (54)', 'past 49', '(save version 41)' -- is a HISTORICAL statement: it is how a dated ledger entry, walkthrough, handoff or evidence file refers to a value that was current at its date, and it is not wrong for being superseded. The check reads only the assertion form, so a ledger's own history and a dated snapshot's figures of their date are not flagged -- a check that could not tell them apart would fail on the record rather than on the defect. Two files are exempt from being read even in the assertion form, each with its reason in 'exempt_files': a file that is RECORDING another file's assertion (quoting it) rather than making one.",
   "claims": [
     {
       "id": "computer-core-deck",
@@ -44,6 +45,100 @@
         {
           "file": "docs/access-and-authority.md",
           "pattern": "computer core and the torpedo launchers are on deck (\\d+)"
+        }
+      ]
+    },
+    {
+      "id": "save-version",
+      "description": "the save format version, and the current value of the SAVE_VERSION constant",
+      "owner": "module/ship/ship_core.h",
+      "value": "56",
+      "owner_pattern": "const uint16_t SAVE_VERSION = (\\d+);",
+      "current_form": "SAVE_VERSION\\s*=\\s*(\\d+)",
+      "current_form_scope": "every *.md under the repository root, except docs/evidence/ (a dated record), the owner, and the exempt_files below",
+      "exempt_files": [
+        {
+          "file": "docs/audit-whole-project.md",
+          "reason": "the whole-project review, a dated snapshot (2026-10-10). Its 2.6 table records WHERE the number is asserted and quotes the handoff's line as evidence; it is recording an assertion, not making one."
+        }
+      ]
+    },
+    {
+      "id": "crew-complement",
+      "description": "the crew complement the ship is built for (canon; the owner's figure)",
+      "owner": "module/ship/ship_core.h",
+      "value": "141",
+      "owner_pattern": "const int COMPLEMENT = (\\d+);",
+      "sources": [
+        {
+          "file": "docs/lore-ledger.md",
+          "pattern": "\\|\\s*Complement\\s*\\|\\s*(\\d+)\\s*\\|"
+        },
+        {
+          "file": "docs/ship-systems.md",
+          "pattern": "\\|\\s*crew\\s*\\|\\s*(\\d+) at launch"
+        },
+        {
+          "file": "docs/crew-roster.md",
+          "pattern": "# The crew: (\\d+) people"
+        },
+        {
+          "file": "docs/budget-squaring.md",
+          "pattern": "Crew (\\d+) at launch"
+        },
+        {
+          "file": "docs/the-entry-point.md",
+          "pattern": "(\\d+) crew, day 0"
+        }
+      ]
+    },
+    {
+      "id": "crew-save-budget-bytes",
+      "description": "the save-size budget per NPC in the crew direction layer",
+      "owner": "module/crew/crew_core.h",
+      "value": "256",
+      "owner_pattern": "saveBytesPerNpc = (\\d+);",
+      "sources": [
+        {
+          "file": "docs/g3-reactive-crew.md",
+          "pattern": "target is \\*\\*(\\d+) bytes per NPC\\*\\*"
+        },
+        {
+          "file": "docs/ship-model.md",
+          "pattern": "the (\\d+)-byte target in the crew spec"
+        },
+        {
+          "file": "docs/scenario-manifest.md",
+          "pattern": "save_bytes_per_npc\":\\s*(\\d+)"
+        },
+        {
+          "file": "docs/crew-roster.md",
+          "pattern": "a budget of (\\d+)"
+        },
+        {
+          "file": "docs/handoff-lwh-persistent-ship.md",
+          "pattern": "Budget target is (\\d+)"
+        }
+      ]
+    },
+    {
+      "id": "com-hunk-megs",
+      "description": "the engine hunk the merged ship must be launched with (an engine allocation, latched before the filesystem)",
+      "owner": "scripts/run-lwh.sh",
+      "value": "768",
+      "owner_pattern": "com_hunkMegs (\\d+)",
+      "sources": [
+        {
+          "file": "docs/walkthrough.md",
+          "pattern": "com_hunkMegs (\\d+)"
+        },
+        {
+          "file": "docs/the-entry-point.md",
+          "pattern": "com_hunkMegs (\\d+)"
+        },
+        {
+          "file": "docs/HANDOFF.md",
+          "pattern": "com_hunkMegs (\\d+)"
         }
       ]
     }

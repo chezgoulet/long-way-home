@@ -13,6 +13,10 @@ the acceptance tests, and the standing rules.** Where they disagree, they win.
 
 ## What already exists, and must be built on rather than around
 
+**This brief is a dated snapshot — 2026-10-06.** The facts below record the tree of that date and their
+figures are of that date; where a figure is a code constant, the file that defines it is the owner and this
+brief does not restate the current value (see `docs/evidence/the-number-owners.md`).
+
 **Corrected 2026-10-06: five claims in this section were wrong when the brief was written.** Every fact below
 was re-checked against the committed tree and the corrections are marked. The corrected facts are the ones to
 build from.
@@ -25,11 +29,16 @@ extend.
 
 Verified in the tree, not assumed:
 
-- **The save format is versioned with a changelog.** `module/ship/ship_core.h`: `SAVE_VERSION = 12`, whose comment
-  names what each increment added ("2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside;
-  6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log;
-  12: the away kit"). Follow that style: bump, and say what the new number carries.
+- **The save format is versioned with a changelog.** `module/ship/ship_core.h` defines `SAVE_VERSION`, whose
+  comment names what each increment added ("2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the
+  outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields;
+  11: the log; 12: the away kit"). Follow that style: bump, and say what the new number carries.
   *(Corrected: was cited as `= 40`, with a changelog running to "40: each system's named failure state".)*
+  *(Corrected 2026-10-11: this bullet **asserted the constant itself** — a current-tense claim — and it had
+  gone fifteen versions stale (the code reads 56). **This brief is a dated snapshot; its figures are of its
+  date.** The version at the brief's date was 12; the current value is the code's alone, in
+  `module/ship/ship_core.h`, and this brief no longer states it. The rule is recorded in
+  `docs/evidence/the-number-owners.md`.)*
 - **Both halves persist.** `module/ship/g_ship.cpp:803` and `module/crew/g_crew.cpp:1288` write their blobs
   through `gi.AppendToSaveGame( SAVE_CHUNK, blob.data(), ... )`; the reader rejects a mismatched magic or
   version at `module/ship/ship_core.cpp:1210` — `if (r.U32() != SAVE_MAGIC || r.U16() != SAVE_VERSION ...)`.
