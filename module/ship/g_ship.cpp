@@ -61,11 +61,21 @@ cvar_t *g_shipPlayerSeat;
 cvar_t *g_shipTest;     // harness: 1 = act, report, save, quit; 2 = report what a load restored, quit;
                         //          3 = operate the Engineering console; 4 = go to g_shipTestPos and photograph;
                         //          5 = ride the turbolift to every deck and report each arrival;
-                        //          96 = the dark room: the security office's vantages (screenshots/lwh_darkroom_*);
+                        //          96 = the vantage test: stand at a post and photograph the vantages
+                        //               (screenshots/<g_shipVantage>_<n>.tga). The dark room is one caller
+                        //               of it; the post and the frame names come from the caller;
                         //          97 = the room survey: every meeting room from four facings (screenshots/lwh_room_*)
 cvar_t *g_shipTestPos;
 cvar_t *g_shipTestPitch;
 cvar_t *g_shipTestWatch; // "x y z": report whether the trigger centred there has fired
+// The vantage test's (96) two inputs, so no room's anchor and no room's frame names are baked into
+// this file (the away-site pass, 2026-10-11). g_shipVantagePost names the point entity *where to
+// stand* -- a room's or a site's own post; g_shipVantage is the stem *what the frames are called*
+// (screenshots/<stem>_<n>.tga). Their defaults are the dark room's own caller's, so a run that sets
+// neither (the dark-room pass's own command) is unchanged; a caller that sets them photographs its
+// own post and labels its own frames. The "x y z" in g_shipTestPos still overrides the anchor.
+cvar_t *g_shipVantage;     // the frames' stem, e.g. "lwh_darkroom_security" or "lwh_away_depot_console"
+cvar_t *g_shipVantagePost; // the targetname of the point entity to stand at, e.g. "lwh_armory_post"
 
 // A breach puzzle in progress at a console: which system it is for, and the puzzle itself.
 int breachSystem = -1;
@@ -1967,17 +1977,28 @@ void RunTest( void )
 		return;
 	}
 	if ( g_shipTest->integer == 96 )
-	{//the dark room (the owner's ruling 2026-10-10, docs/evidence/the-meeting-place.md): a room a
-	 //meeting happens in must be legible, not pitch black -- and the .map that holds it is full of
-	 //lights, so the cause is established before anything is changed. This tests the *vantage*: the
-	 //same room from more than one position and more than one facing, so a dark frame can be told
-	 //from a dark room. Each vantage becomes a frame (screenshots/lwh_darkroom_<room>_<n>.tga) and a
-	 //line; the check measures the frames rather than counting the lights.
+	{//the vantage test (the dark-room pass's rig, docs/evidence/the-dark-room.md): a place must be
+	 //legible from more than one position and more than one facing, so a dark frame can be told from
+	 //a dark place. Each vantage becomes a frame (screenshots/<g_shipVantage>_<n>.tga) and a line; the
+	 //check measures the frames rather than counting the lights.
+	 //
+	 //The rig takes both of its inputs from the caller (the away-site pass, 2026-10-11): *where to
+	 //stand* is the point entity g_shipVantagePost names -- a room's or a site's own post -- and
+	 //*what the frames are called* is g_shipVantage. A "x y z" in g_shipTestPos overrides the anchor,
+	 //so a candidate post can be stood on without rebuilding the map. The defaults belong to the
+	 //dark room's own command (which sets neither): the security office's post, labelled
+	 //lwh_darkroom_security, so that caller's frames are unchanged. A post the caller names and the
+	 //map does not carry is *refused* loudly -- the run photographs nothing rather than silently
+	 //standing somewhere else and calling the frames its own.
+	 //
+	 //An anchor the harness cannot honour is *rejected* here (RoomPostAnchor), never silently
+	 //dropped -- the trap Task B closes.
 		static int step = 0;
 		static int n = 0;
 		static int shotAt = 0;
 		static vec3_t base = { 0, 0, 0 };
-		static const char *room = "security";
+		const char *room = g_shipVantage->string;
+		const char *postName = g_shipVantagePost->string;
 		if ( level.time < 1000 ) { step = 0; n = 0; shotAt = 0; base[0] = base[1] = base[2] = 0; }
 		if ( step == 0 && level.time >= 2500 )
 		{
@@ -1989,37 +2010,38 @@ void RunTest( void )
 				ship::Tick( vessel, 1.0f );
 				while ( ship::TakeBrief( vessel ) ) {}
 				const int me = ship::CreateCharacter( vessel, "Reyes", ship::DEPT_COMMAND, 2 );
-				gi.Printf( "SHIP: dark room: crew setup, player is crew %d\n", me );
+				gi.Printf( "SHIP: vantage: %s: crew setup, player is crew %d\n", room, me );
 				vessel.borgAwareness = 1.0f;
 				ship::Tick( vessel, 1.0f );
 			}
-			// The room's anchor: the security office's own post, placed by the composition
-			// (tools/shipmap/dressdeck06.py). A "x y z" in g_shipTestPos overrides it, so a candidate
-			// post can be stood on without rebuilding the map. If neither is present, no frames. An
-			// anchor the harness cannot honour is *rejected* here (RoomPostAnchor), never silently
-			// dropped -- the trap Task B closes.
 			const int anchorResult = RoomPostAnchor( base );
 			if ( anchorResult == 2 )
 			{
-				gi.Printf( "SHIP: dark room: 0 vantage(s) photographed -- the anchor was rejected\n" );
+				gi.Printf( "SHIP: vantage: %s: 0 vantage(s) photographed -- the anchor was rejected\n", room );
 				step = 9;
 				return;
 			}
 			if ( anchorResult == 1 )
 			{
-				gi.Printf( "SHIP: dark room: the anchor given by g_shipTestPos: %s\n", vtos( base ) );
+				gi.Printf( "SHIP: vantage: %s: the anchor given by g_shipTestPos: %s\n", room, vtos( base ) );
 			}
 			else
-			{
+			{// no explicit anchor: stand at the post the caller named, and refuse if the map has none
 				gentity_t *post = NULL;
 				for ( int i = 1; i < globals.num_entities && !post; ++i )
 				{
 					gentity_t *e = &g_entities[i];
-					if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, "lwh_armory_post" ) ) post = e;
+					if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, postName ) ) post = e;
 				}
-				if ( !post ) { gi.Printf( "SHIP: dark room: no lwh_armory_post on this map\n" ); step = 9; return; }
+				if ( !post )
+				{
+					gi.Printf( "SHIP: vantage: %s: no point entity named \"%s\" on this map -- 0 vantage(s) photographed\n",
+						room, postName );
+					step = 9;
+					return;
+				}
 				VectorCopy( post->currentOrigin, base );
-				gi.Printf( "SHIP: dark room: the security office anchor at %s\n", vtos( base ) );
+				gi.Printf( "SHIP: vantage: %s: the anchor at the post \"%s\": %s\n", room, postName, vtos( base ) );
 			}
 			step = 1;
 		}
@@ -2037,7 +2059,7 @@ void RunTest( void )
 			};
 			if ( n >= (int)( sizeof( V ) / sizeof( V[0] ) ) )
 			{
-				gi.Printf( "SHIP: dark room: %d vantage(s) photographed\n", n );
+				gi.Printf( "SHIP: vantage: %s: %d vantage(s) photographed\n", room, n );
 				step = 9;
 				return;
 			}
@@ -2048,7 +2070,7 @@ void RunTest( void )
 			VectorCopy( angles, glanceAngles );
 			haveGlanceAim = true;
 			if ( g_entities[0].client ) SetClientViewAngle( &g_entities[0], angles );
-			gi.Printf( "SHIP: dark room: %s %s at %s facing %.0f\n", room, V[n].label, vtos( at ), V[n].yaw );
+			gi.Printf( "SHIP: vantage: %s %s at %s facing %.0f\n", room, V[n].label, vtos( at ), V[n].yaw );
 			shotAt = level.time + 900;    // let the client take the new origin and facing before the frame
 			step = 2;
 		}
@@ -2057,9 +2079,9 @@ void RunTest( void )
 		if ( step == 2 && level.time >= shotAt )
 		{
 			if ( g_entities[0].client )
-				gi.Printf( "SHIP: dark room: %s frame %d, player at %s, viewangles %s\n", room, n,
+				gi.Printf( "SHIP: vantage: %s frame %d, player at %s, viewangles %s\n", room, n,
 					vtos( g_entities[0].currentOrigin ), vtos( g_entities[0].client->ps.viewangles ) );
-			gi.SendConsoleCommand( Fmt( "screenshot lwh_darkroom_%s_%d\n", room, n ).c_str() );
+			gi.SendConsoleCommand( Fmt( "screenshot %s_%d\n", room, n ).c_str() );
 			++n;
 			step = 1;
 		}
@@ -5303,6 +5325,10 @@ void Ship_RegisterCvars( void )
 	g_shipTestPos = gi.cvar( "g_shipTestPos", "0 0 0", 0 );
 	g_shipTestPitch = gi.cvar( "g_shipDeckPitch", "0", 0 );
 	g_shipTestWatch = gi.cvar( "g_shipTestWatch", "", 0 );
+	// The vantage test's (96) two caller inputs. Their defaults are the dark-room pass's own command,
+	// which sets neither, so that caller's frames and frames' names are unchanged.
+	g_shipVantage = gi.cvar( "g_shipVantage", "lwh_darkroom_security", 0 );
+	g_shipVantagePost = gi.cvar( "g_shipVantagePost", "lwh_armory_post", 0 );
 }
 
 const int IRONMAN_SAVE_MS = 60000; // how often the one save is written forward

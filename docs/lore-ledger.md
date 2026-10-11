@@ -249,6 +249,25 @@ All invented, FTL being the model the owner named.
 | A boarding party | 3 from a raider, 4 drones from the Borg, to Main Engineering |
 | A derelict yields | 25 spare parts |
 
+### The away site, re-dressed from `ctf_space` (`docs/locations/away-site-outpost.brief.md`)
+
+The first site archetype built (`docs/outside-the-ship.md`, *Order of work* 2–3); map
+`lwh_away_depot`, built by `tools/away/dress_away_site.py`, evidence `docs/evidence/the-away-site.md`.
+
+| item | value | source | confidence |
+|---|---|---|---|
+| The archetype | **space station / outpost**, of the design's six; chosen first because its source already carries the exterior (a lit debris sky), so it is the cheapest proof a site can read as outside | `docs/outside-the-ship.md`, the archetype table | design |
+| The place | `ctf_space`'s own top deck, copied and changed; the design names `ctf_space` as this archetype's source | `docs/outside-the-ship.md`; `docs/authoring-a-location.md` | design |
+| The crop window | x 400..1280, y 672..1144, floor z 168, roof z 560 (the source's own top deck, snapped to a 16-grid) | measured from the source | invented (the crop line) |
+| The machine blocks dropped | blocks with a body over 64 units square sitting on the deck; the thin ribs, rails, floor plates and walls stay | this work | invented (the rule) |
+| The shell | walls west/south/north, a roof over `x ≤ 880` only, a parapet at the open edge, a sky wall beyond it | this work | invented (the shape) |
+| The sky | `textures/common/sky_light` — `skyParms env/junk`, `q3map_sun 1 0.75 0.75 75 65 65`, `q3map_surfacelight 125` | `ctf_space`'s own sky, the game's own shader | game |
+| The lighting | ceiling light `2000` warm in the sheltered half, floods `1400` cool over the apron, wall lamps `500`, edge lamps `250`; the source's own deck is dark by its own design (an arena) | this work | invented (intensities and colours) |
+| The console post | `(720 908)`; the store rack at `(924 780)`; both `waypoint_navgoal` | this work | invented (placement) |
+| The arrival | `info_player_start` at `(960 908 200)`, on the apron | this work | invented (placement) |
+| The human trace | a shipped cargo rack (`models/mapobjects/cargo/rack.md3`, used in `scav1`) and a crate | the game's own model; the one part not from `ctf_space` | game |
+| The site marker | `lwh_away_site` (`info_notnull`); **no reader yet** — the away-mission loop is scenario content and is not built | this work | invented |
+
 ## Rank and clearance
 
 That departments work their own stations and that senior officers can take any is on screen in

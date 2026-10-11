@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+# The away site: an outpost's apron in a debris field, re-dressed from `ctf_space`.
+#
+#   scripts/away-check.sh
+#
+# Closes walkthrough G17's first half -- "there is no away site, so the away mission's acceptance run
+# is impossible" -- as far as a map can close it: a walkable site that loads, reads as *outside*, is
+# lit by measurement, and that the crew layer's own bodies reach. The design is
+# `docs/outside-the-ship.md` (the archetype table and *Order of work* 2-3); the method is
+# `docs/authoring-a-location.md`; the evidence is `docs/evidence/the-away-site.md`.
+#
+# What it does, in order, and what each step proves:
+#   re-dress   tools/away/dress_away_site.py copies the source's own top deck and shells it
+#   build      scripts/build-map.sh compiles it and `tools/mapgen/check-bsp.py` reads the artifact
+#   census     tools/shipmap/parts_census.py: every material already exists in the game
+#   vantage    g_shipTest 96 -- the vantage test -- is pointed at *the site's own posts*, and at
+#              nothing else: the caller names the post to stand at (g_shipVantagePost) and the stem
+#              to call the frames (g_shipVantage), so the frames stand where the site works and are
+#              named for the site rather than for the dark room's security office (the defect this
+#              pass repairs; docs/evidence/the-away-vantages.md). Six vantages per post: the four
+#              facings at the post and a pace each side. The post's own four facings must read
+#              LEGIBLE (tools/frames/frame.py); the paces are measured and a dark one is named
+#   outside    the frame that looks out into the debris field must differ from the frame that looks
+#              at the site's own wall at the same post -- so "outside" is a picture of a world
+#   crew       g_crew embodies the ship's roster on the site and every body must reach its place
+#
+# Writes under build/away and build/away-home only. The installation is read-only.
+#
+# LWH_VANTAGE_POST="name" overrides the post the vantage step stands at, so the anchor plumbing can
+# be shown to *refuse* a post the map does not carry rather than quietly photographing from
+# somewhere else (the falsification in docs/evidence/the-away-vantages.md).
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HOME_DIR="$ROOT/build/away-home"
+GAME_DIR="$HOME_DIR/baseEF"
+GEN="$ROOT/build/away/generated"
+OUT="$ROOT/build/away/out"
+SRC="$ROOT/build/gdk/maps/eliteforce_ctf_maps/ctf_space.map"
+MAP="lwh_away_depot"
+REPORT="$ROOT/build/away/dress.json"
+
+[ -d "$ROOT/build/baseEF" ] || { echo "no game data at build/baseEF -- run scripts/playtest-host-setup.sh" >&2; exit 1; }
+[ -f "$SRC" ] || { echo "no source at $SRC -- run scripts/fetch-gdk.sh" >&2; exit 1; }
+command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; }
+
+fail() { echo "FAIL  $1"; exit 1; }
+pass() { echo "PASS  $1"; }
+
+mkdir -p "$GEN" "$OUT" "$GAME_DIR/scripts" "$GAME_DIR/screenshots"
+
+echo "==> the re-dress"
+python3 "$ROOT/tools/away/dress_away_site.py" --source "$SRC" --out "$GEN" \
+    --report "$REPORT" --census "$ROOT/build/away/census.json" || fail "the re-dress wrote no map"
+
+echo "==> the build, and the artifact"
+bash "$ROOT/scripts/build-map.sh" "$GEN/$MAP.map" --name "$MAP" --out "$OUT" --light || fail "the map did not build"
+
+echo "==> the parts census: no new art"
+python3 "$ROOT/tools/shipmap/parts_census.py" --map "$GEN/$MAP.map" --game "$ROOT/build/baseEF" \
+    --census "$ROOT/build/away/census.json" || fail "the site names art the game does not have"
+
+# The site's own posts, and only these: the two the dress report names. The report carries their
+# positions; the map carries the point entities themselves -- their names are what the vantage
+# caller stands at, and their origins are the places the frames are shot from. The two must be the
+# same two, or the caller would photograph somewhere the report does not call a post.
+POSTS_RAW="$(python3 - "$REPORT" "$GEN/$MAP.map" <<'PY'
+import json, re, sys
+report = json.load(open(sys.argv[1]))
+want = sorted((int(p[0]), int(p[1])) for p in report["posts"])
+name, posts = None, []
+for ln in open(sys.argv[2], encoding="latin-1"):
+    m = re.search(r'"targetname"\s+"(lwh_post_[^"]+)"', ln)
+    if m:
+        name = m.group(1)
+        continue
+    m = re.search(r'"origin"\s+"(-?\d+) (-?\d+) (-?\d+)"', ln)
+    if m and name:
+        posts.append((name, int(m.group(1)), int(m.group(2)), int(m.group(3))))
+        name = None
+have = sorted((x, y) for _, x, y, _ in posts)
+if have != want:
+    sys.exit("the map's posts %s are not the dress report's %s" % (have, want))
+for n, x, y, z in posts:
+    print(n[len("lwh_post_"):], n, x, y, z)
+PY
+)" || fail "the map's posts are not the dress report's own two posts -- the caller would stand where the site does not work"
+
+POSTS=()
+while read -r label target x y z; do
+    [ -n "$label" ] && POSTS+=("$label $target $x $y $z")
+done <<<"$POSTS_RAW"
+[ "${#POSTS[@]}" -eq 2 ] || fail "the site does not name exactly two posts (found ${#POSTS[@]})"
+
+cp "$OUT/longway_$MAP.pk3" "$GAME_DIR/"
+rm -f "$GAME_DIR/maps/$MAP.nav"
+rm -rf "$GAME_DIR/screenshots"
+mkdir -p "$GAME_DIR/screenshots"
+# the frames of every vantage run this check takes, and no stale ones from an earlier pass
+rm -rf "$HOME_DIR"/frames-*
+
+# The vantage test -- g_shipTest 96, with the caller's post and frame stem. It stands at the point
+# entity g_shipVantagePost names and photographs six vantages (four facings at the post and a pace
+# each side), one frame each, named screenshots/<g_shipVantage>_<n>.tga. The post must be the map's
+# own: the harness prints the anchor it honoured, and this fails if that is not the post's origin
+# -- so a run that stood somewhere else, or renamed the frames for another room, is caught rather
+# than captioned.
+vantage() {  # vantage LABEL POST ORIGIN
+  local label="$1" post="$2" origin="$3" name="${MAP}_$1"
+  find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
+  rm -f "$GAME_DIR/screenshots"/*.tga
+  echo "==> the vantages, the $label post ($post at $origin)"
+  SDL_AUDIODRIVER=dummy timeout 240 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
+      +set s_useOpenAL 0 +set g_ship 1 +set g_shipTest 96 +set g_shipVantage "$name" \
+      +set g_shipVantagePost "$post" +map "$MAP" >"$HOME_DIR/vantage-$label.out" 2>&1 || true
+  grep -q "CM_LoadMap(maps/$MAP.bsp)" "$HOME_DIR/vantage-$label.out" || fail "the map did not load ($label; see $HOME_DIR/vantage-$label.out)"
+  grep -q "Munro connected" "$HOME_DIR/vantage-$label.out" || fail "the player never connected ($label)"
+  grep -q "SHIP: vantage: $name: the anchor at the post \"$post\": ($origin)" "$HOME_DIR/vantage-$label.out" \
+      || fail "the harness did not stand at the site's own post $post ($label; see $HOME_DIR/vantage-$label.out)"
+  grep -h "vantage: $name " "$HOME_DIR/vantage-$label.out" | sed 's/^SHIP: /    /' || true
+  rm -rf "$HOME_DIR/frames-$label"
+  mkdir -p "$HOME_DIR/frames-$label"
+  cp "$GAME_DIR/screenshots/$name"_*.tga "$HOME_DIR/frames-$label/"
+  # The frames are this site's, and all six: a run that named them for another room, or skipped a
+  # vantage, is not the photograph this check is about.
+  [ "$(ls "$HOME_DIR/frames-$label"/*.tga 2>/dev/null | wc -l)" -eq 6 ] \
+      || fail "the $label post did not produce six frames named $name\_<n>.tga ($label)"
+}
+
+for post in "${POSTS[@]}"; do
+    read -r label target x y z <<<"$post"
+    vantage "$label" "${LWH_VANTAGE_POST:-$target}" "$x $y $z"
+done
+echo "==> the light, measured per viewpoint (mean / median / p90 / spread of the brightest channel, mid band)"
+for post in "${POSTS[@]}"; do
+    read -r label _ <<<"$post"
+    python3 "$ROOT/tools/frames/frame.py" floor --band 0.10,0.55 "$HOME_DIR"/frames-"$label"/*.tga | sed 's/^/    /' || true
+done
+
+# A post is a position *and* a facing: the four facings at the post are the post's own claim, and
+# every one of them must read. A post that renders dark is the post problem the room-posts pass
+# named, and this fails and names the post. (The two paces are the rig's probe -- below.)
+echo "==> every post's own four facings must read"
+for post in "${POSTS[@]}"; do
+    read -r label _ <<<"$post"
+    python3 "$ROOT/tools/frames/frame.py" floor --band 0.10,0.55 --require \
+        "$HOME_DIR"/frames-"$label"/"$MAP"_"$label"_{0,1,2,3}.tga >/dev/null \
+        || fail "the $label post renders dark at one of its own four facings -- the site's own post has no legible stand"
+done
+pass "both of the site's own posts read at their own four facings -- the site stands in its light"
+
+# The rig's probe, measured and *named*, not required: a pace east of the stores post stands 16
+# units from the unlit east face of a machine block the re-dress left on the open apron (80x80,
+# bottom exactly on the deck floor, so the drop rule for machine blocks did not take it). The frame
+# is a picture of that block, not of a dark site -- the dark-room pass's own category ("a facing can
+# be dark in a well-lit place"), and the block blocking the outward view is a finding for the next
+# pass, recorded in docs/evidence/the-away-vantages.md, not fixed here. Any *other* dark frame is a
+# regressed claim and fails, by name.
+ALLOWED_DARK="${MAP}_stores_5.tga"
+DARK="$(python3 "$ROOT/tools/frames/frame.py" floor --band 0.10,0.55 "$HOME_DIR"/frames-*/*.tga \
+    | awk '/DARK/ { print $1 }')"
+if [ -n "$DARK" ]; then
+    OTHERS="$(printf '%s\n' "$DARK" | grep -vxF "$ALLOWED_DARK" || true)"
+    [ -z "$OTHERS" ] || fail "a vantage is dark and it is not the named one ($ALLOWED_DARK): $OTHERS"
+fi
+pass "the only dark vantage is the one named -- the stores post's east-west pace against the deck's own machine block"
+
+# The site reads as *outside*: at the site's own post, the picture looking out into the debris field
+# and the picture looking at the site's own wall must differ over the region of the subject. A HUD
+# cannot satisfy this -- the band excludes the console text above and the weapon below -- and a
+# painted wall would not: what changes is the world.
+echo "==> the opening into the debris field, against the site's own wall at the same post"
+python3 "$ROOT/tools/frames/frame.py" diff --band 0.10,0.55 --min-changed 0.5 --min-delta 24 --require \
+    "$HOME_DIR/frames-console/${MAP}_console_3.tga" "$HOME_DIR/frames-console/${MAP}_console_2.tga" \
+    | sed 's/^/    /' || fail "the opening into the debris field is not a picture of a world: it did not differ from the wall at the same post"
+pass "the frame that looks out shows a world: it differs from the site's own wall at the same post"
+
+# Navigation is baked by the engine on first load, from the map's own waypoints -- no crew can work a
+# site with no nav, and the file was deleted before the run.
+[ -f "$GAME_DIR/maps/$MAP.nav" ] || fail "the engine did not bake maps/$MAP.nav: the site has no navigation"
+pass "the engine baked maps/$MAP.nav on first load"
+
+# Reachability, by the project's own instrument: the crew layer embodies the ship's roster on the
+# site (g_crewFromShip, the s5 shape) and every body walks to its place. Writes nothing but the log.
+find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
+echo "==> the crew on the site"
+SDL_AUDIODRIVER=dummy timeout 120 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
+    +set s_useOpenAL 0 +set g_ship 1 +set g_crew 1 +set g_crewDebug 1 +set g_crewFromShip 1 \
+    +set g_crewDeck 1 +map "$MAP" >"$HOME_DIR/crew.out" 2>&1 || true
+grep -hE '^CREW: (direction layer|([0-9]+ post|ship time|lwh_crew_[0-9]+ at post))' "$HOME_DIR/crew.out" | head -8 | sed 's/^/    /' || true
+grep -qE "^CREW: [0-9]+ post\(s\) from the map's own navigation goals" "$HOME_DIR/crew.out" \
+    || fail "the crew layer found no posts on the site (see $HOME_DIR/crew.out)"
+grep -q "in solid" "$HOME_DIR/crew.out" && fail "a waypoint or a body is in solid on the site"
+EMBODIED="$(grep -cE '^CREW: lwh_crew_[0-9]+ \(ent [0-9]+\) -> place_' "$HOME_DIR/crew.out" || true)"
+ARRIVED="$(grep -cE '^CREW: lwh_crew_[0-9]+ at post ' "$HOME_DIR/crew.out" || true)"
+STUCK="$(grep -cE '^CREW: lwh_crew_[0-9]+ failed to reach ' "$HOME_DIR/crew.out" || true)"
+echo "    $EMBODIED embodied, $ARRIVED reached their place, $STUCK gave up"
+[ "$EMBODIED" -ge 10 ] || fail "fewer than ten crew embodied on the site ($EMBODIED)"
+[ "$STUCK" -eq 0 ] || fail "$STUCK crew could not reach their place on the site"
+[ "$ARRIVED" -eq "$EMBODIED" ] || fail "only $ARRIVED of $EMBODIED crew reached their place"
+pass "every crew member the ship put on the site walked to its place, and none is in solid"
+
+echo
+pass "the away site loads, walks, reads as outside from its own posts (partly), is lit by measurement,"
+echo "      and its sources are named"
+echo "      map:     $OUT/longway_$MAP.pk3  (in game: map $MAP)"
+echo "      frames:  $HOME_DIR/frames-console/, $HOME_DIR/frames-stores/"
+echo "      sources: docs/locations/away-site-outpost.brief.md; evidence: docs/evidence/the-away-site.md,"
+echo "               docs/evidence/the-away-vantages.md"

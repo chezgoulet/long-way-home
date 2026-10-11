@@ -183,8 +183,9 @@ there is to look at, what there is to do, and the question the stop answers.**
   *"the pattern buffer is at 100%, nominal: I would send anyone"* — and a degraded one can mangle, copy
   or merge a traveller (`docs/evidence/condition-sets-the-odds.md`).
 - **Question:** *is the transporter a decision or a button?* The risk statement is the design's answer;
-  whether it lands is yours. The away *site* does not exist, so the team arrives as a chart entry
-  (**G17**).
+  whether it lands is yours. No delivery lands the away team on the site's own map — the site is built
+  (`lwh_away_depot`) but the loop that beams a team onto it is not — so the team still arrives as a
+  chart entry (**G17**).
 
 ### Deck 5 — sickbay (published)
 - **Reach:** turbolift, deck 5.
@@ -231,7 +232,8 @@ there is to look at, what there is to do, and the question the stop answers.**
 - **Do:** the survey board (`U` on Ops) is the tricorder/away-kit decision; the chart is command's.
   Sensors survey the beacons; probes are launched from the launcher (`ship probe <beacon>`).
 - **Question:** *is exploration a mechanic here?* The rules exist (survey, probe, phenomenon,
-  dilithium); the **away site does not**, so a survey is a chart row rather than a place (**G17**).
+  dilithium); **no survey reads a place** — the away site's map is built, but a scan still reads a
+  chart row and no loop lands a team on it — so a survey is a chart row rather than a place (**G17**).
 
 ### Deck 9 — crew quarters (published)
 - **Reach:** turbolift, deck 9.
@@ -890,15 +892,30 @@ evidence: `docs/evidence/the-character-layer.md`, `docs/evidence/the-manner.md`.
   the endings are a later stage.
 
 ### G17 — There is no away site, so the away mission's acceptance run is impossible
-- **Status 2026-10-11 — OPEN.** `docs/evidence/gap-tricorders-and-kit.md` and `docs/omissions.md` **O11**
-  still name the away site as content; a scan is of a chart row, not a place. Waits on an away-site map
-  and a session. Left unannotated: no single named artifact carries it.
-- **Missing:** the transporter delivers the party to the sector beacon the ship is at; the tricorder
-  scans a chart entry, not a place. The acceptance — "an away mission can be solved by scanning rather
-  than by shooting" — needs a walkable site and a session.
-- **Says so:** `docs/evidence/gap-tricorders-and-kit.md` ("What is left for this gap").
-- **To close:** an away-site map re-dressed from the archetypes in `docs/outside-the-ship.md`; no new
-  art needed.
+- **Status 2026-10-11 — PARTLY CLOSED: the site is built and walkable; the acceptance run waits on the
+  away-mission loop.** `docs/evidence/the-away-site.md`, `docs/evidence/the-away-vantages.md` and
+  `docs/locations/away-site-outpost.brief.md`
+  (`feat/the-away-site`): the **space station / outpost** archetype of `docs/outside-the-ship.md` is
+  built as the map `lwh_away_depot`, re-dressed from `ctf_space` (the design's own source for it) by
+  `tools/away/dress_away_site.py`. It loads (`CM_LoadMap`, `Munro connected`), bakes its own
+  `lwh_away_depot.nav`, **partly** reads as **outside** by measurement — from the site's own console
+  post, the frame looking into the debris field differs from the frame on the site's own wall by
+  61.2 % of the mid band, but the structure encloses most facings and a machine block the re-dress's
+  rule missed blocks the stores post's outward view (`lwh_away_depot_console_2.tga` is the frame that
+  decided it) — is lit by measurement (both posts read LEGIBLE at their own four facings, 11 of 12
+  vantages), and the crew layer's bodies reach every place on it (**13 embodied, 13 arrived, 0
+  stuck**). Its frames are the site's own, shot from its own two posts and named for the depot; the
+  dark room's frames are unchanged. `scripts/away-check.sh` is the regression. Left annotated:
+  the rest of G17 is the loop, which is content.
+- **Missing:** the *acceptance run* itself — "an away mission can be solved by scanning rather than by
+  shooting". The tricorder's `Scan` still reads a **chart row**, not a place
+  (`module/ship/ship_core.cpp`), and no scenario loads this map on a transporter delivery; the
+  away-mission loop (kit, scan of a place, window, return, write-back) is `docs/outside-the-ship.md`
+  *Order of work* item 4. The other five archetypes are unbuilt; the derelict interior is next.
+- **Says so:** `docs/evidence/the-away-site.md` ("What could not be verified here");
+  `docs/evidence/gap-tricorders-and-kit.md`; `docs/omissions.md` O11; `docs/gates.md` (*The away site*).
+- **To close:** the away-mission loop on top of the built site, and a session.
+  <!-- register-row id=G17 state=partly marker=check:scripts/away-check.sh -->
 
 ### G18 — The air/endurance countdown is not drawn where the problem is
 - **Status 2026-10-11 — OPEN.** `docs/evidence/gap-air-and-endurance.md`: *"The countdown and the field
@@ -911,6 +928,10 @@ evidence: `docs/evidence/the-character-layer.md`, `docs/evidence/the-manner.md`.
 - **Says so:** `docs/evidence/gap-air-and-endurance.md`; `docs/ship-master-map.md`.
 - **To close:** an environmental-control readout at the deck-12 watch console; the panel surface path
   already exists.
+- **Not touched by the away-site pass (2026-10-11).** The brief named this row alongside G17, but this
+  pass is **not a ship-side change** (no `module/` file is edited), so the deck-12 readout is untouched.
+  The related question on the *site* side — how long an away team's air lasts — belongs to the
+  away-mission loop, which is not built, and is named in `docs/evidence/the-away-site.md`.
 
 ### G19 — The shuttle load-screen is deliberately a menu and is not built
 - **Status 2026-10-11 — OPEN by design.** `docs/evidence/every-screen.md` row 18: *"a **decision menu at
@@ -996,26 +1017,27 @@ evidence: `docs/evidence/the-character-layer.md`, `docs/evidence/the-manner.md`.
 ### The gap statuses, and which rows the check reads
 
 This list was re-read row by row against the tree and `docs/gates.md` on **2026-10-11**
-(`feat/the-walkthrough-status`). The **count**: **5 closed** — G1, G2, G12, G13, G14; **4 partly
-closed** — G3, G5, G11, G16; **16 open** — G4, G6, G7, G8, G9, G10, G15, G17, G18, G19, G20, G21,
+(`feat/the-walkthrough-status`). The **count**: **5 closed** — G1, G2, G12, G13, G14; **5 partly
+closed** — G3, G5, G11, G16, G17; **15 open** — G4, G6, G7, G8, G9, G10, G15, G18, G19, G20, G21,
 G22, G23, G24, G25. Each row carries its 2026-10-11 status in place, its own finding text kept.
 
-**Rows the register check reads: the 5 closed rows**, each with a `state=closed` marker naming the
-proof (`G1` `configs/lwh-start.cfg`; `G2` `scripts/configurator-check.sh`; `G12`
-`scripts/power-check.sh`; `G13` `scripts/docs-check.sh`; `G14` `scripts/character-check.sh`). The
+**Rows the register check reads: the 5 closed rows and the partly-closed G17**, each with a marker
+naming the proof (`G1` `configs/lwh-start.cfg`; `G2` `scripts/configurator-check.sh`; `G12`
+`scripts/power-check.sh`; `G13` `scripts/docs-check.sh`; `G14` `scripts/character-check.sh`; `G17`
+`scripts/away-check.sh`, the away-site pass of 2026-10-11). The
 check is class 3 of `scripts/docs-check.sh`; the walkthrough is now one of its registers, so a closed
 row whose proof is later removed fails the suite.
 
-**Rows left unannotated: the 4 partly-closed and the 16 open rows (20).** The rule is the omissions
-register's own (`docs/evidence/the-number-owners.md`, Task B, and `tools/docs/check_register.py`): do
-not annotate a row whose closure cannot be reduced to a marker. Each of the 20 "Status" lines above
-says why in its own words; in brief, they fall into two kinds — a closure that is **a person's act** (a
-walkthrough, a session, an owner's ruling: G3, G6, G7, G8, G9, G15, G19, G24 and the halves of G11 and
-G16) and a closure that is **content or a build item nothing has named yet** (G4, G5, G10, G17, G18,
-G20, G21, G22, G23, G25). A marker for either would be an invented filename, which the register
-declines. **A green check is not the answer to this list's question**: the check proves a closed row's
-proof exists, not that the row's prose is true, and it is blind to the 20 unannotated rows by
-construction.
+**Rows left unannotated: the other 4 partly-closed and the 15 open rows (19).** The rule is the
+omissions register's own (`docs/evidence/the-number-owners.md`, Task B, and
+`tools/docs/check_register.py`): do not annotate a row whose closure cannot be reduced to a marker.
+Each of the 19 "Status" lines above says why in its own words; in brief, they fall into two kinds — a
+closure that is **a person's act** (a walkthrough, a session, an owner's ruling: G3, G6, G7, G8, G9,
+G15, G19, G24 and the halves of G11 and G16) and a closure that is **content or a build item nothing
+has named yet** (G4, G5, G10, G18, G20, G21, G22, G23, G25). A marker for either would be an invented
+filename, which the register declines. **A green check is not the answer to this list's question**:
+the check proves a closed row's proof exists, not that the row's prose is true, and it is blind to the
+19 unannotated rows by construction.
 
 **One further correction made in the same pass — the section text's cross-references.** Sections 2–11
 cited G-numbers that did not match this gap list (they read as an earlier draft's numbering), so a
