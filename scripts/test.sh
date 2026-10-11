@@ -45,6 +45,10 @@ echo "==> assimilation: the log and the access transfer to the Collective"
 "$ROOT/scripts/assimilation-check.sh"
 
 echo
+echo "==> bills: the watch bill and the reconfiguration bills (O6)"
+"$ROOT/scripts/bills-check.sh"
+
+echo
 echo "==> api: the console's verbs and the ship's API agree, both directions"
 "$ROOT/scripts/api-check.sh"
 

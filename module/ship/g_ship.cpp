@@ -1064,6 +1064,22 @@ void Publish( void )
 	// priorities are refused to everyone else, and the screens say so by name.
 	gi.cvar_set( "lwh_ship_may_command", ship::PlayerMayCommand( vessel ) ? "1" : "0" );
 
+	// The bills (docs/crew-manifest.md): the watch in force, the battle bill by role, the emergency
+	// bill, the holes, and who holds the deck and the watch -- the state the ui_lwh_bills screen draws.
+	{
+		gi.cvar_set( "lwh_ship_bill_watch", ship::WatchBillLine( vessel ).c_str() );
+		gi.cvar_set( "lwh_ship_bill_battle", ship::BattleBillLine( vessel ).c_str() );
+		gi.cvar_set( "lwh_ship_bill_battle_state", ship::BattleStations( vessel ) ? "GENERAL QUARTERS" : "the watch" );
+		gi.cvar_set( "lwh_ship_bill_emergency", ship::EmergencyBillLine( vessel ).c_str() );
+		std::string holes;
+		const int nHoles = ship::BillHoles( vessel, &holes );
+		gi.cvar_set( "lwh_ship_bill_holes", Fmt( "%d|%s", nHoles, holes.c_str() ).c_str() );
+		const int ood = ship::OfficerOfTheDeck( vessel );
+		const int eow = ship::EngineerOfTheWatch( vessel );
+		gi.cvar_set( "lwh_ship_bill_ood", ood >= 0 ? Fmt( "%s holds the deck", vessel.crew[ood].name.c_str() ).c_str() : "no officer of the deck on watch" );
+		gi.cvar_set( "lwh_ship_bill_eow", eow >= 0 ? Fmt( "%s has the watch (damage control reports to them)", vessel.crew[eow].name.c_str() ).c_str() : "no engineer of the watch" );
+	}
+
 	// The month report editor (row 20): the open draft's lines with their edit state, the headline,
 	// and the diff the record keeps. The screen sends its edits as `ship report ...` under the
 	// person's clearance, so the editor is the same path a hand on the console drives.
@@ -5652,6 +5668,68 @@ void Svcmd_Ship_f( void )
 			const uint8_t rolled = ship::AttemptRising( vessel, post, who, ship::NextRisingRoll( vessel ), &account );
 			gi.Printf( "SHIP: RISING %s: %s\n", ship::RisingOutcomeName( rolled ), account.c_str() );
 		}
+		Publish();
+		return;
+	}
+	if ( !Q_stricmp( cmd, "bill" ) )
+	{//the bills (docs/crew-manifest.md): the watch bill, battle stations, the emergency bills and
+	 //the officer of the deck. Command's, or the bridge watch's; the two-lock gates the person, and
+	 //the model records who called it. The screen ui_lwh_bills sends these same commands.
+		const bool mayCall = ship::PlayerMayCommand( vessel )
+			|| ( vessel.player >= 0 && ( ship::MayCallAlert( vessel, vessel.player, ship::STN_ENGINEERING )
+				|| ship::MayCallAlert( vessel, vessel.player, ship::STN_TACTICAL ) ) );
+		if ( !Q_stricmp( a, "status" ) || !a[0] )
+		{
+			const std::string watch = ship::WatchBillLine( vessel );
+			const std::string battle = ship::BattleBillLine( vessel );
+			std::string holes; const int nHoles = ship::BillHoles( vessel, &holes );
+			const int ood = ship::OfficerOfTheDeck( vessel );
+			gi.Printf( "SHIP: bill: %s\n", watch.c_str() );
+			gi.Printf( "SHIP: bill: battle stations %s; by role: %s\n",
+				ship::BattleStations( vessel ) ? "CALLED" : "not called", battle.c_str() );
+			gi.Printf( "SHIP: bill: %s\n", ship::EmergencyBillLine( vessel ).c_str() );
+			gi.Printf( "SHIP: bill: %d hole(s): %s\n", nHoles, holes.empty() ? "none" : holes.c_str() );
+			gi.Printf( "SHIP: bill: officer of the deck %s\n", ood >= 0 ? vessel.crew[ood].name.c_str() : "nobody" );
+			return;
+		}
+		if ( !mayCall )
+		{
+			gi.Printf( "SHIP: bill refused: only command, or the bridge watch (a lieutenant at Engineering or Tactical), calls a bill\n" );
+			gi.cvar_set( "lwh_ship_refusal", "only command or the bridge watch calls a bill" );
+			return;
+		}
+		gi.cvar_set( "lwh_ship_refusal", "" );
+		const int by = vessel.player;
+		if ( !Q_stricmp( a, "battle" ) )
+		{
+			if ( ship::BattleStations( vessel ) ) ship::StandDownBattleStations( vessel, by );
+			else ship::CallBattleStations( vessel, by );
+		}
+		else if ( !Q_stricmp( a, "standdown" ) )
+		{
+			// stands down whichever is up: battle stations first, then the emergency
+			if ( ship::BattleStations( vessel ) ) ship::StandDownBattleStations( vessel, by );
+			else if ( ship::Emergency( vessel ) != ship::EMERG_NONE ) ship::StandDownEmergency( vessel, by );
+		}
+		else
+		{
+			const int deck = b[0] ? atoi( b ) : 0;
+			uint8_t kind = ship::EMERG_NONE;
+			if ( !Q_stricmp( a, "fire" ) ) kind = ship::EMERG_FIRE;
+			else if ( !Q_stricmp( a, "decomp" ) || !Q_stricmp( a, "decompression" ) ) kind = ship::EMERG_DECOMPRESSION;
+			else if ( !Q_stricmp( a, "intruder" ) ) kind = ship::EMERG_INTRUDER;
+			else if ( !Q_stricmp( a, "abandon" ) ) kind = ship::EMERG_ABANDON;
+			if ( kind == ship::EMERG_NONE ) { gi.Printf( "SHIP: bill: battle|standdown|fire <deck>|decomp <deck>|intruder <deck>|abandon\n" ); return; }
+			if ( !ship::CallEmergency( vessel, kind, deck, by ) )
+			{
+				gi.Printf( "SHIP: bill refused: %s needs a deck (1..15)\n", ship::EmergencyKindName( kind ) );
+				gi.cvar_set( "lwh_ship_refusal", "that bill needs a deck" );
+				return;
+			}
+		}
+		gi.Printf( "SHIP: bill: battle stations %s; %s\n",
+			ship::BattleStations( vessel ) ? "CALLED" : "not called",
+			ship::EmergencyBillLine( vessel ).c_str() );
 		Publish();
 		return;
 	}

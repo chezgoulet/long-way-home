@@ -8055,8 +8055,260 @@ static int PrintTextFit( bool wrapped )
 	return over ? 1 : 0;
 }
 
+// ---- the bills (docs/crew-manifest.md) ----------------------------------------------------------
+//
+// The census: the watch bill is the roster (`watch`, ScheduledActivity, the watch-change meeting)
+// and already the simulation's; the reconfiguration bills are the organisation on top of it. These
+// demonstrate each bill as state, effect and read: called, observed, stood down.
+
+static void TestTheBills()
+{
+	g_test = "the bills: called, observed, stood down";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+
+	// The watch bill: the watch in force, who is on duty, who is at a post. It is the roster that
+	// already existed, read as a bill.
+	CHECK(s.Watch() == 0);
+	CHECK(WatchBillLine(s).find("ALPHA WATCH") != std::string::npos);
+	int onDuty = 0;
+	for (const CrewMember &c : s.crew) if (c.activity == ACT_ON_DUTY) ++onDuty;
+	CHECK(onDuty >= 35);
+
+	// Every record carries a battle station and an emergency assignment; the command crew hold the
+	// bridge, and the captain does not go to a repair party.
+	for (const CrewMember &c : s.crew) CHECK(c.battle < ROLE_COUNT && c.emergency < ROLE_COUNT);
+	const int captain = SeatHolder(s, SEAT_CAPTAIN);
+	CHECK(captain >= 0 && s.crew[captain].battle == ROLE_POST);
+	CHECK(!BattleBillLine(s).empty());
+	// The engineer of the watch is the one the repair parties answer to.
+	const int eow = EngineerOfTheWatch(s);
+	CHECK(eow >= 0 && s.crew[eow].dept == DEPT_ENGINEERING);
+
+	// ---- battle stations ----
+	const int driveBefore = s.systems[SYS_WARP_DRIVE].manned;
+	CHECK(!BattleStations(s));
+	CHECK(CallBattleStations(s, captain));
+	CHECK(BattleStations(s) && s.alert == ALERT_RED);
+	CHECK(BattleCalledBy(s) == captain);
+	bool called = false, armed = false;
+	for (const LogEntry &e : s.log) {
+		if (e.what.find("battle stations") != std::string::npos) called = true;
+		if (e.what.find("condition red") != std::string::npos) armed = true;
+	}
+	CHECK(called && armed);
+
+	// Observed: hands have left their posts for their battle stations. The engineers who stood at
+	// the warp drive are on the repair parties now, so the drive's own hands fall.
+	DamageSystem(s, SYS_SENSORS, 0.5f); // something for the party to mend
+	Tick(s, 1.0f);
+	CHECK(s.systems[SYS_WARP_DRIVE].manned < driveBefore);
+	CHECK(s.systems[SYS_SENSORS].repairing > 0);
+	// Casualty clearing holds the support hands, and sickbay holds the medical ones.
+	int clearing = 0, triage = 0;
+	for (const CrewMember &c : s.crew) {
+		if (c.status != CREW_FIT) continue;
+		if (c.battle == ROLE_CASUALTY && c.deck == MESS_DECK) ++clearing;
+		if (c.battle == ROLE_TRIAGE && c.deck == SICKBAY_DECK) ++triage;
+	}
+	CHECK(clearing > 0 && triage > 0);
+
+	// Stood down: the watch returns to the routine, and the condition with it.
+	CHECK(StandDownBattleStations(s, captain));
+	CHECK(!BattleStations(s) && s.alert == ALERT_GREEN);
+	Tick(s, 1.0f);
+	CHECK(s.systems[SYS_WARP_DRIVE].manned == driveBefore);
+	CHECK(StandDownBattleStations(s, captain) == false); // already stood down changes nothing
+
+	// ---- the emergency bills ----
+	Ship e = NewShip();
+	Tick(e, 1.0f);
+	e.decks[8].fire = 0.3f; // deck 9 is burning
+	CHECK(Emergency(e) == EMERG_NONE);
+	CHECK(!CallEmergency(e, EMERG_FIRE, 0, captain));  // a fire with no deck is not a bill
+	CHECK(CallEmergency(e, EMERG_FIRE, 9, captain));
+	CHECK(Emergency(e) == EMERG_FIRE && EmergencyDeck(e) == 9);
+	CHECK(EmergencyBillLine(e).find("deck 9") != std::string::npos);
+	Tick(e, 1.0f);
+	// The deck is cleared: no fit hand who is not a party is left on it.
+	int stranded = 0;
+	for (const CrewMember &c : e.crew) {
+		if (c.status != CREW_FIT || c.deck != 9) continue;
+		if (!(c.dept == DEPT_ENGINEERING || c.dept == DEPT_SCIENCES || c.dept == DEPT_SECURITY)) ++stranded;
+	}
+	CHECK(stranded == 0);
+	CHECK(StandDownEmergency(e, captain));
+	CHECK(Emergency(e) == EMERG_NONE);
+
+	// Abandon ship musters the crew at the shuttlebay, whatever the watch.
+	CHECK(CallEmergency(e, EMERG_ABANDON, 0, captain));
+	Tick(e, 1.0f);
+	CHECK(Emergency(e) == EMERG_ABANDON && EmergencyDeck(e) == 0);
+	int atBay = 0, fit = 0;
+	for (const CrewMember &c : e.crew) { if (c.status != CREW_FIT) continue; ++fit; if (c.deck == SHUTTLE_BAY_DECK) ++atBay; }
+	CHECK(atBay > fit / 2);
+	CHECK(StandDownEmergency(e, captain));
+	CHECK(Emergency(e) == EMERG_NONE);
+
+	// The holes: the manifest's "posts with one qualified holder, and stations no living crew member
+	// can fill". A full crew is three-deep, so no post rests on one hand -- and the read says so.
+	// The holes are what loss makes: take the transporter's people but one and it appears.
+	std::string holes;
+	CHECK(BillHoles(s, &holes) == 0);
+	Ship wounded = NewShip();
+	Tick(wounded, 1.0f);
+	int kept = 0;
+	for (CrewMember &c : wounded.crew)
+		if (c.post == SYS_TRANSPORTERS) { if (kept++ > 0) c.status = CREW_DEAD; }
+	std::string woundedHoles;
+	CHECK(BillHoles(wounded, &woundedHoles) > 0);
+	CHECK(woundedHoles.find("transporters") != std::string::npos);
+
+	// The bills round-trip a save.
+	Ship p = NewShip();
+	Tick(p, 1.0f);
+	CHECK(CallBattleStations(p, captain));
+	CHECK(CallEmergency(p, EMERG_INTRUDER, 4, captain));
+	const std::vector<uint8_t> blob = Pack(p);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(Pack(back) == blob);
+	CHECK(BattleStations(back) && Emergency(back) == EMERG_INTRUDER && EmergencyDeck(back) == 4);
+	CHECK(back.crew[0].battle == p.crew[0].battle && back.crew[0].emergency == p.crew[0].emergency);
+}
+
+// The officer of the deck: authority over senior officers who are not the captain, and access kept
+// apart from it (docs/crew-manifest.md, "Who reports to whom"; docs/access-and-authority.md).
+static void TestOodAuthority()
+{
+	g_test = "the officer of the deck: authority over seniors, not the captain";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int ood = OfficerOfTheDeck(s);
+	CHECK(ood >= 0);
+	CHECK(s.crew[ood].rank >= 3 && s.crew[ood].rank <= 5);
+
+	// A senior officer who is not the captain: the deck may order them, and the simulation says so.
+	int senior = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].status == CREW_FIT && s.crew[i].rank > s.crew[ood].rank && s.crew[i].rank < 6) senior = i;
+	CHECK(senior >= 0);
+	CHECK(OodMayOrder(s, ood, senior));
+	CHECK(std::string(OodRefusal(s, ood, senior)).empty());
+
+	// The negative case: the captain is not the deck's to order.
+	const int captain = SeatHolder(s, SEAT_CAPTAIN);
+	CHECK(captain >= 0 && s.crew[captain].rank == 6);
+	CHECK(!OodMayOrder(s, ood, captain));
+	CHECK(std::string(OodRefusal(s, ood, captain)).find("captain") != std::string::npos);
+
+	// Authority is not access: the deck may order the chief engineer, and cannot operate the engine
+	// room without clearance (the OOD is a command post, not a rank above the engineer).
+	CHECK(!MayOperate(s, ood, STN_ENGINEERING));
+	CHECK(!OodMayOrder(s, ood, ood)); // and they do not order themselves
+
+	// A dead officer of the deck has no authority.
+	Ship d = NewShip();
+	Tick(d, 1.0f);
+	const int o2 = OfficerOfTheDeck(d);
+	d.crew[o2].status = CREW_DEAD;
+	CHECK(!OodMayOrder(d, o2, senior));
+}
+
+// `test_ship_core --bills` prints the bills as evidence (docs/evidence/the-bills.md): the census,
+// each bill called and observed, the crew's recorded state changing, and the officer of the deck.
+static int PrintBills()
+{
+	std::printf("== the census: the watch bill is the roster, the bills are the organisation over it\n");
+	{
+		Ship s = NewShip();
+		Tick(s, 1.0f);
+		std::printf("  %s\n", WatchBillLine(s).c_str());
+		std::printf("  battle bill by role: %s\n", BattleBillLine(s).c_str());
+		const int eow = EngineerOfTheWatch(s);
+		std::printf("  engineer of the watch: %s\n", eow >= 0 ? s.crew[eow].name.c_str() : "nobody");
+		const int ood = OfficerOfTheDeck(s);
+		std::printf("  officer of the deck: %s\n", ood >= 0 ? s.crew[ood].name.c_str() : "nobody");
+		std::string holes;
+		const int n = BillHoles(s, &holes);
+		std::printf("  the holes: %d on a full crew (%s); the read names what loss makes\n", n,
+			n ? holes.c_str() : "a full crew is three-deep");
+		{
+			Ship wounded = NewShip();
+			Tick(wounded, 1.0f);
+			int kept = 0;
+			for (CrewMember &c : wounded.crew)
+				if (c.post == SYS_TRANSPORTERS) { if (kept++ > 0) c.status = CREW_DEAD; }
+			std::string wh;
+			const int nw = BillHoles(wounded, &wh);
+			std::printf("  with all but one transporter hand lost: %d hole(s): %s\n", nw, wh.c_str());
+		}
+	}
+
+	std::printf("\n== battle stations: called, observed, stood down\n");
+	{
+		Ship s = NewShip();
+		Tick(s, 1.0f);
+		const int captain = SeatHolder(s, SEAT_CAPTAIN);
+		const int drive0 = s.systems[SYS_WARP_DRIVE].manned;
+		std::printf("  before: %s manned %d, condition %d, battle %d\n",
+			Spec(SYS_WARP_DRIVE).name, drive0, s.alert, BattleStations(s) ? 1 : 0);
+		DamageSystem(s, SYS_SENSORS, 0.5f);
+		CallBattleStations(s, captain);
+		Tick(s, 1.0f);
+		std::printf("  called: condition %d, battle %d; %s manned %d, sensors repairing %d\n",
+			s.alert, BattleStations(s) ? 1 : 0, Spec(SYS_WARP_DRIVE).name,
+			s.systems[SYS_WARP_DRIVE].manned, s.systems[SYS_SENSORS].repairing);
+		StandDownBattleStations(s, captain);
+		Tick(s, 1.0f);
+		std::printf("  stood down: condition %d, battle %d; %s manned %d\n",
+			s.alert, BattleStations(s) ? 1 : 0, Spec(SYS_WARP_DRIVE).name, s.systems[SYS_WARP_DRIVE].manned);
+	}
+
+	std::printf("\n== the emergency bills: a fire clears its deck; abandon ship musters the crew\n");
+	{
+		Ship s = NewShip();
+		Tick(s, 1.0f);
+		const int captain = SeatHolder(s, SEAT_CAPTAIN);
+		int on9 = 0;
+		for (const CrewMember &c : s.crew) if (c.deck == 9) ++on9;
+		s.decks[8].fire = 0.3f;
+		CallEmergency(s, EMERG_FIRE, 9, captain);
+		Tick(s, 1.0f);
+		int left = 0;
+		for (const CrewMember &c : s.crew)
+			if (c.status == CREW_FIT && c.deck == 9 && !(c.dept == DEPT_ENGINEERING || c.dept == DEPT_SCIENCES || c.dept == DEPT_SECURITY)) ++left;
+		std::printf("  fire on deck 9: %d were on it, %d non-party hand(s) left; %s\n",
+			on9, left, EmergencyBillLine(s).c_str());
+		CallEmergency(s, EMERG_ABANDON, 0, captain);
+		Tick(s, 1.0f);
+		int atBay = 0, fit = 0;
+		for (const CrewMember &c : s.crew) { if (c.status != CREW_FIT) continue; ++fit; if (c.deck == SHUTTLE_BAY_DECK) ++atBay; }
+		std::printf("  abandon ship: %d of %d fit hands muster at the shuttlebay (deck %d)\n", atBay, fit, SHUTTLE_BAY_DECK);
+	}
+
+	std::printf("\n== the officer of the deck: authority over seniors, not the captain\n");
+	{
+		Ship s = NewShip();
+		Tick(s, 1.0f);
+		const int ood = OfficerOfTheDeck(s);
+		const int captain = SeatHolder(s, SEAT_CAPTAIN);
+		int senior = -1;
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+			if (s.crew[i].status == CREW_FIT && s.crew[i].rank > s.crew[ood].rank && s.crew[i].rank < 6) senior = i;
+		std::printf("  the deck is %s (rank %d)\n", s.crew[ood].name.c_str(), s.crew[ood].rank);
+		std::printf("  may order %s (rank %d): %s\n", s.crew[senior].name.c_str(), s.crew[senior].rank,
+			OodMayOrder(s, ood, senior) ? "yes" : OodRefusal(s, ood, senior));
+		std::printf("  may order the captain %s: %s\n", s.crew[captain].name.c_str(),
+			OodMayOrder(s, ood, captain) ? "yes" : OodRefusal(s, ood, captain));
+		std::printf("  but the deck cannot operate the engine room: MayOperate %d\n", MayOperate(s, ood, STN_ENGINEERING) ? 1 : 0);
+	}
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
+	if (argc > 1 && !std::strcmp(argv[1], "--bills")) return PrintBills();
 	if (argc > 1 && !std::strcmp(argv[1], "--textfit")) return PrintTextFit(true);
 	if (argc > 1 && !std::strcmp(argv[1], "--textfit-unwrapped")) return PrintTextFit(false);
 	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
@@ -8225,6 +8477,8 @@ int main(int argc, char **argv)
 	TestOrderRecipientAsPerson();
 	TestOrderBespokeAndVoice();
 	TestOrderSaveRoundTrip();
+	TestTheBills();
+	TestOodAuthority();
 	TestTextFit();
 
 	if (g_failures) {

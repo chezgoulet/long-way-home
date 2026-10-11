@@ -328,6 +328,35 @@ spoken content scripted like a meeting's. The register of classes is `module/shi
 | `OrderLineKey` | `const Ship &s, const OrderBrief &brief, const MeetingLine &line` | The key a recipient's reply line renders under, through the cast map | console | post | docs/the-entry-point.md |
 | `PlanOrderAudio` | `VoiceRender &vr, const Ship &s, const OrderBrief &brief` | The async plan that queues the giver's line and the recipient's answers before dispatch | console | — | docs/orders.md |
 
+### 3c. The bills (docs/crew-manifest.md)
+*20 hooks.* The watch bill (the roster the simulation already had) and the reconfiguration bills on
+top of it: battle stations, the emergency bills, the damage-control organisation, and the officer of
+the deck's authority. The surface is `ship bill` and the `ui_lwh_bills` screen, reached by `B` at the
+command console; evidence in `docs/evidence/the-bills.md`.
+
+| hook | takes | does (the header's line, or the name) | reach | law | owner |
+|---|---|---|---|---|---|
+| `BillRoleName` | `uint8_t r` | the battle station's name, for the screen and the log | play | — | docs/crew-manifest.md |
+| `EmergencyKindName` | `uint8_t k` | the emergency bill's name | play | — | docs/crew-manifest.md |
+| `EmergencyDeckPhrase` | `uint8_t k` | the phrase an emergency bill's deck is named by | play | — | docs/crew-manifest.md |
+| `EngineerOfTheWatch` | `const Ship &s` | the senior fit engineering hand on duty: who the repair parties answer to | play | — | docs/crew-manifest.md |
+| `OfficerOfTheDeck` | `const Ship &s` | the senior fit bridge watch officer on duty: who holds the deck | play | — | docs/crew-manifest.md |
+| `OodMayOrder` | `const Ship &s, int ood, int other` | may the officer of the deck give an operational order to this person? | play | person | docs/crew-manifest.md |
+| `OodRefusal` | `const Ship &s, int ood, int other` | why not, in words; empty when they may | play | person | docs/crew-manifest.md |
+| `CallBattleStations` | `Ship &s, int by` | call battle stations: condition red, hands to their battle stations | play | — | docs/crew-manifest.md |
+| `StandDownBattleStations` | `Ship &s, int by` | stand the battle bill down; the watch returns to the routine | play | — | docs/crew-manifest.md |
+| `BattleStations` | `const Ship &s` | the battle bill's state, for the screen | play | — | docs/crew-manifest.md |
+| `BattleCalledBy` | `const Ship &s` | who called battle stations, or -1 | play | — | docs/crew-manifest.md |
+| `CallEmergency` | `Ship &s, uint8_t kind, int deck, int by` | call an emergency bill on a deck | play | — | docs/crew-manifest.md |
+| `StandDownEmergency` | `Ship &s, int by` | stand the emergency bill down | play | — | docs/crew-manifest.md |
+| `Emergency` | `const Ship &s` | which emergency bill stands | play | — | docs/crew-manifest.md |
+| `EmergencyDeck` | `const Ship &s` | the deck the emergency bill names | play | — | docs/crew-manifest.md |
+| `EmergencyCalledBy` | `const Ship &s` | who called the emergency bill, or -1 | play | — | docs/crew-manifest.md |
+| `WatchBillLine` | `const Ship &s` | the watch bill as a read: the watch in force, who is on duty, who is at a post | play | — | docs/crew-manifest.md |
+| `BattleBillLine` | `const Ship &s` | the battle bill as a read: the roster grouped by battle station | play | — | docs/crew-manifest.md |
+| `EmergencyBillLine` | `const Ship &s` | the emergency bill as a read | play | — | docs/crew-manifest.md |
+| `BillHoles` | `const Ship &s, std::string *out` | the holes: posts with one holder, and stations no living crew member can fill | play | — | docs/crew-manifest.md |
+
 ### 4. Readers content can consult  
 *180 hooks.*
 
