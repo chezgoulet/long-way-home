@@ -137,8 +137,13 @@ of the judgement, and that gap grows with every stage.
   (`docs/omissions.md`, "Ledger corrections made in the same pass"). This defect note is kept as the record of
   the find; the contradiction is no longer present. *(A re-verification on 2026-10-09 found only the two
   consistent entries.)*
-- **Every dated line in the ledger is a day ahead of the wall clock**, consistently, across days. Either the
-  dates are wrong or the convention is unexplained. A plan that dates its own work wrongly cannot be audited.
+- **Every dated line in the ledger is a day ahead of the wall clock** — for the sessions of 2026-10-05
+  and 2026-10-06 only, and the convention is now recorded rather than the history rewritten. A date in
+  the ledger names the **working session**; the commit timestamp is the machine's record of landing;
+  the two disagree by a day for those two batches (15 of the 17 dated evidence documents in the window;
+  one ran two days ahead, one a day behind) and agree everywhere else. **Do not renumber history**; the
+  convention lives in `docs/gates.md`'s header. The find is kept: a plan that dates its own work must
+  say which clock it means. Measured in `docs/evidence/the-stale-rows.md`.
 
 ## Boundary rules
 

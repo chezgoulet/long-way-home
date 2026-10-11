@@ -2258,7 +2258,7 @@ void RunTest( void )
 			const int eng = ( me + 1 ) % size;
 			vessel.crew[eng].status = ship::CREW_FIT; vessel.crew[eng].brigged = false;
 			vessel.crew[eng].dept = ship::DEPT_ENGINEERING; vessel.crew[eng].rank = 4; vessel.crew[eng].post = ship::SYS_WARP_DRIVE;
-			vessel.crew[eng].deficit = 0.3f; vessel.crew[eng].outlook = 0.7f; vessel.crew[eng].holdings = 0.7f;
+			vessel.crew[eng].deficit = 0.3f; vessel.crew[eng].outlook = 0.7f;
 			ship::DamageSystem( vessel, ship::SYS_WARP_DRIVE, 0.6f );
 			ship::Tick( vessel, 1.0f );
 			currentOrder = ship::BuildOrderBrief( vessel, vessel.player, eng );
@@ -2342,7 +2342,12 @@ void RunTest( void )
 			const int before = meetingNovelCalls;
 			const std::vector<uint8_t> blob = ship::Pack( vessel );
 			ship::Ship back;
-			ship::Unpack( blob.data(), blob.size(), back );
+			// A failed parse used to be discarded: `back` stays default-constructed and the
+			// "reloaded ship classifies the same input" line below would be a claim about an empty
+			// ship. Make the parse result visible rather than silent.
+			const bool reloaded = ship::Unpack( blob.data(), blob.size(), back );
+			if ( !reloaded )
+				gi.Printf( "SHIP: model test: FAILED: the save did not reload; the classification below is not a replay\n" );
 			const ship::NoveltyResult again = ship::ClassifyNovelInput( back, currentMeeting, "Make it so" );
 			gi.Printf( "SHIP: model test: novel-path calls=%d (before the load %d); the reloaded ship classifies the same input as %s\n",
 				meetingNovelCalls, before,
@@ -2692,8 +2697,12 @@ void RunTest( void )
 				spokenVerdict = nr.matched ? nr.outcome : -1;
 				gi.Printf( "SHIP: voice-in test: the spoken form (console): verdict %s; the log entry: %s\n",
 					nr.matched ? Fmt( "matched branch %d", nr.outcome + 1 ).c_str() : "novel", spokenLog.c_str() );
-				// The typed console path, from the same pre-input state.
-				ship::Unpack( before.data(), before.size(), vessel );
+				// The typed console path, from the same pre-input state. A failed restore would
+				// silently run the typed path from the live ship rather than the snapshot, so the
+				// byte-identical claim below would compare the wrong states: say so.
+				const bool restored = ship::Unpack( before.data(), before.size(), vessel );
+				if ( !restored )
+					gi.Printf( "SHIP: voice-in test: FAILED: the pre-input snapshot did not restore; the two forms are not comparable\n" );
 				gi.SendConsoleCommand( va( "ship meeting say \"%s\"", transcript.c_str() ) );
 				step = 3;
 			}
@@ -2711,7 +2720,9 @@ void RunTest( void )
 			// two console commands both call. (Across frames the ship's own clock advances, so a
 			// console-to-console pack comparison would measure the ticks, not the seam.)
 			ship::Ship keep;
-			ship::Unpack( before.data(), before.size(), keep );
+			const bool kept = ship::Unpack( before.data(), before.size(), keep );
+			if ( !kept )
+				gi.Printf( "SHIP: voice-in test: FAILED: the pre-input snapshot did not restore; the two forms are not comparable\n" );
 			vessel = keep;
 			SubmitRoomInput( transcript );                     // what `ship dictate say` reaches
 			spoken = ship::Pack( vessel );
@@ -3527,7 +3538,7 @@ void RunTest( void )
 				vessel.crew[who].conditionCount = 0;
 				vessel.crew[who].desire = ship::DESIRE_HOME;
 				vessel.crew[who].fear = ship::FEAR_USELESSNESS;
-				vessel.crew[who].deficit = 1.0f; vessel.crew[who].outlook = 0.0f; vessel.crew[who].holdings = 0.0f;
+				vessel.crew[who].deficit = 1.0f; vessel.crew[who].outlook = 0.0f;
 				vessel.crew[who].deck = ship::Spec( ship::SYS_STRUCTURAL_INTEGRITY ).deck;
 				ship::SetAlert( vessel, ship::ALERT_GREEN );
 				ship::DamageSystem( vessel, ship::SYS_STRUCTURAL_INTEGRITY, 0.6f );

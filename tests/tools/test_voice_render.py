@@ -14,6 +14,10 @@ import unittest
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RENDER = os.path.join(ROOT, "tools", "voice", "render.py")
+# A cache path outside the repository, for the tests that only need one that is not ours. Derived
+# from the OS temp directory rather than a hard-coded /tmp/cache, so the test does not depend on a
+# path a particular host happens to have.
+OUTSIDE = os.path.join(tempfile.gettempdir(), "lwh-voice-cache-test")
 
 
 def load_render():
@@ -42,21 +46,21 @@ class DeliveryMapping(unittest.TestCase):
     def test_command_carries_exaggeration(self):
         job = {"key": "abc", "voice": "tuvok", "text": "Make it so.",
                "delivery": "order", "exaggeration": 0.8}
-        cmd = self.render.command_for("/tmp/cache", "/tmp/cache", job)
+        cmd = self.render.command_for(OUTSIDE, OUTSIDE, job)
         self.assertIn("--exaggeration", cmd)
         self.assertEqual(cmd[cmd.index("--exaggeration") + 1], "0.8")
-        self.assertEqual(cmd[cmd.index("--out") + 1], os.path.join("/tmp/cache", "abc.wav"))
+        self.assertEqual(cmd[cmd.index("--out") + 1], os.path.join(OUTSIDE, "abc.wav"))
 
     def test_a_disagreeing_number_is_refused(self):
         job = {"key": "abc", "voice": "tuvok", "text": "Make it so.",
                "delivery": "order", "exaggeration": 0.5}
         with self.assertRaises(self.render.JobError):
-            self.render.command_for("/tmp/cache", "/tmp/cache", job)
+            self.render.command_for(OUTSIDE, OUTSIDE, job)
 
     def test_inside_repo(self):
         self.assertTrue(self.render.inside_repo(ROOT, ROOT))
         self.assertTrue(self.render.inside_repo(os.path.join(ROOT, "tools"), ROOT))
-        self.assertFalse(self.render.inside_repo("/tmp/cache", ROOT))
+        self.assertFalse(self.render.inside_repo(OUTSIDE, ROOT))
         # Inside the working tree but gitignored (the build home) is not repository data.
         self.assertFalse(self.render.inside_repo(os.path.join(ROOT, "build", "cache"), ROOT))
 

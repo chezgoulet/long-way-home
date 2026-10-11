@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Fetch the official authoring content G0's checks run against, into build/gdk (gitignored, durable):
-# the Game Development Kit's two entity dictionaries, the level-script corpus, and the published
-# map sources. All from the Internet Archive item the docs cite; none of it enters this repository.
+# the Game Development Kit's two entity dictionaries, its complete script corpus (the Level Scripts
+# archive plus the installer's own copy of the tree), and the published map sources. All from the
+# Internet Archive item the docs cite; none of it enters this repository.
 #
 #   scripts/fetch-gdk.sh
 #
@@ -77,6 +78,21 @@ with open(os.path.join(d, "payload.cab"), "wb") as f:
     f.write(cabs[0])
 ' "$GDK/msi"
 LD_LIBRARY_PATH="$LIBS${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$CABEXTRACT" -q -d "$GDK/raw" "$GDK/msi/payload.cab"
+
+# The installer also carries the game's own script tree -- 2,408 files, a strict superset of the
+# Level Scripts archive's 2,024. The 384 the archive omits are the Virtual Voyager deck scripts and
+# most of the Holodeck programmes, and the published map sources reference them; with only the
+# archive, the validator reports ~170 script references the "corpus lacks" that the GDK in fact
+# ships. Lay the whole tree over real_scripts/ so the corpus is the GDK's, as the ledger says.
+# Cabinet members are named by installer key, so pick the archive with the most scripts in it.
+CORPUS_ZIP=""; best=0
+for f in "$GDK"/raw/*; do
+  [ -f "$f" ] || continue
+  n=$(unzip -Z1 "$f" 2>/dev/null | grep -icE '\.txt$' || true)
+  if [ "${n:-0}" -gt "$best" ]; then best="$n"; CORPUS_ZIP="$f"; fi
+done
+[ "$best" -gt 0 ] || { echo "the installer did not yield a script archive" >&2; exit 1; }
+unzip -oq "$CORPUS_ZIP" -d "$GDK/scripts"
 
 # The cabinet names its files by installer key, not by name. The dictionaries are the two files
 # with the most QUAKED blocks (a few tools mention the word); single-player has twice Holomatch's.

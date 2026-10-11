@@ -84,14 +84,21 @@ ok = sum(1 for k, _, _ in results if k == "ok")
 compile_err = [r for r in results if r[0] == "compile"]
 dump_err = [r for r in results if r[0] == "dump"]
 
-# The GDK's corpus contains eight files the official compiler rejects: the three scripts with named
-# causes in docs/evidence/g0-script-compiler.md (voy1/scene7.TXT, voy1/scene10.TXT, voy5/beamstart.TXT)
-# and five files that are not scripts at all (sound tables, configuration, a directory list and editor
-# backups). That state is known, documented and permanent, so it is written here as the expected set:
+# The GDK's corpus contains fourteen files the official compiler rejects: the three scripts with
+# named causes in docs/evidence/g0-script-compiler.md (voy1/scene7.TXT, voy1/scene10.TXT,
+# voy5/beamstart.TXT) and eleven files that are not scripts at all (sound-precache tables,
+# configuration, a directory list, editor backups and a source-control listing). That state is
+# known, documented and permanent, so it is written here as the expected set:
 # the exit is 0 when the failures are exactly these, and non-zero when anything else appears -- which
 # is what makes the exit status mean something. A file in the list that now compiles is also a change,
 # and is reported.
 EXPECTED_REJECTIONS = {
+    "_holodeck_camelot/behaved_francais.txt",
+    "_holodeck_highnoon/behaved_deutsch.txt",
+    "_holodeck_highnoon/behaved_francais.txt",
+    "_holodeck_temple/behaved_deutsch.txt",
+    "_holodeck_temple/behaved_francais.txt",
+    "borg3/behaved.txt",
     "borg6/setup.txt",
     "dn1/start.txt",
     "dn1/startbakup.txt",
@@ -133,3 +140,17 @@ import shutil
 shutil.rmtree(work, ignore_errors=True)
 sys.exit(1 if bad else 0)
 PY
+
+echo
+echo "==> published map sources: script references against the corpus"
+# The residual "the GDK corpus lacks N script references" lived for months without a re-measure.
+# This is that re-measure, and a guard: the unresolved references must be exactly the recorded
+# boundary (two malformed `usescript` values in shipped maps), or the run fails. It needs the map
+# sources beside the corpus, which fetch-gdk.sh restores; without them it says so and skips.
+MAP_ROOT="$(dirname "$SCRIPT_CORPUS")/maps"
+if [ -d "$MAP_ROOT" ]; then
+  python3 "$ROOT/tools/validator/reference-census.py" \
+    --map-root "$MAP_ROOT" --corpus "$SCRIPT_CORPUS"
+else
+  echo "    (no map sources beside $SCRIPT_CORPUS: run scripts/fetch-gdk.sh for this census)"
+fi

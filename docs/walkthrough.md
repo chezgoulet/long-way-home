@@ -844,7 +844,8 @@ document an agent reads first.
 ### G14 — Morale is a scalar, not the three components, and the crew have no manner
 **CLOSED 2026-10-08 (`feat/the-character-layer`), first half built and second half demonstrated.** <!-- register-row id=G14 state=closed marker=check:scripts/character-check.sh -->
 The single `float morale` is **gone**: morale is now `Morale(c)`, read from **deficit, outlook and
-holdings**, each eased by its own drivers, and `MoraleReason(c)` names the component most
+holdings** — deficit and outlook eased by the day's drivers, holdings folded over the marks (the C2
+ruling, 2026-10-11) — and `MoraleReason(c)` names the component most
 responsible so the log can say which moved and why. The manner is built as `MannerLine(c)` and
 **demonstrated at three morale levels** (`scripts/character-check.sh`) rather than declared — the
 judgement whether it reads is the owner's. One-place account: `docs/character-derivation.md`;

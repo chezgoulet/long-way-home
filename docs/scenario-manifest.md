@@ -38,6 +38,14 @@ sound tables, configuration files, editors' backups (`.bak.txt`) and directory l
 ICARUS scripts and correctly fail to compile (`E006`). A scenario says what it contains; the globs
 are how it says it.
 
+**Case counts on Linux, and the game's filesystem does not know that.** The GDK ships the same tree
+as `foo.txt` and `Foo.TXT`; `glob` is case-sensitive on Linux, so `scripts/**/*.txt` silently drops
+every `.TXT` file and `E002` then names the reference rather than the glob that missed it. Declare
+the extension case-insensitively — `scripts/**/*.[tT][xX][tT]` — or the corpus will look far more
+incomplete than it is. This single trap, on a corpus also missing the GDK's own copy of the tree,
+is what inflated "126 script references the GDK corpus lacks" out of a boundary of two
+(`docs/evidence/the-126-references.md`).
+
 ## The `crew` section — the contract between authoring and the direction layer
 
 The charter fixes this as one documented format: Track B writes it, Track C reads it, and neither

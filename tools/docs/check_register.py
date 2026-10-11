@@ -14,13 +14,22 @@ register itself, on the row, so the claim and its marker live in one place::
 
 The marker is an HTML comment, so it is invisible to a reader and machine-readable to this check.
 
+**Three states, because three are needed.**  ``open`` (nothing has shipped), ``closed`` (the row's
+work has shipped, and the marker proves it) and ``partly`` (half the row has shipped and half has
+not).  A ``partly`` row's marker proves the **built** half -- the same resolution rule as
+``closed`` -- so the check catches the proof vanishing, and the state records for every reader that
+the row is not fully closed.  What it does **not** do is catch the remaining half shipping: that
+stays prose, like every other remaining half in these registers.  Before ``partly`` existed the
+convention was to call a half row ``open`` or ``closed``; three passes disagreed about which, which
+is why the third state is here.
+
 What it fails on:
 
 - **``state=open`` and the marker resolves** -- the row still says not built / not modelled / no
   ruling, but what the row is waiting for now exists.  This is the stated defect.
-- **``state=closed`` and the marker does not resolve** -- the row has been corrected to built or
-  ruled, but the proof it names is gone (renamed, deleted, withdrawn).  Cheap to express, so it is
-  checked too: a closed row pointing at nothing is a new kind of stale.
+- **``state=closed`` or ``state=partly`` and the marker does not resolve** -- the row has been
+  corrected to built or ruled, but the proof it names is gone (renamed, deleted, withdrawn).  Cheap
+  to express, so it is checked too: a closed row pointing at nothing is a new kind of stale.
 - **a malformed marker** (unknown kind, unreadable file), and **a register with no markers at all**,
   so a broken scan cannot pass vacuously.
 
@@ -45,7 +54,7 @@ from pathlib import Path
 MARKER = re.compile(
     r"<!--\s*register-row\s+"
     r"id=(?P<id>\S+)\s+"
-    r"state=(?P<state>open|closed)\s+"
+    r"state=(?P<state>open|closed|partly)\s+"
     r"marker=(?P<marker>\S+)\s*-->"
 )
 
@@ -103,12 +112,15 @@ def check_register(root, register, out):
             out.append(f"FAIL  {register}:{ln}: row {rid} still reads as unbuilt/unruled, "
                        f"but its marker resolves ({desc})")
             ok = False
-        elif state == "closed" and not exists:
-            out.append(f"FAIL  {register}:{ln}: row {rid} is marked closed, "
+        elif state in ("closed", "partly") and not exists:
+            out.append(f"FAIL  {register}:{ln}: row {rid} is marked {state}, "
                        f"but its marker is absent ({spec})")
             ok = False
         elif state == "closed":
             out.append(f"    {register}:{ln}: row {rid} closed; marker resolves ({desc})")
+        elif state == "partly":
+            out.append(f"    {register}:{ln}: row {rid} partly closed; the built half's marker "
+                       f"resolves ({desc})")
     return ok
 
 

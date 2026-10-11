@@ -54,7 +54,7 @@ here.
 | `WritePersonalLog` | **genuine gap** | The private log screen (`ui_lwh_personal`) can only read; a player should write in their own log, and the write path is built and tested. |
 | `VoiceWrite` | diagnostic | Voice-pipeline seams; read only by the audio harness (g_shipTest 81) and the audio/meeting unit tests (`TestAudioSaveRoundTrip`, `TestTrackOwnership`, `TestCueCannotStopALine`). |
 | `VoiceRetire` | diagnostic | Voice-pipeline seams; read only by the audio harness (g_shipTest 81) and the audio/meeting unit tests (`TestAudioSaveRoundTrip`, `TestTrackOwnership`, `TestCueCannotStopALine`). |
-| `EmitCue` | diagnostic | The cue-emit seam; harness 81 and `TestCueEmitSite`. The meeting overlay (the meeting programme's phase three) is its eventual play surface and is not built. |
+| `EmitCue` | diagnostic | The cue-emit seam; harness 81 and `TestCueEmitSite`, and fired by the novel-answer path (`SubmitNovelAnswer`). ~~The meeting overlay (the meeting programme's phase three) is its eventual play surface and is not built.~~ **The overlay was built 2026-10-08** (M3, `docs/evidence/meeting-overlay.md`), and a typed answer in it reaches `SubmitNovelAnswer` → `EmitCue` (the overlay issues `ship meeting say`); the register still lists the hook `console`, because the reach tool does not model a screen issuing a console command. The classification stands — the cue is the system's, not a player's deliberate call. <!-- register-row id=EmitCue state=closed marker=file:module/ui/ui_lwh_meeting.cpp --> |
 | `QueueRender` | diagnostic | Render-queue and finished-render seams; harness 81 and `TestRenderKeyAndCache`. |
 | `CacheRendered` | diagnostic | Render-queue and finished-render seams; harness 81 and `TestRenderKeyAndCache`. |
 | `PruneVoiceCache` | diagnostic | The cache-prune that goes with the save; the console and `TestRenderKeyAndCache` drive it. |
@@ -131,7 +131,7 @@ here.
 | `MakePromise` | **genuine gap** | An officer commits in front of a crew member — a promise that can be kept or broken; only `ship promise`. |
 | `RunHolodeck` | **genuine gap** | Running a holodeck use — recreation, training, therapy or forensic — is the holodeck post's act; only `ship holo`. |
 | `ImproveQuarters` | **genuine gap** | Improving the crew's quarters at a cost in material (morale); only `ship quarters`. |
-| `SetRole` | **genuine gap** | The player's own role — any post, in command, or Munro — should be chosen in play; today only cvar plus `ship role`. The start-state configurator (the other lane) owns the surface. |
+| `SetRole` | **genuine gap** | The player's own role — any post, in command, or Munro — should be chosen in play; today only cvar plus `ship role`. ~~The start-state configurator (the other lane) owns the surface.~~ **The start-state configurator landed 2026-10-08 and does not carry this** (verified 2026-10-11: it sets the player's name/rank/dept/seat in `ui_lwh_start.cpp` and `SeatPlayerForState`, and never calls `SetRole`, whose only callers are `g_ship.cpp`'s `ship role` verb and the `g_shipRole` cvar). The gap is real and its surface is, as of this pass, unnamed. <!-- register-row id=SetRole state=partly marker=check:scripts/configurator-check.sh --> |
 
 ## 4. Readers content can consult
 
@@ -360,8 +360,11 @@ simulation's own calls), and they are **reported, not implemented**, as the brie
    *post's* acts. A player holding that post should reach them; a player holding another should not.
    That is the post-not-name law, and it means the remedy is a surface that resolves the post to the
    hand, not a button every player sees.
-6. **`SetRole` is left to the configurator lane.** The player's role and start state are that lane's
-   surface; it is listed here as a genuine gap so it is not lost, and marked as owned elsewhere.
+6. **`SetRole` was left to the configurator lane, and the lane has since landed without carrying it.**
+   The player's role and start state were to be that lane's surface. The configurator shipped
+   2026-10-08 (`feat/the-configurator`) and sets the player's name, rank, department and seat — not the
+   `PlayerRole`, which `SetRole` alone sets. So `SetRole` stays a genuine gap, corrected in place above
+   on 2026-10-11, now with no owner named. It is listed here so it is not lost.
 7. **No hook was deleted, and none is called dead.** The brief expected some; there are none, and the
    six with no caller are reported with what waits on them instead.
 

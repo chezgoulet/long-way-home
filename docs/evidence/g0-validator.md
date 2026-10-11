@@ -37,6 +37,14 @@ maps:
 - **126 × E002 script references not declared** — real: maps reference scripts that the Game
   Development Kit's script archive does not contain, which is consistent with the expansion's
   scripts shipping separately from the base corpus. Worth resolving before any expansion work.
+  **Resolved 2026-10-11** (`docs/evidence/the-126-references.md`): the number was an artefact of the
+  run below, not a finding. The scenario globbed the corpus with a case-sensitive `*.txt` (missing
+  its `.TXT` files), the corpus was the *Level Scripts* archive alone (2,024 of the GDK's 2,408
+  scripts), and the manifest's overlapping map globs counted every fault twice. Against the GDK's
+  whole corpus only **two** references remain, both malformed `usescript` values in shipped maps —
+  `bs_run_and_shoot` (a behaviour state) and `newearthhome` (a `ref_tag` targetname). The "expansion"
+  guess was wrong: the missing scripts were Virtual Voyager and Holodeck content the GDK ships and
+  the fetch had not laid down.
 - **2 × E003 inhabited but no navigation** — including `voy10.map`, which my own `inhabited`
   declaration wrongly swept in with a broad glob. The validator caught my declaration, not a defect
   in the map. `W004` (73 maps) correctly reports the spaces that have no navigation and do not claim

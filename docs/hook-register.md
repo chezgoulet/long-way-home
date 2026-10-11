@@ -184,6 +184,7 @@ substance of the brief's point and stands.
 | `Morale` | `const CrewMember &c` | Morale, the read (docs/morale.md) | play | — | docs/morale.md |
 | `MoraleBandName` | `float morale` | morale band name | play | — | — |
 | `MoraleReason` | `const CrewMember &c` | morale reason | play | — | — |
+| `Holdings` | `const CrewMember &c` | Holdings, the third component, is itself a read: a fold over the marks a person carries, exactly as a bond is (docs/morale.md, the owner's C2 ruling -- "Derived") | play | — | docs/morale.md |
 | `EffectiveSkill` | `const CrewMember &c, uint8_t skill` | Effective skill: base skill + aptitude traits, reduced by conditions, deficits and haste (docs/character-attributes.md, "the derivation") | console | — | docs/character-attributes.md |
 | `MannerLine` | `const CrewMember &c` | The manner (G14's second half): what a person says at the morale they carry | nothing | — | — |
 | `WorkFactorKindName` | `uint8_t k` | work factor kind name | play | — | — |

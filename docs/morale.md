@@ -110,14 +110,20 @@ design, expressed as one number's absence.
 
 ---
 
-## `holdings` is a fold, not a stored value (owner's ruling, 2026-10-08)
+## `holdings` is a fold, not a stored value (owner's ruling, 2026-10-08; built 2026-10-11)
 
 **The owner ruled the allegiance read derived rather than stored** (`docs/gates.md`, C2), and this document owns
-the component it names.
+the component it names. The ruling split in two: `Bond` was already the fold, and **`holdings` was the half not
+done** — a stored float nudged by events (a witness's regard rose by `RISING_HOLDINGS_RISE` when they saw
+something) rather than computed from what they remembered. **It is now a fold over the marks**, the way `Bond`
+already is, and the stored field is gone (`module/ship/ship_core.cpp`, `Holdings()`; the guard is
+`scripts/holdings-check.sh`; the evidence is `docs/evidence/the-holdings-fold.md`).
 
-`holdings` is currently a **stored float** nudged by events — a witness's regard rises by a constant when they
-see something, rather than being computed from what they remember. **It becomes a fold over the marks**, the way
-`Bond` already is (`module/ship/ship_core.cpp`: valence × salience over the marks naming that person).
+**The rule, exactly.** `holdings = clamp01(HOLDINGS_BASE + HOLDINGS_SLOPE × clamp(Σ valence × salience, −1, +1))`
+over the marks a person carries — the bond fold widened from one name to all of them. `HOLDINGS_BASE` (0.5) is
+what a person with no marks reads: neither held nor lost. A mark an event leaves moves regard; a mark that fades
+(salience) stops moving it; and **an orphaned mark — a citation a purge removed — is still held but carries no
+weight**, which is what makes a purge move regard.
 
 **Why it matters, and it is the same argument as the rest of the layer.** Morale is a *reading* over three
 components and never a hidden counter; conditions carry their source and their cure; a work outcome names the
@@ -126,8 +132,13 @@ own evidence** — a number that could disagree with the marks it supposedly cam
 
 **The consequence, which is a feature and should be known before it is met:** purging the records moves regard.
 Regard computed from memory changes when memory is removed — so a purge is not only a documentary act, it is a
-social one.
+social one. It is the marks sourced *read it in the log* that lose their weight (`docs/the-record-and-the-log.md`,
+Purge): the documentary witness, the one a purge can eliminate. The human witness it never can.
 
-**And the shape it completes:** marks → `bond` (per pair) and `holdings` (toward the ship and the command) →
-morale. **Every value answerable to the same evidence.**
+**And the shape it completes:** marks → `bond` (per pair) and `holdings` (regard toward the crew and the command)
+→ morale. **Every value answerable to the same evidence.**
+
+**The cost, named rather than discovered.** The per-person float left the record and the save, so the save format
+is **57** and an older save does not load (`module/ship/ship_core.h`, the changelog) — the deliberate bump, with
+its cost stated as `AGENTS.md` requires rather than discovered later.
 

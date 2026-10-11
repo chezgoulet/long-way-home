@@ -54,6 +54,14 @@ two sets cannot see a name claimed twice; reachability needs a walk of the ladde
 claimed twice too (`:5504` and `:5779`) and both branches reach, because they are distinguished by argument
 shape — so this is a fragile pattern as well as a broken instance.
 
+> **Landed since — closed 2026-10-11.** The second `recall` claim was made reachable by
+> `feat/the-console-ladder` (`0170a4d`, *"walk the dispatch ladder, and make both `recall` branches
+> reachable"*): the transporter branch now carries an argument guard and the crew-memory recall reaches.
+> `scripts/api-check.sh` now *walks* the ladder and reports both duplications (`breach`, `recall`) as
+> warnings with their argument shapes, rather than collapsing them in a set; `scripts/reachability-check.sh`
+> is the guard the review's §5.1 asked for. Re-verified this pass: the finding stands as written for the
+> tree it was written about, and is closed on the tree.
+
 ### 2.2 A launcher that always exits 0
 
 `scripts/run-engine.sh` pipes the engine into `tee` under `set +e` and then prints `exit: ${PIPESTATUS[0]}` —
@@ -61,6 +69,12 @@ shape — so this is a fragile pattern as well as a broken instance.
 `if ! run-engine.sh; then …` (`scripts/g3-measure.sh:81`) is asking a question the script cannot answer, and
 every check compensates by grepping the engine's log. **The log greps are not belt-and-braces; they are the
 only signal**, and the exit-code path is a lie that reads like a safeguard.
+
+> **Closed 2026-10-11 (`feat/the-residue`, `docs/evidence/the-residue.md`).** `scripts/run-engine.sh` now
+> returns the engine's own status (`status=${PIPESTATUS[0]}; exit "$status"`), so the `if !` in
+> `scripts/g3-measure.sh:81` and a caller's `set -e` can fire. Demonstrated failing (exit 7) on a stub
+> engine that cannot succeed and succeeding (exit 0) on one that can, with a `set -e` caller shown to stop
+> at the dead launch.
 
 ### 2.3 Thirty checks that assert a screenshot exists, not what it shows
 
@@ -76,6 +90,15 @@ the meeting's post stood inside the wall, and the check for it passed — it had
 the frame (`tools/meetings/legibility.py`, used by `meeting-place-check` and `room-survey-check`) and those are
 the model for the rest: **a content-facing check should assert on pixels, not on paths.**
 
+> **Partly landed since — 2026-10-11 (`feat/the-frame-assertions`, `adc0e45`; counted in
+> `docs/evidence/the-residue.md`).** The one measure was generalised into `tools/frames/frame.py` (a floor, a
+> difference, a named region) and `legibility.py` deleted. **Of the 33 scripts that reference a written frame,
+> 21 now assert on the picture and 12 still assert a path only.** The register `docs/frame-assertions.md`
+> corrects this section's "thirty" to the 22 scripts plus the `every-screen` block that it actually names, and
+> classifies each. Of the 12 remaining, four (`breach`, `fire`, `gravity`, `viewscreen`) are behavioural —
+> their frames do **not** carry the claim, measured — and eight (`borg-deck`, `borgfx`, `gaps`,
+> `meeting-overlay`, `reachability`, `s4-glance`, `s9`, `screens`) are the wider class, named as remaining.
+
 ### 2.4 A check that passes while skipping half its claim
 
 `scripts/appearance-check.sh:44–48`: with no `build/baseEF`, it prints **`PASS (half 1)`**, notes *"half 2
@@ -83,12 +106,24 @@ skipped: no game data"*, and `exit 0`. On a host without retail data a green `ap
 derivation and nothing about the rendered lineup. The disclosure is honest; **the exit code is not** — a
 skipped half should not read as a passed check to anything that isn't a human reading the log.
 
+> **Closed since 2026-10-11 (`feat/the-frame-assertions`, `adc0e45`).** With no game data the check no longer
+> prints `PASS (half 1)` and exits 0: it prints `SKIP (half 1 only)` and **exits 3** — non-zero and distinct
+> from a failure, so a caller can tell "could not run" from "ran and failed". Both are non-zero; neither is a
+> pass. (The lines above are the review's `44–48`; the check has since grown.)
+
 ### 2.5 A committed generated file that nothing reads
 
 `data/posts/deck04.posts.json` is tracked by git, produced by `tools/posts/gen-posts.py`, and **no file in
 `module/`, `scripts/` or `tools/` reads it** (verified: zero hits for `posts.json` / `deck04.posts`). It can
 drift from the deck source permanently and silently. It is the only committed generated artifact; everything
 else generated lives under the gitignored `build/`.
+
+> **Closed 2026-10-11 (`feat/the-residue`, `docs/evidence/the-residue.md`).** Re-verified unread — on the
+> tree before this pass the only mentions of `deck04.posts` or `posts.json` were this review that names it, and
+> nothing in `module/`, `scripts/` or `tools/` opens it — and removed
+> (`git rm data/posts/deck04.posts.json`). `data/posts/` is added to `.gitignore` and
+> `tools/posts/gen-posts.py` says in its docstring that its output is not committed. **The generator is the
+> source.**
 
 ### 2.6 A number asserted in five places, owned by none
 
@@ -102,6 +137,12 @@ else generated lives under the gitignored `build/`.
 **Four answers, one of them fifteen versions stale.** `tools/docs/owned_claims.json` registers two numbers —
 the computer core's deck and the torpedo launchers' — so nothing checks this one. The save version is quoted
 in five documents and owned by none of them, and in this project *a wrong number gets quoted back as settled*.
+
+> **Closed since 2026-10-11 (`feat/the-number-owners`, `55da7c9`).** The number owners were built:
+> `tools/docs/owned_claims.json` now registers `save-version` (owned by `module/ship/ship_core.h` = 56, the
+> owner defines it), `crew-complement`, `crew-save-budget-bytes` and `com-hunk-megs`, and
+> `scripts/docs-check.sh` reports every statement agreeing with its owner. A save version that drifts from its
+> owner now fails the check. (The line numbers above are the review's, from the stale clone.)
 
 ### 2.7 Ignored returns, and two silent catches
 
@@ -121,6 +162,25 @@ except ValueError: pass          # tools/shipmap/dressdeck07.py:324, dressdeck14
 A malformed light value leaves the brush's light unchanged, silently, in a generator whose output cannot be
 told from a correct one afterwards.
 
+> **Re-derived and dealt with 2026-10-11 (`feat/the-residue`, `docs/evidence/the-residue.md`).** The count is
+> **51 call sites on this tree** (48 after the fix below), not 36 — the review's own §6 says its lists were
+> not re-derived and its counts are indicative, and five commits have landed since.
+>
+> **The three `ship::Unpack` discards are fixed** — a save parse that failed left a value default-constructed
+> or unchanged and was not noticed at the call site. Each now captures the result and prints a named `FAILED`
+> line. **The other 48 are left, each with its reason:** the `false` from `Sicken`/`Cure`/`KillCrew`/
+> `TakeBrief`/`VoiceRetire`/`ResolvePromise` means "already so" / "nothing there" — idempotence, not error;
+> `SetAirSource`, `SetSurgicalField`, `SetMobileEmitter`, `SetAirponics`, `SetPhaserYield`, `WriteOff` cannot
+> fail as called; `Hail`, `RevokeBand`, `TractorHold`, `TransportBack`, `ShuttleBayHit`, `RebuildShuttle`,
+> `TakeSurvivors`, `CacheRendered`, `OrderEvacuate`, `OrderTriage` **can** fail but nothing downstream depends
+> on the result (recorded, not changed this pass).
+>
+> **The two catches:** `dressdeck14.py`'s is **live and fixed** — a malformed light is now reported on stderr,
+> counted (`light_value_bad`) and written as the floor rather than kept. `dressdeck07.py`'s is **not what this
+> review says**: the parse above it already sanitises the value, so `int(before * 0.7)` cannot raise and the
+> catch was unreachable dead code. The real silent parse in 07 (the one above it, reading a bad light as 0)
+> is now visible, and the dead catch is removed. Demonstrated on a synthetic map with a malformed light value.
+
 ### 2.8 Duplication — and one instance where the copies diverge
 
 - **Five parallel copies of the deck-dressing program** — `tools/shipmap/dressdeck{06,07,12,13,14}.py`, with
@@ -133,6 +193,13 @@ told from a correct one afterwards.
 - `Fmt` twice (`g_crew.cpp:140`, `g_ship.cpp:186`); `WriteFile` twice (`g_crew.cpp:1345`, `g_ship.cpp:127`);
   `_function_body` verbatim in `tools/console/verbs.py:37` and `tools/orders/orders.py:47`; the DejaVu font
   path triplicated across three tools.
+
+> **Census re-derived 2026-10-11 (`feat/the-residue`, `docs/evidence/the-residue.md`); not refactored, by the
+> brief's rule.** The five dress tools total **3,415 lines** and share **38 helper names**; **18 are
+> byte-identical** across every file that has them and **20 diverge**. `KeyByName` is still three copies, with
+> the divergences named: `ui_lwh_command.cpp:535` (no `escape`), `ui_lwh_engineering.cpp:666` (adds `escape`),
+> `ui_lwh_meeting.cpp:621` (adds `escape`/`backspace`, **drops `left`/`right`**). The fix is the named list,
+> not a big edit, in this pass.
 
 ## 3. Code quality, measured
 
@@ -148,6 +215,14 @@ told from a correct one afterwards.
 - **Hard-coded scratch paths** in three places that will bite a second developer or a second machine:
   `tests/ship/test_ship_core.cpp` uses `/tmp/opencode/lwh-order-voice`; `tests/tools/test_voice_render.py` uses
   `/tmp/cache`; `scripts/run-engine.sh` probes `/tmp/sysroot`.
+
+> **Dealt with 2026-10-11 (`feat/the-residue`, `docs/evidence/the-residue.md`).** In fact **none of the three
+> would trip a fresh clone** — the C++ test only needs a string (`PlanOrderAudio` queues and writes nothing),
+> the Python test passes `/tmp/cache` as a string, and `/tmp/sysroot` is guarded by `[ -d … ]`. Two were
+> nonetheless host- or harness-specific names and are fixed: `test_ship_core.cpp` uses `"voice"` (as its other
+> seven `vr.dir` sites do), and `test_voice_render.py` derives its outside path from `tempfile.gettempdir()`.
+> `scripts/run-engine.sh`'s `/tmp/sysroot` is **left** — it is a real, guarded fallback for the playtest host's
+> rootless dependency tree.
 - No `TODO`/`XXX`/`HACK` markers exist in `module/` or `tools/` — the debt here is structural, not annotated,
   which is why this review had to be run rather than grepped.
 
