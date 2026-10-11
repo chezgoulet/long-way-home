@@ -53,7 +53,7 @@ round is done and its answers are in `docs/ship-programme.md`. **Do not re-ask t
 | command | what it proves | needs |
 |---|---|---|
 | `scripts/test.sh` | unit tests (crew layer, ship core), tool tests, lint, patch series shape. Check its **exit status**, not its output. | nothing |
-| `scripts/check.sh --source-map build/gdk/maps/brig-map/_brig.map --script-corpus build/gdk/scripts` | G0. Exits 1 by design while 8 corpus files are rejected. | `scripts/fetch-gdk.sh` |
+| `scripts/check.sh --source-map build/gdk/maps/brig-map/_brig.map --script-corpus build/gdk/scripts` | G0: dictionary, validator negative tests, the compiler corpus pass, and the published-map reference census. Exits 0 when the 14 corpus rejections are exactly the known set and the reference boundary is unchanged. | `scripts/fetch-gdk.sh` |
 | `scripts/g3-measure.sh` (`--seconds 30` for a quick regression) | G3, eleven criteria | game data, built engine |
 | `scripts/s2-check.sh` | S2: ship in game, save/reload, console operated | same |
 | `scripts/build-ship.sh` | S3: stitches and compiles the whole ship (~3 min with vis+light) | `fetch-gdk.sh`, `fetch-map-tools.sh` |
