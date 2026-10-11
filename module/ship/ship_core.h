@@ -1114,6 +1114,90 @@ const char *DeliveryName(uint8_t d);
 float DeliveryExaggeration(uint8_t d);
 bool DeliveryKnown(uint8_t d);
 
+// ---- the crew's manner: state -> a cue, wired where the state changes (G14's second half) --------
+//
+// `docs/character-derivation.md` section 7, applied. The rule was designed and the crew layer was
+// built; this is the wiring that makes a person's state **audible and visible** in the world. A
+// manner is selected from what is true of a person right now -- the morale band, the conditions
+// they carry, whether they are hurt, and the ship's alert -- and emitted as a cue: one line, one
+// cast voice, one delivery direction. **The simulation chooses; the voice layer only speaks.**
+//
+// WHAT HAPPENS WHEN SEVERAL ARE TRUE AT ONCE. The selection is a precedence, written down: the
+// highest state present is the manner, and the states it beat are still named in the reason, so a
+// manner is always explainable (the layer's own no-hidden-modifier rule). Highest first:
+//
+//   hurt > breathless > grieving > afraid > tired > hungry > heartened > the morale band
+//
+// THE CUE CARRIES what the voice layer needs -- the line, the cast reference, the delivery
+// direction -- and what the player can read (the log). The voice layer is expected to do nothing
+// when a bank or a render is absent: the line is still written and read, and no render is queued.
+// **A manner that needs audio to be perceived is not built**, so the text path is the floor.
+struct VoiceRender; // defined with the audio plumbing, below
+
+enum MannerId : uint8_t {
+	MANNER_NONE = 0,    // dead or taken: a manner for the dead is not built
+	MANNER_STEADY,      // fit, nothing acute -- the good one
+	MANNER_HEARTENED,   // a buff is carried: a hot meal, a promotion, the truth told
+	MANNER_STRAINED,    // worn or strained, nothing acute
+	MANNER_TIRED,       // exhausted
+	MANNER_HUNGRY,      // hungry
+	MANNER_AFRAID,      // afraid, or the ship at general quarters
+	MANNER_HURT,        // injured
+	MANNER_GRIEVING,    // grieving
+	MANNER_BREATHLESS,  // hypoxic: the deck has no air
+	MANNER_BREAKING,    // at breaking point
+	MANNER_COUNT
+};
+const char *MannerName(uint8_t id);
+const char *MannerPurpose(uint8_t id); // what the manner is for, in words
+
+// Where the cue was raised: the wiring, named. This is not a timer.
+enum MannerTrigger : uint8_t {
+	MANNER_TRIGGER_STATE = 0, // a condition arrived or cleared (a recorded change)
+	MANNER_TRIGGER_ORDER,     // the person was just given an order -- where they act
+	MANNER_TRIGGER_ALERT,     // the ship's alert changed
+	MANNER_TRIGGER_ASKED,     // a person asked, at the console
+	MANNER_TRIGGER_COUNT
+};
+const char *MannerTriggerName(uint8_t t);
+
+// The cue. `voice` is the cast reference the renderer uses, or "" when there is no bank; `delivery`
+// is the direction the renderer's own knob reads (DeliveryExaggeration).
+struct MannerChoice {
+	uint8_t manner = MANNER_NONE;
+	int crew = -1;
+	std::string speaker;   // the person's name
+	std::string line;      // the manner itself
+	std::string reason;    // why this manner and not another, in words (the precedence that won)
+	std::string voice;     // the cast reference, or "" for no bank
+	uint8_t delivery = DELIVERY_REPORT;
+	uint8_t trigger = MANNER_TRIGGER_STATE;
+};
+
+// The selection: state -> manner. Deterministic, so the same state selects the same manner for the
+// same person and a save replays. `trigger` says where the cue was raised and is part of the input.
+MannerChoice MannerFor(const Ship &s, int crew, uint8_t trigger);
+
+// The emission: select, write the surface (the log -- always), and hand the cue to the voice layer.
+// THE ONE EMIT SITE, so "the layer is silent" is read here rather than by a counter. `vr` may be
+// null (no render available); the manner then degrades to text. Returns a MannerEmit.
+enum MannerEmit : uint8_t {
+	MANNER_EMIT_NONE = 0,       // nobody, or the dead: nothing emitted
+	MANNER_EMIT_SPOKEN,         // the line is queued for the voice and written to the log
+	MANNER_EMIT_TEXT_NO_BANK,   // no cast reference: text only
+	MANNER_EMIT_TEXT_NO_RENDER  // no render available: text only
+};
+const char *MannerEmitName(uint8_t e);
+uint8_t EmitManner(Ship &s, VoiceRender *vr, int crew, uint8_t trigger, MannerChoice *out = nullptr);
+
+// The two host switches the absence and falsification cases need, default on. `wired` off makes the
+// selection read the morale band alone (the state before this wiring). `bank` off says the retail
+// voice bank is absent, so a cue degrades to text. Both are host state, never saved.
+void SetMannerWired(bool on);
+bool MannerWired();
+void SetMannerVoiceBank(bool on);
+bool MannerVoiceBank();
+
 // A line of the meeting: who says it, what is said, and how it is delivered. The delivery travels with
 // the text through the seam to synthesis (Task C).
 //

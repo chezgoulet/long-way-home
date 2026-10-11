@@ -187,7 +187,17 @@ substance of the brief's point and stands.
 | `MoraleReason` | `const CrewMember &c` | morale reason | play | — | — |
 | `Holdings` | `const CrewMember &c` | Holdings, the third component, is itself a read: a fold over the marks a person carries, exactly as a bond is (docs/morale.md, the owner's C2 ruling -- "Derived") | play | — | docs/morale.md |
 | `EffectiveSkill` | `const CrewMember &c, uint8_t skill` | Effective skill: base skill + aptitude traits, reduced by conditions, deficits and haste (docs/character-attributes.md, "the derivation") | console | — | docs/character-attributes.md |
-| `MannerLine` | `const CrewMember &c` | The manner (G14's second half): what a person says at the morale they carry | nothing | — | — |
+| `MannerLine` | `const CrewMember &c` | The manner (G14's second half): what a person says at the morale they carry | console | person | docs/character-derivation.md |
+| `MannerName` | `uint8_t id` | The name of a manner | console | — | docs/character-derivation.md |
+| `MannerPurpose` | `uint8_t id` | What a manner is for, in words | nothing | — | docs/character-derivation.md |
+| `MannerTriggerName` | `uint8_t t` | Where a cue was raised: a state change, an order, the alert, or a question | console | — | docs/character-derivation.md |
+| `MannerFor` | `const Ship &s, int crew, uint8_t trigger` | The selection: state -> manner, deterministic, with the precedence named in the reason | play | person | docs/character-derivation.md |
+| `MannerEmitName` | `uint8_t e` | The emission's outcome: spoken, text (no bank), text (no render), none | console | — | docs/character-derivation.md |
+| `EmitManner` | `Ship &s, VoiceRender *vr, int crew, uint8_t trigger, MannerChoice *out` | THE EMIT SITE: select, write the log (the surface), and hand the cue to the voice layer | console | person | docs/character-derivation.md |
+| `SetMannerWired` | `bool on` | The falsification switch: off, the selection reads the morale band alone | console | — | docs/character-derivation.md |
+| `MannerWired` | `-` | Whether the manner selection reads the whole state | console | — | docs/character-derivation.md |
+| `SetMannerVoiceBank` | `bool on` | The absence switch: off, the retail voice bank is absent and a cue degrades to text | console | — | docs/character-derivation.md |
+| `MannerVoiceBank` | `-` | Whether the retail voice bank is present | console | — | docs/character-derivation.md |
 | `WorkFactorKindName` | `uint8_t k` | work factor kind name | play | — | — |
 | `WorkContextName` | `uint8_t c` | work context name | console | — | — |
 | `WorkContextOf` | `SystemId id` | work context of | play | post | — |

@@ -28,14 +28,17 @@ named category rather than forced into the wrong one.
 | entry points (console-only, 37 read) | 13 | 23 | 1 | 0 | 0 |
 | situations (console-only) | 5 | 5 | 5 | 3 | 0 |
 | outcomes (console-only) | 1 | 19 | 0 | 0 | 0 |
-| readers (console-only) | 47 | 7 | 0 | 0 | 0 |
+| readers (console-only) | 47 | 6 | 0 | 1 | 0 |
 | reached by nothing | 30 | 5 | 0 | 0 | 0 |
-| **total (164)** | **96** | **59** | **6** | **3** | **0** |
+| **total (164)** | **96** | **58** | **6** | **4** | **0** |
 
-**Three situations are no longer gaps.** `PendingMeetings`, `TakeBrief` and `ApplyMeetingOutcome`
+**Four situations are no longer gaps.** `PendingMeetings`, `TakeBrief` and `ApplyMeetingOutcome`
 were all genuine gaps in the first triage; the meeting overlay (M3, `docs/evidence/meeting-overlay.md`)
 wired them, so they are now *play* and counted in the `wired` column rather than the genuine-gap one.
-The genuine-gap total falls from 62 to 59.
+**`MannerLine`** is the fourth: the crew's manner (G14's second half) was built and nothing read it;
+the wiring landed 2026-10-11 on `feat/the-manner` (`EmitManner` raises the selection where the state
+changes and where the person acts; `ship manner` reads it; `scripts/manner-check.sh`), so it is
+counted *wired* now. The genuine-gap total falls from 62 to 58.
 
 **No hook is dead.** All six with no caller anywhere have a reason and something waiting: the three
 species readers want a crew record, and `PromiseKindName`, `LogVisibilityName` and `BandGrantCount` are
@@ -208,7 +211,7 @@ here.
 | `SpeciesNeed` | **genuine gap** | The species capability/need/susceptibility readers are built and no surface uses them; a crew record should say what a species can do and what it needs (`docs/character-derivation.md`). The register's G5 shape one layer down. |
 | `SpeciesSusceptibility` | **genuine gap** | The species capability/need/susceptibility readers are built and no surface uses them; a crew record should say what a species can do and what it needs (`docs/character-derivation.md`). The register's G5 shape one layer down. |
 | `PromiseKindName` | diagnostic | A promise-kind name; no caller yet — the promise display's name. Waits on the promise surface (`Promises`, a genuine gap). |
-| `MannerLine` | **genuine gap** | The crew's manner — what a person says at the morale they carry — is the open half of the morale contract (walkthrough G14); nothing reads it. |
+| `MannerLine` | ~~**genuine gap**~~ **wired 2026-10-11** | The crew's manner — what a person says at the morale they carry — was the open half of the morale contract (walkthrough G14) and nothing read it. **The wiring landed on `feat/the-manner`**: `MannerFor` reads it, `EmitManner` raises the selection where the state changes (`Sicken`/`Cure`) and where the person acts (`DispatchOrder`), the watch's manner follows the alert (`SetAlert`), the line is written to the log and handed to the voice, and `ship manner` reads it. **What remains is the owner's ear** — whether a manner reads as a person (`docs/evidence/the-manner.md`). <!-- register-row id=MannerLine state=closed marker=check:scripts/manner-check.sh --> |
 | `RetellRising` | diagnostic | The crew retell a heroism, so a mark persists only if it is told; the witness tests drive it, and a retelling surface does not exist. It is the model act the simulation would raise. |
 | `PostsNeeded` | diagnostic | The crew model's post coverage (posts needed, and how far the crew cover them); `TestHundredCrew`. |
 | `CoverWithCrew` | diagnostic | The crew model's post coverage (posts needed, and how far the crew cover them); `TestHundredCrew`. |
@@ -264,7 +267,9 @@ or answering a distress call at Operations. The needs, in the order a fight pres
 11. **`WritePersonalLog`** — the private log screen reads and cannot write.
 12. **`CaptainLog`** — the command console's captain's log, written but with no key.
 13. **`Promises`** — the claims an officer is holding, so they can mature.
-14. **`MannerLine`** — the crew's manner, the open half of the morale contract (walkthrough G14).
+14. **`MannerLine`** — ~~the crew's manner, the open half of the morale contract (walkthrough G14).~~
+    **CLOSED 2026-10-11 (`feat/the-manner`)**: the manner is selected from the state and raised where
+    the state changes and where the person acts (`docs/evidence/the-manner.md`).
 
 **Tier 3 — the science and the stores.**
 

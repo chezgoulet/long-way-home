@@ -5691,6 +5691,39 @@ void Svcmd_Ship_f( void )
 		gi.cvar_set( "lwh_ship_refusal", "" );
 	}
 
+	if ( !Q_stricmp( cmd, "manner" ) )
+	{//the crew's manner (G14's second half, docs/character-derivation.md): the state selects a
+	 //manner, the cue is emitted, and what was chosen and why is printed. The line is written to
+	 //the log always; the voice render is queued when a bank is present. `ship manner [crew]` names
+	 //a crew member by index or name, and defaults to the player's own character.
+		int who = vessel.player;
+		if ( a[0] )
+		{
+			if ( a[0] >= '0' && a[0] <= '9' ) who = atoi( a );
+			else
+			{
+				who = -1;
+				for ( int i = 0; i < static_cast<int>( vessel.crew.size() ); ++i )
+					if ( !Q_stricmp( vessel.crew[i].name.c_str(), a ) ) { who = i; break; }
+			}
+		}
+		if ( who < 0 || who >= static_cast<int>( vessel.crew.size() ) )
+		{
+			gi.Printf( "SHIP: manner: no such crew member (name a crewman or a roster index)\n" );
+			return;
+		}
+		ship::MannerChoice ch;
+		const uint8_t emit = ship::EmitManner( vessel, &voiceRender, who, ship::MANNER_TRIGGER_ASKED, &ch );
+		gi.Printf( "SHIP: manner %s (%s): \"%s\"\n", vessel.crew[who].name.c_str(),
+			ship::MannerName( ch.manner ), ch.line.c_str() );
+		gi.Printf( "SHIP: manner why: %s\n", ch.reason.c_str() );
+		gi.Printf( "SHIP: manner cue: voice %s, delivery %s, %s\n",
+			ch.voice.empty() ? "(none)" : ch.voice.c_str(), ship::DeliveryName( ch.delivery ),
+			ship::MannerEmitName( emit ) );
+		if ( emit == ship::MANNER_EMIT_SPOKEN ) VoiceWriteManifest();
+		Publish();
+		return;
+	}
 	if ( !Q_stricmp( cmd, "rise" ) )
 	{//the rising (docs/rising-to-the-occasion.md): a post must be held and the hand in front of it
 	 //is beyond their skill. The console addresses the post; the simulation resolves it to a person,

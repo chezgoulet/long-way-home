@@ -837,6 +837,241 @@ const char *MannerLine(const CrewMember &c)
 	}
 }
 
+// ---- the crew's manner: state -> a cue, wired where the state changes (G14's second half) --------
+//
+// docs/character-derivation.md section 7, applied. MannerLine above is the band's own line; this is
+// the selection that reads the whole state (the conditions, an injury, the ship's alert) and the
+// emission that makes it audible and visible. The simulation chooses; the voice layer only speaks.
+
+const char *MannerName(uint8_t id)
+{
+	static const char *const N[MANNER_COUNT] = {
+		"no manner", "steady", "heartened", "strained", "tired", "hungry", "afraid", "hurt",
+		"grieving", "breathless", "at breaking point"
+	};
+	return id < MANNER_COUNT ? N[id] : "?";
+}
+
+const char *MannerPurpose(uint8_t id)
+{
+	static const char *const P[MANNER_COUNT] = {
+		"the dead do not speak",
+		"fit and nothing acute: the good one",
+		"something was done for them and it carries",
+		"worn, but nothing acute",
+		"tired: the hours have caught up",
+		"hungry: the galley is empty",
+		"afraid: the ship is at stations",
+		"hurt: injured and still standing",
+		"grieving: a loss that is still carried",
+		"breathless: the deck has no air",
+		"at breaking point: the floor"
+	};
+	return id < MANNER_COUNT ? P[id] : "";
+}
+
+const char *MannerTriggerName(uint8_t t)
+{
+	static const char *const N[MANNER_TRIGGER_COUNT] = {
+		"a state change", "an order", "the alert", "asked at the console"
+	};
+	return t < MANNER_TRIGGER_COUNT ? N[t] : "?";
+}
+
+const char *MannerEmitName(uint8_t e)
+{
+	static const char *const N[4] = { "none", "spoken", "text (no bank)", "text (no render)" };
+	return e < 4 ? N[e] : "?";
+}
+
+// The two host switches the absence and falsification cases need. Host state, never saved: default
+// on, so an ordinary run reads the whole state and can render.
+static bool g_mannerWired = true;
+static bool g_mannerVoiceBank = true;
+void SetMannerWired(bool on) { g_mannerWired = on; }
+bool MannerWired() { return g_mannerWired; }
+void SetMannerVoiceBank(bool on) { g_mannerVoiceBank = on; }
+bool MannerVoiceBank() { return g_mannerVoiceBank; }
+
+// The buffs the design lists (a hot meal, coffee, shore leave, a promotion, a service held properly,
+// a stimulant, being told the truth): any one read is a person who has been lifted.
+static bool MannerHasBuff(const CrewMember &c)
+{
+	for (int i = 0; i < c.conditionCount; ++i) {
+		switch (c.conditions[i].id) {
+		case COND_HOT_MEAL: case COND_COFFEE: case COND_SHORE_LEAVE: case COND_PROMOTED:
+		case COND_SERVICE_HELD: case COND_STIMULANT: case COND_TRUTH_TOLD: case COND_RESTED:
+			return true;
+		default: break;
+		}
+	}
+	return false;
+}
+
+// The manner's line. The three band manners delegate to MannerLine (unchanged); the acute manners
+// are written here and read the person's drives, exactly as MannerLine does. Deterministic.
+static const char *MannerLineFor(const CrewMember &c, uint8_t manner)
+{
+	switch (manner) {
+	case MANNER_HEARTENED:
+		switch (c.desire) {
+		case DESIRE_HOME: return "One more mile done, and a hot meal. We'll get there.";
+		case DESIRE_A_PERSON: return "I feel better than I have in weeks. Let's keep this.";
+		case DESIRE_TO_PROVE: return "Put me on it. I've got it in me today.";
+		default: return "Good. Let's use the day.";
+		}
+	case MANNER_TIRED:
+		switch (c.fear) {
+		case FEAR_DYING_ALONE: return "I'll stand the watch. I just need to sit down first.";
+		default: return "I'm tired. Ask me again in a watch and I'll mean it.";
+		}
+	case MANNER_HUNGRY:
+		switch (c.need) {
+		case NEED_FOOD: return "I can't think past the next meal. Just say it plainly.";
+		case NEED_SLEEP: return "Feed me and I'll hold anything you like.";
+		default: return "The galley's empty. I'll work on an empty stomach, but not well.";
+		}
+	case MANNER_AFRAID:
+		switch (c.fear) {
+		case FEAR_THE_BORG: return "They're out there. I'll do my job. I can't promise my hands will.";
+		case FEAR_DECOMPRESSION: return "If that's the deck we're going to, I want that said out loud.";
+		case FEAR_COWARDICE: return "I'm going. I need you to know I'm going.";
+		default: return "At stations, I just keep my head down and my hands moving.";
+		}
+	case MANNER_HURT:
+		switch (c.fear) {
+		case FEAR_USELESSNESS: return "I'm hurt. I can still be useful. Put me where I can be.";
+		default: return "It's nothing. I've had worse. Don't send me back.";
+		}
+	case MANNER_GRIEVING:
+		switch (c.fear) {
+		case FEAR_DYING_ALONE: return "They died on my watch. I keep hearing it.";
+		default: return "I'll work. It's the sitting still I can't do.";
+		}
+	case MANNER_BREATHLESS:
+		return "I can't -- I can't get a breath. Get me to air.";
+	default:
+		return MannerLine(c); // steady / strained / at breaking point: the band's own line
+	}
+}
+
+// How the manner is delivered, read by the renderer's own knob (DeliveryExaggeration).
+static uint8_t MannerDeliveryFor(uint8_t manner)
+{
+	switch (manner) {
+	case MANNER_STEADY: case MANNER_HEARTENED: return DELIVERY_REPORT;
+	case MANNER_TIRED: case MANNER_HUNGRY: case MANNER_STRAINED: return DELIVERY_FLAT;
+	case MANNER_GRIEVING: return DELIVERY_CONDOLENCE;
+	case MANNER_AFRAID: case MANNER_HURT: case MANNER_BREATHLESS: case MANNER_BREAKING:
+		return DELIVERY_CONFESSION;
+	default: return DELIVERY_REPORT;
+	}
+}
+
+// Why this manner and not another, in words: the state that won, so the precedence is legible.
+static std::string MannerReasonFor(uint8_t manner, const CrewMember &c)
+{
+	switch (manner) {
+	case MANNER_HURT: return c.status == CREW_INJURED ? "injured, on the ward" : "injured";
+	case MANNER_BREATHLESS: return "the deck has no air";
+	case MANNER_GRIEVING: return "grieving: lost someone and still carries it";
+	case MANNER_AFRAID:
+		return FindCondition(c, COND_AFRAID) ? "afraid: the ship is at battle stations"
+		                                    : "the ship is at general quarters";
+	case MANNER_TIRED:
+		return FindCondition(c, COND_EXHAUSTED) ? "exhausted: hasn't slept enough"
+		                                       : "exhausted: the hours have caught up";
+	case MANNER_HUNGRY: return "hungry: the galley is empty";
+	case MANNER_HEARTENED: return "lifted: something was done for them";
+	default: return "";
+	}
+}
+
+MannerChoice MannerFor(const Ship &s, int crew, uint8_t trigger)
+{
+	MannerChoice ch;
+	ch.crew = crew;
+	ch.trigger = trigger < MANNER_TRIGGER_COUNT ? trigger : static_cast<uint8_t>(MANNER_TRIGGER_STATE);
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return ch;
+	const CrewMember &c = s.crew[crew];
+	ch.speaker = c.name;
+	if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) {
+		ch.manner = MANNER_NONE;
+		ch.reason = "dead or taken: no manner";
+		return ch;
+	}
+
+	// The morale band is the floor, and its line is MannerLine's own (unchanged).
+	const float m = Morale(c);
+	const uint8_t band = m >= 0.7f ? MANNER_STEADY : m >= 0.4f ? MANNER_STRAINED : MANNER_BREAKING;
+	uint8_t manner = band;
+	std::string why = std::string("the morale band (") + MoraleBandName(m) + "): " + MoraleReason(c);
+
+	if (MannerWired()) {
+		// The precedence, highest first. The states the winner beat are still named, so several at
+		// once is explainable rather than silent.
+		const bool hurt = c.status == CREW_INJURED || c.severity >= 0.4f;
+		const bool breathless = FindCondition(c, COND_HYPOXIC) != nullptr;
+		const bool grieving = FindCondition(c, COND_GRIEVING) != nullptr;
+		const bool afraid = FindCondition(c, COND_AFRAID) != nullptr || s.alert == ALERT_RED;
+		const bool tired = FindCondition(c, COND_EXHAUSTED) != nullptr || c.fatigue > 0.6f;
+		const bool hungry = FindCondition(c, COND_HUNGRY) != nullptr;
+		const bool heartened = MannerHasBuff(c);
+		if (hurt) manner = MANNER_HURT;
+		else if (breathless) manner = MANNER_BREATHLESS;
+		else if (grieving) manner = MANNER_GRIEVING;
+		else if (afraid) manner = MANNER_AFRAID;
+		else if (tired) manner = MANNER_TIRED;
+		else if (hungry) manner = MANNER_HUNGRY;
+		else if (heartened) manner = MANNER_HEARTENED;
+
+		if (manner != band) why = MannerReasonFor(manner, c);
+		std::vector<std::string> also;
+		if (manner != MANNER_HURT && hurt) also.push_back("injured");
+		if (manner != MANNER_BREATHLESS && breathless) also.push_back("the deck has no air");
+		if (manner != MANNER_GRIEVING && grieving) also.push_back("grieving");
+		if (manner != MANNER_AFRAID && afraid) also.push_back("afraid");
+		if (manner != MANNER_TIRED && tired) also.push_back("exhausted");
+		if (manner != MANNER_HUNGRY && hungry) also.push_back("hungry");
+		if (manner != MANNER_HEARTENED && heartened) also.push_back("lifted");
+		if (!also.empty()) {
+			why += "; also ";
+			for (size_t i = 0; i < also.size(); ++i) { if (i) why += ", "; why += also[i]; }
+		}
+	}
+
+	ch.manner = manner;
+	ch.line = MannerLineFor(c, manner);
+	ch.delivery = MannerDeliveryFor(manner);
+	// The cast reference, or "" when the bank is absent: the cue then degrades to text (EmitManner).
+	ch.voice = MannerVoiceBank() ? CastVoice(s, crew) : std::string();
+	ch.reason = why;
+	return ch;
+}
+
+uint8_t EmitManner(Ship &s, VoiceRender *vr, int crew, uint8_t trigger, MannerChoice *out)
+{
+	const MannerChoice ch = MannerFor(s, crew, trigger);
+	if (out) *out = ch;
+	if (ch.manner == MANNER_NONE) return MANNER_EMIT_NONE; // nobody, or the dead: nothing emitted
+	// THE SURFACE, always: the line is written to the log, whatever the voice layer can do. A manner
+	// nobody can read is not built, so this is the floor and the voice is additive.
+	LogEvent(s, ch.speaker, "crew", std::string("\"") + ch.line + "\" -- " + MannerName(ch.manner)
+		+ ", raised by " + MannerTriggerName(ch.trigger) + " (" + ch.reason + ")");
+	// THE VOICE LAYER: hand the cue over; do nothing when a bank or a render is absent.
+	if (ch.voice.empty()) return MANNER_EMIT_TEXT_NO_BANK;
+	if (vr == nullptr) return MANNER_EMIT_TEXT_NO_RENDER;
+	RenderJob job;
+	job.voice = ch.voice;
+	job.text = ch.line;
+	job.delivery = ch.delivery;
+	job.exaggeration = DeliveryExaggeration(ch.delivery);
+	job.speaker = crew;
+	job.key = RenderKey(job.voice, job.text, job.delivery);
+	if (QueueRender(*vr, job) < 0) return MANNER_EMIT_TEXT_NO_RENDER;
+	return MANNER_EMIT_SPOKEN;
+}
+
 struct Named {
 	const char *name, *type;
 	uint8_t rank;
@@ -1068,6 +1303,12 @@ bool Sicken(Ship &s, int crew, uint8_t id, const std::string &source, int8_t val
 		LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "crew",
 			c.name + (valence == CVAL_BUFF ? " takes on " : " comes down with ") + ConditionName(id)
 			+ " (" + source + ")");
+	// THE WIRING, at the state change: a condition the record carries raises the person's manner, so
+	// what they are going through is audible and visible. The tick's automatic conditions carry no
+	// CVIS_LOG and raise no bark each, which is the same call the character layer made about the log
+	// (docs/evidence/the-character-layer.md, judgement call 4): a red alert would otherwise bury it.
+	if (visible & CVIS_LOG)
+		EmitManner(s, nullptr, crew, MANNER_TRIGGER_STATE);
 	return true;
 }
 
@@ -1078,8 +1319,12 @@ bool Cure(Ship &s, int crew, uint8_t id)
 	const Condition *was = FindCondition(c, id);
 	const bool logged = was && (was->visible & CVIS_LOG);
 	if (!ClearCondition(c, id)) return false;
-	if (logged)
+	if (logged) {
 		LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "crew", c.name + " is over " + ConditionName(id));
+		// THE WIRING, at the cure: a recorded condition clearing raises the manner again, so relief
+		// is audible too -- the same emit site, the same text floor.
+		EmitManner(s, nullptr, crew, MANNER_TRIGGER_STATE);
+	}
 	return true;
 }
 
@@ -5789,6 +6034,12 @@ void SetAlert(Ship &s, Alert a)
 	s.alert = a;
 	static const char *const N[3] = { "green", "yellow", "red" };
 	LogEvent(s, AuthorFor(s, DEPT_COMMAND, "the bridge"), "bridge", std::string("condition ") + N[a]);
+	// THE WIRING, at the ship's state change: the watch's own manner follows, once, for the officer
+	// of the deck. One line and not 141: the alert touches every head at the next tick, and the
+	// character layer's own rule is that a red alert does not bury the log (the call recorded in
+	// docs/evidence/the-character-layer.md). The bridge is where it is heard.
+	const int ood = OfficerOfTheDeck(s);
+	if (ood >= 0) EmitManner(s, nullptr, ood, MANNER_TRIGGER_ALERT);
 }
 
 // ---- the bills (docs/crew-manifest.md) ----------------------------------------------------------
@@ -9980,6 +10231,9 @@ OrderOutcome DispatchOrder(Ship &s, const OrderBrief &brief, int option, int giv
 		else { l.text = "Understood."; l.delivery = DELIVERY_FLAT; }
 		LogEvent(s, rec.name, "order", l.text);
 	}
+	// THE WIRING, where the person acts: an order just given raises the recipient's manner, so what
+	// they were asked to do and how they bear it are on the record together. The trigger is named.
+	EmitManner(s, nullptr, recipient, MANNER_TRIGGER_ORDER);
 	if (r.resented) {
 		Remember(s, recipient, MEM_ORDER, giver, MEM_SAW, -0.6f);
 		r.note = "given and logged; taken badly (a MEM_ORDER mark toward the giver)";

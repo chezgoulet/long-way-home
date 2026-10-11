@@ -6042,6 +6042,209 @@ static void TestManner()
 	CHECK(std::string(MoraleBandName(0.1f)) == "at breaking point");
 }
 
+// The manner is selected from what is true of a person: the good one and the four bad states the
+// brief names, each with the precedence that chose it (docs/character-derivation.md, G14's second
+// half). The selection is the simulation's own output.
+static void TestMannerSelection()
+{
+	g_test = "the manner is selected from the state";
+	Ship s = NewShip();
+	int who = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].status == CREW_FIT) { who = i; break; }
+	CHECK(who >= 0);
+	CrewMember &c = s.crew[who];
+	c.conditionCount = 0; c.traits = 0;
+	c.deficit = 0.0f; c.outlook = 0.9f; RegardTo(c, 0.9f);
+	c.fatigue = 0.0f; c.severity = 0.0f; c.status = CREW_FIT;
+	s.alert = ALERT_GREEN;
+
+	// The good one.
+	const MannerChoice steady = MannerFor(s, who, MANNER_TRIGGER_ASKED);
+	CHECK(steady.manner == MANNER_STEADY);
+	CHECK(steady.line == std::string(MannerLine(c))); // the band's own line, unchanged
+	CHECK(steady.trigger == MANNER_TRIGGER_ASKED);
+	CHECK(steady.delivery == DELIVERY_REPORT);
+
+	// The four bad ones, one at a time.
+	c.conditionCount = 0;
+	CHECK(AddCondition(c, COND_EXHAUSTED, "hasn't slept enough", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_REST, 0.0f, CVIS_PLAYER | CVIS_CREW));
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_TIRED);
+	c.conditionCount = 0;
+	CHECK(AddCondition(c, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_SLIGHT, CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW));
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_AFRAID);
+	c.conditionCount = 0;
+	CHECK(AddCondition(c, COND_GRIEVING, "lost someone and still carries it", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SALIENCE, 0.0f, CVIS_PLAYER | CVIS_CREW));
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_GRIEVING);
+	c.conditionCount = 0;
+	c.status = CREW_INJURED; c.severity = 0.6f;
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_HURT);
+	c.status = CREW_FIT; c.severity = 0.0f;
+
+	// ... and the rest of the vocabulary is reachable.
+	c.conditionCount = 0;
+	CHECK(AddCondition(c, COND_HUNGRY, "the galley is empty", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_MEAL, 0.0f, CVIS_PLAYER | CVIS_CREW));
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_HUNGRY);
+	c.conditionCount = 0;
+	CHECK(AddCondition(c, COND_HYPOXIC, "the deck has no air", CVAL_DEBUFF, CMAG_SHARP, CLEAR_SICKBAY, 0.0f, CVIS_PLAYER | CVIS_CREW));
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_BREATHLESS);
+	c.conditionCount = 0;
+	CHECK(AddCondition(c, COND_HOT_MEAL, "a hot meal", CVAL_BUFF, CMAG_CLEAR, CLEAR_SALIENCE, 0.0f, CVIS_PLAYER | CVIS_CREW));
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_HEARTENED);
+
+	// The ship's alert is an input too: at red, nobody needs the condition to be afraid.
+	c.conditionCount = 0; c.fatigue = 0.0f; s.alert = ALERT_RED;
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_ALERT).manner == MANNER_AFRAID);
+	s.alert = ALERT_GREEN;
+
+	// Several at once: the precedence picks one and names the rest, so it is explainable.
+	c.status = CREW_FIT; c.severity = 0.0f; c.fatigue = 0.0f;
+	c.deficit = 0.2f; c.outlook = 0.7f; RegardTo(c, 0.7f);
+	c.conditionCount = 0;
+	CHECK(AddCondition(c, COND_EXHAUSTED, "hasn't slept enough", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_REST, 0.0f, CVIS_PLAYER | CVIS_CREW));
+	CHECK(AddCondition(c, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_SLIGHT, CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW));
+	CHECK(AddCondition(c, COND_GRIEVING, "lost someone and still carries it", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SALIENCE, 0.0f, CVIS_PLAYER | CVIS_CREW));
+	const MannerChoice several = MannerFor(s, who, MANNER_TRIGGER_STATE);
+	CHECK(several.manner == MANNER_GRIEVING); // grieving outranks afraid and tired
+	CHECK(several.reason.find("grieving") != std::string::npos);
+	CHECK(several.reason.find("also") != std::string::npos);
+	CHECK(several.reason.find("afraid") != std::string::npos);    // the losing states are named
+	CHECK(several.reason.find("exhausted") != std::string::npos); // ... all of them
+
+	// The dead do not speak: no manner at all.
+	c.status = CREW_DEAD;
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_NONE);
+	CHECK(EmitManner(s, nullptr, who, MANNER_TRIGGER_STATE) == MANNER_EMIT_NONE);
+}
+
+// The manner is raised where the state changes and where the person acts -- not on a timer.
+static void TestMannerWiring()
+{
+	g_test = "the manner is raised where the state changes";
+	Ship s = NewShip();
+	int who = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].status == CREW_FIT) { who = i; break; }
+	CHECK(who >= 0);
+	s.crew[who].conditionCount = 0;
+	s.crew[who].deficit = 0.0f; s.crew[who].outlook = 0.9f; RegardTo(s.crew[who], 0.9f);
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_STEADY);
+
+	// A recorded condition arrives: the state changed, and the manner follows -- in the log.
+	const size_t before = s.log.size();
+	const uint8_t all = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
+	CHECK(Sicken(s, who, COND_GRIEVING, "lost someone in the coolant bay", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SALIENCE, all));
+	CHECK(s.log.size() > before);
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_GRIEVING);
+	CHECK(s.log.back().who == s.crew[who].name);
+	CHECK(s.log.back().what.find("grieving") != std::string::npos);
+	CHECK(s.log.back().what.find("raised by a state change") != std::string::npos);
+
+	// The cure clears it, and the manner changes again.
+	CHECK(Cure(s, who, COND_GRIEVING));
+	CHECK(MannerFor(s, who, MANNER_TRIGGER_STATE).manner == MANNER_STEADY);
+
+	// The alert: the ship's state changes, and the watch's manner follows once, for the deck.
+	const int ood = OfficerOfTheDeck(s);
+	CHECK(ood >= 0);
+	const size_t alertBefore = s.log.size();
+	SetAlert(s, ALERT_RED);
+	CHECK(s.log.size() > alertBefore);
+	CHECK(MannerFor(s, ood, MANNER_TRIGGER_ALERT).manner == MANNER_AFRAID);
+	SetAlert(s, ALERT_GREEN);
+
+	// The trigger is part of the cue, and an order names itself where the person acts.
+	MannerChoice ordered;
+	EmitManner(s, nullptr, who, MANNER_TRIGGER_ORDER, &ordered);
+	CHECK(ordered.trigger == MANNER_TRIGGER_ORDER);
+	CHECK(s.log.back().what.find("raised by an order") != std::string::npos);
+}
+
+// The surface, and the absence case: with a bank and a render the cue is queued; without either it
+// degrades to text, and the simulation runs and the line is still read.
+static void TestMannerSurfaceAndAbsence()
+{
+	g_test = "the manner surfaces, and degrades without a bank or a render";
+	Ship s = NewShip();
+	int who = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].status == CREW_FIT && !VoiceIsCanonType(s.crew[i].type)) { who = i; break; }
+	if (who < 0)
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+			if (s.crew[i].status == CREW_FIT) { who = i; break; }
+	CHECK(who >= 0);
+	s.crew[who].conditionCount = 0;
+	CHECK(AddCondition(s.crew[who], COND_GRIEVING, "lost someone in the coolant bay", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SALIENCE, 0.0f, CVIS_PLAYER | CVIS_CREW | CVIS_LOG));
+
+	// With a bank and a render, the cue carries the line, the cast reference and the delivery, and
+	// is queued for the voice -- and written to the log all the same.
+	SetMannerWired(true); SetMannerVoiceBank(true);
+	VoiceRender vr;
+	vr.dir = "voice";
+	MannerChoice ch;
+	const size_t before = s.log.size();
+	const uint8_t spoken = EmitManner(s, &vr, who, MANNER_TRIGGER_ASKED, &ch);
+	CHECK(ch.manner != MANNER_NONE && !ch.line.empty() && !ch.voice.empty());
+	CHECK(spoken == MANNER_EMIT_SPOKEN);
+	CHECK(vr.queue.size() == 1);
+	CHECK(vr.queue[0].voice == ch.voice && vr.queue[0].text == ch.line);
+	CHECK(vr.queue[0].key == RenderKey(ch.voice, ch.line, ch.delivery));
+	CHECK(s.log.size() == before + 1);
+	CHECK(s.log.back().what.find(ch.line) != std::string::npos);
+
+	// No bank: the same state, text only -- the simulation still runs and the line is still read.
+	SetMannerVoiceBank(false);
+	VoiceRender vr2;
+	vr2.dir = "voice";
+	const size_t before2 = s.log.size();
+	const uint8_t nobank = EmitManner(s, &vr2, who, MANNER_TRIGGER_ASKED);
+	CHECK(nobank == MANNER_EMIT_TEXT_NO_BANK);
+	CHECK(vr2.queue.empty());
+	CHECK(s.log.size() == before2 + 1);
+	SetMannerVoiceBank(true);
+
+	// No render: the same, and no crash.
+	CHECK(EmitManner(s, nullptr, who, MANNER_TRIGGER_ASKED) == MANNER_EMIT_TEXT_NO_RENDER);
+}
+
+// The same state selects the same manner for the same person, a save replays it, and a manner costs
+// no save state: it is a read of what is already saved.
+static void TestMannerDeterminismAndSave()
+{
+	g_test = "the same state selects the same manner, and a manner costs no save state";
+	Ship s = NewShip();
+	int who = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].status == CREW_FIT) { who = i; break; }
+	CHECK(who >= 0);
+	const uint8_t all = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
+	CHECK(Sicken(s, who, COND_GRIEVING, "lost someone", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SALIENCE, all));
+
+	const MannerChoice a = MannerFor(s, who, MANNER_TRIGGER_STATE);
+	const MannerChoice b = MannerFor(s, who, MANNER_TRIGGER_STATE);
+	CHECK(a.manner == b.manner && a.line == b.line && a.delivery == b.delivery && a.voice == b.voice);
+
+	// A save replays the state the manner is read from, so a load selects the same manner.
+	const std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	const MannerChoice loaded = MannerFor(back, who, MANNER_TRIGGER_STATE);
+	CHECK(loaded.manner == a.manner && loaded.line == a.line && loaded.voice == a.voice);
+
+	// No new field: the manner is derived from saved state. An emission adds one log entry (the
+	// surface) and nothing else; the save grows only by that entry's bytes.
+	Ship x = NewShip();
+	x.crew[who].conditionCount = 0;
+	const std::vector<uint8_t> before = Pack(x);
+	SetMannerWired(false);
+	EmitManner(x, nullptr, who, MANNER_TRIGGER_ASKED);
+	SetMannerWired(true);
+	const std::vector<uint8_t> after = Pack(x);
+	CHECK(after.size() > before.size());
+	// The manner selection itself is unchanged by the emission: it is a read, never a store.
+	CHECK(MannerFor(x, who, MANNER_TRIGGER_ASKED).manner == MannerFor(x, who, MANNER_TRIGGER_ASKED).manner);
+}
+
 // The whole layer round-trips the save: the three reads and the conditions are dynamic; the static
 // half comes back from the seed.
 static void TestCharacterSaveRoundTrip()
@@ -6812,6 +7015,111 @@ static int PrintManner()
 		c.deficit = l.deficit; c.outlook = l.outlook; RegardTo(c, l.holdings);
 		std::printf("  %-16s morale %.2f (%s): \"%s\"\n", l.label, Morale(c), MoraleBandName(Morale(c)), MannerLine(c));
 	}
+	return 0;
+}
+
+// The manner selected from the state, across the good one and the four bad, the precedence when
+// several are true at once, the wiring, the surface and the absence case, and the save. `wired`
+// false is the falsification: the selection reads the morale band alone, which is the state before
+// this pass, and the check catches it (scripts/manner-check.sh).
+static int PrintManners(bool wired)
+{
+	SetMannerWired(wired);
+	std::printf("== the crew's manner: state -> a cue (G14's second half; docs/character-derivation.md)\n");
+	std::printf("  the selection is %s\n", wired ? "wired: the whole state" : "NOT wired (planted): the morale band alone");
+
+	Ship s = NewShip();
+	int who = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (s.crew[i].status == CREW_FIT && !VoiceIsCanonType(s.crew[i].type)) { who = i; break; }
+	if (who < 0)
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+			if (s.crew[i].status == CREW_FIT) { who = i; break; }
+	CrewMember &c = s.crew[who];
+	c.conditionCount = 0; c.traits = 0; c.fatigue = 0.0f; c.severity = 0.0f; c.status = CREW_FIT;
+	c.deficit = 0.0f; c.outlook = 0.9f; RegardTo(c, 0.9f);
+	s.alert = ALERT_GREEN;
+	std::printf("  one person: %s, %s; wants %s; afraid of %s\n", c.name.c_str(),
+		SpeciesName(c.species), DesireName(c.desire), FearName(c.fear));
+
+	struct State {
+		const char *label; uint8_t cond; const char *source;
+		uint8_t status; float severity; Alert alert;
+	};
+	const State states[] = {
+		{"steady",     COND_NONE,        "",                                   CREW_FIT,    0.0f, ALERT_GREEN},
+		{"tired",      COND_EXHAUSTED,   "hasn't slept enough",                 CREW_FIT,    0.0f, ALERT_GREEN},
+		{"afraid",     COND_AFRAID,      "the ship is at battle stations",      CREW_FIT,    0.0f, ALERT_GREEN},
+		{"grieving",   COND_GRIEVING,    "lost someone and still carries it",   CREW_FIT,    0.0f, ALERT_GREEN},
+		{"hurt",       COND_NONE,        "",                                   CREW_INJURED, 0.6f, ALERT_GREEN},
+		{"hungry",     COND_HUNGRY,      "the galley is empty",                 CREW_FIT,    0.0f, ALERT_GREEN},
+		{"breathless", COND_HYPOXIC,     "the deck has no air",                 CREW_FIT,    0.0f, ALERT_GREEN},
+		{"heartened",  COND_HOT_MEAL,    "a hot meal",                          CREW_FIT,    0.0f, ALERT_GREEN},
+		{"at red",     COND_NONE,        "",                                   CREW_FIT,    0.0f, ALERT_RED},
+	};
+	for (const State &st : states) {
+		c.conditionCount = 0; c.status = st.status; c.severity = st.severity; c.fatigue = 0.0f;
+		s.alert = st.alert;
+		if (st.cond != COND_NONE)
+			AddCondition(c, st.cond, st.source, st.cond == COND_HOT_MEAL ? CVAL_BUFF : CVAL_DEBUFF,
+				CMAG_CLEAR, CLEAR_REST, 0.0f, CVIS_PLAYER | CVIS_CREW);
+		const MannerChoice ch = MannerFor(s, who, MANNER_TRIGGER_ASKED);
+		std::printf("  %-11s -> %-16s morale %.2f (%s): \"%s\"\n", st.label, MannerName(ch.manner),
+			Morale(c), MoraleBandName(Morale(c)), ch.line.c_str());
+		std::printf("              why: %s\n", ch.reason.c_str());
+	}
+
+	// Several at once: the precedence picks one and names the rest.
+	c.conditionCount = 0; c.status = CREW_FIT; c.severity = 0.0f; c.fatigue = 0.0f; s.alert = ALERT_GREEN;
+	AddCondition(c, COND_EXHAUSTED, "hasn't slept enough", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_REST, 0.0f, CVIS_PLAYER | CVIS_CREW);
+	AddCondition(c, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_SLIGHT, CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW);
+	AddCondition(c, COND_GRIEVING, "lost someone and still carries it", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SALIENCE, 0.0f, CVIS_PLAYER | CVIS_CREW);
+	const MannerChoice several = MannerFor(s, who, MANNER_TRIGGER_STATE);
+	std::printf("  several at once: %s -- %s\n", MannerName(several.manner), several.reason.c_str());
+	std::printf("              says: \"%s\"\n", several.line.c_str());
+
+	// The wiring: a condition arrives, the manner follows, and the surface carries it.
+	Ship w = NewShip();
+	w.crew[who].conditionCount = 0;
+	const uint8_t all = CVIS_PLAYER | CVIS_CREW | CVIS_LOG;
+	Sicken(w, who, COND_GRIEVING, "lost someone in the coolant bay", CVAL_DEBUFF, CMAG_CLEAR, CLEAR_SALIENCE, all);
+	std::printf("  wiring: a recorded grieving arrives, and the log carries it:\n");
+	std::printf("    [%s] %s\n", w.log.back().scope.c_str(), w.log.back().what.c_str());
+	MannerChoice ordered;
+	EmitManner(w, nullptr, who, MANNER_TRIGGER_ORDER, &ordered);
+	std::printf("  wiring: the same person, just given an order:\n");
+	std::printf("    [%s] %s\n", w.log.back().scope.c_str(), w.log.back().what.c_str());
+	Cure(w, who, COND_GRIEVING);
+
+	// The surface, and the absence case.
+	VoiceRender vr;
+	vr.dir = "voice";
+	MannerChoice surf;
+	const uint8_t spoken = EmitManner(w, &vr, who, MANNER_TRIGGER_ASKED, &surf);
+	std::printf("  surface: %s, voice %s, delivery %s: \"%s\"\n", surf.speaker.c_str(),
+		surf.voice.empty() ? "(none)" : surf.voice.c_str(), DeliveryName(surf.delivery), surf.line.c_str());
+	std::printf("  the cue: %s; %d render job(s) queued\n", MannerEmitName(spoken), static_cast<int>(vr.queue.size()));
+	SetMannerVoiceBank(false);
+	VoiceRender vr2;
+	vr2.dir = "voice";
+	std::printf("  no bank: %s; the line is still written and read\n",
+		MannerEmitName(EmitManner(w, &vr2, who, MANNER_TRIGGER_ASKED)));
+	SetMannerVoiceBank(true);
+	std::printf("  no render: %s; the simulation ran\n",
+		MannerEmitName(EmitManner(w, nullptr, who, MANNER_TRIGGER_ASKED)));
+
+	// Save and determinism.
+	const MannerChoice d1 = MannerFor(w, who, MANNER_TRIGGER_ASKED);
+	const MannerChoice d2 = MannerFor(w, who, MANNER_TRIGGER_ASKED);
+	std::printf("  same state, same manner twice: %s\n",
+		(d1.manner == d2.manner && d1.line == d2.line && d1.voice == d2.voice) ? "yes" : "NO");
+	const std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	Unpack(blob.data(), blob.size(), back);
+	const MannerChoice dl = MannerFor(back, who, MANNER_TRIGGER_ASKED);
+	std::printf("  a save replays the manner: %s\n",
+		(dl.manner == d1.manner && dl.line == d1.line && dl.voice == d1.voice) ? "yes" : "NO");
+	SetMannerWired(true);
 	return 0;
 }
 
@@ -8347,6 +8655,8 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
 	if (argc > 1 && !std::strcmp(argv[1], "--orders")) return PrintOrders();
 	if (argc > 1 && !std::strcmp(argv[1], "--manner")) return PrintManner();
+	if (argc > 1 && !std::strcmp(argv[1], "--manners")) return PrintManners(true);
+	if (argc > 1 && !std::strcmp(argv[1], "--manners-broken")) return PrintManners(false);
 	if (argc > 1 && !std::strcmp(argv[1], "--work")) return PrintWork();
 	if (argc > 1 && !std::strcmp(argv[1], "--rising")) return PrintRising();
 	if (argc > 1 && !std::strcmp(argv[1], "--power")) return PrintPower();
@@ -8477,6 +8787,10 @@ int main(int argc, char **argv)
 	TestPurgeMovesRegard();
 	TestSpeciesAreCapabilitiesNotBonuses();
 	TestManner();
+	TestMannerSelection();
+	TestMannerWiring();
+	TestMannerSurfaceAndAbsence();
+	TestMannerDeterminismAndSave();
 	TestCharacterSaveRoundTrip();
 	TestAppearanceDerivation();
 	TestAppearancePoolExcludesCanon();

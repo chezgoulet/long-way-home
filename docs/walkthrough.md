@@ -849,8 +849,12 @@ holdings** — deficit and outlook eased by the day's drivers, holdings folded o
 ruling, 2026-10-11) — and `MoraleReason(c)` names the component most
 responsible so the log can say which moved and why. The manner is built as `MannerLine(c)` and
 **demonstrated at three morale levels** (`scripts/character-check.sh`) rather than declared — the
-judgement whether it reads is the owner's. One-place account: `docs/character-derivation.md`;
-evidence: `docs/evidence/the-character-layer.md`.
+judgement whether it reads is the owner's. **And the wiring landed 2026-10-11 (`feat/the-manner`):**
+the state selects a manner (`MannerFor`), it is raised where the state changes and where the person
+acts (`EmitManner`), written to the log and handed to the voice, and it degrades to text with no bank
+or no render (`docs/evidence/the-manner.md`, `scripts/manner-check.sh`); what remains is the owner's
+ear. One-place account: `docs/character-derivation.md`;
+evidence: `docs/evidence/the-character-layer.md`, `docs/evidence/the-manner.md`.
 - **Was missing:** `docs/morale.md` defines morale per person as derived from **deficit, outlook and
   holdings**, never a hidden counter. The code had a single `float morale` plus drivers, and the log
   could say why — but the three components did not exist, and the crew's **manner** (barks wired to
