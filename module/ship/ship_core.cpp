@@ -456,12 +456,15 @@ void DeriveCharacter(CrewMember &c, uint32_t &rng)
 	c.need = static_cast<uint8_t>(NextRandom(rng) % NEED_COUNT);
 	c.fear = static_cast<uint8_t>(NextRandom(rng) % FEAR_COUNT);
 
-	// State: a fresh crew begins rested and reasonably hopeful; the seed colours the outlook and
-	// the holdings so two people do not start identical. Conditions arrive in play.
+	// State: a fresh crew begins rested and reasonably hopeful; the seed colours the outlook so two
+	// people do not start identical. Holdings is no longer a starting state -- it is a fold over the
+	// marks (Holdings()), and a person with no marks is neither held nor lost -- so the draw that
+	// used to seed it is kept only to leave the stream's later derivations (species, traits, the
+	// face) unchanged by the ruling. Conditions arrive in play.
 	c.fatigue = 0.0f;
 	c.deficit = 0.0f;
 	c.outlook = std::min(1.0f, 0.60f + (NextRandom(rng) % 5u) * 0.05f);
-	c.holdings = std::min(1.0f, 0.60f + (NextRandom(rng) % 5u) * 0.05f);
+	(void)NextRandom(rng); // the retired holdings draw, kept so the stream is unchanged
 	c.conditionCount = 0;
 }
 
@@ -734,10 +737,24 @@ const Condition *FindCondition(const CrewMember &c, uint8_t id)
 	return nullptr;
 }
 
+// Holdings, the third component of morale, is itself a fold over the marks a person carries (the
+// owner's C2 ruling, "Derived"; docs/morale.md). It is the bond fold widened from one name to all of
+// them: positive valence raises regard, negative lowers it, each weighted by its salience. An
+// orphaned mark -- a citation a purge removed -- is left held but carries no weight, so purging the
+// records moves regard (docs/the-record-and-the-log.md). No marks: neither held nor lost.
+float Holdings(const CrewMember &c)
+{
+	float regard = 0.0f;
+	for (const Memory &m : c.memories)
+		if (!m.orphaned) regard += m.valence * m.salience;
+	regard = std::max(-1.0f, std::min(1.0f, regard));
+	return std::max(0.0f, std::min(1.0f, HOLDINGS_BASE + HOLDINGS_SLOPE * regard));
+}
+
 float Morale(const CrewMember &c)
 {
 	const float heart = 1.0f - c.deficit;
-	const float m = 0.40f * heart + 0.35f * c.outlook + 0.25f * c.holdings;
+	const float m = 0.40f * heart + 0.35f * c.outlook + 0.25f * Holdings(c);
 	return std::min(1.0f, std::max(0.0f, m));
 }
 
@@ -754,7 +771,7 @@ const char *MoraleReason(const CrewMember &c)
 	if (Morale(c) >= 0.70f) return "carrying on"; // no shortfall is doing the work
 	const float dragDeficit = 0.40f * c.deficit;
 	const float dragOutlook = 0.35f * (1.0f - c.outlook);
-	const float dragHoldings = 0.25f * (1.0f - c.holdings);
+	const float dragHoldings = 0.25f * (1.0f - Holdings(c));
 	if (dragDeficit >= dragOutlook && dragDeficit >= dragHoldings)
 		return c.fatigue > 0.5f ? "short on sleep" : "short of what they need";
 	if (dragOutlook >= dragHoldings) return "does not believe the course is worth the cost";
@@ -1349,9 +1366,10 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 			c.fatigue = std::min(1.0f, std::max(0.0f, c.fatigue));
 		}
 
-		// Morale, read from three components (docs/morale.md): deficit, outlook and holdings. Each
-		// is its own quantity and eases toward what the day offers over hours rather than snapping,
-		// so a bad afternoon is not a bad week. Nothing here stores a scalar; Morale() reads them.
+		// Morale, read from three components (docs/morale.md): deficit, outlook and holdings. Deficit
+		// and outlook are stored state and ease toward what the day offers over hours rather than
+		// snapping, so a bad afternoon is not a bad week. Holdings is not stored: it is a fold over
+		// the marks (Holdings()), so nothing here writes it -- the marks are what move it.
 		// The galley reads species: a meal comes from the rations or the replicators only for a
 		// species that eats, so a hologram neither eats nor goes hungry.
 		if (a == ACT_MEAL && s.stores.rations > 0.0f && sp.needsFood)
@@ -1382,18 +1400,11 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		outlookTarget += (c.quartersQuality - 0.5f) * 0.10f;
 		outlookTarget -= c.assimScar * SCAR_DRAG;     // a de-assimilation's residue never fully fades
 
-		// Holdings: who they hold with -- bonds, grudges, allegiances.
-		float holdingsTarget = 0.75f;
-		holdingsTarget -= std::min(0.40f, Trauma(c) * 0.20f); // what they carry, until the holodeck fades it
-		holdingsTarget -= 0.5f * factionDrag;                 // a crew divided holds with less of itself
-
 		const float ease = std::min(1.0f, hours / 6.0f);      // a few hours to shift the mood [inv]
 		c.deficit += (deficitTarget - c.deficit) * ease;
 		c.outlook += (outlookTarget - c.outlook) * ease;
-		c.holdings += (holdingsTarget - c.holdings) * ease;
 		c.deficit = std::min(1.0f, std::max(0.0f, c.deficit));
 		c.outlook = std::min(1.0f, std::max(0.0f, c.outlook));
-		c.holdings = std::min(1.0f, std::max(0.0f, c.holdings));
 
 		// Conditions arriving from the state, and clearing when their cure is met.
 		UpdateConditions(s, static_cast<int>(&c - s.crew.data()), a, airless, fed, hours);
@@ -3968,12 +3979,13 @@ bool HoldFuneral(Ship &s)
 			if (m.event == MEM_DEATH) { m.valence = std::max(m.valence, -0.2f); m.salience = 1.0f; }
 		// And every person who stood together takes a positive mark toward the one who led them
 		// through it: a bond that was not there before, strengthened by standing in the same room.
+		// The mark is also what moves holdings: the fold reads it, so the regard rises without a
+		// stored number being nudged (docs/morale.md).
 		Remember(s, i, MEM_FUNERAL, officiant == i ? -1 : officiant, MEM_SAW, 0.4f);
 		if (Morale(c) < 0.7f) {
 			// The funeral is the mechanic that turns a loss into shared resolve: it lifts the
-			// outlook and strengthens what the crew hold with (docs/morale.md).
+			// outlook, and the mark above strengthens what the crew hold with (docs/morale.md).
 			c.outlook = std::min(1.0f, c.outlook + 0.15f);
-			c.holdings = std::min(1.0f, c.holdings + 0.10f);
 			++lifted;
 		}
 	}
@@ -4916,8 +4928,9 @@ bool RunHolodeck(Ship &s, HolodeckUse use, int crew)
 		LogEvent(s, c.name, "crew", c.name + " trains on the holodeck and qualifies at " + std::string(StationName(st)));
 		break; }
 	case HOLO_THERAPY:
+		// Fading what they carry IS what raises their regard: holdings is a fold over the marks, so
+		// there is no stored number to nudge (docs/morale.md).
 		for (Memory &m : c.memories) if (m.valence < 0.0f) m.salience *= 0.4f;
-		c.holdings = std::min(1.0f, c.holdings + 0.10f); // what they carry weighs less on who they hold with
 		LogEvent(s, c.name, "sickbay", c.name + " works through it in the holodeck");
 		break;
 	case HOLO_FORENSIC:
@@ -5505,9 +5518,9 @@ static int RisingWitnesses(Ship &s, int hero, float valence)
 		CrewMember &w = s.crew[i];
 		if (w.status != CREW_FIT || w.deck != deck) continue;
 		Remember(s, i, MEM_RESCUE, hero, MEM_SAW, valence);
-		// Bond and allegiance move together: holdings is the allegiance read, and the morale read
-		// with it (docs/affinities-and-allegiance.md).
-		w.holdings = std::min(1.0f, w.holdings + RISING_HOLDINGS_RISE);
+		// Bond and allegiance move together, and by the same mark: holdings is a fold over the marks
+		// (docs/affinities-and-allegiance.md), so the mark written above IS the regard the witness
+		// gains -- no stored number is nudged, and the mark's salience decays unless it is retold.
 		++seen;
 	}
 	return seen;
@@ -8471,12 +8484,13 @@ std::vector<uint8_t> Pack(const Ship &s)
 			w.U8(sys.online ? 1 : 0);
 		}
 	}
-	// The character layer (version 53, O8): the three morale reads and each person's bounded
-	// conditions. The static half -- species, skills, traits, drives -- is derived from the seed by
-	// BuildRoster and is deliberately not stored, so the save stays small and characters stay
-	// editable (docs/crew-roster.md, "static character data is content").
+	// The character layer (version 53, O8): the two stored morale reads (deficit, outlook) and each
+	// person's bounded conditions. Holdings is not stored -- since version 57 it is a fold over the
+	// saved marks (Holdings()). The static half -- species, skills, traits, drives -- is derived from
+	// the seed by BuildRoster and is deliberately not stored, so the save stays small and characters
+	// stay editable (docs/crew-roster.md, "static character data is content").
 	for (const CrewMember &c : s.crew) {
-		w.F(c.deficit); w.F(c.outlook); w.F(c.holdings);
+		w.F(c.deficit); w.F(c.outlook);
 		const int nc = std::min<int>(c.conditionCount, CONDITION_MAX);
 		w.U8(static_cast<uint8_t>(nc));
 		for (int k = 0; k < nc; ++k) {
@@ -8947,10 +8961,11 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		if (b.kind >= MEET_KIND_COUNT || b.alert >= 3) return false;
 		s.pendingMeetings.push_back(b);
 	}
-	// The character layer (version 53, O8): the three morale reads and the conditions. The static
-	// half came back with BuildRoster above.
+	// The character layer (version 53, O8): the two stored morale reads (deficit, outlook) and the
+	// conditions. Holdings is not read back -- it is a fold over the marks, restored above with the
+	// rest of the record. The static half came back with BuildRoster above.
 	for (CrewMember &c : s.crew) {
-		c.deficit = r.Unit(); c.outlook = r.Unit(); c.holdings = r.Unit();
+		c.deficit = r.Unit(); c.outlook = r.Unit();
 		const int nc = r.U8();
 		if (nc > CONDITION_MAX) return false;
 		c.conditionCount = static_cast<uint8_t>(nc);

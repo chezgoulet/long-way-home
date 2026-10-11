@@ -25,12 +25,14 @@ new `.cpp` is not compiled until cmake re-configures, and the save format lives 
 | **Skills** | seven ratings, 0–5: what a person *can* do | static (seed) | `CrewMember.skills[SKILL_COUNT]` |
 | **Traits** | few, permanent, behavioural: how they *tend* to do it | static (seed) | `CrewMember.traits` (a bitmask over `Trait`) |
 | **Conditions** | temporary, sourced, legible: buffs and debuffs | **save** | `CrewMember.conditions[CONDITION_MAX]` |
-| **State** | the transient: deficit, outlook, holdings, fatigue, health, injuries, assimilation, marks | **save** | the rest of `CrewMember` |
+| **State** | the transient: deficit, outlook, fatigue, health, injuries, assimilation, marks | **save** | the rest of `CrewMember` (holdings is a fold over the marks, not a field) |
 
 The split matters because of the affordability argument in `docs/crew-roster.md`: **static
 character data is content; dynamic state is save.** Skills, traits, species and drives are derived
-from the seed and *are not in the save*; conditions and the three morale reads are the save. That
-is what keeps a hundred and forty-one heads out of the save blob and keeps characters editable.
+from the seed and *are not in the save*; conditions, the two stored morale reads (deficit, outlook)
+and the marks are the save. Holdings is itself a fold over those marks, not a field, so it too is
+never stored. That is what keeps a hundred and forty-one heads out of the save blob and keeps
+characters editable.
 
 **And the refusal is honoured: there is no attribute block.** No strength, agility, constitution,
 perception or charisma. If endurance is needed it is a *trait* plus a fatigue curve, not a stat.
@@ -66,9 +68,10 @@ decompression, the Borg, being useless, being seen as a coward).
 
 ### State
 
-A fresh crew begins rested and reasonably hopeful. The seed colours the outlook and the holdings so
-that two people do not start identical; fatigue and deficit begin at zero. Conditions arrive in
-play.
+A fresh crew begins rested and reasonably hopeful. The seed colours the outlook so that two people
+do not start identical; fatigue and deficit begin at zero. Conditions arrive in play. Holdings is no
+longer seeded: it is a fold over the marks, so a fresh person with no marks is neither held nor lost
+until events leave one (`docs/morale.md`, the C2 ruling).
 
 ### Appearance
 
@@ -199,7 +202,8 @@ scalar**.
 - **Deficit** — what they are short of: sleep, food, medical care, comfort, company. Objective.
 - **Outlook** — what they believe: are we getting home, is command competent, was the last loss
   worth it. Subjective, and it moves when the facts do.
-- **Holdings** — who they hold with: bonds, grudges, allegiances.
+- **Holdings** — who they hold with: bonds, grudges, allegiances. Not a field: it is a fold over the
+  marks a person carries (`Holdings()`), so it is answerable to the evidence that produced it.
 
 The reading is a weighted mean, **the weights ours** and recorded so they can be overruled:
 
@@ -208,10 +212,11 @@ heart    = 1 - deficit
 morale   = 0.40 * heart + 0.35 * outlook + 0.25 * holdings      # clamped to 0..1
 ```
 
-`Morale(c)` is a function; it is never a field. Every driver in the tick eases one of the three
-components — the day's activity, hunger, the air on their deck, the alert, losses, the Maquis
-split, crowding, quarters quality, what they carry (trauma, which lowers *holdings*) and the
-assimilation scar (which lowers *outlook*). `MoraleReason(c)` names the component most responsible,
+`Morale(c)` is a function; it is never a field. Every driver in the tick eases deficit or outlook —
+the day's activity, hunger, the air on their deck, the alert, losses, the Maquis split, crowding,
+quarters quality, the assimilation scar. Holdings reaches the reading through the marks instead: an
+event writes a mark, and the fold reads it, so *what they carry* lowers it without a stored number
+being nudged (`docs/morale.md`, the C2 ruling). `MoraleReason(c)` names the component most responsible,
 in words, so the log can say **which one moved and why** — *short on sleep*, *does not believe the
 course is worth the cost*, *alone, or at odds with the crew*. The personnel screen's bands are the
 document's own: **fit, worn, strained, at breaking point**.

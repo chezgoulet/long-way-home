@@ -993,6 +993,31 @@ the cache). <!-- register-row id=voice-plumbing state=closed marker=check:script
   expansion's scripts. Worth resolving before G2 content work.
 - **Retail PC saves are incompatible** with the port (upstream documents this). Start new campaigns.
 
+### From the whole-project review (2026-10-10) — `docs/audit-whole-project.md`
+
+The review's residue list, each item's verdict re-established on the tree and the ones that stood closed
+(**2026-10-11, `feat/the-residue`**; evidence `docs/evidence/the-residue.md`). The review itself is corrected
+in place, findings kept:
+
+- **The launcher that always exits 0 — CLOSED.** `scripts/run-engine.sh` now returns the engine's own status,
+  so `g3-measure`'s `if !` and a caller's `set -e` can fire (demonstrated failing on a stub engine that cannot
+  succeed, exit 7, and succeeding on one that can, exit 0).
+- **The committed generated file nothing reads — CLOSED.** `data/posts/deck04.posts.json` removed; `data/posts/`
+  gitignored and the generator (`tools/posts/gen-posts.py`) is the source.
+- **The two silent catches — CLOSED.** `dressdeck14.py`'s live swallow now reports and falls back;
+  `dressdeck07.py`'s was unreachable (corrected in the review) and the real silent parse above it is now
+  visible.
+- **The launcher's exit code was the load-bearing one**; the others are counts and censuses:
+  - **existence-only checks — partly landed since:** 21 of 33 scripts that reference a frame now assert on the
+    picture (`tools/frames/frame.py`); **12 remain** (four behavioural by measurement, eight in the wider
+    class), named in `docs/frame-assertions.md` and the evidence.
+  - **ignored returns — re-derived:** **51** call sites on this tree; the **3 `ship::Unpack` discards fixed**,
+    the other **48 left** with reasons (idempotent `false`, cannot-fail-as-called, or nothing depends on it).
+  - **duplication — censused, not refactored:** five dress tools, 3,415 lines, 38 shared helper names (18
+    byte-identical, 20 divergent); `KeyByName` three times with the divergences named.
+  - **hard-coded scratch paths — partly:** two fixed (`test_ship_core.cpp`, `test_voice_render.py`), and
+    `run-engine.sh`'s `/tmp/sysroot` left (a guarded fallback); none would in fact trip a fresh clone.
+
 ### From the omissions audit (2026-10-07) — `docs/omissions.md`
 
 A sweep of the whole design corpus against this ledger and `docs/path-to-playtest.md` for work the corpus
@@ -1012,19 +1037,24 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   evidence and tests — see *The ship's budgets squared* above. **What remains is the canon torpedo moments at
   eleven and six as content**, not the mechanism. This entry is left in place, corrected, as the register's
   rule requires. <!-- register-row id=O1 state=partly marker=check:scripts/power-check.sh -->
-- **C2 — allegiance drift — RULED 2026-10-08: DERIVED, NOT STORED.** The owner's word: *"Derived."*
+- **C2 — allegiance drift — RULED 2026-10-08: DERIVED, NOT STORED. CLOSED 2026-10-11, `feat/the-holdings-fold`.**
+  The owner's word: *"Derived."*
   **And the check found the ruling splits in two, because half of it was already true and the design already
   said so twice.** `Bond(s, a, b)` is *already* a fold — `ship_core.cpp`: it sums `valence * salience` over the
   marks that name that person, clamped to ±1 — and its own comment reads *"A bond is remembered valence toward a
   person, summed: repeated good becomes friendship, repeated [bad a grudge]."* `docs/affinities-and-allegiance.md`
   reinforces it at line 18 (*"the bond fold stays"*) and line 98 (*"No separate relationship table"*). **So the
   per-pair bond needs no change, and there is no stored relationship table to remove.**
-  **The half that is not done is `holdings`** — the allegiance read, and one of morale's three components — which
-  is a **stored float** nudged by events (`RISING_HOLDINGS_RISE = 0.12f` moves it) rather than folded. **The
-  ruling makes it a fold over the marks too, which removes the last stored input in the morale chain.**
+  **The half that was not done was `holdings`** — the allegiance read, and one of morale's three components —
+  which *was* a **stored float** nudged by events (`RISING_HOLDINGS_RISE = 0.12f` moved it) rather than folded.
+  **It is now a fold over the marks too, the way `Bond` is**, and the stored field, its save slot and the nudge
+  are gone: `Holdings()` in `module/ship/ship_core.cpp`, the guard `scripts/holdings-check.sh`, save format
+  **57**, and `docs/evidence/the-holdings-fold.md` for the numbers. The rising rule still moves regard — through
+  the witness mark it writes, which is what the fold reads.
   **Consequence, named rather than discovered later: purging the records moves regard**, because regard is
-  computed from what the crew remember and a purge removes what they knew. `docs/morale.md` now records it.
-  **Small, and it makes the whole chain answerable: marks -> bond and holdings -> morale, with nothing hidden.**
+  computed from what the crew remember and a purge orphans what they knew. `docs/morale.md` records it, and the
+  demonstration is in the evidence. **Small, and it makes the whole chain answerable: marks -> bond and holdings
+  -> morale, with nothing hidden.**
 - **C3 — Q-class encounters — DEFERRED 2026-10-08, to the scenario and content work.** The owner: *"I'm
   intrigued by the idea of what a Q-class encounter could be. I can see it being a significant situation.
   Possibly one where they are able to shorten the distance home considerably. That being said, it seems like a

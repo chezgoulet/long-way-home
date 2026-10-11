@@ -261,7 +261,7 @@ class Build:
                      "height_after": HEIGHT, "vscale": VSCALE},
             "entities_kept": 0, "entities_dropped": 0, "brushes_kept": 0, "brushes_dropped": 0,
             "patches_dropped": 0, "core_brushes_dropped": 0, "platform_brushes_dropped": 0,
-            "lights_kept": 0, "waypoints": 0, "pods": [], "holodeck": None,
+            "lights_kept": 0, "light_value_bad": 0, "waypoints": 0, "pods": [], "holodeck": None,
             "census": census(stitch.parse(deck11_path)),
         }
         self.world = []
@@ -300,10 +300,19 @@ class Build:
                     continue
                 k = collections.OrderedDict(keys)
                 k["origin"] = compress_origin(k["origin"])
+                raw_light = k.get("light", "300")
                 try:
-                    k["light"] = str(max(40, int(float(k.get("light", "300")) * 0.7)))
+                    k["light"] = str(max(40, int(float(raw_light) * 0.7)))
                 except ValueError:
-                    pass
+                    # A malformed light value used to be swallowed by `pass`, leaving the brush's
+                    # light unchanged -- a wrong number indistinguishable from a correct one once the
+                    # map is written. Say so, count it, and fall back to the floor rather than keep
+                    # the unreadable value.
+                    sys.stderr.write(
+                        "dressdeck14: light %r at origin %r is not a number; using the floor 40\n"
+                        % (raw_light, k.get("origin", "?")))
+                    self.report["light_value_bad"] += 1
+                    k["light"] = "40"
                 self.entities.append((k, []))
                 self.report["lights_kept"] += 1
                 continue
