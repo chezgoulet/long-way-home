@@ -130,12 +130,18 @@ in the core, `ship losses`, the command console's `GIVEN UP` column and its pain
 (`docs/evidence/abandonment-list.md`, save version 41; registered as **O16** in `docs/omissions.md` and
 carried in `docs/gates.md` S6). The claim of absence above is kept only as the record of the conflict.
 
-**2. Morale is specified as derived and stored as a scalar.** `docs/morale.md` is explicit: morale is per
-person, derived from deficit, outlook and holdings, *never stored as a hidden counter*. `CrewMember` in
-`ship_core.h` carries a single `float morale` ("0 broken, 0.5 going through the motions, 1 heart in it"). The
-float is not a ship-wide scalar, so the letter of the rule holds, but the three components do not exist and
-"the log can say why" cannot yet be answered. Either the components land or the derivations stop being
-claimed.
+**2. Morale is specified as derived and stored as a scalar — RESOLVED 2026-10-11 (save version 53).**
+`docs/morale.md` is explicit: morale is per person, derived from deficit, outlook and holdings, *never stored
+as a hidden counter*. *The conflict as first written (2026-10-06): `CrewMember` in `ship_core.h` carries a
+single `float morale` ("0 broken, 0.5 going through the motions, 1 heart in it"). The float is not a ship-wide
+scalar, so the letter of the rule holds, but the three components do not exist and "the log can say why"
+cannot yet be answered. Either the components land or the derivations stop being claimed.* **It is now built
+and evidenced:** the single `float morale` is **gone** — `Morale(c)` reads the three components (deficit,
+outlook, holdings) and `MoraleReason(c)` names the one responsible (`module/ship/ship_core.h:511-517`,
+`Morale()` in `module/ship/ship_core.cpp`; `SAVE_VERSION` 53 records it: *"The old single `float morale` is
+gone"*; `TestMoraleIsReadFromThree`). **Corrected 2026-10-11:** conflict 2 was the one conflict left
+un-annotated while conflict 1 above was marked resolved; this brings it with its sibling. The claim of
+absence above is kept only as the record of the conflict.
 
 **3. Allegiance does not move, so taste becomes typecasting.** `docs/affinities-and-allegiance.md` fixes
 allegiance strength but not what changes it — which means a Maquis-weighted crew member reacts the same way in

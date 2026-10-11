@@ -22,10 +22,17 @@ question open, and the gap list says which.
 
 This is the first thing a person meets, so it is the first finding.
 
-**There is no way to start Long Way Home from the game's menus.** `g_ship` defaults to `0` and the
-simulation starts only when a cvar turns it on (`module/ship/g_ship.cpp`); the shipped ship map is a
-dozen engine cvars away from a normal launch. To run the sitting you build the ship once, then start
-the engine by hand on the merged map:
+**CORRECTED 2026-10-11 (C-8) — the menu way in now exists; the finding is kept as history.** *This section
+opened:* "**There is no way to start Long Way Home from the game's menus.** `g_ship` defaults to `0` and the
+simulation starts only when a cvar turns it on (`module/ship/g_ship.cpp`); the shipped ship map is a dozen
+engine cvars away from a normal launch." **That is no longer true.** The main menu now carries a **"Long Way
+Home"** line beside the retail buttons (`module/ui/ui_lwh_start.cpp`; attached by
+`patches/0020-main-menu-long-way-home.patch`), and the menu line and `scripts/run-lwh.sh` both execute the one
+config `configs/lwh-start.cfg`, so the run's values live once. This walkthrough's own **G1** row is CLOSED
+(`configs/lwh-start.cfg` is its proof). The hand-launch and the cvar table below remain the developer's route,
+and are kept as the record of the find.
+
+To run the sitting by hand you build the ship once, then start the engine on the merged map:
 
 ```sh
 # once: stitch and compile the whole ship (about three minutes; -vis and -light run)
@@ -41,8 +48,8 @@ scripts/run-engine.sh +set com_hunkMegs 768 +set g_ship 1 +set g_shipDeckPitch 3
 - `g_ship 1` starts the ship simulation; the player is placed **on deck 1**. Same evidence.
 - `map voyager` is the **single-player** route (the AGENTS.md trap: `map` is SP, `spmap` is Holomatch).
 
-**The rest of the experience is cvars you must remember** (all default `0`, all off unless set;
-`module/ship/g_ship.cpp`, `module/crew/g_crew.cpp`):
+**The rest of the experience is cvars the menu's config sets for you** (all default `0`, all off unless set;
+`configs/lwh-start.cfg`; `module/ship/g_ship.cpp`, `module/crew/g_crew.cpp`):
 
 | cvar | what it turns on |
 |---|---|
@@ -55,9 +62,10 @@ scripts/run-engine.sh +set com_hunkMegs 768 +set g_ship 1 +set g_shipDeckPitch 3
 | `g_shipRole 0/1/2` | any post / in command / Munro |
 | `g_shipQuit 0/1` | the exit a quit takes: 0 (default) shuts the simulation down; 1 leaves the ship standing, so she keeps her own time and the run is marked (`docs/ship-model.md`) |
 
-**The honest shape of this.** Everything below assumes you typed those. The owner can, because the
-documents told him. *A person with no knowledge of the code cannot* — see **G1** in the gap list. This
-is the first thing a sitting would hit, before any content.
+**The honest shape of this.** Everything below assumes those are set; the menu's config sets them, and the
+hand-typed list above remains for a developer. *A person with no knowledge of the code can now start the game
+from the menu* — **G1** is CLOSED in the gap list. This was the first thing a sitting would hit, before any
+content.
 
 **The retail modes still work.** Mode 1 (the campaign and Virtual Voyager) is `scripts/run-engine.sh`
 and the menu, or `spmap voy1`; mode 2 (retail Holomatch) is a separate cMod client, `scripts/run-cmod.sh`
@@ -262,12 +270,14 @@ there is to look at, what there is to do, and the question the stop answers.**
   priority list, set the alert, raise the emergency override, run the warp-core cascade through coolant
   → eject. The core is worked here.
 - **Question (owed):** *does the ship feel like a science vessel spending her science budget on a war —
-  the labs dark so the phasers can charge?* **The honest answer from the repository is that the question
-  cannot be answered as posed**: there are **no labs, no astrometrics, no lighting and no cargo loads
-  in the power model** — the model is a warship's budget on a science vessel's hull, and life support
-  and the holodecks are *not* independent sources as canon and `docs/ship-systems.md` require
-  (`docs/budget-squaring.md`, findings one to three; **G12**). What you can judge is the tactical fit;
-  the science half does not exist to go dark.
+  the labs dark so the phasers can charge?* *(**Corrected 2026-10-11 (C-9):** this said the question "cannot
+  be answered as posed" because there were "**no labs, no astrometrics, no lighting and no cargo loads in the
+  power model**" and life support and the holodecks were "not independent sources as canon and
+  `docs/ship-systems.md` require". Both halves are now false: `SPECS[]` in `module/ship/ship_core.cpp`
+  carries astrometrics, science labs, gravity plating, non-essential lighting and cargo handling as systems
+  of their own, and the independent air feed is built (`SetAirSource`, `AIR_GRID`/`AIR_PLANT_PER_DECK`, proved
+  by `scripts/air-check.sh`). **G12** is CLOSED. The science half now exists and can go dark, so the question
+  stands as posed; whether it *feels* like that ship is the owner's.)*
 
 ### Deck 12 — environmental control (re-dressed)
 - **Reach:** turbolift, deck 12; or the tube from deck 11.
@@ -365,8 +375,11 @@ address acknowledged within 1.5 s, save and reload identical, 25 bytes of save p
 **What is not:** **whether the deck feels inhabited.** The six crew in the measured scenario are
 **added** to deck 4, not found on it — none of deck 4's own eight NPCs can hold a post. That is a
 charter question the owner has never ruled on (`docs/evidence/g3-reactive-crew-measured.md`;
-`docs/HANDOFF.md`). And the crew's **manner** — barks and idles wired to morale — is the one item of the
-morale contract still open (`docs/evidence/gap-morale-and-fatigue.md`; **G14**).
+`docs/HANDOFF.md`). ~~And the crew's **manner** — barks and idles wired to morale — is the one item of the
+morale contract still open.~~ *(**Corrected 2026-10-11 (C-10):** the manner is **built**. The state selects
+it (`MannerFor`), it is raised where the state changes and where the person acts (`EmitManner`), it is
+written to the log and handed to the voice, and a save replays it (`scripts/manner-check.sh`); **G14** is
+CLOSED. What remains is the owner's ear.)*
 
 **The stop's question (owed):** *does the deck read as inhabited?* And the second half: *is adding crew
 acceptable for G3?*
@@ -387,8 +400,11 @@ and operated a system through it (`docs/evidence/deck*-redress.md`; **G8**). Rel
 
 ### Main Engineering (station 0)
 - **Where:** deck 11 (or `ship console`).
-- **What:** all eighteen systems in power order, with allocation, output, condition and crew at station;
-  four power sources with output bars.
+- **What:** all **23** systems in power order, with allocation, output, condition and crew at station;
+  four power sources with output bars. *(**Corrected 2026-10-11 (C-6):** this read "all eighteen systems". The
+  owner's budget ruling added five — astrometrics, science labs, gravity plating, non-essential lighting,
+  cargo handling — raising `SYS_COUNT` to **23** (`module/ship/ship_core.h`, `SPECS[]` in
+  `module/ship/ship_core.cpp`). The walkthrough's own **G12** already recorded the addition.)*
 - **Press:** UP/DOWN select · ENTER on/off · LEFT/RIGHT move a system in the priority order · `1`/`2`/`3`
   condition green/yellow/red · `Y` emergency override · `H` countermeasures (breach puzzle) · ESC leave.
 - **The decision:** **what do you turn off, and what does it cost?** Shedding follows the priority list;
@@ -551,10 +567,13 @@ are where an attrition game either lands or does not.
 
 ### The budget display
 - **Reach:** the Engineering console's power sources and allocation; `ship status`.
-- **What:** four sources against eighteen systems. **There is no nominal-against-current power display**
-  — `docs/budget-squaring.md` Part five asks for exactly that ("what the plant can deliver fresh,
-  against what it can deliver now") and it is **not implemented** (**G12**). The nearest thing is the
-  navigation counter's nominal/current pair for *time*.
+- **What:** four sources against **23** systems. **There is a nominal-against-current power display** *(**Corrected
+  2026-10-11 (C-7):** this read "**There is no nominal-against-current power display** … it is **not
+  implemented** (**G12**)". It is implemented: `module/ship/g_ship.cpp` draws the power budget twice, **what
+  the plant delivers fresh** and **what it delivers now** (`vessel.PowerCapacityFresh()`,
+  `vessel.PowerCapacityNow()`, declared in `module/ship/ship_core.h`), exactly as `docs/budget-squaring.md`
+  Part five asks. **G12** is CLOSED and names this proof.)* The navigation counter's nominal/current pair for
+  *time* remains the other half of the same idea.
 
 ### The written-off list (the abandonment north star)
 - **Reach:** the command console's `GIVEN UP` column and `ship losses [kind]`; the live panel paints
@@ -780,18 +799,23 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   deck holding its air on its own source with the main grid down"* (`docs/evidence/the-air.md`).
   Verified by content: `SPECS[]` in `module/ship/ship_core.cpp` carries the five added loads, and
   `module/ship/g_ship.cpp` publishes the fresh-against-now budget. <!-- register-row id=G12 state=closed marker=check:scripts/power-check.sh -->
-- **Missing / contradictory:** `docs/ship-systems.md` says life support and the holodecks are
+- **Missing / contradictory — *the finding as first written, superseded 2026-10-11 (C-9); see the status
+  above*:** `docs/ship-systems.md` says life support and the holodecks are
   *independent sources* and gives a five-rung brownout ladder; the code has neither — life support and
   the holodecks are ordinary loads, and only the holodecks and replicators exist to shed. There are no
   labs, no astrometrics, no non-essential lighting and no cargo handling in the model. `docs/budget-squaring.md`
   (status: *proposed, awaiting the owner's ruling; nothing implemented*) says the tactical fit is 28.6%
   of the grid and the science fit one sensors row (3.9%). The owner's headroom ruling (Part five) is
   not built; the constant 1,500-vs-1,540 shortfall remains.
+  **All of this is now false and is kept only as the record of the find:** the five loads are in `SPECS[]`,
+  the independent air feed is built, the owner's Part five ruling landed 2026-10-07 (fresh `1,800` against
+  `1,730`), and the fresh-against-now display exists — the status line above and `docs/gates.md` carry it.
 - **Says so:** `docs/budget-squaring.md` (Parts three and five); `docs/ship-systems.md` (the ladder and
   the three independent sources); `module/ship/ship_core.cpp` (`SPECS[]`, `SOURCES[]`).
-- **To close:** the owner's ruling; then the five added loads, the source rebalance, and the
-  nominal-vs-current power display. This is also why **Stop 11's science-vessel question cannot be
-  answered as posed**.
+- **To close (done 2026-10-07):** the owner's ruling; then the five added loads, the source rebalance, and the
+  nominal-vs-current power display. *(**Corrected 2026-10-11 (C-9):** all three closed; the trailing claim that
+  **Stop 11's science-vessel question "cannot be answered as posed"** rested on the same stale premise and is
+  false now.)*
 
 ### G13 — Documentation contradictions a careful reader will trip on
 These are not all player-visible, but each is a false claim if quoted, and several sit at the top of a
@@ -1059,7 +1083,7 @@ coverage note's **G15** (a defensible fit — G15 is "no crew scenario … (see 
 | **The whole-ship map (S3)** | **whole mechanically, thin in judgement** — one map, fifteen decks, lifts and tubes, frame time within budget; nobody has walked it, and one deck's real content on the published maps is retail's. |
 | **The deck re-dresses (decks 6, 7, 12, 13, 14)** | **placeholder-to-thin, awaiting judgement** — real geometry, no new art, structural checks pass; the evidence itself calls a slice "not a room", and the aesthetic risk on each is unjudged. |
 | **The station consoles (S4)** | **whole in mechanism, thin in the world** — every station's purpose and its control exist and are tested; a person at a panel, mouse, LCARS artwork and the panel-surface placement remain. |
-| **The crew (G3/S5)** | **thin** — measured reactive crew and a roster that follows the routine; the deck's inhabitation unjudged, the crew's manner unwired, and the generated decks' posts unexercised. |
+| **The crew (G3/S5)** | **thin** — measured reactive crew and a roster that follows the routine; the deck's inhabitation unjudged, ~~the crew's manner unwired~~ (wired 2026-10-11; G14 CLOSED), and the generated decks' posts unexercised. |
 | **Damage, repair, resources (S6)** | **whole in the core, partial in the world** — deterministic soak, visible sparks and fire on the player's deck; per-compartment placement and most decks' hazards absent. |
 | **Intruders and hacking (S7)** | **thin** — rules and hostile bodies on the player's deck; the puzzle is the one stress screen playable by hand, and it is untried by hand. |
 | **The Borg (S8)** | **thin, honest boundary** — rules whole; the visible turn only on generated decks; assimilated crew without faces; no cube outside. |

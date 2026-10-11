@@ -75,7 +75,9 @@ limited by the data; it is limited only by what a first milestone should attempt
 §3 ranked decks by navigation furniture. That was the wrong measure, and taking it further shows why: a
 post needs something to *be at*, and the deck's own interactive objects say what a space is really for.
 Counted from the map sources, with "standable" meaning navigation furniture 24-64 units from a model --
-arm's length to a few paces, not merely the same room:
+arm's length to a few paces, not merely the same room (**note 2026-10-11, C-21:** the authoring brief's
+*standing distance* rule is the post generator's own **24-96**, `tools/posts/gen-posts.py`; this G3 count
+used the tighter 24-64 as its own dated definition, and the figure is kept as that measurement's):
 
 | space | named work objects | stations with standing room (tight) | models at standing distance | crew placed |
 |---|---|---|---|---|

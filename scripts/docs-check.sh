@@ -31,4 +31,5 @@ python3 tools/docs/check_register.py \
     --register docs/omissions.md \
     --register docs/walkthrough.md \
     --register docs/gates.md \
-    --register docs/hook-triage.md
+    --register docs/hook-triage.md \
+    --register docs/designs-against-code.md

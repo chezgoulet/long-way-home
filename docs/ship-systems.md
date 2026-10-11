@@ -161,8 +161,11 @@ onto canon cleanly, with numbers:
   explosive decompression works (Cargo Bay 2), remodulation works, and destroying the **vinculum** ends
   local coordination -- but severed drones keep executing secondary objectives, so it is a reprieve, not
   a win. Holograms are *not* canon-supported as a Borg countermeasure; we will not invent it.
-- **Ship-level failure** is the Borg reaching the core: capture, or self-destruct. That is the loss
-  condition, and it is where the attrition north star ends.
+- **Ship-level failure** is the Borg reaching the core: capture, or self-destruct. *(**Corrected 2026-10-11
+  (C-16):** the code has no Borg-capture and no self-destruct loss. `s.lost` is set only when the warp-core
+  breach countdown expires (`UpdateCore` in `module/ship/ship_core.cpp`; `lost` in `ship_core.h`). `docs/endings.md`
+  is the later ruling and the code matches it: **"exactly one unwinnable end state, the core breach."** This
+  sentence is the out-of-date side.)* That is the loss condition, and it is where the attrition north star ends.
 
 ## Where canon is silent, and we decide
 

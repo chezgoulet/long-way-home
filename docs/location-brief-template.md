@@ -62,7 +62,9 @@ a system the simulation can fail.
 
 ## 8. Acceptance checks
 
-Machine-checkable: affordances present with navigation furniture at standing distance (24-64 units); no
+Machine-checkable: affordances present with navigation furniture at standing distance (**24-96 units** —
+the `STANDING_MIN`/`STANDING_MAX` the post generator actually uses, `tools/posts/gen-posts.py`; was
+written 24-64, corrected 2026-10-11, **C-21**); no
 pathing dead ends; `.nav` bakes on first load; NPC post coverage if crew are posted here; frame time holds.
 Then the one that decides: **does it look like somewhere people work, or like a box with a desk in it?**
 That judgement belongs to the owner, and it is made on a walkthrough, not on a diff.

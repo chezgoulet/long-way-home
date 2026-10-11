@@ -27,9 +27,12 @@ it -- and then author **the smallest space that works**, because every new brush
    holodeck's deck is contested -- **decide once and record the decision** in the location's own notes.
    Never quietly pick one.
 2. **Measure the candidates, by affordance.** For the role the space must play, find rooms that already
-   afford it: work objects with navigation furniture at *standing distance* (24-64 units), doors,
-   circulation. The rule from the crew work stands: **a space is judged by what it affords, not by its
-   size.** A deck with the densest navigation and nothing to stand at is an entertainment deck.
+   afford it: work objects with navigation furniture at *standing distance* (**24-96 units** — the post
+   generator's own constant, `STANDING_MIN, STANDING_MAX = 24.0, 96.0` in `tools/posts/gen-posts.py`, applied
+   at `:82`; this said 24-64 until **2026-10-11**, the tool being the truth an author will actually get —
+   **C-21**), doors, circulation. The rule from the crew work stands: **a space is judged by what it
+   affords, not by its size.** A deck with the densest navigation and nothing to stand at is an entertainment
+   deck.
 3. **Author the difference, not the room.** Copy the nearest map source and change what makes this room
    *this* room. Record what you copied in the commit message.
 4. **Compile, then verify the artifact, never the compiler.** q3map2 exits 0 on a map containing no
