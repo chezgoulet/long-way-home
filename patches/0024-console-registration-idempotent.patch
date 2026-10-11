@@ -1,0 +1,42 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 24/24] console registration says only what is new
+
+`docs/gates.md` carried "~30 `Cmd_AddCommand: ... already defined` on each level transition.
+Harmless, but it means the SP path's console registrations are not idempotent." The count on this
+tree is 38. The cause is the bridge's own loading: a level transition dlclose()s and reloads
+libefgame.so, the cgame re-registers its console commands through CG_ADDCOMMAND, and each one the
+engine already holds is announced. Re-registering a command with the handler it already has changes
+nothing -- the early return *is* the effect of the whole function -- so it is no longer announced.
+A registration that *differs* from the one in place is a real collision and is still reported, to
+`developer` rather than to everyone, which is the same posture as this repository's other
+diagnostics (patches 0017/0019/0021).
+
+The one message that remains under `developer` is `messagemode2`, and it is not a duplicate: the
+client console owns that name (cl_console.c) and the cgame's table claims it too, with a different
+handler. Retail shadowed it the same way; the name is left alone.
+---
+diff --git a/EFAndroid-SP/app/jni/efcode/qcommon/cmd.c b/EFAndroid-SP/app/jni/efcode/qcommon/cmd.c
+--- a/EFAndroid-SP/app/jni/efcode/qcommon/cmd.c
++++ b/EFAndroid-SP/app/jni/efcode/qcommon/cmd.c
+@@ -639,11 +639,17 @@
+ 	cmd_function_t	*cmd;
+ 	
+ 	// fail if the command already exists
+-	if( Cmd_FindCommand( cmd_name ) )
++	cmd = Cmd_FindCommand( cmd_name );
++	if( cmd )
+ 	{
+-		// allow completion-only commands to be silently doubled
+-		if( function != NULL )
+-			Com_Printf( "Cmd_AddCommand: %s already defined\n", cmd_name );
++		// A re-definition changes nothing -- the early return below is its whole effect -- so it is
++		// said only to a developer, and only when the new handler *differs* from the one in place
++		// (a real collision). The single-player bridge re-registers the cgame's console commands on
++		// every map load, because it dlclose()s and reloads the game module; each repeat used to
++		// print "already defined", ~38 lines per level transition, none of them a defect.
++		// Completion-only commands (function == NULL) are silently doubled, as they always were.
++		if( function != NULL && cmd->function != function )
++			Com_DPrintf( "Cmd_AddCommand: %s already defined\n", cmd_name );
+ 		return;
+ 	}
+ 

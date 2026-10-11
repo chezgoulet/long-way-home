@@ -68,7 +68,9 @@ The owner's ruling, 2026-10-06. It maps onto the three clocks S10 already implem
 | **wall clock** | a day is a day, and the ship lives on while you are away | exit with a background process; the player is off duty until they return |
 
 The fourth case is not a clock at all: **exit without a background process, and the simulation stops.** Both
-exits are supported and the player chooses. The semantic line to hold is that **the world clock cannot be
+exits are supported and the player chooses. **The choice is `g_shipQuit`** (0 by default — the simulation
+stops, which is what a quit always did; 1 — the ship is left standing), taken by the engine's own quit path
+(`docs/evidence/the-exits.md`). The semantic line to hold is that **the world clock cannot be
 stopped, and the simulation can be shut down** -- suspending the process does not put the world on hold, it
 means no time existed. And the distinction is observable in the record: one run has continuous log entries and
 the other has a gap in it. **A run could be marked by whether it was ever left standing.**

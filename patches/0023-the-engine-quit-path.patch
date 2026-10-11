@@ -1,0 +1,67 @@
+From: Long Way Home <noreply@long-way-home.invalid>
+Subject: [PATCH 23/24] the engine's quit path asks the game module
+
+The wall-clock exit (docs/omissions.md O14, docs/ship-model.md "The three clocks, and the two
+exits"). The model has had `Suspend`, `leftStanding` and the catch-up since save version 43; what
+was missing is the exit a player actually takes. The engine's quit path (Com_Quit_f) now asks the
+game module what this quit means *before* it tears anything down, because the module is the only
+thing that knows whether a ship is running and which of the two exits the player chose.
+
+The logic is not in this tree. The bridge only hands the module the command (`ship quit`); the
+decision -- leave the ship standing, or shut the simulation down -- is `module/ship/g_ship.cpp`,
+gated by `g_shipQuit`, which is 0 by default and only read while `g_ship` is on. Inert, the hook
+answers nothing and a quit is what it always was: the retail campaign, the expansion and Holomatch
+are unaffected, and the shutdown reasons are taken before the hook re-tokenises the command line,
+so even the strings in the client shutdown banner are unchanged.
+
+It is an engine patch rather than a module one because `quit` is an engine console command: the
+engine's Cmd_ExecuteString finds it in the command table and runs it directly, so the module never
+sees it and cannot answer for itself.
+---
+diff --git a/EFAndroid-SP/app/jni/efcode/qcommon/common.c b/EFAndroid-SP/app/jni/efcode/qcommon/common.c
+--- a/EFAndroid-SP/app/jni/efcode/qcommon/common.c
++++ b/EFAndroid-SP/app/jni/efcode/qcommon/common.c
+@@ -401,13 +401,21 @@
+ 	// don't try to shutdown if we are in a recursive error
+ 	char *p = Cmd_Args( );
+ 	if ( !com_errorEntered ) {
++		// Long Way Home: the wall-clock exit (patches/0023). The game module is asked what this quit
++		// means before anything is torn down -- its logic lives in module/ and it answers nothing while
++		// the simulation is off, so a retail quit is unchanged. Asking it re-tokenises the command
++		// line, so the shutdown reasons are taken here, where they were read before.
++		char serverReason[256], clientReason[256];
++		Q_strncpyz( serverReason, p[0] ? p : "Server quit", sizeof( serverReason ) );
++		Q_strncpyz( clientReason, p[0] ? p : "Client quit", sizeof( clientReason ) );
++		{ extern void SP_EngineQuit( void ); SP_EngineQuit(); }
+ 		// Some VMs might execute "quit" command directly,
+ 		// which would trigger an unload of active VM error.
+ 		// Sys_Quit will kill this process anyways, so
+ 		// a corrupt call stack makes no difference
+ 		VM_Forced_Unload_Start();
+-		SV_Shutdown(p[0] ? p : "Server quit");
+-		CL_Shutdown(p[0] ? p : "Client quit", qtrue, qtrue);
++		SV_Shutdown( serverReason );
++		CL_Shutdown( clientReason, qtrue, qtrue );
+ 		VM_Forced_Unload_Done();
+ 		Com_Shutdown ();
+ 		FS_Shutdown(qtrue);
+diff --git a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+--- a/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
++++ b/EFAndroid-SP/app/jni/sp/sp_bridge.cpp
+@@ -1778,6 +1778,16 @@
+ extern "C" int SP_GameConsoleCommand(void){
+     return ( ge && g_spActive && ge->ConsoleCommand && ge->ConsoleCommand() ) ? 1 : 0;
+ }
++// Long Way Home: the wall-clock exit (patches/0023). The engine's quit path (common.c, Com_Quit_f)
++// calls this before it tears anything down, so the game module gets the last word on what the quit
++// means: leave the ship standing (she keeps her own time) or shut the simulation down. The bridge
++// only hands the module the command -- the decision is the module's (module/ship/g_ship.cpp), and a
++// module that is not running answers nothing, so a retail quit is byte-for-byte what it always was.
++extern "C" void SP_EngineQuit(void){
++    if(!(ge && g_spActive)) return;
++    Cmd_TokenizeString("ship quit");
++    SP_GameConsoleCommand();
++}
+ // True while a save-load/transition is queued (g_transMap set) but the SP cgame hasn't come up yet.
+ // The load watchdog (sp_integration.c) uses this to retry a starved/dropped efsptrans before it
+ // gives up and bounces to the main menu.

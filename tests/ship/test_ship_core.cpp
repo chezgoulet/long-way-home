@@ -3554,6 +3554,39 @@ static void TestSleepAndExits()
 	CHECK(!LeftStanding(iron) && iron.clock == 8 * 3600.0);
 }
 
+// What the engine's quit path leans on (patches/0023, scripts/exits-check.sh). The quit calls
+// Suspend once, whatever the run's history: it must set the mark, write exactly one entry under the
+// commanding officer's name, and be a no-op when the run was already left standing -- a quit after
+// an explicit `ship suspend` must not log the same night twice. Ironman never marks.
+static void TestTheQuitExit()
+{
+	g_test = "the exit a quit takes";
+
+	Config hol = Config();
+	hol.mode = MODE_HOLODECK;
+	Ship s = NewShip(hol);
+	const int before = static_cast<int>(s.log.size());
+	CHECK(Suspend(s));
+	CHECK(static_cast<int>(s.log.size()) == before + 1);
+	CHECK(s.log.back().scope == "command");
+	CHECK(s.log.back().who == CommandingOfficer(s));
+	CHECK(s.log.back().what.find("left standing") != std::string::npos);
+	std::printf("  left standing: mark %d, %d entry: [%s] %s: %s\n", LeftStanding(s) ? 1 : 0,
+		static_cast<int>(s.log.size()), s.log.back().scope.c_str(), s.log.back().who.c_str(),
+		s.log.back().what.c_str());
+
+	// A second exit says the same thing, and says it once.
+	const std::string written = s.log.back().what;
+	CHECK(Suspend(s));
+	CHECK(static_cast<int>(s.log.size()) == before + 1);
+	CHECK(s.log.back().what == written);
+
+	Ship iron = NewShip();
+	const int ironLog = static_cast<int>(iron.log.size());
+	CHECK(!Suspend(iron));
+	CHECK(!LeftStanding(iron) && static_cast<int>(iron.log.size()) == ironLog);
+}
+
 static void TestRankAndRoles()
 {
 	g_test = "rank, clearance and the player";
@@ -8155,6 +8188,7 @@ int main(int argc, char **argv)
 	TestMaintenance();
 	TestModesAndClocks();
 	TestSleepAndExits();
+	TestTheQuitExit();
 	TestRankAndRoles();
 	TestAccessAndAuthority();
 	TestOrders();

@@ -53,6 +53,7 @@ scripts/run-engine.sh +set com_hunkMegs 768 +set g_ship 1 +set g_shipDeckPitch 3
 | `g_shipMode 1` | holodeck mode — saves allowed. **Default is ironman**, which refuses a hand save |
 | `g_shipClock 0/1/2` | accelerated (a ship day in `g_shipDayScale` game seconds, default 60 = a day in 24 min) / real time / wall clock |
 | `g_shipRole 0/1/2` | any post / in command / Munro |
+| `g_shipQuit 0/1` | the exit a quit takes: 0 (default) shuts the simulation down; 1 leaves the ship standing, so she keeps her own time and the run is marked (`docs/ship-model.md`) |
 
 **The honest shape of this.** Everything below assumes you typed those. The owner can, because the
 documents told him. *A person with no knowledge of the code cannot* — see **G1** in the gap list. This
