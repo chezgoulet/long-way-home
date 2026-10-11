@@ -183,7 +183,7 @@ there is to look at, what there is to do, and the question the stop answers.**
   or merge a traveller (`docs/evidence/condition-sets-the-odds.md`).
 - **Question:** *is the transporter a decision or a button?* The risk statement is the design's answer;
   whether it lands is yours. The away *site* does not exist, so the team arrives as a chart entry
-  (**G18**).
+  (**G17**).
 
 ### Deck 5 — sickbay (published)
 - **Reach:** turbolift, deck 5.
@@ -230,7 +230,7 @@ there is to look at, what there is to do, and the question the stop answers.**
 - **Do:** the survey board (`U` on Ops) is the tricorder/away-kit decision; the chart is command's.
   Sensors survey the beacons; probes are launched from the launcher (`ship probe <beacon>`).
 - **Question:** *is exploration a mechanic here?* The rules exist (survey, probe, phenomenon,
-  dilithium); the **away site does not**, so a survey is a chart row rather than a place (**G18**).
+  dilithium); the **away site does not**, so a survey is a chart row rather than a place (**G17**).
 
 ### Deck 9 — crew quarters (published)
 - **Reach:** turbolift, deck 9.
@@ -280,7 +280,7 @@ there is to look at, what there is to do, and the question the stop answers.**
   box with a console in it?* And, the specific world question: **does the red emergency strip read as
   red?** The rendered evidence says **no** — the toggle is correct, the *signal* is not perceptible from
   the camera, on all five re-dressed decks (`docs/evidence/access-and-authority.md`, "The world's
-  emergency strips") (**G9**). Only a person can overrule that, and the current evidence is that it
+  emergency strips") (**G7**). Only a person can overrule that, and the current evidence is that it
   fails.
 
 ### Deck 13 — life-support plant (re-dressed)
@@ -303,7 +303,7 @@ there is to look at, what there is to do, and the question the stop answers.**
   interior still dominates and the final *read* is unjudged.
 - **Note on the flag:** `HOLODECK_RECREATION_DECK` still sends the crew to deck 6 for recreation even
   though Holodeck 1 is here on deck 14 — behaviour deliberately unchanged, flagged for you
-  (`docs/evidence/deck07-auxcore.md`, Task B; **G13**).
+  (`docs/evidence/deck07-auxcore.md`, Task B; a deliberate non-change, not a gap-list row).
 
 ### Deck 15 — plasma relays, landing gear (published)
 - **Reach:** turbolift, deck 15.
@@ -492,7 +492,7 @@ the sitting.
   conditions*; no breeding-condition director exists in the module (the only "director" is the crew
   layering's restaffing rule). There are **two** scenarios in `scenarios/`, both measurement
   harnesses. So nothing in the game recruits a scenario from the ship's state, and the player cannot
-  meet one by playing (**G6**).
+  meet one by playing (**G4**).
 - **The combat and Borg slices are rules in the core, reachable from the console, with the visible half
   partial**: boarders and drones are bodies on your deck (Klingons as the raider stand-in); the Borg
   turn is only on the five generated decks (published decks share shader names, so a per-deck remap is
@@ -584,7 +584,7 @@ are where an attrition game either lands or does not.
   function of all three (`docs/exploration-and-science.md`).
 - **The away kit** (`ship kit`, `ship scancomp`): tricorders, phasers, EV suits, one shared charge. **The
   site itself does not exist** — the transporter delivers to the beacon the ship is at, so a scan is of
-  a chart entry, not of a place a person stands (**G18**).
+  a chart entry, not of a place a person stands (**G17**).
 
 **The stop's question:** *is science a mechanic or a menu?* The rules are in; the places are not.
 
@@ -596,7 +596,7 @@ are where an attrition game either lands or does not.
 as the last frame; destinations are readers (Starfleet reads the paperwork, the Klingons read the
 deaths), no destination is better than another, and the core breach is the only unwinnable end. **None
 of it is implemented.** Three sectors and a `Won` flag exist in the outside loop; the ending, the
-arrival, the readers and the log-as-last-frame do not (**G17**).
+arrival, the readers and the log-as-last-frame do not (**G16**).
 
 **The stop's question:** *what did you choose to lose, and who was entitled to read it?* The build
 cannot yet ask it.
@@ -609,6 +609,12 @@ Each entry: **what is missing or contradictory · which document or evidence fil
 would take to close.** Leniency is the failure mode; this is what is not there.
 
 ### G1 — There is no way to start Long Way Home from the game's menus
+- **Status 2026-10-11 — CLOSED.** `docs/gates.md` (*The way in — the menu line and the launcher* ✅
+  built 2026-10-08): *"the main menu carries a **"Long Way Home"** line beside the retail buttons …
+  `scripts/run-lwh.sh` is the launcher. The run's values live once, in `configs/lwh-start.cfg`."*
+  Verified by content: `configs/lwh-start.cfg` exists and both entry paths — the launcher and the
+  menu code in `module/ui/ui_lwh_start.cpp` (attached by `patches/0020`) — execute it, so no cvar is
+  typed by hand. <!-- register-row id=G1 state=closed marker=file:configs/lwh-start.cfg -->
 - **Missing:** `g_ship` defaults to `0`; the ship map, deck pitch, crew, environment, player body,
   mode, clock and role are all cvars. The only launch is
   `scripts/run-engine.sh +set com_hunkMegs 768 +set g_ship 1 +set g_shipDeckPitch 3072 +map voyager`,
@@ -619,6 +625,12 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   Way Home" line on the main menu. This is the cheapest, highest-value change on the board.
 
 ### G2 — The opening situation does not exist
+- **Status 2026-10-11 — CLOSED.** `docs/gates.md` (*The configurator — the player chooses the start
+  state* ✅ built 2026-10-08): the entry point is *"a **configurator with four dimensions**"*, the
+  casualties *"close named records"*, *"`FillVacancies` derives every vacant seat by the same seniority
+  rule play uses"*, and *"the `log_seed` is generated from what was chosen."* `docs/evidence/the-configurator.md`
+  records the three proving cases (CANON, THE CHAIR, ALL-FICTITIOUS) and checks the four "what the
+  opening must do" items against the log seed. <!-- register-row id=G2 state=closed marker=check:scripts/configurator-check.sh -->
 - **Missing:** `docs/start-states.md` designs the opening as a situation — a casualty list, vacancies
   derived from it, the Caretaker aftermath, a first log entry, start-state variants from ensign to
   captain, and "the empty chair". The shipped ship is the whole, canonical default only: 141 crew, day
@@ -630,6 +642,13 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   and at least the "default canon" beat checked against the four "what the opening must do" items.
 
 ### G3 — Nothing tells you what you hold or how to use it
+- **Status 2026-10-11 — PARTLY CLOSED.** The opening statement is built: the configurator's log seed
+  states the player's own position — *"Ensign Reyes, department duties; may authorise their station's
+  work; 24 in their department"* (`docs/evidence/the-configurator.md`) — and the four "what the opening
+  must do" items, the fourth being "the player's own position", are checked there. What is **not** built
+  is the second half of this row's own "To close": *a way to find the consoles without the `ui_lwh_*`
+  command names* — that is the world affordance **G8** (and **G20**) still awaits. Left unannotated: its
+  closure is a person's session, which no marker names (see the note after G25).
 - **Missing:** no in-world prompt or manual names your post, your authority, your systems, or the
   console keys. The key hints live only on each console's footer, which you must find first. The world
   gives no opening statement of your position (`docs/start-states.md`, "The player's own position
@@ -639,6 +658,10 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   consoles without the `ui_lwh_*` command names.
 
 ### G4 — There is no scenario content at all, and nothing recruits one
+- **Status 2026-10-11 — OPEN.** `docs/gates.md` still carries *"G5 — capstone scenario ⏳ pending"*, and
+  `docs/omissions.md` registers the nine-scenario slate as **O15** — *"the slate itself is still to
+  author."* `scenarios/` holds two measurement harnesses. Waits on the scenario content and a
+  breeding-condition director, this row's own "To close". Left unannotated: no single artifact names it.
 - **Missing:** `docs/scenario-atlas.md` designs nine scenarios with breeding conditions; no breeding
   director exists. `scenarios/` holds two measurement harnesses (`deck04-watch`, `testroom-watch`).
   Nothing spawns a contact, a distress call, an anomaly or a boarding during normal play.
@@ -648,6 +671,12 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   to end. This is the largest content gap and the reason most of Section 8 is console-invoked.
 
 ### G5 — The systems under stress are reachable only from the developer console
+- **Status 2026-10-11 — PARTLY CLOSED.** The first slice landed: `docs/gates.md` (*the hook register,
+  and the hooks a player cannot reach* ✅ triaged 2026-10-09) — *"the first slice wires the top of that
+  list: `SetTarget`, `Remodulate` and `RaidVinculum` on the Tactical console and `OrderAdvance` on the
+  command console"* — with `docs/evidence/reachability.md` and `scripts/reachability-check.sh`. What is
+  **not**: a player still cannot meet boarding, fire, breach or a cascade by playing; that is **G4**'s
+  scenario content, this row's own "To close". Left unannotated: the remaining half is G4's.
 - **Missing:** combat, boarding, Borg, fire, breach and the cascade are rules with console commands
   (`ship board`, `ship borg`, `ship ignite`, `ship breach`, `ship jump`, `ship fire`, `ship core`) and
   no in-game way to meet them. A player cannot provoke them without docs.
@@ -657,6 +686,11 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   Section 8 table.
 
 ### G6 — The published decks carry no station markers, so duty crew go to arbitrary nodes
+- **Status 2026-10-11 — OPEN.** `docs/gates.md` S5: the published-deck markers are *"blocked (a marker
+  at their interface panels leaks — sky/trigger brushes) and need chosen open-space origins by a
+  person"*; `docs/evidence/s5-stations.md`: *"Placing a station marker at a published deck's **own
+  interface panel** was tried and **reverted**."* Waits on a person who can see the map. Left
+  unannotated: the closure is authored invention, not a named artifact.
 - **Missing:** placing a station marker at a published deck's own interface panel leaks (the panels are
   sky/trigger brushes) and was reverted. The generated decks have markers; the published decks do not.
   The crew therefore walk to the deck's navigation, not to a workstation.
@@ -666,6 +700,10 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   with a person who can see the map.
 
 ### G7 — The red emergency strip does not read as red
+- **Status 2026-10-11 — OPEN; the evidence still says it fails.** `docs/evidence/access-and-authority.md`
+  ("The world's emergency strips"): *"the red emergency strips toggle correctly and do not read as red
+  from the camera."* Closure is authoring an emissive red strip material in the deck maps; only the
+  owner's eye can overrule the current read. Left unannotated: the judgement is a person's.
 - **Missing:** the toggle is correct; the signal is not perceptible from the camera on all five
   re-dressed decks. It is an accessibility failure wearing a rendering finding's clothes, and it is the
   world counterpart of the console palette work.
@@ -676,6 +714,10 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   owner should judge in the sitting — the current evidence says it fails.
 
 ### G8 — A person at a panel is unproven
+- **Status 2026-10-11 — OPEN.** `docs/gates.md` S4: *"A person at a panel remains."*
+  `docs/evidence/s4-station-consoles.md` (*"A person at a panel"*) and `docs/evidence/reachability.md`
+  (*"no human sat at the screen. That is walkthrough G8, unchanged."*) carry it. Waits on a logged-in
+  session. Left unannotated: a session is not a marker.
 - **Missing:** every panel→console mapping is proven by firing the panel's command
   (`genericmenu tactical`, `ui_tactical`, …). No session has walked up to a panel and opened a console,
   and the generated decks' panels have no proven station mapping. The glance and the painted panel are
@@ -686,6 +728,10 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   criteria.
 
 ### G9 — The generated decks' aesthetics are unjudged and named as the risk
+- **Status 2026-10-11 — OPEN; the owner's walkthrough is the judge.** The deck evidence withholds the
+  judgement it names as the risk (e.g. `docs/evidence/deck06-composition.md`: *"This is the biggest
+  risk."*; deck 13 and 14 *"read dark under the copied lighting"*). Only the owner's eye closes it.
+  Left unannotated: the judgement is a person's.
 - **Missing:** decks 6, 7, 12, 13 and 14 are re-dresses composed from slices; the evidence repeatedly
   says a *slice is not a room* and that the copied interior may dominate. Deck 13 and 14 read dark
   under the copied lighting; deck 14's cold/warm contrast may be too weak; deck 7's structure is shell
@@ -696,6 +742,10 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   (light, scale, a neutral frame).
 
 ### G10 — Crew post coverage on the merged ship's generated decks was never measured
+- **Status 2026-10-11 — OPEN.** Every generated-deck evidence file says coverage *"was not measured"*
+  and *"Authored, not exercised"* (decks 6, 7, 12, 13, 14); `docs/gates.md` S5 lists the generated
+  decks' posts as unexercised. Waits on a crew scenario per generated deck. Left unannotated: the
+  scenario names do not exist yet.
 - **Missing:** the station markers on decks 6, 7, 12, 13 and 14 are present and the crew layer can use
   them, but the G3 harness runs on deck 4 and no deck-6/7/12/13/14 scenario exists, so coverage was not
   measured there. The posts are authored, not exercised.
@@ -704,6 +754,12 @@ would take to close.** Leniency is the failure mode; this is what is not there.
 - **To close:** a crew scenario per generated deck (the scenario tooling exists; the content does not).
 
 ### G11 — The environment is per deck, not per compartment, and authored on one deck
+- **Status 2026-10-11 — PARTLY CLOSED.** The per-compartment-or-per-deck question is **ruled**:
+  `docs/gates.md` residual C4 — *"RULED 2026-10-08: PER DECK"* (the code was already per deck;
+  `docs/ship-model.md` was the outlier and is corrected). What remains is this row's second half: the
+  authored breach effect is still on deck 12 only, so most decks have no hazard to walk into. Waits on
+  authored hazards on more decks, or the owner's acceptance that the hazard is a deck-12
+  demonstration. Left unannotated: the remainder is authoring, not a named artifact.
 - **Missing:** the engine has no pressure concept; the model is per-deck, so one breach stands for a
   whole deck, and the authored breach effect is on deck 12 only. Most decks have no hazard to walk into.
 - **Says so:** `docs/evidence/environment-in-the-world.md` (judgement calls 3, 5);
@@ -712,6 +768,15 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   more decks, or acceptance that the hazard is a deck-12 demonstration.
 
 ### G12 — The power budget is a warship's budget on a science vessel's hull, and the owner's headroom ruling is not implemented
+- **Status 2026-10-11 — CLOSED.** `docs/gates.md` (*The ship's budgets squared*, implemented
+  2026-10-07) corrects the whole of this row's complaint: *"five new systems — astrometrics, science
+  labs, gravity plating, non-essential lighting, cargo handling — at the document's demands"*, the
+  source rebalance (*"warp core 1,400 (scaled by the crystal's ceiling), impulse reactors 250,
+  auxiliary fusion 90, batteries 60; fresh supply 1,800"*), and *"the engineering console shows the
+  budget twice, fresh against now"*; and *the-air* (2026-10-10) built the independent sources — *"a
+  deck holding its air on its own source with the main grid down"* (`docs/evidence/the-air.md`).
+  Verified by content: `SPECS[]` in `module/ship/ship_core.cpp` carries the five added loads, and
+  `module/ship/g_ship.cpp` publishes the fresh-against-now budget. <!-- register-row id=G12 state=closed marker=check:scripts/power-check.sh -->
 - **Missing / contradictory:** `docs/ship-systems.md` says life support and the holodecks are
   *independent sources* and gives a five-rung brownout ladder; the code has neither — life support and
   the holodecks are ordinary loads, and only the holodecks and replicators exist to shed. There are no
@@ -728,6 +793,11 @@ would take to close.** Leniency is the failure mode; this is what is not there.
 ### G13 — Documentation contradictions a careful reader will trip on
 These are not all player-visible, but each is a false claim if quoted, and several sit at the top of a
 document an agent reads first.
+
+- **Status 2026-10-11 — CLOSED (the row's own SETTLED note below stands).** `docs/gates.md`
+  (*The documentation contradictions, settled — and the check that keeps the mechanical ones settled*
+  ✅ 2026-10-09) records all ten items settled in place, and `scripts/docs-check.sh` keeps the
+  mechanically decidable ones settled. <!-- register-row id=G13 state=closed marker=check:scripts/docs-check.sh -->
 
 > **SETTLED 2026-10-09 — stale as a finding; kept as the record of the find.** The ten items below were
 > re-verified against the code, the owning documents and the evidence, and each is corrected or confirmed
@@ -772,7 +842,7 @@ document an agent reads first.
   reads as covering the whole document.
 
 ### G14 — Morale is a scalar, not the three components, and the crew have no manner
-**CLOSED 2026-10-08 (`feat/the-character-layer`), first half built and second half demonstrated.**
+**CLOSED 2026-10-08 (`feat/the-character-layer`), first half built and second half demonstrated.** <!-- register-row id=G14 state=closed marker=check:scripts/character-check.sh -->
 The single `float morale` is **gone**: morale is now `Morale(c)`, read from **deficit, outlook and
 holdings**, each eased by its own drivers, and `MoraleReason(c)` names the component most
 responsible so the log can say which moved and why. The manner is built as `MannerLine(c)` and
@@ -789,12 +859,22 @@ evidence: `docs/evidence/the-character-layer.md`.
   what remains is the owner's read of the manner at a playtest.
 
 ### G15 — No crew scenario exists for the generated decks (see G10) and the fleet's own characters cannot hold posts
+- **Status 2026-10-11 — OPEN.** `docs/gates.md` G3: *"Is adding crew acceptable for this gate? None of
+  deck04's own eight NPCs can be given a post … the charter says "named crew already placed", and that
+  is not what was measured."* That is the owner's ruling, plus the per-deck scenarios (**G10**). Left
+  unannotated: the closure is a ruling and content with no single named artifact.
 - **Missing:** G3's measured six are *added* to deck 4; none of deck 4's own eight NPCs can hold a post.
   The charter says "named crew already placed". This is an open owner judgement, not an oversight.
 - **Says so:** `docs/evidence/g3-reactive-crew-measured.md`; `docs/gates.md` G3; `docs/HANDOFF.md`.
 - **To close:** the owner's ruling, and crew scenarios on the decks where they belong.
 
 ### G16 — The record's endgame pieces are not built
+- **Status 2026-10-11 — PARTLY CLOSED.** The meeting brief is **built**: `docs/gates.md` (*The meeting,
+  phase one*) — *"a brief is built **per participant from their marks and the log**"*. The rest of the
+  row stands: `docs/the-record-and-the-log.md` ("What assimilation takes") is still specified, not built
+  (the personal log **and** the access levels, with the Collective speaking in the assimilated person's
+  voice), and the destination set, the arrival and the log as the last frame remain design only
+  (`docs/endings.md`). Left unannotated: the remainder is several pieces with no single named artifact.
 - **Missing:** the meeting brief built per participant from marks and the log; assimilation taking the
   **personal log and the access levels**, with the Collective speaking in the assimilated person's
   voice; the purge's full consequence; the destination set and the arrival; the log as the last frame.
@@ -804,6 +884,9 @@ evidence: `docs/evidence/the-character-layer.md`.
   the endings are a later stage.
 
 ### G17 — There is no away site, so the away mission's acceptance run is impossible
+- **Status 2026-10-11 — OPEN.** `docs/evidence/gap-tricorders-and-kit.md` and `docs/omissions.md` **O11**
+  still name the away site as content; a scan is of a chart row, not a place. Waits on an away-site map
+  and a session. Left unannotated: no single named artifact carries it.
 - **Missing:** the transporter delivers the party to the sector beacon the ship is at; the tricorder
   scans a chart entry, not a place. The acceptance — "an away mission can be solved by scanning rather
   than by shooting" — needs a walkable site and a session.
@@ -812,6 +895,10 @@ evidence: `docs/evidence/the-character-layer.md`.
   art needed.
 
 ### G18 — The air/endurance countdown is not drawn where the problem is
+- **Status 2026-10-11 — OPEN.** `docs/evidence/gap-air-and-endurance.md`: *"The countdown and the field
+  control are on the Operations console; deck 12 itself is still a generated hall with a station marker.
+  Drawing the countdown at the environmental-control panel is the deck-12 build item."* Left
+  unannotated: the closure is a build item with no named file.
 - **Missing:** the clocks are on the Operations console, and the force-field key is there; deck 12
   itself does not display its own countdown. `docs/evidence/gap-air-and-endurance.md` names this as the deck-12
   build item.
@@ -820,6 +907,10 @@ evidence: `docs/evidence/the-character-layer.md`.
   already exists.
 
 ### G19 — The shuttle load-screen is deliberately a menu and is not built
+- **Status 2026-10-11 — OPEN by design.** `docs/evidence/every-screen.md` row 18: *"a **decision menu at
+  the moment of launch**, not a station console … Left, with the reason."* Closure is building the
+  launch menu (the `LaunchShuttle` model exists). Left unannotated: a deliberate refusal with no named
+  artifact.
 - **Missing:** `docs/shuttles.md` asks the load-screen to make you decide (manifest, loadout,
   destination confidence, return condition). It is a launch-time decision menu, not a station console,
   and it is left unbuilt with the reason recorded.
@@ -828,6 +919,10 @@ evidence: `docs/evidence/the-character-layer.md`.
   defect — see Section 14.
 
 ### G20 — The glance has no in-world control, and sealed quarters have no world prompt
+- **Status 2026-10-11 — OPEN.** `docs/evidence/every-screen.md` row 12: *"the glance — thin, left —
+  in-world control, out of console scope; a readout by design"*; `docs/evidence/the-two-missing-decks.md`
+  judgement call 5 carries the sealed quarters. Closure is an engine/world affordance on panel and door
+  brushes. Left unannotated: world work, no named artifact.
 - **Missing:** the in-world readout is a read by design; the control it lacks is a world interaction
   (an interactive panel surface), parked as out-of-console-scope. Sealed quarters are visible only
   through the console/HUD, not by a per-door prompt.
@@ -836,6 +931,9 @@ evidence: `docs/evidence/the-character-layer.md`.
 - **To close:** engine/world affordances on panel and door brushes.
 
 ### G21 — The airponics bay and living quarters are not mapped places
+- **Status 2026-10-11 — OPEN.** `docs/gates.md` (*Still to do*): *"the airponics bay and the galley as
+  mapped places and job sites"* and *"living quarters and bunking as a mapped place"*;
+  `docs/evidence/backlog-materials-and-crew.md` names each. Left unannotated: a map has no name yet.
 - **Missing:** their *rules* are built (airponics `SetAirponics`; quarters quality and `ImproveQuarters`);
   their rooms are not. `docs/ship-master-map.md` puts airponics on deck 11 (a published deck, so it
   shares the S8 published-deck blocker's shape).
@@ -843,6 +941,10 @@ evidence: `docs/evidence/the-character-layer.md`.
 - **To close:** author the rooms (deck-build path), or accept them as numbers.
 
 ### G22 — The viewscreen and the opponent are schematic, not rendered
+- **Status 2026-10-11 — OPEN.** `docs/gates.md` S9 and `docs/evidence/s9-the-outside.md`: *"The
+  viewscreen is a drawn schematic … not the engine rendering the contact's model to a surface"*;
+  *"What remains, if the owner wants a photographic image, is an engine render-target extension."* Left
+  unannotated: the closure is an engine extension or a named cheap window, neither a file yet.
 - **Missing:** the viewscreen is a module-drawn image of hull/shields bars, not the engine rendering the
   contact's model; there is no exterior space, no flight, and boarding arrives as a party rather than a
   rendered assault. `docs/outside-the-ship.md` recommends taking the cheap exteriors (a starfield, a
@@ -852,6 +954,11 @@ evidence: `docs/evidence/the-character-layer.md`.
   the cheap windows the evidence names.
 
 ### G23 — Borg assimilation's visible half is generated-decks-only, and assimilated crew have no faces
+- **Status 2026-10-11 — OPEN, the honest boundary.** `docs/gates.md` S8: *"the published decks still
+  need the stitcher pass or the engine section tag"*; `docs/evidence/s8-the-borg.md`: *"the published
+  decks share shader names across decks, so `RemapShader` still cannot address one of them alone"*, and
+  assimilated crew *"do not yet appear as drones with their own faces."* Left unannotated: no named
+  artifact.
 - **Missing:** `RemapShader` is global by shader name, so the published decks (which share names) cannot
   turn Borg; only the five generated decks can, in four sections. Assimilated crew become drones in the
   simulation but not as drones with their own faces.
@@ -859,6 +966,11 @@ evidence: `docs/evidence/the-character-layer.md`.
 - **To close:** the stitcher pass giving each deck unique shader names, or an engine section tag.
 
 ### G24 — The retail-multiplayer human half, and cutscenes, are unconfirmed
+- **Status 2026-10-11 — OPEN.** `docs/gates.md` G7: the server half is proven headless, *"Still needs a
+  human: the client's menus, the server browser, connecting to a local server, and input."* Cutscene
+  playback is linked (`docs/evidence/deps-durable-and-cutscenes.md`: *"Bink cutscene playback:
+  enabled"*) but *"whether a cutscene plays still wants a session."* Waits on a two-machine session.
+  Left unannotated: a session is not a marker.
 - **Missing:** G7's server half is proven headless; the client menus, the server browser, connecting to
   a local server and input need a person and two machines. Cutscene playback is linked but whether one
   *plays* wants a session.
@@ -866,10 +978,48 @@ evidence: `docs/evidence/the-character-layer.md`.
 - **To close:** a two-machine LAN and VPN session; one cutscene watched.
 
 ### G25 — Ironman's edges
+- **Status 2026-10-11 — OPEN.** `docs/evidence/s10-modes-and-roles.md` ("Ironman, enforced in the
+  game"): *"Not done: the save and load menus still offer what will be refused; a save on quitting; and
+  loading the ironman save a second time is not prevented."* Closure is hiding the refused menu items
+  and a save on quit. Left unannotated: no named artifact.
 - **Missing:** the save and load menus still offer saves ironman will refuse; a save on quitting is not
   written; loading the ironman save twice is not prevented (copying the file aside defeats it, as in any
   ironman mode). `docs/evidence/s10-modes-and-roles.md`.
 - **To close:** hide or grey the refused menu items; a save on quit.
+
+### The gap statuses, and which rows the check reads
+
+This list was re-read row by row against the tree and `docs/gates.md` on **2026-10-11**
+(`feat/the-walkthrough-status`). The **count**: **5 closed** — G1, G2, G12, G13, G14; **4 partly
+closed** — G3, G5, G11, G16; **16 open** — G4, G6, G7, G8, G9, G10, G15, G17, G18, G19, G20, G21,
+G22, G23, G24, G25. Each row carries its 2026-10-11 status in place, its own finding text kept.
+
+**Rows the register check reads: the 5 closed rows**, each with a `state=closed` marker naming the
+proof (`G1` `configs/lwh-start.cfg`; `G2` `scripts/configurator-check.sh`; `G12`
+`scripts/power-check.sh`; `G13` `scripts/docs-check.sh`; `G14` `scripts/character-check.sh`). The
+check is class 3 of `scripts/docs-check.sh`; the walkthrough is now one of its registers, so a closed
+row whose proof is later removed fails the suite.
+
+**Rows left unannotated: the 4 partly-closed and the 16 open rows (20).** The rule is the omissions
+register's own (`docs/evidence/the-number-owners.md`, Task B, and `tools/docs/check_register.py`): do
+not annotate a row whose closure cannot be reduced to a marker. Each of the 20 "Status" lines above
+says why in its own words; in brief, they fall into two kinds — a closure that is **a person's act** (a
+walkthrough, a session, an owner's ruling: G3, G6, G7, G8, G9, G15, G19, G24 and the halves of G11 and
+G16) and a closure that is **content or a build item nothing has named yet** (G4, G5, G10, G17, G18,
+G20, G21, G22, G23, G25). A marker for either would be an invented filename, which the register
+declines. **A green check is not the answer to this list's question**: the check proves a closed row's
+proof exists, not that the row's prose is true, and it is blind to the 20 unannotated rows by
+construction.
+
+**One further correction made in the same pass — the section text's cross-references.** Sections 2–11
+cited G-numbers that did not match this gap list (they read as an earlier draft's numbering), so a
+reader following a pointer landed on the wrong finding. Corrected in place on 2026-10-11: the away site
+now cites **G17** (deck 4, deck 8 and Section 10; was G18), the red emergency strip cites **G7** (deck
+12; was G9), "meet one by playing" cites **G4** (Section 8; was G6), and the endings cite **G16**
+(Section 11; was G17). One flag note (deck 14, `HOLODECK_RECREATION_DECK`) had cited **G13**, which is
+the documentation-contradictions row and not this flag; it now reads as a deliberate non-change with no
+gap number, since it is a judgement call, not a gap (Section 15, call 4). Left as written: the deck-6
+coverage note's **G15** (a defensible fit — G15 is "no crew scenario … (see G10)").
 
 ---
 
