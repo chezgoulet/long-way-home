@@ -3,6 +3,16 @@
 > What is closed, measured and next. **The order of the remainder is not this document** — it is
 > `docs/path-to-playtest.md`, which owns sequencing while this owns state.
 
+> **Dates, recorded once.** A date here names the **working session** in which the work was done, not a
+> commit timestamp. For the sessions of 2026-10-05 and 2026-10-06 — whose entries are dated
+> **2026-10-06** and **2026-10-07** — the session date ran **one day ahead of the host's commit clock**
+> (measured: 15 of the 17 dated evidence documents in that window; one ran two days ahead and one a day
+> behind). On every other day the two agree. The commit timestamp is the machine's record of *when a
+> change landed*; the document date is the session label. **History is not renumbered** to make the two
+> agree; the convention is recorded here so a plan that dates its own work is auditable. Raised by
+> `docs/path-to-playtest.md`, "Defects found in the corpus while writing this"; measured in
+> `docs/evidence/the-stale-rows.md`.
+
 Status of the programme's gates. The charter defines *what* each gate requires; this records *whether*
 it passed, on what evidence, and what is still open.
 
@@ -399,9 +409,11 @@ browsable log screen (`ui_lwh_log`), named authors (`AuthorFor`), and the captai
 condition. Save format **version 14**.
 
 What remains is content, not rules: the crew's *manner* (barks wired to morale — needs the crew
-layer, session to judge), the EMH (the mobile-emitter backlog item), the environmental-control
-countdown at deck 12 itself (the deck build), and a walkable away site (content; the acceptance run
-needs it and a session). The model says so in each evidence document.
+layer, session to judge), ~~the EMH (the mobile-emitter backlog item)~~ **the EMH and its mobile emitter
+were built 2026-10-07** (`ActivateEMH`, `SetMobileEmitter`, save versions 16 and 21; below), the
+environmental-control countdown at deck 12 itself (the deck build), and a walkable away site (content; the
+acceptance run needs it and a session). The model says so in each evidence document.
+<!-- register-row id=gaps-remaining state=partly marker=symbol:module/ship/ship_core.cpp:ActivateEMH -->
 
 ### The month report, the promise and the lie, and the toll
 
@@ -497,13 +509,19 @@ systems are added, so `SYS_COUNT` rises and older saves are invalid, as every bu
 - the **engineering console shows the budget twice**, fresh against now (`BUDGET 1800 FRESH  1800 NOW`) ✅
 - the **torpedo complement is 38 and depletes**; canon's waypoints (eleven, six) are recorded ✅
 - canon's checks: **operable with 100 crew** (22 posts, covered by a watch of 33) ✅ and the **holodeck
-  matrix as a trap** (`JumpStartFromHolodeck`, `ship jumpstart`) ✅; **at least one deck holding air
+  matrix as a trap** (`JumpStartFromHolodeck`, `ship jumpstart`) ✅; ~~**at least one deck holding air
   independently of the main grid** is measured and sized — the largest structural gap — and not built
-  (20 `SYS_LIFE_SUPPORT` references, 17 `atmosphere`, 11 `MinutesOfAir`, across four files)
+  (20 `SYS_LIFE_SUPPORT` references, 17 `atmosphere`, 11 `MinutesOfAir`, across four files)~~
+  **BUILT 2026-10-10** (`feat/the-air`, `docs/evidence/the-air.md`, save version 56): the three sources that
+  survive the main grid — impulse reactors, auxiliary fusion, the batteries — are separate state, and a deck's
+  life support can be fed from one of them, so the deck holds its air with the grid down; an over-committed
+  source is a shortfall number, and nothing is shed (`SetAirSource`/`AirShortfall`, `scripts/air-check.sh`).
+  <!-- register-row id=air-source state=closed marker=check:scripts/air-check.sh -->
 - `scripts/test.sh`, `scripts/check.sh` and the engine checks exit 0 ✅
 
-Remaining: the owner's walkthrough (whether the budget feels tight rather than punishing), and the
-deck-by-deck air mechanism — a lane of its own.
+Remaining: the owner's walkthrough (whether the budget feels tight rather than punishing), and ~~the
+deck-by-deck air mechanism — a lane of its own~~ **that mechanism, since built 2026-10-10** (above;
+`docs/evidence/the-air.md`).
 
 ### The power assignment — the player decides
 
@@ -607,7 +625,8 @@ is built, too.
 (`docs/evidence/meeting-overlay.md`, `TestMeetingOverlaySeam`, `ClassifyNovelInput`, `LogScopeForCrew`;
 `module/ui/ui_lwh_meeting.cpp`; `scripts/meeting-overlay-check.sh`). **Save format unchanged (52)** —
 the held brief is host-local, and the simulation applies the outcome exactly as before. **No model is
-called, no audio device is opened, and no line is rendered**: M4, M5 and M6 are not built.
+called, no audio device is opened, and no line is rendered** in this pass: ~~M4, M5 and M6 are not built.~~
+**M4, M5 and M6 were built later** (2026-10-09/10, the sections below). <!-- register-row id=meeting-phases state=closed marker=check:scripts/meeting-overlay-check.sh -->
 
 - the **overlay** is drawn on the panel path (`module/ui/`): a lower-frame band (144px of 640x480,
   30%) with a speaker rail (name, post, watch, mood), the line being answered, the enumerated options
@@ -934,8 +953,10 @@ on every clip; two artefacts found (a reverb and an accent drift), both diagnose
 
 Evidence: `docs/evidence/voice-spike.md`, `voice-examples.md`, `janeway-cheeseburger.md`, `voice-review.md`,
 `voice-fixes.md`. **The meeting's brief and skeleton now feed this seam** (the delivery direction per line,
-`docs/evidence/meeting-brief.md`); what remains is the plumbing that renders the lines to audio and the
-meeting that plays them.
+`docs/evidence/meeting-brief.md`); ~~what remains is the plumbing that renders the lines to audio and the
+meeting that plays them.~~ **That plumbing was built 2026-10-09** (M5, `docs/evidence/voice-and-casting.md`:
+`PlanMeetingAudio`, `tools/voice/render.py`, the cache and true line durations; the meeting plays from
+the cache). <!-- register-row id=voice-plumbing state=closed marker=check:scripts/audio-check.sh -->
 
 ## Residuals (named, queued, not forgotten)
 
@@ -943,9 +964,13 @@ meeting that plays them.
   been extracted under `/tmp` and was lost. `scripts/fetch-gdk.sh` now restores it into `build/gdk`
   from the Internet Archive, checksummed, and G0 was re-run against it: validator negative tests all
   pass; dictionary 262 classes + 2 templates, 237 of 239 used classes covered across 106 map sources
-  (unchanged); corpus 2,016 of 2,024 scripts compile and read back, the 8 rejections being the three
-  named in `docs/evidence/g0-script-compiler.md` plus five files that are not scripts. This archive's
-  script set is smaller than the 2,408 files counted originally, which included the GDK's own copies.
+  (unchanged); corpus 2,394 of 2,408 scripts compile and read back, the 14 rejections being the three
+  named in `docs/evidence/g0-script-compiler.md` plus eleven files that are not scripts. (Corrected
+  2026-10-11: `fetch-gdk.sh` restored only the *Level Scripts* archive -- 2,024 of the GDK's 2,408
+  scripts -- so this line read 2,016 of 2,024 with 8 rejections. The 384 it omitted are the Virtual
+  Voyager deck and Holodeck programme scripts the published map sources reference; the fetch now lays
+  the installer's own copy over the archive and the corpus is the GDK's whole 2,408. See the residual
+  below and `docs/evidence/the-126-references.md`.)
 - **The entity dictionary's flags and keys were wrong until 2026-10-05** — a header pattern ran on
   into each description. Class names, and so G0's coverage figures, were unaffected. Regenerated
   from the restored GDK: 211 classes with documented keys, 232 with spawnflag sets.
@@ -976,6 +1001,7 @@ meeting that plays them.
   and by freezing it (`g_crewDoorOpen 0`); the check fails on each and passes again once restored.
   `scripts/g3-measure.sh` is `0 stuck, 0 out of world` with the change in, and `scripts/s5-check.sh`
   passes.
+  <!-- register-row id=doors state=closed marker=check:scripts/crew-door-check.sh -->
 
 - **~30 `Cmd_AddCommand: … already defined`** on each level transition. Harmless, but it means the SP
   path's console registrations are not idempotent.
@@ -985,9 +1011,41 @@ meeting that plays them.
 - ~~**No cutscene playback.**~~ **Closed** — FFmpeg is available from the plain archive with the version
   pinned (the ESM build was merely the preferred candidate), and the engine now links Bink playback.
   See `docs/evidence/deps-durable-and-cutscenes.md`. Whether a cutscene *plays* still wants a session.
-- **126 script references the GDK corpus lacks** — the validator found them; most likely the
-  expansion's scripts. Worth resolving before G2 content work.
+- **~~126 script references the GDK corpus lacks~~** — **re-measured 2026-10-11: 2, and neither is a
+  missing script.** The 126 was a measurement artefact, not a boundary: a case-sensitive manifest glob
+  (`scripts/**/*.txt`, which on Linux misses the corpus's `.TXT` files) over a corpus 384 files short
+  of the GDK's, and counted twice by overlapping map globs. Against the GDK's whole script corpus the
+  58 case-missed references resolve, and the two that remain are malformed `usescript` values in
+  shipped maps — `bs_run_and_shoot`, a behaviour state placed in a script key, and `newearthhome`, a
+  `ref_tag` targetname. No corpus spelling satisfies them and none should; they do not obstruct G2
+  content work. Re-measured and guarded by `scripts/references-check.sh`. Evidence:
+  `docs/evidence/the-126-references.md`.
 - **Retail PC saves are incompatible** with the port (upstream documents this). Start new campaigns.
+
+### From the whole-project review (2026-10-10) — `docs/audit-whole-project.md`
+
+The review's residue list, each item's verdict re-established on the tree and the ones that stood closed
+(**2026-10-11, `feat/the-residue`**; evidence `docs/evidence/the-residue.md`). The review itself is corrected
+in place, findings kept:
+
+- **The launcher that always exits 0 — CLOSED.** `scripts/run-engine.sh` now returns the engine's own status,
+  so `g3-measure`'s `if !` and a caller's `set -e` can fire (demonstrated failing on a stub engine that cannot
+  succeed, exit 7, and succeeding on one that can, exit 0).
+- **The committed generated file nothing reads — CLOSED.** `data/posts/deck04.posts.json` removed; `data/posts/`
+  gitignored and the generator (`tools/posts/gen-posts.py`) is the source.
+- **The two silent catches — CLOSED.** `dressdeck14.py`'s live swallow now reports and falls back;
+  `dressdeck07.py`'s was unreachable (corrected in the review) and the real silent parse above it is now
+  visible.
+- **The launcher's exit code was the load-bearing one**; the others are counts and censuses:
+  - **existence-only checks — partly landed since:** 21 of 33 scripts that reference a frame now assert on the
+    picture (`tools/frames/frame.py`); **12 remain** (four behavioural by measurement, eight in the wider
+    class), named in `docs/frame-assertions.md` and the evidence.
+  - **ignored returns — re-derived:** **51** call sites on this tree; the **3 `ship::Unpack` discards fixed**,
+    the other **48 left** with reasons (idempotent `false`, cannot-fail-as-called, or nothing depends on it).
+  - **duplication — censused, not refactored:** five dress tools, 3,415 lines, 38 shared helper names (18
+    byte-identical, 20 divergent); `KeyByName` three times with the divergences named.
+  - **hard-coded scratch paths — partly:** two fixed (`test_ship_core.cpp`, `test_voice_render.py`), and
+    `run-engine.sh`'s `/tmp/sysroot` left (a guarded fallback); none would in fact trip a fresh clone.
 
 ### From the omissions audit (2026-10-07) — `docs/omissions.md`
 
@@ -1001,25 +1059,31 @@ justified order. **O16 and O17 were built-but-unregistered and are now carried i
 *Closed entries are retained here and corrected in place rather than deleted — the finding is the sweep's
 evidence and the closing is this ledger's business. The same rule is stated in `docs/omissions.md`.*
 
-- **O1/C1 — the power and supply model — CLOSED 2026-10-07, PR #53.** The sweep recorded it as *"proposed,
+- **O1/C1 — the power and supply model — the mechanism CLOSED 2026-10-07 (PR #53); the canon torpedo
+  moments remain, as content.** The sweep recorded it as *"proposed,
   awaiting the owner's ruling. Nothing here is implemented"*, which was true when the sweep ran and false
   within the hour: the owner's ruling was the **headroom curve**, and the implementation landed with its own
   evidence and tests — see *The ship's budgets squared* above. **What remains is the canon torpedo moments at
   eleven and six as content**, not the mechanism. This entry is left in place, corrected, as the register's
-  rule requires.
-- **C2 — allegiance drift — RULED 2026-10-08: DERIVED, NOT STORED.** The owner's word: *"Derived."*
+  rule requires. <!-- register-row id=O1 state=partly marker=check:scripts/power-check.sh -->
+- **C2 — allegiance drift — RULED 2026-10-08: DERIVED, NOT STORED. CLOSED 2026-10-11, `feat/the-holdings-fold`.**
+  The owner's word: *"Derived."*
   **And the check found the ruling splits in two, because half of it was already true and the design already
   said so twice.** `Bond(s, a, b)` is *already* a fold — `ship_core.cpp`: it sums `valence * salience` over the
   marks that name that person, clamped to ±1 — and its own comment reads *"A bond is remembered valence toward a
   person, summed: repeated good becomes friendship, repeated [bad a grudge]."* `docs/affinities-and-allegiance.md`
   reinforces it at line 18 (*"the bond fold stays"*) and line 98 (*"No separate relationship table"*). **So the
   per-pair bond needs no change, and there is no stored relationship table to remove.**
-  **The half that is not done is `holdings`** — the allegiance read, and one of morale's three components — which
-  is a **stored float** nudged by events (`RISING_HOLDINGS_RISE = 0.12f` moves it) rather than folded. **The
-  ruling makes it a fold over the marks too, which removes the last stored input in the morale chain.**
+  **The half that was not done was `holdings`** — the allegiance read, and one of morale's three components —
+  which *was* a **stored float** nudged by events (`RISING_HOLDINGS_RISE = 0.12f` moved it) rather than folded.
+  **It is now a fold over the marks too, the way `Bond` is**, and the stored field, its save slot and the nudge
+  are gone: `Holdings()` in `module/ship/ship_core.cpp`, the guard `scripts/holdings-check.sh`, save format
+  **57**, and `docs/evidence/the-holdings-fold.md` for the numbers. The rising rule still moves regard — through
+  the witness mark it writes, which is what the fold reads.
   **Consequence, named rather than discovered later: purging the records moves regard**, because regard is
-  computed from what the crew remember and a purge removes what they knew. `docs/morale.md` now records it.
-  **Small, and it makes the whole chain answerable: marks -> bond and holdings -> morale, with nothing hidden.**
+  computed from what the crew remember and a purge orphans what they knew. `docs/morale.md` records it, and the
+  demonstration is in the evidence. **Small, and it makes the whole chain answerable: marks -> bond and holdings
+  -> morale, with nothing hidden.**
 - **C3 — Q-class encounters — DEFERRED 2026-10-08, to the scenario and content work.** The owner: *"I'm
   intrigued by the idea of what a Q-class encounter could be. I can see it being a significant situation.
   Possibly one where they are able to shorten the distance home considerably. That being said, it seems like a
@@ -1050,9 +1114,20 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   survive the main grid are separate state and a deck can hold its air on one of them. **The trap remains
   built and unchanged** (`JumpStartFromHolodeck`). What is left of the canon triad is the holodeck reactor
   as a per-deck source, which the brief for this pass did not build.
+  **Verified still absent 2026-10-11** (this pass, by content): the air feed's sources are
+  `SRC_WARP_CORE`/`SRC_IMPULSE_REACTORS`/`SRC_AUXILIARY`/`SRC_BATTERIES` and `AIR_GRID`
+  (`module/ship/ship_core.h`), with no holodeck source; the holodeck reactor exists only as the trap
+  (`JumpStartFromHolodeck`, `ship_core.cpp`). So this is a genuine remaining half, not a stale row.
+  <!-- register-row id=O2 state=partly marker=check:scripts/air-check.sh -->
 - **O3 — canon named to model and never modelled** (kind 6): `docs/lore-ledger.md`'s closing list — bio-neural
   gel packs, the EMH's dependence on sickbay power and holo-emitters, the variable-geometry nacelles, cargo
-  bays, replicator rations as a resource, and holodeck-power incompatibility.
+  bays, replicator rations as a resource. **One item on that list is built and the row overstated it**:
+  ~~and holodeck power being incompatible with other systems~~ — the incompatibility **is** modelled as the
+  trap, `JumpStartFromHolodeck` (`docs/ship-systems.md:86`, "the matrix is incompatible … destroys relays";
+  save version 21). Gel packs, the variable-geometry nacelles, the EMH's holo-emitter dependence, cargo bays
+  as a loadable place and replicator rations as a rationing constraint remain, each to its own verification.
+  Corrected and marked by this pass (2026-10-11).
+  <!-- register-row id=O3 state=partly marker=symbol:module/ship/ship_core.cpp:JumpStartFromHolodeck -->
 - **O4 — first contact, awareness and reputation**: `docs/exploration-and-science.md` item 5,
   `docs/memory-and-consequence.md`, `docs/scenario-atlas.md`.
 - **O5 — discipline from home, the live link to Starfleet**: `docs/gap-analysis.md` §4, `docs/scenario-atlas.md`.
