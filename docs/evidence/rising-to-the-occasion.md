@@ -251,9 +251,13 @@ module build
    four kinds the design lists. **This is a call.**
 4. **The witnesses are the deck, and the regard step is `holdings`.** Bond is derived from the mark;
    `holdings` is the one stored read that carries allegiance, and moving it moves morale, which is what
-   the design asks for. **This is a call.**
+   the design asks for. **This is a call.** *(Corrected 2026-10-11: `holdings` is no longer a stored
+   read — the C2 ruling made it a fold over the marks, so the witness mark alone moves morale and there
+   is no `holdings` step to nudge. See `docs/evidence/the-holdings-fold.md`.)*
 5. **`MEM_RESCUE` rather than a new event.** **This is a call**, and it is the brief's own preference.
 6. **The fork is applied as the design recommends, not ruled.** `RisingWouldGo` is one function, so
    the owner can overturn it in one place. **This is a call.**
 7. **No save bump.** Nothing new is stored, so bumping would invalidate older saves for nothing.
-   **This is a call**, and its cost is exactly zero.
+   **This is a call**, and its cost is exactly zero. *(Superseded 2026-10-11: the C2 holdings fold did
+   bump the save, to 57, when it removed the per-person `holdings` float; the zero-cost call was right
+   for this pass and is wrong for that one. See `docs/evidence/the-holdings-fold.md`.)*

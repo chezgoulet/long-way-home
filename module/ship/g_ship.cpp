@@ -2258,7 +2258,7 @@ void RunTest( void )
 			const int eng = ( me + 1 ) % size;
 			vessel.crew[eng].status = ship::CREW_FIT; vessel.crew[eng].brigged = false;
 			vessel.crew[eng].dept = ship::DEPT_ENGINEERING; vessel.crew[eng].rank = 4; vessel.crew[eng].post = ship::SYS_WARP_DRIVE;
-			vessel.crew[eng].deficit = 0.3f; vessel.crew[eng].outlook = 0.7f; vessel.crew[eng].holdings = 0.7f;
+			vessel.crew[eng].deficit = 0.3f; vessel.crew[eng].outlook = 0.7f;
 			ship::DamageSystem( vessel, ship::SYS_WARP_DRIVE, 0.6f );
 			ship::Tick( vessel, 1.0f );
 			currentOrder = ship::BuildOrderBrief( vessel, vessel.player, eng );
@@ -3527,7 +3527,7 @@ void RunTest( void )
 				vessel.crew[who].conditionCount = 0;
 				vessel.crew[who].desire = ship::DESIRE_HOME;
 				vessel.crew[who].fear = ship::FEAR_USELESSNESS;
-				vessel.crew[who].deficit = 1.0f; vessel.crew[who].outlook = 0.0f; vessel.crew[who].holdings = 0.0f;
+				vessel.crew[who].deficit = 1.0f; vessel.crew[who].outlook = 0.0f;
 				vessel.crew[who].deck = ship::Spec( ship::SYS_STRUCTURAL_INTEGRITY ).deck;
 				ship::SetAlert( vessel, ship::ALERT_GREEN );
 				ship::DamageSystem( vessel, ship::SYS_STRUCTURAL_INTEGRITY, 0.6f );

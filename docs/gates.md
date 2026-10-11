@@ -985,19 +985,24 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   evidence and tests — see *The ship's budgets squared* above. **What remains is the canon torpedo moments at
   eleven and six as content**, not the mechanism. This entry is left in place, corrected, as the register's
   rule requires.
-- **C2 — allegiance drift — RULED 2026-10-08: DERIVED, NOT STORED.** The owner's word: *"Derived."*
+- **C2 — allegiance drift — RULED 2026-10-08: DERIVED, NOT STORED. CLOSED 2026-10-11, `feat/the-holdings-fold`.**
+  The owner's word: *"Derived."*
   **And the check found the ruling splits in two, because half of it was already true and the design already
   said so twice.** `Bond(s, a, b)` is *already* a fold — `ship_core.cpp`: it sums `valence * salience` over the
   marks that name that person, clamped to ±1 — and its own comment reads *"A bond is remembered valence toward a
   person, summed: repeated good becomes friendship, repeated [bad a grudge]."* `docs/affinities-and-allegiance.md`
   reinforces it at line 18 (*"the bond fold stays"*) and line 98 (*"No separate relationship table"*). **So the
   per-pair bond needs no change, and there is no stored relationship table to remove.**
-  **The half that is not done is `holdings`** — the allegiance read, and one of morale's three components — which
-  is a **stored float** nudged by events (`RISING_HOLDINGS_RISE = 0.12f` moves it) rather than folded. **The
-  ruling makes it a fold over the marks too, which removes the last stored input in the morale chain.**
+  **The half that was not done was `holdings`** — the allegiance read, and one of morale's three components —
+  which *was* a **stored float** nudged by events (`RISING_HOLDINGS_RISE = 0.12f` moved it) rather than folded.
+  **It is now a fold over the marks too, the way `Bond` is**, and the stored field, its save slot and the nudge
+  are gone: `Holdings()` in `module/ship/ship_core.cpp`, the guard `scripts/holdings-check.sh`, save format
+  **57**, and `docs/evidence/the-holdings-fold.md` for the numbers. The rising rule still moves regard — through
+  the witness mark it writes, which is what the fold reads.
   **Consequence, named rather than discovered later: purging the records moves regard**, because regard is
-  computed from what the crew remember and a purge removes what they knew. `docs/morale.md` now records it.
-  **Small, and it makes the whole chain answerable: marks -> bond and holdings -> morale, with nothing hidden.**
+  computed from what the crew remember and a purge orphans what they knew. `docs/morale.md` records it, and the
+  demonstration is in the evidence. **Small, and it makes the whole chain answerable: marks -> bond and holdings
+  -> morale, with nothing hidden.**
 - **C3 — Q-class encounters — DEFERRED 2026-10-08, to the scenario and content work.** The owner: *"I'm
   intrigued by the idea of what a Q-class encounter could be. I can see it being a significant situation.
   Possibly one where they are able to shorten the distance home considerably. That being said, it seems like a
