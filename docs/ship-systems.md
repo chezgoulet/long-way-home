@@ -96,6 +96,9 @@ Three design consequences we take from canon rather than inventing:
 bulkheads Paris improvised in the Year of Hell (a Titanic reference, and a canon precedent for the
 player doing the same). Model: per-compartment `sealed`, `breached`, `force_field_level`. Controls:
 existing door and force-field interactives (66 on deck04 alone; force fields on deck05 and deck08).
+**A crew member walking to a post opens the door in front of it** — an ordinary door for anyone, a
+security door only on the member's own access (the record decides, not a list), and a door a script
+owns not at all; the engine's own answer, per door, is `docs/evidence/the-doors.md`.
 
 **Life support.** Environmental control is a Deck 12 node; per-deck atmosphere, gravity and temperature
 are ours to track, with gravity failures canon-precedented on Decks 8, 9 and 11. Inertial dampers gate

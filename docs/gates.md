@@ -949,11 +949,28 @@ meeting that plays them.
 - **The entity dictionary's flags and keys were wrong until 2026-10-05** — a header pattern ran on
   into each description. Class names, and so G0's coverage figures, were unaffected. Regenerated
   from the restored GDK: 211 classes with documented keys, 232 with spawnflag sets.
-- **Crew are stopped by some doors — probably the ones meant to be shut.** Two suggested starting
-  positions on deck04 were one waypoint from their posts and unreachable. Reading the source and
-  the map afterwards: ordinary doors open for any client, NPCs included; 26 of the ship's doors are
-  security doors and 34 open only by script (the turbolift's among them). Not yet confirmed in the
-  engine; it is S5's first task.
+- **Crew are stopped by some doors — the ones meant to be shut.** *(the finding kept; **closed
+  2026-10-11**, `feat/the-doors`)* Two suggested starting positions on deck04 were one waypoint from
+  their posts and unreachable. Reading the source and the map afterwards: ordinary doors open for any
+  client, NPCs included; security doors and doors opened only by a script stop them. **Now confirmed in
+  the engine**, which was the open question (`scripts/crew-door-check.sh`; evidence in
+  `docs/evidence/the-doors.md`): of the merged ship's **213** doors, **178** carry the engine's own touch
+  trigger — **152** ordinary ones and the **26** **security** doors — and **35** have no touch trigger at
+  all, because `SP_func_door` gives a door with a `targetname`, a `health` or `PLAYER_USE` no trigger, and
+  a hand or a script opens it. **So the set that stops crew is exactly the set meant to be shut:** no
+  ordinary door can stop a member, a security door refuses whoever the record does not clear, and a
+  script's door is not a body's. The deck04 case was a **security door**: `watch2`'s *suggested* start
+  stood **132 units** from its post with one such door between them, and the member held no access — the
+  door working, and **the suggestion the error** (`crewgen suggest` cannot see doors; the committed
+  scenario has the member on the near side and reaches, `110fc15`, so no scenario change was needed).
+  **The change** (`module/crew/g_crew.cpp`): the layer opens the door a member is walking at rather than
+  leaving it to the Trek trigger's own terms — an ordinary door for any crew member, a security door
+  **on the member's own access (the record decides, not a list)**, and a door a script owns not at all;
+  and it **names the door** when it stops someone, so a content error is found and not guessed. The
+  mechanism is falsified by breaking it (`OpenDoorFor` a no-op; the hand's-or-a-script's rule removed)
+  and by freezing it (`g_crewDoorOpen 0`); the check fails on each and passes again once restored.
+  `scripts/g3-measure.sh` is `0 stuck, 0 out of world` with the change in, and `scripts/s5-check.sh`
+  passes.
 
 - **~30 `Cmd_AddCommand: … already defined`** on each level transition. Harmless, but it means the SP
   path's console registrations are not idempotent.

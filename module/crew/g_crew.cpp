@@ -60,6 +60,14 @@ const float NOTICE_RANGE = 192.0f;      // the player this close is looked at
 const float FACE_RANGE = 112.0f;        // ... and this close is turned towards
 const float OUT_OF_WORLD_DROP = 2048.0f;
 const float DECK_BASE = 1636.0f;    // as in ship/g_scope.cpp: maps a height on the merged ship to a deck
+// func_door spawnflags (g_mover.cpp: MOVER_MUST_FACE 16, MOVER_SECURITY 32, MOVER_PLAYER_USE 128).
+// 16 is the Trek door: a *client* within 72 must be moving at it, within 32 always opens. 32 is the
+// security door: shut until the player's own security code. 128 is the use key; like a "targetname",
+// it means the door is opened by a hand or a script, and gets no touch trigger at all.
+const int DOOR_MUST_FACE  = 16;
+const int DOOR_SECURITY   = 32;
+const int DOOR_PLAYER_USE = 128;
+const float DOOR_REACH    = 320.0f;  // open a door the member is this close to, not one across the deck
 const unsigned long SAVE_CHUNK = 0x43524557; // 'CREW', as the game's own multi-character chunk ids are encoded
 const size_t CHUNK_OVERHEAD = 16;       // id, length, checksum, trailer: 4 bytes each
 
@@ -71,6 +79,8 @@ cvar_t *g_crewFromShip; // 1 = the crew on this deck are whoever the ship simula
 cvar_t *g_crewDeck;     // which deck this map is, for a map of one deck; 0 = work it out from g_shipDeckPitch
 cvar_t *g_env;          // 1 = the ship's environment is shown in the world (gravity, a breach, a field)
 cvar_t *g_player;       // 1 = the player's body in the world (Stage B): the causes reach the person
+cvar_t *g_crewDoors;    // 1 = the door census: classify every door on the map for a crew member, then quit
+cvar_t *g_crewDoorOpen; // 1 = a member opens the door between it and its post (the doors pass); 0 = old behaviour
 
 struct CrewState {
 	bool active = false;
@@ -102,6 +112,8 @@ struct CrewState {
 	int scriptStartMs = 0;
 	bool runReported = false;
 	size_t lastSaveBytes = 0;
+	// The doors pass: whether the census has run (doors-*).
+	bool doorsCensusDone = false;
 };
 
 CrewState cs;
@@ -159,6 +171,138 @@ float Dist2D( const float *a, const float *b )
 float DeckPitch( void )
 {
 	return gi.cvar( "g_shipDeckPitch", "0", 0 )->value;
+}
+
+// ---- the doors (docs/ship-systems.md, docs/access-and-authority.md) --------------------------
+//
+// A door that stops a crew member who is supposed to be on the other side is a defect; a door that
+// stops one who is not supposed to be there is the simulation working. The distinction is the
+// member's access, and the record holds it.
+//
+// The engine already opens an ordinary door when an NPC walks into its trigger (g_mover.cpp,
+// Touch_DoorTrigger), but on the Trek door's own terms: within 72 units of the door centre it must
+// be *moving at* the door, and only within 32 does it always open. A body that has come to rest at
+// the doorway fails that test for ever, which is how a post one waypoint away was unreachable. So
+// the layer opens the door *for* the member, through the engine's own use path, rather than hoping
+// the body will satisfy the heuristic.
+//
+// A security door is different. The engine's gate is the *player's* OBJ_SECURITYCODE, which a crew
+// member does not hold; whose access opens one is the design's question (security over doors), and
+// the record answers it -- the department that works Tactical, a lieutenant commander and above, a
+// cross-qualification, or a shift's delegation. The layer asks the ship, and if the answer is yes it
+// drives the mover itself. No access, no door: refused, and named where it stops someone.
+//
+// A third kind is not the layer's to open at all. SP_func_door (g_mover.cpp) gives a door with a
+// "targetname", a "health", or PLAYER_USE **no touch trigger**, and hands it to Think_MatchTeam
+// instead: it is opened by a hand or by a script. The layer leaves those doors alone, so a post
+// behind one stays a content error the walk names, rather than a door quietly taken from its script.
+
+bool IsDoor( const gentity_t *e )
+{
+	return e->inuse && e->classname && !Q_stricmp( e->classname, "func_door" );
+}
+
+const char *DoorLabel( const gentity_t *d )
+{
+	return d->targetname && d->targetname[0] ? d->targetname : "(unnamed)";
+}
+
+// A door's team master, or the door itself when it is not on a team. A func_door team shares one
+// mover state, so opening one leaf moves every leaf of the team.
+gentity_t *DoorTeam( gentity_t *d )
+{
+	return ( ( d->flags & FL_TEAMSLAVE ) && d->teammaster ) ? d->teammaster : d;
+}
+
+// A door a hand or a script owns. The engine's own rule, from SP_func_door: a "targetname", a
+// "health" or PLAYER_USE means the door is passed to Think_MatchTeam and never gets the touch
+// trigger a walking body is seen by. The layer mirrors that test exactly rather than guessing.
+bool DoorForAHand( const gentity_t *d )
+{
+	return ( d->targetname && d->targetname[0] ) || d->health != 0 || ( d->spawnflags & DOOR_PLAYER_USE );
+}
+
+// The ship roster index an embodied crew member stands for: the layer names it lwh_crew_NNN.
+int ShipIndexOf( const gentity_t *e )
+{
+	const char *n = e->script_targetname && e->script_targetname[0] ? e->script_targetname : e->targetname;
+	if ( !n || Q_strncmp( n, "lwh_crew_", 9 ) ) return -1;
+	return atoi( n + 9 );
+}
+
+// Does this member's own access open this door? An ordinary door: yes, for any of the crew. A
+// security door: only for whoever the record gives security's access to. The marks decide; there is
+// no list here.
+bool MayOpenDoor( const gentity_t *door, const gentity_t *e )
+{
+	if ( !( door->spawnflags & DOOR_SECURITY ) ) return true;
+	ship::Ship *vessel = Ship_Get();
+	const int idx = ShipIndexOf( e );
+	if ( !vessel || idx < 0 ) return false;
+	return ship::MayOperate( *vessel, idx, ship::STN_TACTICAL );
+}
+
+// The layer's whole rule for one door, in one place so the walk and the census cannot drift apart:
+// a door a hand or a script owns, never; a security door, on the member's own access; anything
+// else, yes.
+bool LayerMayOpen( const gentity_t *door, const gentity_t *e )
+{
+	if ( DoorForAHand( door ) ) return false;
+	return MayOpenDoor( door, e );
+}
+
+// Open a door for a member, through the engine's own mechanism. An ordinary door goes through
+// Use_BinaryMover, the same call the touch trigger makes (so the engine's rules still apply). A
+// security door the layer has already cleared goes to the mover directly: Use_BinaryMover would
+// refuse it for the player's security objective, which is not the question the layer just answered.
+void OpenDoorFor( gentity_t *door, gentity_t *e )
+{
+	// Only a shut door is opened. Use_BinaryMover *reverses* a door that is already moving, so a
+	// layer that called it every frame would flap the door in the member's face.
+	if ( door->moverState != MOVER_POS1 ) return;
+	if ( door->flags & FL_TEAMSLAVE ) door = door->teammaster;
+	if ( door->moverState != MOVER_POS1 ) return;
+	if ( door->spawnflags & DOOR_SECURITY )
+	{
+		door->enemy = e;
+		door->activator = e;
+		Use_BinaryMover_Go( door );
+	}
+	else
+	{
+		Use_BinaryMover( door, e, e );
+	}
+}
+
+// The door the member is walking at: the nearest one within reach whose middle lies ahead of it,
+// toward its post. A body stopped in a doorway is not on the straight line to the post -- the
+// navigator's route bends -- so the test is the door's own middle against the direction of travel,
+// not a ray to the post. Returns the door and its distance in the engine's own units.
+gentity_t *DoorAhead( gentity_t *e, const crew::Post &p, float *dist )
+{
+	vec3_t toPost, c, v;
+	VectorSubtract( p.origin, e->currentOrigin, toPost );
+	toPost[2] = 0;
+	const float total = VectorNormalize( toPost );
+	if ( total < 1.0f ) return NULL;
+
+	gentity_t *best = NULL;
+	float bestD = DOOR_REACH;
+	for ( int n = 1; n < globals.num_entities; ++n )
+	{
+		gentity_t *d = &g_entities[n];
+		if ( !IsDoor( d ) ) continue;
+		VectorAdd( d->absmin, d->absmax, c );
+		VectorScale( c, 0.5f, c );
+		VectorSubtract( c, e->currentOrigin, v );
+		v[2] = 0;
+		const float dd = VectorNormalize( v );
+		if ( dd > DOOR_REACH || dd >= bestD ) continue;
+		if ( dd > 32.0f && DotProduct( v, toPost ) < 0.7f ) continue; // down a side corridor, not on the way
+		bestD = dd; best = d;
+	}
+	if ( best ) *dist = bestD;
+	return best;
 }
 
 // ---- reading signals ------------------------------------------------------------------------
@@ -280,9 +424,29 @@ void TrackProgress( gentity_t *e, crew::Member &m )
 	m.progressMs = level.time;
 	if ( m.stuckStrikes >= cs.cfg.stuckStrikes )
 	{//reports failure rather than pushing against a wall for the rest of the run
+		const int failed = m.EffectivePost();
 		m.flags |= crew::MF_FAILED;
 		ReleaseGoal( e, m );
-		gi.Printf( S_COLOR_YELLOW"CREW: %s failed to reach post '%s'\n", NameOf( e ), cs.posts[m.EffectivePost()].name.c_str() );
+		gi.Printf( S_COLOR_YELLOW"CREW: %s failed to reach post '%s'\n", NameOf( e ), cs.posts[failed].name.c_str() );
+		//Name what stopped it, so a post behind a shut door is a finding and not a guess. The door
+		// on the line to the post is the one that has to open for this member.
+		float dd = 0.0f;
+		gentity_t *door = DoorAhead( e, cs.posts[failed], &dd );
+		if ( door )
+		{
+			//The three kinds, so a content error is told apart from the simulation working: a door a
+			//hand or a script owns is a post placed wrongly; a security door the member's record does
+			//not clear is the design doing its job; an ordinary door is the engine or the layer failing.
+			const char *kind = DoorForAHand( door ) ? "script"
+				: ( ( door->spawnflags & DOOR_SECURITY ) != 0 ) ? "security" : "ordinary";
+			gi.Printf( S_COLOR_YELLOW"CREW:   stopped by %s door '%s' (ent %d) %.0f units away, bound for '%s', at %s\n",
+				kind, DoorLabel( door ), door->s.number, dd, cs.posts[failed].name.c_str(),
+				vtos( door->absmin ) );
+		}
+		else
+		{
+			gi.Printf( S_COLOR_YELLOW"CREW:   no door on the line to '%s'; something else stopped it\n", cs.posts[failed].name.c_str() );
+		}
 		return;
 	}
 	//let the navigator pick its route again from where the NPC actually is
@@ -406,6 +570,21 @@ void ThinkMember( size_t i )
 				vtos( e->currentOrigin ), Dist2D( e->currentOrigin, cs.posts[post].origin ), cs.posts[post].name.c_str(),
 				e->lastWaypoint, e->NPC->tempGoal ? e->NPC->tempGoal->lastWaypoint : -1, e->client->ps.groundEntityNum, e->NPC->behaviorState );
 		if ( WriteRefused( e ) ) break;
+		// A door between the member and its post: open it, if this member may. Done here, before the
+		// walk is re-issued, because the navigator's own door handling only lets a body bump into the
+		// doorway, and the Trek door's trigger wants a body still moving at it (Touch_DoorTrigger).
+		if ( !g_crewDoorOpen || g_crewDoorOpen->integer )
+		{
+			float dd = 0.0f;
+			gentity_t *door = DoorAhead( e, cs.posts[post], &dd );
+			if ( door && dd <= DOOR_REACH )
+			{
+				if ( LayerMayOpen( door, e ) ) OpenDoorFor( door, e );
+				else if ( g_crewDebug->integer )
+					gi.Printf( "CREW: %s may not open %s door '%s'\n", NameOf( e ),
+						DoorForAHand( door ) ? "a hand's or a script's" : "security", DoorLabel( door ) );
+			}
+		}
 		IssueGoal( e, m, post );
 		TrackProgress( e, m );
 		break;
@@ -1771,6 +1950,8 @@ void Crew_RegisterCvars( void )
 	g_crewDeck = gi.cvar( "g_crewDeck", "0", 0 );
 	g_env = gi.cvar( "g_env", "0", 0 );
 	g_player = gi.cvar( "g_player", "0", 0 );
+	g_crewDoors = gi.cvar( "g_crewDoors", "0", 0 );
+	g_crewDoorOpen = gi.cvar( "g_crewDoorOpen", "1", 0 );
 }
 
 void Crew_Init( void )
@@ -1816,6 +1997,150 @@ static void BaselineFrame( void )
 		gi.SendConsoleCommand( "save crewbase\n" );
 		gi.SendConsoleCommand( "wait 20\n" );
 		gi.SendConsoleCommand( "quit\n" );
+	}
+}
+
+// The door census (the doors pass): classify every door on the loaded map for a crew member, and
+// then ask the engine directly about one of each kind -- walking its own use path with the member as
+// the activator and watching the mover -- so the classification is observed, not read off the map.
+void DoorCensus( void )
+{
+	gentity_t *probe = NULL;
+	for ( int n = 1; n < globals.num_entities && !probe; ++n )
+		if ( g_entities[n].inuse && g_entities[n].NPC && ShipIndexOf( &g_entities[n] ) >= 0 ) probe = &g_entities[n];
+
+	int total = 0, ordinary = 0, security = 0, scriptOnly = 0, playerUse = 0, trigger = 0, slaves = 0;
+	gentity_t *sampleOrdinary = NULL, *sampleOrdinaryLayer = NULL, *sampleSecurity = NULL, *sampleNoTrigger = NULL;
+	gi.Printf( "CREW: doors: census on %s (probe %s)\n", level.mapname, probe ? NameOf( probe ) : "none embodied" );
+	for ( int n = 1; n < globals.num_entities; ++n )
+	{
+		gentity_t *d = &g_entities[n];
+		if ( !IsDoor( d ) ) continue;
+		++total;
+		// The engine's own touch trigger, if this door has one (Think_SpawnNewDoorTrigger): a trigger
+		// that points back at the door and calls Touch_DoorTrigger. No trigger = a walking member is
+		// never seen by it.
+		// A door on a team shares its master's trigger: the trigger's owner is the master, and every
+		// leaf of the team answers to it. So the trigger is the master's, or this door is the master.
+		bool hasTrigger = false;
+		for ( int t = 1; t < globals.num_entities && !hasTrigger; ++t )
+		{
+			gentity_t *g = &g_entities[t];
+			if ( !g->inuse || g->e_TouchFunc != touchF_Touch_DoorTrigger ) continue;
+			if ( g->owner == d || ( d->teammaster && g->owner == d->teammaster ) ) hasTrigger = true;
+		}
+		const bool sec = ( d->spawnflags & DOOR_SECURITY ) != 0;
+		const bool use = ( d->spawnflags & DOOR_PLAYER_USE ) != 0;
+		if ( hasTrigger ) ++trigger;
+		if ( d->flags & FL_TEAMSLAVE ) ++slaves;
+		const char *kind;
+		if ( sec )
+		{//a security door is a security door whether or not it has a trigger: shut for anyone without access
+			++security; kind = "security";
+			if ( !sampleSecurity && d->moverState == MOVER_POS1 ) sampleSecurity = d;
+		}
+		else if ( hasTrigger )
+		{
+			++ordinary; kind = "ordinary";
+			// Two samples, on *different teams*: a team shares one mover state, so a door on the same
+			// team as the engine's sample would read as opened by the engine's own call and would
+			// prove nothing about the layer. The engine's own use path is asked about the first, the
+			// layer about the second.
+			if ( !sampleOrdinary && d->moverState == MOVER_POS1 ) sampleOrdinary = d;
+			else if ( !sampleOrdinaryLayer && d->moverState == MOVER_POS1 && sampleOrdinary
+				&& DoorTeam( d ) != DoorTeam( sampleOrdinary ) ) sampleOrdinaryLayer = d;
+		}
+		else
+		{
+			kind = use ? "player-use" : "script-only";
+			if ( use ) ++playerUse; else ++scriptOnly;
+			if ( !sampleNoTrigger ) sampleNoTrigger = d;
+		}
+		gi.Printf( "CREW: door %4d  %-24s %-11s flags=%s%s%s\n", n, DoorLabel( d ), kind,
+			( d->spawnflags & DOOR_MUST_FACE ) ? "face " : "     ", sec ? "security " : "         ",
+			use ? "use" : "" );
+	}
+	gi.Printf( "CREW: doors: %d total; %d with a touch trigger; %d ordinary, %d security, %d script-only, "
+		"%d player-use; %d team leaves\n", total, trigger, ordinary, security, scriptOnly, playerUse, slaves );
+
+	if ( !probe )
+	{
+		gi.Printf( S_COLOR_YELLOW"CREW: doors: no crew embodied: the live test was not run\n" );
+		return;
+	}
+	if ( sampleOrdinary )
+	{
+		Use_BinaryMover( sampleOrdinary, probe, probe );
+		gi.Printf( "CREW: doors: live: ordinary '%s' for %s -> %s (ent %d)\n", DoorLabel( sampleOrdinary ), NameOf( probe ),
+			sampleOrdinary->moverState == MOVER_POS1 ? "STAYED SHUT" : "OPENED", sampleOrdinary->s.number );
+	}
+	// The layer's own path for an ordinary door, on a second one on a different team: the call the
+	// walk makes.
+	if ( sampleOrdinaryLayer )
+	{
+		if ( !g_crewDoorOpen || g_crewDoorOpen->integer )
+		{
+			if ( LayerMayOpen( sampleOrdinaryLayer, probe ) )
+			{
+				OpenDoorFor( sampleOrdinaryLayer, probe );
+				gi.Printf( "CREW: doors: layer: ordinary '%s' for %s -> %s (ent %d)\n", DoorLabel( sampleOrdinaryLayer ), NameOf( probe ),
+					sampleOrdinaryLayer->moverState == MOVER_POS1 ? "STAYED SHUT" : "OPENED", sampleOrdinaryLayer->s.number );
+			}
+			else
+				gi.Printf( "CREW: doors: layer: ordinary '%s' (ent %d): the layer's own rule refused it\n",
+					DoorLabel( sampleOrdinaryLayer ), sampleOrdinaryLayer->s.number );
+		}
+		else
+			gi.Printf( "CREW: doors: layer: the layer's doors are frozen (g_crewDoorOpen 0): ordinary '%s' opened nothing\n",
+				DoorLabel( sampleOrdinaryLayer ) );
+	}
+	if ( sampleSecurity )
+	{
+		const bool allowed = LayerMayOpen( sampleSecurity, probe );
+		Use_BinaryMover( sampleSecurity, probe, probe );
+		gi.Printf( "CREW: doors: live: security '%s' for %s (the member's access says %s; the engine's own gate is "
+			"the player's security code) -> %s (ent %d)\n", DoorLabel( sampleSecurity ), NameOf( probe ),
+			allowed ? "open" : "shut", sampleSecurity->moverState == MOVER_POS1 ? "STAYED SHUT" : "OPENED",
+			sampleSecurity->s.number );
+	}
+	if ( sampleNoTrigger )
+	{
+		gi.Printf( "CREW: doors: live: '%s' carries no touch trigger: a member walking into it is not seen by it\n",
+			DoorLabel( sampleNoTrigger ) );
+		// Rule three, observed rather than asserted: the layer is asked about this door with the same
+		// guard the walk uses, and it declines -- a hand's or a script's door is not a body's.
+		gi.Printf( "CREW: doors: layer: '%s' %s: the layer %s\n", DoorLabel( sampleNoTrigger ),
+			DoorForAHand( sampleNoTrigger ) ? "is a hand's or a script's door" : "has no touch trigger",
+			LayerMayOpen( sampleNoTrigger, probe ) ? "WOULD OPEN IT" : "does not open it" );
+	}
+
+	// The layer's own rule, exercised on the same security door: two crew members, one whose record
+	// gives security's access and one whose record does not. The marks decide -- there is no list.
+	int grantedN = 0, refusedN = 0;
+	gentity_t *granted = NULL, *refused = NULL;
+	for ( int n = 1; n < globals.num_entities; ++n )
+	{
+		gentity_t *e = &g_entities[n];
+		if ( !e->inuse || !e->NPC || ShipIndexOf( e ) < 0 ) continue;
+		if ( sampleSecurity && LayerMayOpen( sampleSecurity, e ) ) { ++grantedN; if ( !granted ) granted = e; }
+		else { ++refusedN; if ( !refused ) refused = e; }
+	}
+	gi.Printf( "CREW: doors: access: %d of the embodied crew hold security access, %d do not\n", grantedN, refusedN );
+	if ( sampleSecurity && refused )
+		gi.Printf( "CREW: doors: access: %s is refused security '%s' (the record gives no access)\n",
+			NameOf( refused ), DoorLabel( sampleSecurity ) );
+	if ( sampleSecurity && granted )
+	{
+		if ( !g_crewDoorOpen || g_crewDoorOpen->integer )
+		{
+			OpenDoorFor( sampleSecurity, granted );
+			gi.Printf( "CREW: doors: access: %s opened security '%s' -> %s (the record gives access)\n",
+				NameOf( granted ), DoorLabel( sampleSecurity ),
+				sampleSecurity->moverState == MOVER_POS1 ? "STAYED SHUT" : "OPENED" );
+		}
+		else
+			gi.Printf( "CREW: doors: access: the layer's doors are frozen (g_crewDoorOpen 0): "
+				"%s's access opened nothing\n", NameOf( granted ) );
 	}
 }
 
@@ -1892,6 +2217,16 @@ void Crew_Frame( void )
 	{
 		AddressTest();
 		RunHarness();
+	}
+
+	// The door census (scripts/crew-door-check.sh): once the map is fully up and the crew embodied,
+	// report every door and ask the engine about one of each kind, then quit.
+	if ( g_crewDoors && g_crewDoors->integer && !cs.doorsCensusDone && level.time >= 2500 )
+	{
+		cs.doorsCensusDone = true;
+		DoorCensus();
+		gi.SendConsoleCommand( "wait 20\n" );
+		gi.SendConsoleCommand( "quit\n" );
 	}
 }
 
