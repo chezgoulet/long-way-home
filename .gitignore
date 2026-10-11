@@ -24,6 +24,10 @@ out/
 dist/
 *.log
 
+# generated post tables (tools/posts/gen-posts.py): the generator is the source, its output is not
+# committed -- a committed copy goes stale silently and invites hand-editing
+data/posts/
+
 # editors / os
 .vscode/
 .idea/

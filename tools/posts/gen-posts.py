@@ -21,6 +21,9 @@ Nothing is invented. When a work object has no furniture at standing distance, t
 the post is left out rather than placed at a guess.
 
 Usage: gen-posts.py <deck.map> [--max-posts N] [--json out.json]
+
+The output is generated and is never committed (`.gitignore` guards `data/posts/`): run it when a
+post table is wanted. A committed copy goes stale silently and invites hand-editing.
 """
 import argparse
 import collections

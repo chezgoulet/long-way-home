@@ -7452,7 +7452,7 @@ static void TestOrderBespokeAndVoice()
 	CHECK(!vk.empty());
 	CHECK(OrderLineKey(s, b, MeetingLine()).empty() == false); // a role line resolves to the recipient
 	VoiceRender vr;
-	vr.dir = "/tmp/opencode/lwh-order-voice";
+	vr.dir = "voice";
 	const int queued = PlanOrderAudio(vr, s, b);
 	CHECK(queued > 0);
 	const int again = PlanOrderAudio(vr, s, b);

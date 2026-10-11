@@ -271,7 +271,7 @@ class Build:
                      "height_after": HEIGHT, "vscale": VSCALE},
             "entities_kept": 0, "entities_dropped": 0, "brushes_kept": 0, "brushes_dropped": 0,
             "patches_dropped": 0, "core_brushes_dropped": 0, "platform_brushes_dropped": 0,
-            "lights_kept": 0, "light_value_before": 0, "light_value_kept": 0,
+            "lights_kept": 0, "light_value_before": 0, "light_value_kept": 0, "light_value_bad": 0,
             "waypoints": 0, "crates": [], "islands": [], "core_column": None, "hatch": None,
             "census": census(stitch.parse(deck11_path)),
         }
@@ -317,12 +317,17 @@ class Build:
                 try:
                     before = int(float(k.get("light", "300")))
                 except ValueError:
+                    # The unreadable value used to become 0 silently; say so, so a rewritten light
+                    # can be told from one read out of the source.
+                    sys.stderr.write(
+                        "dressdeck07: light %r at origin %r is not a number; reading it as 0\n"
+                        % (k.get("light"), k.get("origin", "?")))
+                    self.report["light_value_bad"] += 1
                     before = 0
                 self.report["light_value_before"] += before
-                try:
-                    k["light"] = str(max(40, int(before * 0.7)))
-                except ValueError:
-                    pass
+                # `before` is an int here, so this cannot raise: the former try/except ValueError:
+                # pass around it was dead code that read like a guard.
+                k["light"] = str(max(40, int(before * 0.7)))
                 self.report["light_value_kept"] += int(float(k.get("light", "0")))
                 self.entities.append((k, []))
                 self.report["lights_kept"] += 1
