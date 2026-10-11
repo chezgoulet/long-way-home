@@ -907,6 +907,47 @@ ship state, no API and no behaviour changed; the pass is text fitting its column
 whether a wrapped refusal still lands. That is the owner's, and it needs the picture
 (`lwh_computer_refused.tga`, `lwh_computer_session.tga`).
 
+### The away site — an outpost in a debris field (O11, the first archetype)
+
+**The finding: G17** — *"there is no away site, so the away mission's acceptance run is impossible"*
+(`docs/walkthrough.md`) — and **O11** (`docs/omissions.md`): the outside's site archetypes and
+exterior dressing are designed and unbuilt. Built on `feat/the-away-site` (cut from `testing`;
+`docs/evidence/the-away-site.md`, location brief `docs/locations/away-site-outpost.brief.md`).
+
+- **one archetype, built properly** — the design (`docs/outside-the-ship.md`, the archetype table,
+  *Order of work* 2–3) names six; this is the **space station / outpost**, map `lwh_away_depot`, and
+  it was first because its source — the design's own pick, `ctf_space` — already carries the exterior
+  (the game's lit debris sky, `env/junk`), so it is the cheapest proof a site can read as outside ✅
+- **re-dressed, with its sources named** — the source's own top deck
+  (`x 400..1280, y 672..1144`, floor z 168) copied and changed by `tools/away/dress_away_site.py`:
+  31 world brushes and 16 lights kept, the machine blocks standing on the deck dropped, a shell and a
+  console built from the source's own materials. One part is named as not from `ctf_space`: the cargo
+  rack (`models/mapobjects/cargo/rack.md3`, used in `scav1`). No new art
+  (`tools/shipmap/parts_census.py`: 8 materials, all present) ✅
+- **the artifact, not the exit code** — `scripts/build-map.sh --light` and
+  `tools/mapgen/check-bsp.py` read the BSP (`OK`, 1/17 lumps empty); `-vis` ran, so the map is sealed ✅
+- **it loads and walks** — `CM_LoadMap(maps/lwh_away_depot.bsp)`, `Munro connected`, the player stands
+  at the site's own post, and the engine bakes `maps/lwh_away_depot.nav` on first load ✅
+- **it reads as outside** — the frame that looks out into the debris field differs from the frame that
+  looks at the site's own wall at the same vantage by **71.3 %** of the mid band
+  (`tools/frames/frame.py diff`); the frame was looked at before it was captioned ✅
+- **the light, measured per viewpoint** — the site's own post reads from all six vantages
+  (`frame.py floor`, mid band: median 50–56, p90 81–121, all LEGIBLE); at the arrival, the one vantage
+  that looks straight into the debris field reads dark **because space is black**, and is named rather
+  than dressed over ✅
+- **reachability, by the project's own instruments** — the crew layer embodies the ship's roster on
+  the site (`g_crew`, the `scripts/s5-check.sh` shape): **13 embodied, 13 reached their place, 0 gave
+  up, none in solid** ✅
+- **the regression** — `scripts/away-check.sh` runs the whole chain and fails if the map goes dark, if
+  the opening stops showing a world, if the nav does not bake, or if a body does not arrive ✅
+
+**What this does not close, and says so.** G17's own acceptance — *"an away mission can be solved by
+scanning rather than by shooting"* — **is not run and could not be**: the tricorder's `Scan` reads a
+*chart row*, not a place (`module/ship/ship_core.cpp`), and no scenario loads this map on a
+transporter delivery. The map half of G17 is closed; the **away-mission loop** (kit, scan of a place,
+window, return, write-back) is scenario content and the design's *Order of work* item 4, still open.
+The other five archetypes remain, the derelict interior first. <!-- register-row id=O11 state=partly marker=check:scripts/away-check.sh -->
+
 ### Then, in rough order
 
 **First batch done (2026-10-07)** — `docs/evidence/backlog-materials-and-crew.md`, `scripts/backlog-check.sh`,
@@ -1239,8 +1280,13 @@ evidence and the closing is this ledger's business. The same rule is stated in `
 - **O9 — the shuttle load-screen decision menu** (`docs/shuttles.md`; `docs/evidence/every-screen.md` row 18).
 - **O10 — the in-world control at the panel** (the "glance"), out of console scope and into world work
   (`docs/evidence/every-screen.md` row 12).
-- **O11 — the outside's site archetypes and exterior dressing**, then the away-mission loop
-  (`docs/outside-the-ship.md`, *Order of work* 2–4).
+- **O11 — the outside's site archetypes and exterior dressing** *(PARTLY BUILT 2026-10-11,
+  `feat/the-away-site`)*, then the away-mission loop (`docs/outside-the-ship.md`, *Order of work* 2–4).
+  **One of the six archetypes is built** — the **space station / outpost**, map `lwh_away_depot`,
+  re-dressed from the design's own source `ctf_space`, with the source's lit debris sky doing the
+  exterior dressing (see *The away site* above; `docs/evidence/the-away-site.md`,
+  `scripts/away-check.sh`). **What remains:** the other five archetypes (derelict interior first), the
+  wider sky pass, and the away-mission loop, which is scenario content.
 - **O12 — the phenomenon's two canon story models** (`docs/exploration-and-science.md`).
 - **O13 — the Borg security squad embodied as bodies moving deck by deck** (`docs/borg-incursion.md`,
   *Still to come*).
