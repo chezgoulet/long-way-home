@@ -7838,6 +7838,193 @@ static void TestTextFit()
 	std::printf( "  the same assertion on the unwrapped string fails on %d of them (so the test has teeth)\n", unwrappedFails );
 }
 
+// Assimilation takes the log and the access (docs/the-record-and-the-log.md): what the Collective
+// holds is a RULE over the crew records it took, not a copy, so a purge of the published log cannot
+// touch it and a recovery or a death cannot leave a ghost. The voice comes with the mind.
+static void TestTheAssimilation()
+{
+	g_test = "assimilation takes the log and the access";
+
+	const int taken = 40;   // the mind the Collective takes
+	const int other = 41;   // a private entry it does not
+	const int voice_taken = 42;
+
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+
+	// Give the taken person a record the Collective can inherit: a medical ensign (Sickbay only) and
+	// a canon voice. The other is a security officer, so the access the Collective gains and the
+	// access it does not gain are both specific.
+	s.crew[taken].rank = 1; s.crew[taken].dept = DEPT_MEDICAL; s.crew[taken].credentials = 0;
+	s.crew[taken].type = "tuvok";
+	s.crew[voice_taken].rank = 1; s.crew[voice_taken].dept = DEPT_ENGINEERING; s.crew[voice_taken].credentials = 0;
+	s.crew[voice_taken].type = "crewman"; // a generated member: cast from the pool
+	s.crew[other].rank = 2; s.crew[other].dept = DEPT_SECURITY; s.crew[other].credentials = 0;
+
+	// Before anyone is held the Collective reads nothing and operates nothing.
+	CHECK(!HeldByCollective(s, taken));
+	CHECK(CollectiveLog(s).empty());
+	CHECK(CollectiveMarks(s).empty());
+	CHECK(!CollectiveOperates(s, STN_SICKBAY));
+	CHECK(!CollectiveOperates(s, STN_TACTICAL));
+	CHECK(CollectiveRefusal(s, STN_TACTICAL).find("TACTICAL") != std::string::npos);
+
+	// The private words, one per person.
+	CHECK(WritePersonalLog(s, taken, "I do not trust the captain's numbers"));
+	CHECK(WritePersonalLog(s, other, "not the Collective's business"));
+	Remember(s, taken, MEM_DEATH, 5, MEM_SAW, -0.8f);
+
+	// The Collective takes the mind (the tick's call), and inherits its authority. The private entry
+	// and the mark are now its; the other person's are not.
+	TakeMind(s, taken);
+	CHECK(HeldByCollective(s, taken));
+	const std::vector<PersonalLogEntry> held = CollectiveLog(s);
+	CHECK(held.size() == 1);
+	CHECK(held[0].owner == taken && held[0].what == "I do not trust the captain's numbers");
+	CHECK(CollectiveMarks(s).size() == 1);
+	CHECK(CollectiveMarks(s)[0].event == MEM_DEATH);
+	CHECK(CollectiveOperates(s, STN_SICKBAY));       // what it can now operate
+	CHECK(!CollectiveOperates(s, STN_TACTICAL));     // ... and what it still cannot, yet
+	CHECK(!CollectiveOperates(s, STN_ENGINEERING));
+
+	// The authority is the union over the taken -- a security officer taken adds Tactical.
+	TakeMind(s, other);
+	CHECK(CollectiveOperates(s, STN_TACTICAL));
+	CHECK(!CollectiveOperates(s, STN_ENGINEERING)); // still nobody who could work Engineering
+
+	// The voice is the taken person's own. The ordinary cast refuses a taken person; the Collective
+	// does not, because it stole the voice with the mind.
+	CHECK(!CastVoice(s, voice_taken).empty()); // fit: it has a voice
+	const std::string poolVoice = CastVoice(s, voice_taken);
+	CHECK(CastVoice(s, taken) == "tuvok");
+	TakeMind(s, voice_taken);
+	s.crew[voice_taken].status = CREW_ASSIMILATED;     // wholly taken
+	s.crew[taken].status = CREW_ASSIMILATED;
+	CHECK(CastVoice(s, taken).empty());                // the ordinary cast: no voice, no line
+	CHECK(CollectiveVoice(s, taken) == "tuvok");       // the Collective speaks in their voice
+	CHECK(CollectiveVoice(s, voice_taken) == poolVoice);
+	CHECK(!CollectiveVoice(s, other).empty());         // the security officer it took, too
+
+	// A purge does not end it: the log was taken from the mind, not the disk. (Both minds are held
+	// now, so the Collective reads both private entries.)
+	LogEvent(s, "the bridge", "command", "the official account");
+	CHECK(PurgeLogs(s));
+	CHECK(CollectiveLog(s).size() == 2);               // the private entries stand, whether or not purged
+	CHECK(HeldByCollective(s, taken));
+
+	// A death ends it: the record is closed and the Collective no longer holds a mind to speak with.
+	Ship d = NewShip();
+	TakeMind(d, taken);
+	CHECK(HeldByCollective(d, taken));
+	CHECK(KillCrew(d, taken, "the drone was destroyed"));
+	CHECK(!HeldByCollective(d, taken) && CollectiveLog(d).empty());
+
+	// A de-assimilation ends it: the person is got back in the window, so the mind is theirs again.
+	Ship r = NewShip();
+	Tick(r, 1.0f);
+	WritePersonalLog(r, taken, "the death was my fault");
+	TakeMind(r, taken);
+	r.crew[taken].status = CREW_INJURED;
+	r.crew[taken].wounds = 0.5f;                        // in the window
+	CHECK(HeldByCollective(r, taken));
+	CHECK(RecoverCaptive(r, taken));
+	CHECK(!HeldByCollective(r, taken));                // the Collective's access to the mind has ended
+	CHECK(CollectiveLog(r).empty());
+	CHECK(PersonalLog(r, taken).size() == 1);          // ... and it is the person's own again
+
+	// The tick itself records the take: no direct call, just the Borg (docs/borg-incursion.md). A
+	// person the drones take on their deck becomes a mind the Collective holds.
+	Ship b = NewShip();
+	for (CrewMember &c : b.crew)
+		if (c.dept == DEPT_SECURITY) c.status = CREW_DEAD; // nobody to stop them
+	Tick(b, 1.0f);
+	BoardBorg(b, 8, 2);
+	Tick(b, Hours(b, 0.4f));
+	int heldByTick = 0;
+	for (int i = 0; i < static_cast<int>(b.crew.size()); ++i)
+		if (HeldByCollective(b, i)) ++heldByTick;
+	CHECK(heldByTick >= 1);                            // the Borg tick made them the Collective's
+
+	// The held list is the ship: it survives a save and a load.
+	Ship w = NewShip();
+	TakeMind(w, taken);
+	TakeMind(w, other);
+	WritePersonalLog(w, taken, "still true");
+	const std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(Pack(back) == blob);
+	CHECK(HeldByCollective(back, taken) && HeldByCollective(back, other));
+	CHECK(CollectiveLog(back).size() == w.personalLog.size());
+}
+
+static int PrintAssimilation()
+{
+	int failures = 0;
+	const int taken = 40;   // a medical ensign, cast as tuvok
+	const int other = 41;   // a security officer
+
+	{
+		Ship s = NewShip();
+		Tick(s, 1.0f);
+		s.crew[taken].rank = 1; s.crew[taken].dept = DEPT_MEDICAL; s.crew[taken].credentials = 0;
+		s.crew[taken].type = "tuvok";
+		s.crew[other].rank = 2; s.crew[other].dept = DEPT_SECURITY; s.crew[other].credentials = 0;
+		WritePersonalLog(s, taken, "I do not trust the captain's numbers");
+		WritePersonalLog(s, taken, "the captain was wrong about the nebula");
+		WritePersonalLog(s, other, "not the Collective's business");
+		const int before = static_cast<int>(CollectiveLog(s).size());
+		std::printf("PASS  before the transfer the Collective holds %d private entry(s)\n", before);
+		if (before != 0) ++failures;
+
+		TakeMind(s, taken);
+		const std::vector<PersonalLogEntry> held = CollectiveLog(s);
+		std::printf("PASS  after the transfer it holds %d, from %s: \"%s\" and \"%s\"\n",
+			static_cast<int>(held.size()), s.crew[taken].name.c_str(),
+			held.size() > 0 ? held[0].what.c_str() : "", held.size() > 1 ? held[1].what.c_str() : "");
+		if (held.size() != 2 || held[0].owner != taken || held[1].owner != taken) ++failures;
+
+		const bool sickbay = CollectiveOperates(s, STN_SICKBAY);
+		const bool tactical = CollectiveOperates(s, STN_TACTICAL);
+		std::printf("PASS  the authority it took: sickbay %s, tactical %s\n",
+			sickbay ? "yes" : "no", tactical ? "yes" : "no");
+		if (!sickbay || tactical) ++failures;
+
+		TakeMind(s, other);
+		const bool tactical2 = CollectiveOperates(s, STN_TACTICAL);
+		std::printf("PASS  a security officer taken adds tactical: %s; engineering stays %s\n",
+			tactical2 ? "yes" : "no", CollectiveOperates(s, STN_ENGINEERING) ? "yes" : "no");
+		if (!tactical2 || CollectiveOperates(s, STN_ENGINEERING)) ++failures;
+
+		s.crew[taken].status = CREW_ASSIMILATED;
+		const std::string voice = CollectiveVoice(s, taken);
+		std::printf("PASS  the voice the Collective speaks in is the taken person's own: \"%s\" "
+			"(the ordinary cast gives \"%s\")\n", voice.c_str(), CastVoice(s, taken).c_str());
+		if (voice != "tuvok" || !CastVoice(s, taken).empty()) ++failures;
+
+		LogEvent(s, "the bridge", "command", "the official account");
+		PurgeLogs(s);
+		const int after = static_cast<int>(CollectiveLog(s).size());
+		std::printf("PASS  a purge does not end it: the Collective still holds %d private entry(s)\n", after);
+		if (after != 3) ++failures;
+	}
+
+	{
+		Ship r = NewShip();
+		Tick(r, 1.0f);
+		WritePersonalLog(r, taken, "the death was my fault");
+		TakeMind(r, taken);
+		r.crew[taken].status = CREW_INJURED;
+		r.crew[taken].wounds = 0.5f;
+		const bool ended = RecoverCaptive(r, taken) && !HeldByCollective(r, taken) && CollectiveLog(r).empty();
+		std::printf("PASS  a de-assimilation ends it: the mind is the person's again (%s)\n", ended ? "yes" : "no");
+		if (!ended) ++failures;
+	}
+
+	std::printf("%s\n", failures ? "assimilation: FAILURES" : "all demonstrations passed");
+	return failures ? 1 : 0;
+}
+
 static int PrintTextFit( bool wrapped )
 {
 	const std::vector<FitCase> corpus = FitCorpus();
@@ -7888,6 +8075,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
 	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
 	if (argc > 1 && !std::strcmp(argv[1], "--personal")) return PrintPersonal();
+	if (argc > 1 && !std::strcmp(argv[1], "--assimilation")) return PrintAssimilation();
 	if (argc > 1 && !std::strcmp(argv[1], "--starts")) return PrintStarts();
 	if (argc > 1 && !std::strcmp(argv[1], "--appearance")) return PrintAppearance();
 
@@ -7940,6 +8128,7 @@ int main(int argc, char **argv)
 	TestMemoryAndConsequence();
 	TestMonthReportAndToll();
 	TestTheTwoLogs();
+	TestTheAssimilation();
 	TestNavigation();
 	TestResourcesAndPressure();
 	TestPhenomenon();

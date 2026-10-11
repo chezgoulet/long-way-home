@@ -4077,6 +4077,41 @@ void RunTest( void )
 		}
 		return;
 	}
+	if ( g_shipTest->integer == 100 )
+	{//assimilation takes the log and the access (docs/the-record-and-the-log.md): a mind is taken,
+	 //the Collective reads the private words, reports the authority it holds and the station it still
+	 //cannot reach, and speaks in the taken person's voice. Then a purge -- and the entries stand,
+	 //because the log was taken from the mind and not from the disk. The rules (the transfer, the
+	 //voice, the ends) are tested without the game in tests/ship (`TestTheAssimilation`).
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			ship::SetRole( vessel, ship::ROLE_IN_COMMAND );
+			const int who = 3;
+			ship::WritePersonalLog( vessel, who, "I said I would fix it, and I did not" );
+			ship::WritePersonalLog( vessel, who, "the captain was wrong about the nebula" );
+			vessel.crew[who].status = ship::CREW_ASSIMILATED;
+			vessel.crew[who].deck = 0;
+			gi.Printf( "SHIP: assimilation test: %s is taken, and what they privately wrote is the Collective's now\n",
+				vessel.crew[who].name.c_str() );
+			gi.SendConsoleCommand( "ship collective\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4500 )
+		{
+			gi.SendConsoleCommand( "ship report purge\n" ); // it empties the published log, never the mind
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 6000 )
+		{
+			gi.Printf( "SHIP: assimilation test: after the purge the Collective still holds %d private entry(s)\n",
+				static_cast<int>( ship::CollectiveLog( vessel ).size() ) );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 3;
+		}
+		return;
+	}
 	if ( g_shipTest->integer == 12 )
 	{//the turbolift's own menu: report the deck list it reads, then open it exactly as a panel does
 		// Opening the menu pauses the game, which stops Ship_Frame, so the screenshot and the quit
@@ -6861,6 +6896,38 @@ void Svcmd_Ship_f( void )
 			++printed;
 		}
 		if ( !printed ) gi.Printf( "SHIP: %s's personal log is empty\n", vessel.crew[vessel.player].name.c_str() );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "collective" ) )
+	{//what assimilation took (docs/the-record-and-the-log.md): the minds the Collective holds, the
+	 //private words that came with them, the stations their authority opens, and the voice it speaks
+	 //in -- the taken person's own. A read, not a rebuild: nothing is copied from the records.
+		int held = 0;
+		for ( int i = 0; i < static_cast<int>( vessel.crew.size() ); ++i )
+		{
+			if ( !ship::HeldByCollective( vessel, i ) ) continue;
+			++held;
+			const std::vector<ship::PersonalLogEntry> entries = ship::CollectiveLog( vessel );
+			int mine = 0;
+			for ( const ship::PersonalLogEntry &e : entries ) if ( e.owner == i ) ++mine;
+			int stations = 0;
+			for ( int st = 0; st < ship::STN_COUNT; ++st ) if ( ship::CollectiveOperates( vessel, static_cast<ship::Station>( st ) ) ) ++stations;
+			const std::string voice = ship::CollectiveVoice( vessel, i );
+			gi.Printf( "SHIP:   %s: %d private entry(s), speaks as \"%s\", authority over %d of %d station(s)\n",
+				vessel.crew[i].name.c_str(), mine, voice.empty() ? "no voice" : voice.c_str(), stations, static_cast<int>( ship::STN_COUNT ) );
+			for ( const ship::PersonalLogEntry &e : entries )
+			{
+				if ( e.owner != i ) continue;
+				gi.Printf( "SHIP:     private: %s\n", e.what.c_str() );
+			}
+		}
+		gi.Printf( "SHIP: the Collective holds %d mind(s)\n", held );
+		for ( int st = 0; st < ship::STN_COUNT; ++st )
+		{
+			if ( ship::CollectiveOperates( vessel, static_cast<ship::Station>( st ) ) ) continue;
+			gi.Printf( "SHIP:   it still cannot operate %s: %s\n", ship::StationName( static_cast<ship::Station>( st ) ),
+				ship::CollectiveRefusal( vessel, static_cast<ship::Station>( st ) ).c_str() );
+		}
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "sleep" ) && a[0] )

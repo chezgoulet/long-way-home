@@ -41,6 +41,10 @@ echo "==> holdings: a fold over the marks, and no stored field (C2)"
 "$ROOT/scripts/holdings-check.sh"
 
 echo
+echo "==> assimilation: the log and the access transfer to the Collective"
+"$ROOT/scripts/assimilation-check.sh"
+
+echo
 echo "==> api: the console's verbs and the ship's API agree, both directions"
 "$ROOT/scripts/api-check.sh"
 
