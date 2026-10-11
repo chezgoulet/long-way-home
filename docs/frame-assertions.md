@@ -59,11 +59,11 @@ a state change or a log read → the log line is the instrument; name it. `both`
 | 4 | `deck12-check` | **both** | floor on the frame | `SHIP: deck 12 room: …` |
 | 5 | `deck13-check` | **both** | floor on both frames | `SHIP: deck 13 room: …` |
 | 6 | `deck14-check` | **both** | floor on both frames | `SHIP: deck 14 room: …` |
-| 7 | `damage-check` | **behavioural** | **not this way**: the two frames differ only in the console text and HUD; the scene band (10%–55%) differs 0.3%. The sparks are not in the frame. | `CREW: life support is damaged; sparks at … on deck 12` |
-| 8 | `fire-check` | **behavioural** | **not this way**: same measurement (scene band 0.3%) — the smoke and flame are not in the frame | `CREW: fire on deck 12 (60%); N effects in the world` |
+| 7 | `damage-check` | **both** | difference: the camera now stands where the life-support station is and takes a before and an after frame at that one vantage; the spark changes **0.6%** of the subject region (`--region subject:615,525,665,585 --min-changed 0.005`). On the old (wall) pair that region changes **0.0%**, so the assertion fails where it must. | `CREW: life support is damaged; sparks at … on deck 12` |
+| 8 | `fire-check` | **behavioural** | **still not this way**: the camera now stands where the deck's first fire appears, but the smoke renders against a dark deck — the subject region changes **0.2–0.9%**, which is the crew walking through it, not the fire. The log line is the proof. | `CREW: fire on deck 12 (60%); N effects in the world` |
 | 9 | `gravity-check` | **behavioural** | the claim is a value, not a picture | `SHIP: gravity test: floating: ps.gravity 0, custom 1` … |
-| 10 | `breach-check` | **behavioural** | **not this way**: the field-off and field-on frames differ by 0.7% of the scene band (HUD and console text); the field is not in the frame | `ENV: deck 12 is breached…` and `SHIP: breach test: field on: …published field 1` |
-| 11 | `emergency-check` | **behavioural** | **not this way**: the on and off frames differ by 0.0% of the scene band (the whole-frame difference is console text and HUD); the lighting is not in the frame | `ENV: emergency lighting on on deck 12 …` |
+| 10 | `breach-check` | **behavioural** | **still not this way**: the camera now stands at the field, and the breach compartment renders near-black: the field-off and field-on frames differ by **0.0–0.1%** of the subject region. The log lines are the proof. | `ENV: deck 12 is breached…` and `SHIP: breach test: field on: …published field 1` |
+| 11 | `emergency-check` | **both** | difference: the camera now stands at the nearest authored strip to the room's watch post and holds that aim for both frames; the red and stood-down states differ **25.3%** of the strip's own region (`--region strip:480,510,820,640 --min-changed 0.05`). The old vantage changed 0.0% of the scene band. The difference proves the lighting changed where the strip is; not that every strip is the named one. | `ENV: emergency lighting on on deck 12 …` |
 | 12 | `computer-check` | **both** | difference: the meeting overlay must differ from the world before it opened | `SHIP: computer test: session: N exchange(s)…` |
 | 13 | `order-check` | **both** | difference: the order overlay must differ from the world | `SHIP: order overlay: given=1, job N` |
 | 14 | `power-check` | **both** | difference: the console must differ from the world (measured 97.1% of the frame) | `SHIP: allocation test: life support 80%…` |
@@ -80,16 +80,24 @@ a state change or a log read → the log line is the instrument; name it. `both`
 ## The finding the difference assertion produced
 
 Four checks claim a thing is *visible in the world* — sparks (`damage`), smoke and flame (`fire`), a
-force field (`breach`), emergency lighting (`emergency`) — and **in all four the two frames the
-harness takes do not show it**. Measured on the scene band (10%–55% of the height: below the
-engine's console text, above the weapon model, the same band the two measurers use), the two frames
-change by **0.3%** (damage), **0.3%** (fire), **0.7%** (breach) and **0.0%** (emergency). The
-whole-frame difference a naive assertion would have scored as a pass is the console text scrolling
-(≈24% of the top strip) and the weapon's animated screen. **This is exactly the defect §2.3 is
-about**: a check that asserted "a file exists" was green, and a check that asserted "the frame
-changed" would also have been green, for a reason that has nothing to do with the claim. The
-honest assertion is the log line, and the log line is named for each. Making the effect visible is a
-change to a *vantage* or to a screen, not to an assertion, and is not in this pass.
+force field (`breach`), emergency lighting (`emergency`) — and the two frames the harness first took
+**did not show it**. Measured on the scene band (10%–55% of the height: below the engine's console
+text, above the weapon model, the same band the two measurers use), the two frames changed by
+**0.3%** (damage), **0.3%** (fire), **0.7%** (breach) and **0.0%** (emergency). The whole-frame
+difference a naive assertion would have scored as a pass was the console text scrolling (≈24% of the
+top strip) and the weapon's animated screen. **This was exactly the defect §2.3 is about**: a check
+that asserted "a file exists" was green, and a check that asserted "the frame changed" would also
+have been green, for a reason that has nothing to do with the claim.
+
+**The follow-up pass (`docs/evidence/the-posts-and-the-floor.md`) removed the reason: the camera was
+photographing a wall.** The harness now stands where each claim's subject is — the damaged system's
+station, the deck's first fire, the authored field, the nearest emergency strip — and takes a
+*before* frame at that one vantage where the claim needs a difference. Re-measured in the region the
+camera aims at: **damage 0.6%** (the spark; **0.0%** on the old wall pair, so the assertion fails
+where it must) and **emergency 25.3%** of the strip's own region (the lighting state). **Fire and breach
+still cannot be carried by a frame** — the smoke renders dark against a dark deck, and the breach
+compartment renders near-black (0.0–0.1% of the subject region) — so those two stay behavioural, and
+say so.
 
 **Where the difference *does* work**: a screen that opens replaces the world, and the frame carries
 it — measured 96–97% of the frame changes when the Engineering console (`power`), the computer's

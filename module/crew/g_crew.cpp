@@ -59,6 +59,7 @@ const float POST_HEIGHT_SLACK = 48.0f;
 const float NOTICE_RANGE = 192.0f;      // the player this close is looked at
 const float FACE_RANGE = 112.0f;        // ... and this close is turned towards
 const float OUT_OF_WORLD_DROP = 2048.0f;
+const float DECK_BASE = 1636.0f;    // as in ship/g_scope.cpp: maps a height on the merged ship to a deck
 const unsigned long SAVE_CHUNK = 0x43524557; // 'CREW', as the game's own multi-character chunk ids are encoded
 const size_t CHUNK_OVERHEAD = 16;       // id, length, checksum, trailer: 4 bytes each
 
@@ -86,7 +87,8 @@ struct CrewState {
 	std::vector<bool> lostToWorld;
 	crew::Stats st;
 	uint32_t postHash = 0;
-	float floorZ = 0;
+	std::vector<crew::Floor> floors;    // the lowest post on each deck; a deck with none has no floor
+	std::vector<bool> floorMissingSaid; // per deck: the "no posts" line is printed once, not per member
 	int nextThinkMs = 0;
 	int nextScanMs = 0;
 	int nextDirectorMs = 0;
@@ -151,6 +153,12 @@ float Dist2D( const float *a, const float *b )
 {
 	const float dx = a[0] - b[0], dy = a[1] - b[1];
 	return std::sqrt( dx * dx + dy * dy );
+}
+
+// The merged ship's decks are `g_shipDeckPitch` apart (ship/g_scope.cpp); 0 on a map of one deck.
+float DeckPitch( void )
+{
+	return gi.cvar( "g_shipDeckPitch", "0", 0 )->value;
 }
 
 // ---- reading signals ------------------------------------------------------------------------
@@ -315,6 +323,17 @@ void HoldPost( gentity_t *e, crew::Member &m, const crew::Post &p )
 	e->NPC->desiredYaw = AngleNormalize360( yaw );
 }
 
+// The deck a member belongs to: the deck its post stands on when it has one, else the deck its
+// own body is on. Its post is the place it was sent to; its body is only where it is.
+int MemberDeck( const crew::Member &m )
+{
+	const int post = m.EffectivePost();
+	if ( post != crew::NO_POST && post < static_cast<int>( cs.posts.size() ) && cs.posts[post].hasOrigin )
+		return crew::DeckOfHeight( cs.posts[post].origin[2], DECK_BASE, DeckPitch() );
+	const gentity_t *e = &g_entities[m.ent];
+	return crew::DeckOfHeight( e->currentOrigin[2], DECK_BASE, DeckPitch() );
+}
+
 void ThinkMember( size_t i )
 {
 	crew::Member &m = cs.members[i];
@@ -332,11 +351,19 @@ void ThinkMember( size_t i )
 		return;
 	}
 
-	if ( !cs.lostToWorld[i] && e->currentOrigin[2] < cs.floorZ - OUT_OF_WORLD_DROP )
+	// Out of the world is per deck: the floor is the lowest post on the member's own deck. A deck
+	// with no posts has no floor (ComputeFloors says so once), so nothing under it is judged.
+	if ( !cs.lostToWorld[i] )
 	{
-		cs.lostToWorld[i] = true;
-		++cs.st.outOfWorld;
-		gi.Printf( S_COLOR_RED"CREW: %s fell out of the world at %s\n", NameOf( e ), vtos( e->currentOrigin ) );
+		const int deck = MemberDeck( m );
+		const bool known = deck >= 1 && deck < static_cast<int>( cs.floors.size() ) && cs.floors[deck].known;
+		if ( known && e->currentOrigin[2] < cs.floors[deck].z - OUT_OF_WORLD_DROP )
+		{
+			cs.lostToWorld[i] = true;
+			++cs.st.outOfWorld;
+			gi.Printf( S_COLOR_RED"CREW: %s fell out of the world at %s (deck %d, floor %.0f)\n",
+				NameOf( e ), vtos( e->currentOrigin ), deck, cs.floors[deck].z );
+		}
 	}
 
 	if ( m.addressedMs >= 0 && level.time - m.addressedMs > cs.cfg.ackBoundMs )
@@ -437,8 +464,13 @@ void ScanRoster( void )
 	{
 		const gentity_t *e = &g_entities[m.ent];
 		if ( m.level == crew::LEVEL_IDLE && m.firstArrivalMs < 0 && g_crewDebug->integer )
-			gi.Printf( "CREW: %s (ent %d) -> %s\n", NameOf( e ), m.ent,
-				m.dutyPost == crew::NO_POST ? "(spare)" : cs.posts[m.dutyPost].name.c_str() );
+		{
+			if ( m.dutyPost == crew::NO_POST || m.dutyPost >= static_cast<int>( cs.posts.size() ) )
+				gi.Printf( "CREW: %s (ent %d) -> (spare)\n", NameOf( e ), m.ent );
+			else
+				gi.Printf( "CREW: %s (ent %d) -> %s at %s\n", NameOf( e ), m.ent,
+					cs.posts[m.dutyPost].name.c_str(), vtos( cs.posts[m.dutyPost].origin ) );
+		}
 	}
 }
 
@@ -450,7 +482,6 @@ void ScanRoster( void )
 // Each stands at a place taken from the deck's own navigation, the same place every time they are
 // here. (Real stations and quarters replace these places when the decks are furnished.)
 
-const float DECK_BASE = 1636.0f;    // as in ship/g_scope.cpp: maps a height on the merged ship to a deck
 const float SPAWN_CLEAR = 256.0f;   // nobody appears this close to the player
 
 std::vector<int> shipEmbodied;      // roster indices currently embodied, parallel to nothing: looked up by name
@@ -484,6 +515,36 @@ std::vector<int> DeckNodes( int deck )
 		}
 	}
 	return nodes;
+}
+
+// The lowest post standing on each deck, from the posts the layer knows. Recomputed whenever the
+// post table changes (a load, or the ship's roster bringing someone's place with them), because
+// the floor a member can be below is a fact about its own deck's posts, not a value fixed once.
+void ComputeFloors( void )
+{
+	cs.floors = crew::PostFloors( cs.posts, DECK_BASE, DeckPitch(), ship::DECKS );
+	if ( static_cast<int>( cs.floorMissingSaid.size() ) != ship::DECKS + 1 )
+		cs.floorMissingSaid.assign( ship::DECKS + 1, false );
+	// A deck with no posts has no floor. Say so once per deck, because a member cannot be below a
+	// floor that was never established and a missing floor is a fact the log should carry. A map
+	// that does not say how many decks it has carries one.
+	const int active = DeckPitch() > 0.0f ? ship::DECKS : 1;
+	for ( int d = 1; d <= active; ++d )
+		if ( !cs.floors[static_cast<size_t>( d )].known && !cs.floorMissingSaid[static_cast<size_t>( d )] )
+		{
+			cs.floorMissingSaid[static_cast<size_t>( d )] = true;
+			gi.Printf( S_COLOR_YELLOW"CREW: deck %d has no posts; a member there is below no floor\n", d );
+		}
+}
+
+// The class a navigation goal actually carries. The published decks and the merged ship carry
+// `waypoint_navgoal_<n>`, never `navgoal`; the crew layer must accept what the maps have, or its
+// posts and the map's navigation have never named the same thing.
+bool IsNavgoalClass( const char *classname )
+{
+	if ( !classname ) return false;
+	const std::string c = classname;
+	return c == "navgoal" || c.compare( 0, 16, "waypoint_navgoal" ) == 0;
 }
 
 gentity_t *FindByName( const std::string &name )
@@ -607,6 +668,7 @@ void SyncShipRoster( void )
 		{
 			cs.posts.push_back( p );
 			cs.postHash = crew::PostTableHash( cs.posts );
+			ComputeFloors(); // a place arrived on a deck: that deck's floor may have moved
 		}
 		bool listed = false;
 		for ( const crew::Roster &r : cs.cfg.roster ) listed = listed || r.name == name;
@@ -1206,7 +1268,7 @@ const gentity_t *FindNavgoal( const char *name )
 	{
 		const gentity_t *e = &g_entities[n];
 		if ( !e->inuse || !e->targetname || Q_stricmp( e->targetname, name ) ) continue;
-		if ( e->classname && !Q_stricmp( e->classname, "navgoal" ) ) return e;
+		if ( IsNavgoalClass( e->classname ) ) return e;
 		if ( !fallback && !e->client ) fallback = e;
 	}
 	return fallback;
@@ -1217,6 +1279,69 @@ void FillFromNavgoal( crew::Post &p, const gentity_t *e )
 	VectorCopy( e->currentOrigin, p.origin );
 	p.hasOrigin = true;
 	if ( !p.hasYaw ) p.yaw = e->s.angles[YAW];
+}
+
+// Every named navigation goal in the map, in a stable order (name, then entity number). The
+// published decks and the merged ship carry `waypoint_navgoal_<n>`; a map that still carries a
+// bare `navgoal` is accepted too, so one rule reads both.
+void CollectNavgoals( std::vector<const gentity_t *> &ents )
+{
+	for ( int n = 1; n < globals.num_entities; ++n )
+	{
+		const gentity_t *e = &g_entities[n];
+		if ( e->inuse && IsNavgoalClass( e->classname ) && e->targetname && e->targetname[0] )
+			ents.push_back( e );
+	}
+	std::sort( ents.begin(), ents.end(), []( const gentity_t *a, const gentity_t *b ) {
+		const int c = Q_stricmp( a->targetname, b->targetname );
+		return c ? c < 0 : a->s.number < b->s.number;
+	} );
+}
+
+// One post for a navigation goal, unless the name is already a post or the table is full.
+void PushNavgoalPost( const gentity_t *e )
+{
+	if ( static_cast<int>( cs.posts.size() ) >= crew::MAX_POSTS ) return;
+	for ( const crew::Post &q : cs.posts )
+		if ( !Q_stricmp( q.name.c_str(), e->targetname ) ) return;
+	crew::Post p;
+	p.name = p.navgoal = e->targetname;
+	FillFromNavgoal( p, e );
+	cs.posts.push_back( p );
+}
+
+// The merged ship's post set: the map's own navigation goals, one deck at a time, so the crew
+// stand at places the map's scripts already walk people to rather than at a stub point. Taken
+// round-robin across decks, so a cap never starves a deck, and stopped short of MAX_POSTS to leave
+// room for the places the ship's own roster brings.
+void SeedShipPosts( void )
+{
+	std::vector<const gentity_t *> ents;
+	CollectNavgoals( ents );
+	if ( ents.empty() ) return;
+
+	const int leave = crew::MAX_CREW + 8; // the roster's own place_ posts still need room
+	const int cap = crew::MAX_POSTS > leave ? crew::MAX_POSTS - leave : crew::MAX_POSTS;
+	std::vector<std::vector<const gentity_t *>> byDeck( static_cast<size_t>( ship::DECKS ) + 1 );
+	for ( const gentity_t *e : ents )
+	{
+		int d = crew::DeckOfHeight( e->currentOrigin[2], DECK_BASE, DeckPitch() );
+		if ( d < 1 ) d = 1;
+		if ( d > ship::DECKS ) d = ship::DECKS;
+		byDeck[static_cast<size_t>( d )].push_back( e );
+	}
+	for ( size_t i = 0; ; ++i )
+	{
+		bool any = false;
+		for ( int d = 1; d <= ship::DECKS; ++d )
+		{
+			if ( i >= byDeck[static_cast<size_t>( d )].size() ) continue;
+			any = true;
+			if ( static_cast<int>( cs.posts.size() ) >= cap ) return;
+			PushNavgoalPost( byDeck[static_cast<size_t>( d )][i] );
+		}
+		if ( !any ) break;
+	}
 }
 
 void LoadPosts( void )
@@ -1241,34 +1366,26 @@ void LoadPosts( void )
 			cs.posts.push_back( p );
 		}
 	}
-	else if ( !g_crewFromShip->integer ) //the ship's roster brings its own places; the map's navgoals belong to its scripts
-	{//no authored list: every script navgoal in the map is a post, in a stable order
+	else if ( g_crewFromShip->integer )
+	{//the ship's roster brings its own people, but not its own places: take the map's
+		SeedShipPosts();
+	}
+	else
+	{//no authored list: every navigation goal in the map is a post, in a stable order
 		std::vector<const gentity_t *> ents;
-		for ( int n = 1; n < globals.num_entities; ++n )
-		{
-			const gentity_t *e = &g_entities[n];
-			if ( e->inuse && e->classname && !Q_stricmp( e->classname, "navgoal" ) && e->targetname && e->targetname[0] )
-				ents.push_back( e );
-		}
-		std::sort( ents.begin(), ents.end(), []( const gentity_t *a, const gentity_t *b ) {
-			const int c = Q_stricmp( a->targetname, b->targetname );
-			return c ? c < 0 : a->s.number < b->s.number;
-		} );
-		for ( const gentity_t *e : ents )
-		{
-			if ( static_cast<int>( cs.posts.size() ) >= crew::MAX_POSTS ) break;
-			if ( !cs.posts.empty() && !Q_stricmp( cs.posts.back().name.c_str(), e->targetname ) ) continue;
-			crew::Post p;
-			p.name = p.navgoal = e->targetname;
-			FillFromNavgoal( p, e );
-			cs.posts.push_back( p );
-		}
+		CollectNavgoals( ents );
+		for ( const gentity_t *e : ents ) PushNavgoalPost( e );
 	}
 
 	cs.postHash = crew::PostTableHash( cs.posts );
-	cs.floorZ = 0;
-	for ( size_t i = 0; i < cs.posts.size(); ++i )
-		cs.floorZ = i ? std::min( cs.floorZ, cs.posts[i].origin[2] ) : cs.posts[i].origin[2];
+	ComputeFloors();
+	if ( g_crewFromShip->integer )
+	{//where the ship's places came from, and how many decks they cover
+		int decks = 0;
+		for ( int d = 1; d <= ship::DECKS; ++d ) if ( cs.floors[static_cast<size_t>( d )].known ) ++decks;
+		gi.Printf( "CREW: %d post(s) from the map's own navigation goals, on %d deck(s)\n",
+			static_cast<int>( cs.posts.size() ), decks );
+	}
 }
 
 void LoadConfig( void )
@@ -1598,6 +1715,19 @@ int Crew_Floating( void )
 		if ( e && e->NPC && e->NPC->behaviorState == BS_FLY ) ++n;
 	}
 	return n;
+}
+
+// Where a deck's fire will appear: the layer lights the deck's navigation goals in order, so the
+// i-th effect is at the i-th node. Read before the deck is alight, so a camera can be put there.
+bool Crew_FireNode( int deck, int index, float *out )
+{
+	if ( deck < 1 || deck > ship::DECKS || index < 0 ) return false;
+	const std::vector<int> nodes = DeckNodes( deck );
+	if ( index >= static_cast<int>( nodes.size() ) ) return false;
+	vec3_t at;
+	navigator.GetNodePosition( nodes[static_cast<size_t>( index )], at );
+	VectorCopy( at, out );
+	return true;
 }
 
 // The player's body in the world (Stage B). The frame hook runs it; and the console's `ship operate`

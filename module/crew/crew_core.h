@@ -107,6 +107,31 @@ struct Member {
 // What the layer should do with a member this think. `atPost` is the glue's distance test.
 Action Decide(const Member &m, const Signals &s, bool atPost);
 
+// ---- the floor a member can be below --------------------------------------------------------
+//
+// The out-of-world test is per deck, not ship-wide. A member is out of the world when it is more
+// than the caller's drop below the lowest post standing on ITS OWN deck; a single floor built
+// from the lowest post anywhere reports every member on every deck above it as fallen. A deck
+// with no post has no floor at all -- there is nothing to be below -- and the caller reports that
+// fact once rather than substituting 0.
+//
+// A height belongs to a deck by the same mapping the module uses for the player (g_scope.cpp):
+// deck 1 lies `base` above the map's origin and each deck is `pitch` tall. A pitch of 0 (a map
+// of one deck, or one that does not say) puts every height on deck 1.
+
+// The deck a height is on, 1-based. Never 0: a height above deck 1's floor is deck 1.
+int DeckOfHeight(float z, float base, float pitch);
+
+struct Floor {
+	int deck = 0;        // 1-based, in 1..maxDeck
+	bool known = false;  // false = no post stands on this deck, so it has no floor
+	float z = 0.0f;      // the deck's lowest post height; meaningless unless `known`
+};
+
+// The lowest post on each deck 1..maxDeck, in order. A deck with no posts has `known == false`.
+// Posts above deck 1 (or below the last deck) are attributed to the nearest deck.
+std::vector<Floor> PostFloors(const std::vector<Post> &posts, float base, float pitch, int maxDeck);
+
 // ---- configuration (maps/<map>.crew) --------------------------------------------------------
 
 struct Config {

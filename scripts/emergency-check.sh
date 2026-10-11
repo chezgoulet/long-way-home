@@ -56,6 +56,14 @@ grep -q 'ENV: emergency lighting on on deck 12 ' "$OUT" || fail "the red state d
 grep -q 'ENV: emergency lighting off on deck 12 ' "$OUT" || fail "the red state did not stand down on deck 12"
 [ -f "$GAME_DIR/screenshots/lwh_emergency.tga" ] || fail "no screenshot of the deck 12 red state"
 [ -f "$GAME_DIR/screenshots/lwh_emergency_off.tga" ] || fail "no screenshot of the deck 12 stood-down state"
+# The claim is the lighting state, and the harness now stands at the nearest authored strip to the
+# room's own watch post and holds that aim across both frames, so the red strip is where the claim
+# owns. Measured in the region of the strip, the red and stood-down states differ 25.3%; on the old
+# vantage (the whole room) the same band changed 0.0% -- a whole-frame difference would be the
+# console text and the HUD, which is why the assertion is on the strip's region and not on the frame.
+python3 "$ROOT/tools/frames/frame.py" diff --region strip:480,510,820,640 --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_emergency_off.tga" "$GAME_DIR/screenshots/lwh_emergency.tga" \
+  || fail "the emergency lighting state is not visible on deck 12"
 
 run "$OUT13" 1 59
 grep -h 'ENV: emergency\|SHIP: emergency test 13' "$OUT13" | sed 's/^EFSP: /    /' || true

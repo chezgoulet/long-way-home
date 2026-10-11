@@ -31,6 +31,31 @@ Action Decide(const Member &m, const Signals &s, bool atPost)
 	return atPost ? ACT_HOLD : ACT_TRAVEL;
 }
 
+// ---- the floor a member can be below --------------------------------------------------------
+
+int DeckOfHeight(float z, float base, float pitch)
+{
+	if (!(pitch > 0.0f)) return 1; // one deck, or a map that does not say
+	const int deck = static_cast<int>(std::floor((-z - base) / pitch)) + 1;
+	return deck < 1 ? 1 : deck;
+}
+
+std::vector<Floor> PostFloors(const std::vector<Post> &posts, float base, float pitch, int maxDeck)
+{
+	if (maxDeck < 1) maxDeck = 1;
+	std::vector<Floor> floors(static_cast<size_t>(maxDeck) + 1);
+	for (int d = 1; d <= maxDeck; ++d) floors[static_cast<size_t>(d)].deck = d;
+	for (const Post &p : posts) {
+		if (!p.hasOrigin) continue;
+		int d = DeckOfHeight(p.origin[2], base, pitch);
+		if (d > maxDeck) d = maxDeck; // below the last deck: the last deck is the floor it is under
+		if (d < 1) d = 1;
+		Floor &f = floors[static_cast<size_t>(d)];
+		if (!f.known || p.origin[2] < f.z) { f.known = true; f.z = p.origin[2]; }
+	}
+	return floors;
+}
+
 // ---- configuration -------------------------------------------------------------------------
 
 static bool ParseInt(const std::string &tok, int &out)

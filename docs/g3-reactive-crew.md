@@ -135,9 +135,17 @@ navigator + anims + say  -- existing steering, animation, dialogue
   desired-yaw fields. Steering uses the navigator, and
   **navigation data bakes itself**: the engine writes `maps/<map>.nav` on a map's first load whenever
   the file is missing (see `docs/evidence/trackb-map-toolchain.md`).
+- **The class the maps actually carry is `waypoint_navgoal_<n>`.** Both the published decks and the
+  merged ship name their navigation goals that way, so the layer accepts the prefix, not only a bare
+  `navgoal`. On the merged ship the ship's own roster brings its **people** but not its **places**: its
+  post set is derived per deck from the map's own goals, never from a hand-made stub.
+- **The floor is per deck.** "Out of the world" is a fact about the deck a member stands on: it is
+  more than the drop below the lowest post on *that* deck, not below the ship's lowest post. A ship-wide
+  floor reports every member on every deck above the lowest post as fallen. A deck with no post has no
+  floor at all; the layer says so once rather than treating the absent floor as zero. The floor is
+  recomputed whenever the post table changes.
 - **No new animation.** Standing, walking, turning the head and turning the body are all things the
-  default behaviour state already does for an NPC with a goal, a look target and a desired yaw.
-- **Persistence follows a precedent that already works in this engine family.** RPG-X keeps character
+  default behaviour state already does for an NPC with a goal, a look target and a desired yaw.- **Persistence follows a precedent that already works in this engine family.** RPG-X keeps character
   and ship state in SQLite bundled *inside the gamecode* (`g_sql.c`, `sqlite3.c`, `ui_sql.c`) — no
   external daemon, state stored where it is owned. See `docs/prior-art-rpg-x.md`. G3 keeps its per-NPC
   state in the SP module's own save path for the same reason: one extra chunk (`CREW`) in the save,
@@ -219,7 +227,7 @@ The charter's bar, with the measurement named for each:
 | 5–10 named crew present on one deck | entity count in the loaded map |
 | ≥90% of assigned posts occupied at any sampled moment | sample post occupancy every 5s over a 10-minute run; report the minimum |
 | every NPC reaches its post within a bounded time | timestamp from level start to first arrival per NPC; bound set at implementation |
-| zero navigation failures | count of stuck NPCs (no movement for N seconds) and out-of-world events |
+| zero navigation failures | count of stuck NPCs (no movement for N seconds) and out-of-world events — an event is per deck: below that deck's own lowest post, and never fired from a deck that has no post |
 | player address → acknowledgement within a bounded time | trigger an address, timestamp the bark |
 | no ICARUS script regressions | the entities with a script in flight, compared against a run with the layer off; and a script run on a post-holder must take them and give them back |
 | save/load restores posts and schedule cursor | save, load, assert per-NPC state equality |

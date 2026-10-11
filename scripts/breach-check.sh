@@ -3,11 +3,15 @@
 #
 #   scripts/breach-check.sh
 #
-# One headless run on the merged ship. The harness stands in deck 12's authored breach compartment and
-# opens the hull; the module activates the authored push (aimed at the hole) and hurt volume, so the
-# body is thrown toward the hole and the air is going. Raise the force field and the push and hurt
-# stop, the authored field brush is solid and visible, and the air stops going. A second run with
-# g_env 0 shows the extension changes nothing. Needs the built ship and engine. Writes under build/g3-home.
+# One headless run on the merged ship. The harness stands where the authored field is and opens the
+# hull; the module activates the authored push (aimed at the hole) and hurt volume, so the body is
+# thrown toward the hole and the air is going. Raise the force field and the push and hurt stop, the
+# authored field brush is solid, and the air stops going. A second run with g_env 0 shows the
+# extension changes nothing. THIS PASS AIMED THE CAMERA AT THE FIELD AND MEASURED THAT THE FRAME
+# STILL DOES NOT CARRY IT: the breach compartment renders near-black, and the field-off and
+# field-on frames differ by 0.0-0.1% of the region (the console text and the HUD). The check is
+# behavioural (docs/frame-assertions.md); the log lines are the proof. Needs the built ship and
+# engine. Writes under build/g3-home.
 
 set -euo pipefail
 
@@ -18,13 +22,14 @@ PK3="$ROOT/build/ship/out/longway_voyager.pk3"
 OUT="$HOME_DIR/breach.out"
 OFF="$HOME_DIR/breach-off.out"
 SHOT="$GAME_DIR/screenshots/lwh_breach.tga"
+BEFORE="$GAME_DIR/screenshots/lwh_breach_before.tga"
 [ -f "$PK3" ] || { echo "no merged ship at $PK3 -- run scripts/build-ship.sh" >&2; exit 1; }
 [ -d "$ROOT/build/baseEF" ] || { echo "no game data at build/baseEF -- run scripts/playtest-host-setup.sh" >&2; exit 1; }
 command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; }
 mkdir -p "$GAME_DIR/screenshots"
 cp "$PK3" "$GAME_DIR/"
 trap 'find "$GAME_DIR" -maxdepth 1 -name "longway_voyager.pk3" -delete' EXIT
-rm -f "$SHOT"
+rm -f "$SHOT" "$BEFORE"
 
 run() { # run OUT G_ENV
 	find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
