@@ -17,15 +17,17 @@ no guard can see. Everything else is in service of not repeating that shape whil
 ## 1. Does it work? — the checks, run
 
 All **68 `scripts/*-check.sh`** were run on the playtest host, from `testing` at `0ea6fa5`, each with a 420-second
-cap and its own log (`build/review-sweep/`, host-side). Result at the time of writing: **all pass** but one, and
-that one is not a defect:
+cap and its own log (`build/review-sweep/`, host-side), plus `docs-check` and `g3-measure`: **70 runs, 68 exit 0.**
+**Both non-zero exits are the sweep's own doing, not the tree's:**
 
-- **`deck-check` exits 1** with a usage line — it takes a `DECK` argument and is run bare by a sweep. Given a
-  deck it passes (verified earlier this session against deck 14). It is a *parameterised* check and the sweep
-  driver cannot know that; **the sweep is the artifact, not the check.**
+- **`deck-check` exits 1** with a usage line (0 seconds) — it takes a `DECK` argument and the sweep ran it bare.
+  Given a deck it passes (verified earlier the same day against deck 14). It is a *parameterised* check and the
+  driver could not know that.
+- **`g3-measure` exits 124** — killed by the sweep's own 420-second cap. It is the ten-minute crew harness and
+  needs roughly twenty-five minutes end to end; it passes when given the time (verified the same day).
 
-So: **the suite is green.** What that does *not* mean is the subject of §2 — a check that passes is not a
-check that proves what it claims, and thirty of them cannot.
+So: **every check that was given what it needs passed.** What that does *not* mean is the subject of §2 — a
+check that passes is not a check that proves what it claims, and thirty of them cannot.
 
 ## 2. The foot guns — found, and verified on this tree
 
