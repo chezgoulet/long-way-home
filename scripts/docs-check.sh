@@ -27,4 +27,8 @@ python3 tools/docs/check_claims.py
 
 echo
 echo "==> docs: register rows agree with the tree"
-python3 tools/docs/check_register.py --register docs/omissions.md --register docs/walkthrough.md
+python3 tools/docs/check_register.py \
+    --register docs/omissions.md \
+    --register docs/walkthrough.md \
+    --register docs/gates.md \
+    --register docs/hook-triage.md
