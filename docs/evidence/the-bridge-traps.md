@@ -355,6 +355,14 @@ PASS  scripts/damage-check.sh, emergency-check.sh, fire-check.sh, breach-check.s
    vocabulary is checked against `tools/…/console_api.def` by `scripts/api-check.sh`, and adding a
    probe verb would extend the game's public surface for a test; a harness case is the established
    instrument (about sixty of them) and is `g_shipTest`-gated, so it never runs in a normal session.
+7. **Neither patch can be cvar-gated, and `docs/engine-extension-policy.md` rule 3 is met the way
+   `docs/evidence/raise-the-gentity-ceiling.md` met it.** `0021` changes a table size and `0022` is a
+   preprocessor guard: both are compile-time and have no runtime switch to gate. What protects retail
+   is structural, and is the same statement as the entity raise's: mode 1 compiles both ends from this
+   tree, and mode 2 is cMod, a separate prebuilt application this tree does not build; no shipped mode
+   pairs a build of ours with one that is not. The one place a gate *was* available — the drop/accept
+   logging — is behind `developer` and off by default, so with no cvars set the bridge behaves and
+   saves exactly as retail.
 
 ## Environment note — the GDK corpus had to be re-laid
 
