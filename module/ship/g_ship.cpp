@@ -3887,6 +3887,39 @@ void RunTest( void )
 		if ( step == 4 && level.time >= 7400 ) { gi.SendConsoleCommand( "quit\n" ); step = 5; }
 		return;
 	}
+	if ( g_shipTest->integer == 99 )
+	{//the console ladder's `recall`: bare `ship recall` is the transporter's, and `ship recall
+		//<who> <event>` is the crew-memory read (docs/audit-whole-project.md, section 2.1). Two
+		//branches, two acts; before the fix the second could never run and the first answered for
+		//it, reporting the away team home when what was asked was what a person remembers.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 3000 )
+		{
+			ship::SetRole( vessel, ship::ROLE_IN_COMMAND );
+			gi.SendConsoleCommand( "ship as 2 transport 3\n" );  // a party away, so recall has a transport to make
+			gi.SendConsoleCommand( "ship remember 3 7\n" );      // and a memory for crew 3 to hold
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 4500 )
+		{
+			gi.SendConsoleCommand( "ship recall\n" );            // bare: the transporter's recall
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 6000 )
+		{
+			gi.Printf( "SHIP: console ladder: away now %d\n", ship::AwayTeam( vessel ) );
+			gi.SendConsoleCommand( "ship recall 3 7\n" );        // argumented: the crew-memory read
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 7500 )
+		{
+			gi.Printf( "SHIP: console ladder test done\n" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 4;
+		}
+		return;
+	}
 	if ( g_shipTest->integer == 12 )
 	{//the turbolift's own menu: report the deck list it reads, then open it exactly as a panel does
 		// Opening the menu pauses the game, which stops Ship_Frame, so the screenshot and the quit
@@ -5643,8 +5676,15 @@ void Svcmd_Ship_f( void )
 			if ( !outcome.empty() ) gi.Printf( "SHIP: the transporter: %s\n", outcome.c_str() );
 		}
 	}
-	else if ( !Q_stricmp( cmd, "recall" ) )
-	{
+	else if ( !Q_stricmp( cmd, "recall" ) && !a[0] )
+	{//the transporter's recall: bring the away team home, bare. The verb is claimed twice in this
+	 //ladder and the second claim is the crew-memory read below (`ship recall <who> <event>`, the
+	 //RecallSource hook). Bare ownership is the transporter's -- the Operations console's R key
+	 //sends `ship recall`, and a party's return is what that console means by it -- while the
+	 //memory read needs its two arguments. The `!a[0]` guard is what keeps the two reachable: with
+	 //it, an argumented recall falls past this branch instead of being served as a transport, which
+	 //is the defect docs/audit-whole-project.md, section 2.1 recorded (a memory read answered by
+	 //the transporter, confidently).
 		gi.Printf( "SHIP: transmitter: %s\n", ship::TransporterConditionLine( vessel ).c_str() );
 		std::string outcome;
 		if ( !ship::TransportBack( vessel, &outcome ) ) gi.Printf( "SHIP: nobody is away\n" );
@@ -6019,9 +6059,14 @@ void Svcmd_Ship_f( void )
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "recall" ) && a[0] && b[0] )
-	{
+	{//the crew-memory read (the Recall/RecallSource hooks): what one person remembers of one event.
+	 //Reached only by an argumented recall; the bare form is the transporter's (see the guard above).
 		const int who = atoi( a ); const uint16_t ev = static_cast<uint16_t>( atoi( b ) );
-		if ( who < 0 || who >= static_cast<int>( vessel.crew.size() ) ) return;
+		if ( who < 0 || who >= static_cast<int>( vessel.crew.size() ) )
+		{
+			gi.Printf( "SHIP: no crew member %d to recall a memory from\n", who );
+			return;
+		}
 		const int src = ship::RecallSource( vessel.crew[who], ev );
 		static const char *const SRC[] = { "saw it", "was told", "heard it as rumour", "read it in the log" };
 		gi.Printf( "SHIP: crew %d %s event %d%s\n", who, ship::Recall( vessel.crew[who], ev ) ? "knows" : "does not know", ev,
