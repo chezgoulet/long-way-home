@@ -39,7 +39,7 @@ maintenance, and to keep our own delta thin enough to rebase onto it whenever th
 rule, 2026-10-04: *"I'd rather be in the best position to inherit community work than increase our support
 of more stuff."*
 
-Current delta from the pinned upstream: **62 files, +508/−145 lines, in twenty-two patches by concern.**
+Current delta from the pinned upstream: **63 files, +538/−151 lines, in twenty-four patches by concern.**
 
 | patch | concern | why it is separate |
 |---|---|---|
@@ -65,6 +65,8 @@ Current delta from the pinned upstream: **62 files, +508/−145 lines, in twenty
 | `0020` | main menu: the Long Way Home line, and a menu that finishes opening | the way in (`docs/the-entry-point.md`): a menu entry that execs the one config, and the small fixes that make the menu open and close; UI only |
 | `0021` | SP: the bridge's configstring table derives from `MAX_CONFIGSTRINGS` | the latent-traps brief (`docs/evidence/the-bridge-traps.md`): the table was a literal 1024 that dropped any configstring above it with no word, while the ceiling is 4096; derived now (so it cannot disagree with the ceiling), and an out-of-range set says so under `developer`. One constant and the uses of it; no behaviour or save change with `developer` unset |
 | `0022` | SP: pin which `cg_public.h` the bridge compiles against | the same brief: two same-named headers carry 256 (the engine's network client) and 1024 (the module's in-process snapshot), and which one the bridge got was left to include-path order; a preprocessor guard now fails the build if it is not the module's 1024. Compile-time only |
+| `0023` | SP: the engine's quit path asks the game module | the wall-clock exit (`docs/omissions.md` O14): `Com_Quit_f` hands the module `ship quit` through the bridge before anything is torn down, so the module decides what a quit means (leave the ship standing, or stop the simulation). The decision and its cvar live in `module/`; with `g_ship 0` the hook answers nothing, and the module's own commands cannot reach `quit` because the engine's command table owns it |
+| `0024` | SP: console registration says only what is new | a level transition dlclose()s and reloads the game module, whose cgame re-registers its console commands; 38 `Cmd_AddCommand: … already defined` lines per transition, none of them a defect, are now silent unless the definition *differs* and `developer` is set. `Cmd_AddCommand` is idempotent by construction; `messagemode2` remains a real collision and is reported |
 
 Rules that keep this shape:
 

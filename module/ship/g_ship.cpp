@@ -44,6 +44,9 @@ cvar_t *g_shipDayScale; // ship seconds per game second (60 = a day in 24 minute
 cvar_t *g_shipMode;     // 0 ironman (the game), 1 holodeck (saves allowed)
 cvar_t *g_shipClock;    // 0 accelerated by g_shipDayScale, 1 real time, 2 wall clock (the ship lives on while away)
 cvar_t *g_shipRole;     // 0 any post, 1 in command, 2 Munro
+cvar_t *g_shipQuit;     // the wall-clock exit: 1 = quitting leaves the ship standing (she keeps her own
+                        // time); 0 = the simulation shuts down (the old behaviour, and the default) --
+                        // the two exits, and the player chooses (docs/ship-model.md)
 // The configurator's chosen start state (docs/the-entry-point.md, Part three): written by the menu
 // before the map loads, read here. `g_shipConfigured 0` is the default, so a run that was not
 // configured is untouched.
@@ -5287,6 +5290,7 @@ void Ship_RegisterCvars( void )
 	g_shipMode = gi.cvar( "g_shipMode", "0", 0 );
 	g_shipClock = gi.cvar( "g_shipClock", "0", 0 );
 	g_shipRole = gi.cvar( "g_shipRole", "0", 0 );
+	g_shipQuit = gi.cvar( "g_shipQuit", "0", 0 );
 	g_shipConfigured = gi.cvar( "g_shipConfigured", "0", 0 );
 	g_shipFictitious = gi.cvar( "g_shipFictitious", "0", 0 );
 	g_shipCareer = gi.cvar( "g_shipCareer", "0", 0 );
@@ -5539,8 +5543,43 @@ void SubmitRoomInput( const std::string &text )
 	Publish();
 }
 
+// The engine's own quit path (patches/0023), reached through the bridge as `ship quit` -- not a
+// player's command, and the module's to answer: the two exits of docs/ship-model.md. `g_shipQuit 1`
+// leaves the ship standing, so she keeps her own time and the run is marked (Suspend); the default 0
+// shuts the simulation down, which is exactly what quitting did before the exit was wired. Nothing
+// is written while the simulation is off, so a retail quit hears none of this.
+static void QuitExit( void )
+{
+	if ( !active ) return;
+	if ( !g_shipQuit || !g_shipQuit->integer )
+	{
+		gi.Printf( "SHIP: quit: the simulation is shut down; no time passes while the game is closed\n" );
+		return;
+	}
+	const size_t before = vessel.log.size();
+	if ( !ship::Suspend( vessel ) )
+	{// ironman means the ship keeps her own time; the guard is MaySuspend, alongside SavesAllowed
+		gi.Printf( "SHIP: quit: ironman will not suspend the world; the ship keeps her own time\n" );
+		return;
+	}
+	gi.Printf( "SHIP: quit: the ship is left standing; the run is marked (left standing %d)\n",
+		ship::LeftStanding( vessel ) ? 1 : 0 );
+	if ( vessel.log.size() > before )
+	{// what Suspend wrote: the mark, and the entry it appended to the official log
+		const ship::LogEntry &e = vessel.log.back();
+		const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
+		const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
+		gi.Printf( "SHIP: quit: the log carries: day %d %02d:%02d [%s] %s: %s\n", day, sod / 3600, sod % 3600 / 60,
+			e.scope.c_str(), e.who.c_str(), e.what.c_str() );
+	}
+	Publish();
+}
+
 void Svcmd_Ship_f( void )
 {
+	// The engine's quit path, before the simulation check: a retail quit must be silent, and only
+	// this module knows whether a ship is running to hear it.
+	if ( gi.argc() > 1 && !Q_stricmp( gi.argv( 1 ), "quit" ) ) { QuitExit(); return; }
 	if ( !active )
 	{
 		gi.Printf( "ship: the simulation is off (set g_ship 1 and load a map)\n" );

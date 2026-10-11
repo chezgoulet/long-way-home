@@ -240,7 +240,7 @@ G5. G3 stays open and work proceeds regardless, by his decision.
 | **S7** intruders and hacking | 🔶 in the core: boarders, contested control, hijacking, security response, the breach puzzle; boarders are hostile bodies on the player's deck and the ship's security are embodied as bodies too; **boarder kinds and objectives** (raider/Borg/hunter, sent for a deck). The puzzle played by hand needs a session | `docs/evidence/s7-intruders-and-control.md`, `scripts/s7-check.sh` |
 | **S8** the Borg | 🔶 rules in the core: drones convert decks and take crew, assimilated systems are lost outright, stripping costs hours and parts; drones are bodies on the player's deck. **Runtime asset replacement** (the first hard problem) is **built and verified on the merged ship's generated decks**: a deck the simulation assimilates turns Borg in the world **part by part** (four sections, turning in order as assimilation rises) and is stripped back (`BorgAssets`, `scripts/borg-deck-check.sh`); the published decks still need the stitcher pass or the engine section tag | `docs/evidence/s8-the-borg.md`, `scripts/s7-check.sh`, `scripts/borg-deck-check.sh` |
 | **S9** the outside | 🔶 in the core (2026-10-07): an opponent with targetable weapons, engines and a shield generator, and raider/warship/Borg kinds; choices at a beacon (hail, trade, answer a distress call, run); pursuit that stops the ship sitting still to repair; three sectors and an end to reach; jumps from the Conn and torpedoes/targeting from Tactical; more than one contact at a time (a raider's wingman). Engine-side feedback: the screen shakes on a hit, a live in-world viewscreen draws the contact's image beside the panel, and the alert klaxon plays (the viewscreen is a drawn schematic, not an engine render of the model) | `docs/evidence/s9-the-outside.md`, `scripts/s9-check.sh`, `scripts/viewscreen-check.sh` |
-| **S10** play modes, roles, character creation | 🔶 rules in the core: ironman/holodeck, three clocks with wall-clock catch-up (demonstrated in the game), clearance by rank and department, three player roles, character creation, enforced; standing orders from a command console; a personnel screen creates the character; the log/ready-room/personnel **panels open the ship's screens** from a map interface; **the player's character is the body the player walks in** (head, torso and legs set from the crew record and department when a character is chosen), and **the command console carries the career** (shows the character, and `P` confirms a field promotion from the ship). The owner's playthrough remains | `docs/evidence/s10-modes-and-roles.md`, `scripts/s10-check.sh`, `scripts/s4-check.sh`, `scripts/playerbody-check.sh`, `scripts/promote-check.sh`; **the sleep state and the two exits** (the owner's ruling of 2026-10-06) in `docs/evidence/clocks-and-exits.md`, `scripts/clock-check.sh` |
+| **S10** play modes, roles, character creation | 🔶 rules in the core: ironman/holodeck, three clocks with wall-clock catch-up (demonstrated in the game), clearance by rank and department, three player roles, character creation, enforced; standing orders from a command console; a personnel screen creates the character; the log/ready-room/personnel **panels open the ship's screens** from a map interface; **the player's character is the body the player walks in** (head, torso and legs set from the crew record and department when a character is chosen), and **the command console carries the career** (shows the character, and `P` confirms a field promotion from the ship). The owner's playthrough remains | `docs/evidence/s10-modes-and-roles.md`, `scripts/s10-check.sh`, `scripts/s4-check.sh`, `scripts/playerbody-check.sh`, `scripts/promote-check.sh`; **the sleep state and the two exits** (the owner's ruling of 2026-10-06) in `docs/evidence/clocks-and-exits.md`, `scripts/clock-check.sh`; **and the exit a quit takes, wired to the engine's own quit path** (`g_shipQuit`; patches/0023) in `docs/evidence/the-exits.md`, `scripts/exits-check.sh` |
 
 ## Adopted from RPG-X prior art (2026-10-04)
 
@@ -1075,8 +1075,18 @@ the cache). <!-- register-row id=voice-plumbing state=closed marker=check:script
   passes.
   <!-- register-row id=doors state=closed marker=check:scripts/crew-door-check.sh -->
 
-- **~30 `Cmd_AddCommand: … already defined`** on each level transition. Harmless, but it means the SP
-  path's console registrations are not idempotent.
+- **~~The SP path's console registrations are not idempotent~~ — closed 2026-10-11 (`feat/the-exits`,
+  `docs/evidence/the-exits.md`).** The count on this tree was **38** `Cmd_AddCommand: … already
+  defined` on a level transition, not ~30. The cause is the bridge's own loading: a transition
+  dlclose()s and reloads `libefgame.so`, the cgame re-registers its console commands through
+  `CG_ADDCOMMAND`, and the engine announced each one it already held — harmless, as the residual
+  said, because the handler is the bridge's own `SP_CgameConsoleCmd` (which lives in the main binary,
+  not the reloaded module) and re-adding it changes nothing. `Cmd_AddCommand` now says nothing when a
+  registration changes nothing, and says what is left to a `developer` (`patches/0024`): **38 → 0**
+  on the transition. The only message that remains under `developer`, `messagemode2`, is not a
+  duplicate — the client console owns that name and the cgame's table claims it too, which retail
+  shadowed the same way; it is left alone and named here.
+  <!-- register-row id=console-registration state=closed marker=check:scripts/exits-check.sh -->
 - **`MAX_PACKET_USERCMDS`** printed twice at shutdown. Cosmetic.
 - **Dependencies no longer live in `/tmp`** — the tree is in `build/deps`, on the binary's RPATH, and
   `ldd` with no environment set reports zero missing libraries. Closed.
@@ -1234,7 +1244,10 @@ evidence and the closing is this ledger's business. The same rule is stated in `
 - **O12 — the phenomenon's two canon story models** (`docs/exploration-and-science.md`).
 - **O13 — the Borg security squad embodied as bodies moving deck by deck** (`docs/borg-incursion.md`,
   *Still to come*).
-- **O14 — the wall-clock exit wired to the engine's quit path** (`docs/evidence/clocks-and-exits.md`).
+- **O14 — the wall-clock exit** *(CLOSED 2026-10-11, `feat/the-exits`)*: wired to the engine's quit
+  path (`patches/0023`; `docs/evidence/the-exits.md`, check `scripts/exits-check.sh`). `Com_Quit_f`
+  asks the game module first; `g_shipQuit 1` leaves the ship standing, the default 0 shuts the
+  simulation down, ironman refuses, and a retail quit is unchanged.
 - **O15 — the nine-scenario first slate** and the rank-and-role authoring rule
   (`docs/scenario-atlas.md`). **The authoring rule now carries the post-not-name law** (2026-10-08,
   `feat/the-configurator`): because the player may field an all-fictitious crew, no scenario, meeting
