@@ -964,9 +964,13 @@ the cache). <!-- register-row id=voice-plumbing state=closed marker=check:script
   been extracted under `/tmp` and was lost. `scripts/fetch-gdk.sh` now restores it into `build/gdk`
   from the Internet Archive, checksummed, and G0 was re-run against it: validator negative tests all
   pass; dictionary 262 classes + 2 templates, 237 of 239 used classes covered across 106 map sources
-  (unchanged); corpus 2,016 of 2,024 scripts compile and read back, the 8 rejections being the three
-  named in `docs/evidence/g0-script-compiler.md` plus five files that are not scripts. This archive's
-  script set is smaller than the 2,408 files counted originally, which included the GDK's own copies.
+  (unchanged); corpus 2,394 of 2,408 scripts compile and read back, the 14 rejections being the three
+  named in `docs/evidence/g0-script-compiler.md` plus eleven files that are not scripts. (Corrected
+  2026-10-11: `fetch-gdk.sh` restored only the *Level Scripts* archive -- 2,024 of the GDK's 2,408
+  scripts -- so this line read 2,016 of 2,024 with 8 rejections. The 384 it omitted are the Virtual
+  Voyager deck and Holodeck programme scripts the published map sources reference; the fetch now lays
+  the installer's own copy over the archive and the corpus is the GDK's whole 2,408. See the residual
+  below and `docs/evidence/the-126-references.md`.)
 - **The entity dictionary's flags and keys were wrong until 2026-10-05** — a header pattern ran on
   into each description. Class names, and so G0's coverage figures, were unaffected. Regenerated
   from the restored GDK: 211 classes with documented keys, 232 with spawnflag sets.
@@ -989,8 +993,15 @@ the cache). <!-- register-row id=voice-plumbing state=closed marker=check:script
 - ~~**No cutscene playback.**~~ **Closed** — FFmpeg is available from the plain archive with the version
   pinned (the ESM build was merely the preferred candidate), and the engine now links Bink playback.
   See `docs/evidence/deps-durable-and-cutscenes.md`. Whether a cutscene *plays* still wants a session.
-- **126 script references the GDK corpus lacks** — the validator found them; most likely the
-  expansion's scripts. Worth resolving before G2 content work.
+- **~~126 script references the GDK corpus lacks~~** — **re-measured 2026-10-11: 2, and neither is a
+  missing script.** The 126 was a measurement artefact, not a boundary: a case-sensitive manifest glob
+  (`scripts/**/*.txt`, which on Linux misses the corpus's `.TXT` files) over a corpus 384 files short
+  of the GDK's, and counted twice by overlapping map globs. Against the GDK's whole script corpus the
+  58 case-missed references resolve, and the two that remain are malformed `usescript` values in
+  shipped maps — `bs_run_and_shoot`, a behaviour state placed in a script key, and `newearthhome`, a
+  `ref_tag` targetname. No corpus spelling satisfies them and none should; they do not obstruct G2
+  content work. Re-measured and guarded by `scripts/references-check.sh`. Evidence:
+  `docs/evidence/the-126-references.md`.
 - **Retail PC saves are incompatible** with the port (upstream documents this). Start new campaigns.
 
 ### From the whole-project review (2026-10-10) — `docs/audit-whole-project.md`
