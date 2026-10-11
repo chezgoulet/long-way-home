@@ -103,8 +103,10 @@ Checked and **not** registered, with the reason — so the sweep's coverage is a
   excludes (`docs/staff-meetings.md` M1–M6, the voice work). Registered; not findings.
 - **`docs/evidence/*.md` "what this still needs" items** — worked through: S4's person at a panel, S6's
   further injury causes, S7's hand-played puzzle, S9's engine render-target viewscreen, S10's playthrough,
-  the air countdown at deck 12, the EMH, the away site, the manner, the mobile emitter. All are named in
-  `docs/gates.md`; none is a finding.
+  the air countdown at deck 12, the EMH, the away site, ~~the manner~~ **the manner, built 2026-10-11 on
+  `feat/the-manner`** (`docs/evidence/the-manner.md`), the mobile emitter. All are named in
+  `docs/gates.md`; none is a finding. (The manner is struck here for the same reason the register
+  strikes a closed row: a document that still lists it as remaining would be stale.)
 - **The "Borg strategic awareness beyond a single vessel" note** in `docs/lore-ledger.md` — stale; the
   mechanism is built and carried in `docs/gates.md`.
 - **The abandonment list's absence as a *build* gap** (`docs/story-and-semantics.md` conflict 1) — stale;

@@ -267,3 +267,33 @@ G14's second half: barks wired to morale, so the crew *sound* like what they fee
 is a deterministic function of the band and of the person's desire and fear — one line each for the
 fit, the worn and the broken. It is a **demonstration, not a verdict**: `scripts/character-check.sh`
 prints one crew member at three morale levels and lets the owner judge whether the manner reads.
+
+**And the wiring, built 2026-10-11 on `feat/the-manner`** (`docs/evidence/the-manner.md`,
+`scripts/manner-check.sh`). The rule above was designed and the layer was built; what was missing was
+the wiring that makes a person's state *audible and visible in the world*. The one mechanism and its
+two seams:
+
+- **State → manner.** `MannerFor(s, crew, trigger)` selects the manner from what is true of the
+  person right now — the morale band, the conditions they carry, whether they are hurt, and the
+  ship's alert — and `MannerLineFor` gives the line. The selection is a **precedence, written down**:
+  `hurt > breathless > grieving > afraid > tired > hungry > heartened > the morale band`. The highest
+  state present is the manner, and the states it beat are still named in the reason, so several at
+  once is explainable rather than silent.
+- **Manner → the voice layer.** `EmitManner` is **the one emit site**: it selects, writes the line
+  to the log (the surface, always), and hands the cue to the voice layer — the line, the cast
+  reference, the delivery direction. The voice layer is expected to **do nothing when a bank or a
+  render is absent**: the line is still written and read, and no render is queued. A manner that
+  needed audio to be perceived would not be built.
+- **The wiring itself**, and it is not a timer: a recorded condition **arriving or clearing**
+  (`Sicken`/`Cure`) raises it where the state changes; an **order** raises the recipient's manner
+  where the person acts (`DispatchOrder`); the **alert** raises the watch's manner once, for the
+  officer of the deck (`SetAlert`), because a red alert must not bury the log. The console
+  `ship manner [crew]` reads it and emits it.
+
+The manner is a **read** of state the save already carries and is never stored, so it costs no save
+state and a save replays it; it is deterministic, so the same state selects the same manner for the
+same person. The selection across the good one and the four bad, the precedence, the surface, the
+absence case and the save are demonstrated by `scripts/manner-check.sh`, and the check is falsified
+by planting the state before this pass (`SetMannerWired(false)` makes every bad state read the band
+alone, and the check fails). **What it cannot settle is whether a manner reads as a *person*** — that
+is the owner's ear, as the character layer's own evidence says.

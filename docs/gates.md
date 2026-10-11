@@ -428,12 +428,17 @@ browsable log screen (`ui_lwh_log`), named authors (`AuthorFor`), and the captai
 (`ship captain`); and the tricorder reading the ship's own compartments (`ScanCompartment`) with kit
 condition. Save format **version 14**.
 
-What remains is content, not rules: the crew's *manner* (barks wired to morale — needs the crew
-layer, session to judge), ~~the EMH (the mobile-emitter backlog item)~~ **the EMH and its mobile emitter
+What remains is content, not rules: ~~the crew's *manner* (barks wired to morale — needs the crew
+layer, session to judge)~~ **the manner was built 2026-10-11** on `feat/the-manner`: the state
+selects a manner, it is raised where the state changes and where the person acts, written to the log
+and handed to the voice, and it degrades to text with no bank or no render (`MannerFor`,
+`EmitManner`, `scripts/manner-check.sh`, `docs/evidence/the-manner.md`; whether it *reads as a
+person* is the owner's ear, and remains), ~~the EMH (the mobile-emitter backlog item)~~ **the EMH and its mobile emitter
 were built 2026-10-07** (`ActivateEMH`, `SetMobileEmitter`, save versions 16 and 21; below), the
 environmental-control countdown at deck 12 itself (the deck build), and a walkable away site (content; the
 acceptance run needs it and a session). The model says so in each evidence document.
 <!-- register-row id=gaps-remaining state=partly marker=symbol:module/ship/ship_core.cpp:ActivateEMH -->
+<!-- register-row id=manner state=closed marker=check:scripts/manner-check.sh -->
 
 ### The month report, the promise and the lie, and the toll
 
