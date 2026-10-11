@@ -5033,6 +5033,23 @@ void RunTest( void )
 		}
 		return;
 	}
+	if ( g_shipTest->integer == 95 )
+	{//the bridge's configstring table (docs/evidence/the-bridge-traps.md): a configstring numbered
+	 // beyond the bridge's old literal 1024 must survive the round trip. The old table dropped it with
+	 // no word, so the read-back is the demonstration -- empty before the fix, the value after.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			step = 1;
+			gi.SetConfigstring( 1500, "lwh-cs-beyond-1024" );
+			char back[64] = { 0 };
+			gi.GetConfigstring( 1500, back, sizeof( back ) );
+			gi.Printf( "SHIP: configstring probe: index 1500 -> \"%s\"\n", back );
+			gi.SendConsoleCommand( "quit\n" );
+		}
+		return;
+	}
 	if ( tested || level.time < 3000 ) return;
 	tested = true;
 	if ( g_shipTest->integer == 1 )
