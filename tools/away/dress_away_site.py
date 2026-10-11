@@ -216,8 +216,6 @@ class Build:
                         self.report["patches_dropped" if b.is_patch else "brushes_dropped"] += 1
                         continue
                     self.report["brushes_kept"] += 1
-                    if b.is_patch:
-                        self.report["patches_dropped"] += 0
                     self.report["parts"][brush_tex(lines) if not b.is_patch else "patch"] += 1
                     self.world.append(lines)
                     self.solids.add(lines)
