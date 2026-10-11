@@ -76,17 +76,23 @@ and engine names in the map data), plus the bridge.
 
 Three design consequences we take from canon rather than inventing:
 
-- **The three independent sources are resilience, not redundancy to ignore.** Life support and the
-  holodecks keep running when the main grid dies -- so "this deck still has air while that one does not"
-  is a state the ship can be in. That is dramatic, and it is free. **Built 2026-10-10** on
-  `feat/the-air`: a deck's life support can be fed from one of the sources that survive the main grid
-  (the impulse reactors, the auxiliary fusion reactor, the emergency batteries), so the state occurs,
-  and the state says which source holds which deck's air (`docs/evidence/the-air.md`). The holodeck
-  reactor's jump-start remains the trap below, not a free source.
-- **The holodeck matrix is incompatible.** Jump-starting from a holodeck reactor destroys relays. This is
-  a designed failure mode, not a solution: a tempting, canon-backed way to make things worse. **Built:**
-  `JumpStartFromHolodeck` ties in a holodeck reactor when the main grid is down, returns a battery
-  charge, and wrecks half the ship's systems.
+- **The independent sources are resilience, not redundancy to ignore.** Life support and the holodecks
+  keep running when the main grid dies -- so "this deck still has air while that one does not" is a state
+  the ship can be in. That is dramatic, and it is free. **Built 2026-10-10** on `feat/the-air`: a deck's
+  life support can be fed from one of the sources that survive the main grid (the impulse reactors, the
+  auxiliary fusion reactor, the emergency batteries), so the state occurs, and the state says which
+  source holds which deck's air (`docs/evidence/the-air.md`). **And the fourth source followed 2026-10-11**
+  on `feat/the-holodeck-reactor`: the holodeck reactor is a per-deck source too, in the same shape, but
+  held out of the grid (below), so a deck may hold its air on it only while the main grid is down
+  (`docs/evidence/the-holodeck-reactor.md`).
+- **The holodeck matrix is incompatible, and it is two things.** Jump-starting the whole ship from a
+  holodeck reactor destroys relays: a designed failure mode, not a solution, a tempting, canon-backed way
+  to make things worse. **Built:** `JumpStartFromHolodeck` ties in a holodeck reactor when the main grid
+  is down, returns a battery charge, and wrecks half the ship's systems. **And the incompatibility also
+  shapes the per-deck source itself: the reactor never feeds the grid** (it is not in `sources[]`),
+  **a deck is tied to it only with the main grid down** (the tie is refused while the grid is up), and a
+  tie left in when the grid returns spends the reactor. So it is a source, and a damaging one
+  (`docs/evidence/the-holodeck-reactor.md`).
 - **Losing the core is not losing the ship.** Impulse fusion and batteries remain; warp is gone. Ejection
   is authorized, unreliable, and the core can be recovered by tractor -- a real decision with a real
   cost. **Built:** with the warp core gone the ship runs only the survival set -- the critical four, the

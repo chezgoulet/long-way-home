@@ -183,6 +183,14 @@ one of them, so a deck holds its air with the grid down. The state says which so
 shortfall is a number, and it is saved (version 56). The per-deck draw and the choice of the three are
 judgement calls, named in `docs/evidence/the-air.md`.
 
+**And the fourth, the incompatible one, 2026-10-11 on `feat/the-holodeck-reactor`.** Canon's triad is
+life support, the holodecks and shuttlecraft; the holodeck reactor is the source that is *also* canon's
+warning. It is now a per-deck source in the same shape — a capacity, a health, a provenance, a shortfall —
+with the incompatibility modelled as two rules: it never feeds the pooled grid (it is not in `sources[]`,
+so using it as ship power adds nothing and a tie with the grid up is refused), and a tie left in when the
+grid returns spends the reactor. It holds one deck (60 EPS, the holodeck's own demand); the capacity is
+[our call], and the cost is named in `docs/evidence/the-holodeck-reactor.md` (save version 60).
+
 **Finding three: the brownout ladder has five rungs in the document and about three in the code.**
 The document sheds holodecks, replicators and non-critical labs first; then non-essential lighting, cargo
 handling and astrometrics; then sensors, comms and transporters. In the code, only the holodecks and the

@@ -183,6 +183,31 @@ struct Source {
 const int AIR_PLANT_PER_DECK = 60;       // one deck's independent life-support plant, = SYS_LIFE_SUPPORT demand [inv]
 const uint8_t AIR_GRID = SRC_COUNT;      // the deck is on the pooled main grid, not an independent source
 
+// The holodeck reactor (O2's remainder; docs/budget-squaring.md, Finding two). The canon line is the
+// ledger's: "the holodeck matrix is a trap ... the matrices are incompatible" (docs/lore-ledger.md,
+// the "matrix incompatible" row; VOY "Parallax"). It is the **fourth independent source and the
+// incompatible one**, so it is the same shape as the other three -- a `Source` with its own health and
+// online state, a capacity, a provenance, a place in the shortfall -- with two differences canon gives
+// it, and both are modelled here:
+//
+//  - It is **not in `sources[]`**: it never feeds the pooled grid, which is what "incompatible with the
+//    ship's power" means in this model. Using it the way the ship's power is used adds nothing to the
+//    grid (`PowerAvailable`, `PowerCapacityFresh`/`Now` do not count it) and tying a deck to it while
+//    the main grid is **up** is refused (`SetAirSource`): an incompatible matrix is not cross-tied into
+//    live power. Only with the main grid down (the same `Coreless` condition the trap uses) may a deck
+//    hold its air on it.
+//  - Leaving a deck tied to it when the main grid **returns** wrecks it: the incompatible matrices meet
+//    and the reactor is spent (`UpdateHolodeckTie`). The reactor's own health is saved, so the cost
+//    persists across a load. That is the "damaging control" the omissions row names, and it is why the
+//    reactor is a per-deck source and not a free one.
+//
+// Its capacity is one life-support plant (the holodeck's own demand, 60 EPS), so it holds one deck.
+// [our call: the capacity; canon gives no figure for the reactor, and the holodeck system's own demand
+// is the only number the design carries.]
+const int HOLODECK_AIR_EPS = 60;             // the reactor's capacity for deck air = one life-support plant [inv]
+const uint8_t AIR_HOLODECK = SRC_COUNT + 1;  // the holodeck reactor as an air source, not a grid `Source`
+const uint8_t AIR_SOURCE_COUNT = SRC_COUNT + 2; // the valid `airSource` value space: AIR_GRID..AIR_HOLODECK
+
 // ---- compartments and consumables ---------------------------------------------------------------
 
 // Who physically holds a deck (docs/borg-incursion.md). The Borg pressure writes it, the crew's
@@ -222,9 +247,10 @@ struct Deck {
 	bool engaged = false;     // intruders are (or were) here since the last clean sweep
 	// The independent air feed (O2; docs/budget-squaring.md, Finding two): which source holds this
 	// deck's air. AIR_GRID (SRC_COUNT) is the pooled main grid -- SYS_LIFE_SUPPORT, the default.
-	// Otherwise one of the three sources that survive the core holds the deck on its own, so it
-	// keeps its air with the main grid down. `airBy`/`airCrew` are the provenance, as on a system's
-	// allocation: who set the feed, and the officer under a delegation that did.
+	// Otherwise one of the three sources that survive the core, or the holodeck reactor
+	// (AIR_HOLODECK), holds the deck on its own, so it keeps its air with the main grid down.
+	// `airBy`/`airCrew` are the provenance, as on a system's allocation: who set the feed, and the
+	// officer under a delegation that did.
 	uint8_t airSource = AIR_GRID;
 	uint8_t airBy = ALLOC_UNSET;
 	int airCrew = -1;
@@ -1937,6 +1963,11 @@ struct Ship {
 	Alert alert = ALERT_GREEN;
 	System systems[SYS_COUNT];
 	Source sources[SRC_COUNT];
+	// The holodeck reactor (O2's remainder): the fourth independent source, and the incompatible one.
+	// It is a `Source` in shape -- health, online -- but it is deliberately **not** in `sources[]`, so
+	// it never feeds the pooled grid. The air feed reads it when the main grid is down; the grid's own
+	// loops never see it. Its state is saved (version 60).
+	Source holodeckReactor;
 	Deck decks[DECKS];
 	Stores stores;
 	std::vector<CrewMember> crew;
@@ -2985,7 +3016,7 @@ const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
 // queue already derives; a job kind is a single byte in the record and the two new values are only
 // ever written by this build, so a save made before them loads and replays identically and the
 // version is deliberately NOT bumped -- a change that makes a save load differently is a defect.
-const uint16_t SAVE_VERSION = 59;  // 59: the bills -- battle stations and one emergency bill as called state, each with who called it and when, and a per-crew battle and emergency assignment derived at roster build (docs/crew-manifest.md, docs/evidence/the-bills.md). Deliberate cost, named: an older save does not load. 58: the minds the Collective holds -- a bounded list of the crew the drones have begun taking, so a save taken mid-window replays and a recovery ends the transfer (docs/the-record-and-the-log.md, docs/evidence/the-assimilation.md). Deliberate cost, named: an older save does not load. 57: holdings is a fold over the marks, not a stored float (the owner's C2 ruling, "Derived"; docs/morale.md). The per-person `float holdings` is gone from the record and from the save, and the character layer's morale block loses one float per person. Deliberate cost, named: an older save does not load. 56: the independent air feed (O2) -- each deck's air source and who set it, so a deck holds its air on its own source with the main grid down (docs/budget-squaring.md, Finding two); 55: the meeting's place -- each queued brief now knows the room it is held in and the department whose business it is, derived from the meeting's kind and subject (docs/staff-meetings.md); 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
+const uint16_t SAVE_VERSION = 60;  // 60: the holodeck reactor as a per-deck source (O2's remainder) -- the reactor's own health and isolation, off the grid, so a save taken with a deck tied to it, and the cross-tie's cost, replay identically (docs/budget-squaring.md Finding two, docs/evidence/the-holodeck-reactor.md). Deliberate cost, named: an older save does not load. 59: the bills -- battle stations and one emergency bill as called state, each with who called it and when, and a per-crew battle and emergency assignment derived at roster build (docs/crew-manifest.md, docs/evidence/the-bills.md). Deliberate cost, named: an older save does not load. 58: the minds the Collective holds -- a bounded list of the crew the drones have begun taking, so a save taken mid-window replays and a recovery ends the transfer (docs/the-record-and-the-log.md, docs/evidence/the-assimilation.md). Deliberate cost, named: an older save does not load. 57: holdings is a fold over the marks, not a stored float (the owner's C2 ruling, "Derived"; docs/morale.md). The per-person `float holdings` is gone from the record and from the save, and the character layer's morale block loses one float per person. Deliberate cost, named: an older save does not load. 56: the independent air feed (O2) -- each deck's air source and who set it, so a deck holds its air on its own source with the main grid down (docs/budget-squaring.md, Finding two); 55: the meeting's place -- each queued brief now knows the room it is held in and the department whose business it is, derived from the meeting's kind and subject (docs/staff-meetings.md); 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

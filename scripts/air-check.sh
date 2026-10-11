@@ -2,8 +2,10 @@
 # The independent air feed in the engine (O2, docs/budget-squaring.md Finding two): the three
 # sources that survive the core as separate state -- one isolated, one failed, one carrying -- a deck
 # holding its air on its own source with the grid down, the number before and after the crew act, and
-# the shortfall when a source is over-committed. The model half is proved without the game in
-# tests/ship (TestTheAir).
+# the shortfall when a source is over-committed. It also runs the holodeck reactor (O2's remainder):
+# the fourth source, off the grid, refused while the grid is up, holding a deck with it down, a
+# shortfall when over-committed, and the cost when the grid returns while a deck is still tied to it.
+# The model half is proved without the game in tests/ship (TestTheAir).
 #
 #   scripts/air-check.sh
 #
@@ -44,5 +46,14 @@ grep -q '^SHIP: air test: batteries asked for 2 decks, hold 1; committed 120 EPS
   || fail "the shortfall was not reported as a number when the source was over-committed"
 grep -q 'air: 2 deck(s) on their own source' "$OUT/air.txt" \
   || fail "the console did not show the decks on their own source"
+grep -q '^SHIP: air test: holodeck reactor: grid fresh 1800 EPS, tie with the grid up refused, tie with it down allowed' "$HOME_DIR/air.out" \
+  || fail "the holodeck reactor joined the grid, or a tie with the grid up was not refused"
+grep -q '^SHIP: air test: deck 9 feed holodeck reactor support 1.00; deck 8 support 0.00' "$HOME_DIR/air.out" \
+  || fail "a deck did not hold its air on the holodeck reactor with the grid down"
+grep -q '^SHIP: air test: holodeck asked for 2 decks, holds 1; short 60 EPS, nothing shed' "$HOME_DIR/air.out" \
+  || fail "the holodeck reactor's over-commitment was not a shortfall number"
+grep -qE '^SHIP: air test: the grid returned: reactor health 0%, deck 9 support 0.00, short [0-9]+ EPS' "$HOME_DIR/air.out" \
+  || fail "the return of the grid while a deck was tied did not spend the reactor (the incompatibility's cost)"
 echo "PASS  a deck holds its air on its own source; the three sources are separate; the shortfall is a number"
+echo "      and the holodeck reactor is the fourth: off the grid, refused live, spent by the cross-tie"
 echo "      report: $OUT/air.txt"
