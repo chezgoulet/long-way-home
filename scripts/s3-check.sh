@@ -49,7 +49,7 @@ engine() {
 }
 
 engine tour    +set g_shipTest 5 +map voyager
-rm -f "$GAME_DIR/screenshots/lwh_turbolift.tga"
+rm -f "$GAME_DIR/screenshots/lwh_turbolift.tga" "$GAME_DIR/screenshots/lwh_turbolift_closed.tga"
 engine menu    +set g_shipTest 12 +map voyager
 engine measure +set g_crew 0 +set g_crewRun 20 +set g_crewQuit 1 +map voyager
 
@@ -64,6 +64,14 @@ grep -h '^LWH: turbolift deck' "$HOME_DIR/s3-menu.out" | sed 's/^LWH: /    /' ||
 grep -q '^LWH: turbolift deck list ext_data/sp_turbolift.dat: 15 decks, highest 15' "$HOME_DIR/s3-menu.out" \
   || fail "the menu's deck list is not the merged ship's fifteen (see $HOME_DIR/s3-menu.out)"
 [ -f "$GAME_DIR/screenshots/lwh_turbolift.tga" ] || fail "the menu did not open (no screenshot)"
+[ -f "$GAME_DIR/screenshots/lwh_turbolift_closed.tga" ] || fail "no before frame for the menu assertion"
+# The picture, not the path: the frame must differ from a frame taken at the same vantage before
+# the change, in the region the claim lives in. (tools/frames/frame.py; its limits in its header:
+# a difference proves the region *changed*, not that it changed into the thing meant -- the owner
+# judges that. A frame that does not differ is the defect an existence check cannot see.)
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_turbolift_closed.tga" "$GAME_DIR/screenshots/lwh_turbolift.tga" \
+  || fail "the turbolift frame is unchanged from the world: the menu did not open on screen"
 echo "PASS  the retail turbolift menu reads our fifteen-deck list, and opens on the merged ship"
 echo "      screenshot: $GAME_DIR/screenshots/lwh_turbolift.tga"
 

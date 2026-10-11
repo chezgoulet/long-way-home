@@ -36,5 +36,10 @@ if grep -qiE "couldn't find model|model .* not found|RegisterModel.*fail" "$OUT"
   fail "a model the body names could not be loaded"
 fi
 [ -f "$SHOT" ] || fail "no screenshot of the session"
+# The picture, not the path: the frame must carry a lit, structured picture -- a black frame or a
+# flat fill is the defect an existence check cannot see. (tools/frames/frame.py, its limits in its
+# header: this proves the picture is legible, not that it is the right room. The owner judges that.)
+python3 "$ROOT/tools/frames/frame.py" floor --min-median 0 --min-p90 80 --min-spread 40 --require "$SHOT" \
+  || fail "the body frame is dark or uniform: the picture does not read as a session"
 echo "PASS  the player's character is the body walked in: the head is the character's, the uniform the department's"
 echo "      screenshot: $SHOT"

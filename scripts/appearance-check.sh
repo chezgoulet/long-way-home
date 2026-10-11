@@ -11,6 +11,11 @@
 #      judgement and only the picture answers it.
 #
 # Needs the built modules and (for half 2) the game data and xvfb-run. Writes under build/.
+#
+# With no game data, half 2 cannot run and the check exits 3 (SKIPPED) -- not 0. A skipped half must
+# not read as a pass to anything that is not a human reading the log (the whole-project review 2.4).
+# 3, not 1, so a caller can tell "could not run" from "ran and failed"; both are non-zero and
+# neither is a pass.
 
 set -euo pipefail
 
@@ -42,9 +47,10 @@ grep -q 'NAMED  type' "$WORK/appearance.txt" || fail "named crew were not shown 
 
 # ---- 2. the picture ---------------------------------------------------------------------------
 if [ ! -d "$ROOT/build/baseEF" ]; then
-  echo "PASS  (half 1) the derivation is enumerated, canon-free and deterministic;"
-  echo "      half 2 skipped: no game data at build/baseEF"
-  exit 0
+  echo "SKIP  (half 1 only) the derivation is enumerated, canon-free and deterministic;"
+  echo "      half 2 (the rendered lineup) cannot run: no game data at build/baseEF"
+  echo "      exit 3 -- a skipped half must not read as a pass. Full suite green requires game data"
+  exit 3
 fi
 command -v xvfb-run >/dev/null 2>&1 || fail "xvfb-run not found"
 
@@ -72,5 +78,10 @@ if grep -qE 'appearance lineup: Crewman .* walks as head (janeway|chakotay|tuvok
   fail "a canon face appeared on a generated crew member"
 fi
 [ -f "$SHOT" ] || fail "no screenshot of the lineup"
+# The picture, not the path: the frame must carry a lit, structured picture -- a black frame or a
+# flat fill is the defect an existence check cannot see. (tools/frames/frame.py, its limits in its
+# header: this proves the picture is legible, not that it is the right room. The owner judges that.)
+python3 "$ROOT/tools/frames/frame.py" floor --min-median 0 --min-p90 80 --min-spread 40 --require "$SHOT" \
+  || fail "the lineup frame is dark or uniform: the picture does not read as a row of people"
 echo "PASS  the face is derived from the record (never stored), no canon face is generated, and"
 echo "      the rank was photographed: $SHOT"

@@ -44,5 +44,11 @@ grep -q 'in solid' "$HOME_DIR/deck06.out" && fail "a waypoint is in solid on dec
 [ -f "$SHOT" ] || fail "no screenshot of the deck 6 corridor"
 [ -f "$SHOT_HOLO" ] || fail "no screenshot from the deck 6 holodeck end"
 [ -f "$SHOT_ARM" ] || fail "no screenshot from the deck 6 armory"
+# The picture, not the path: the frame must carry a lit, structured picture -- a black frame or a
+# flat fill is the defect an existence check cannot see. (tools/frames/frame.py, its limits in its
+# header: this proves the picture is legible, not that it is the right room. The owner judges that.)
+python3 "$ROOT/tools/frames/frame.py" floor --min-median 0 --min-p90 80 --min-spread 40 --require \
+  "$SHOT" "$SHOT_HOLO" "$SHOT_ARM" \
+  || fail "a deck 6 frame is dark or uniform: the composition does not read as three places"
 echo "PASS  the deck 6 composition loads, is reachable on foot, and is photographed for the walkthrough"
 echo "      screenshots: $SHOT, $SHOT_HOLO, $SHOT_ARM"

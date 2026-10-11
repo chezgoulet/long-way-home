@@ -41,5 +41,10 @@ grep -q '^SHIP: deck 7 room: at the core: standing at ' "$HOME_DIR/deck07.out" |
 grep -q 'in solid' "$HOME_DIR/deck07.out" && fail "a waypoint is in solid on deck 7"
 [ -f "$SHOT" ] || fail "no screenshot of the deck 7 re-dress"
 [ -f "$SHOT_CORE" ] || fail "no screenshot from the deck 7 core column"
+# The picture, not the path: the frame must carry a lit, structured picture -- a black frame or a
+# flat fill is the defect an existence check cannot see. (tools/frames/frame.py, its limits in its
+# header: this proves the picture is legible, not that it is the right room. The owner judges that.)
+python3 "$ROOT/tools/frames/frame.py" floor --min-median 0 --min-p90 80 --min-spread 40 --require "$SHOT" "$SHOT_CORE" \
+  || fail "a deck 7 frame is dark or uniform: the re-dress does not read as a deck"
 echo "PASS  the deck 7 re-dress loads, is reachable on foot, and is photographed for the walkthrough"
 echo "      screenshots: $SHOT, $SHOT_CORE"

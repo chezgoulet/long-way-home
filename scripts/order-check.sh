@@ -45,7 +45,8 @@ command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; 
 fail() { echo "FAIL  $1"; exit 1; }
 
 mkdir -p "$OUT" "$GAME_DIR/screenshots"
-rm -f "${OUT:?}/orders.txt" "${OUT:?}/orders-overlay.txt" "${SHOT_GIVE:?}" "${SHOT_ANSWER:?}"
+rm -f "${OUT:?}/orders.txt" "${OUT:?}/orders-overlay.txt" "${SHOT_GIVE:?}" "${SHOT_ANSWER:?}" \
+      "${GAME_DIR:?}/screenshots/lwh_order_closed.tga"
 
 find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
 echo
@@ -101,6 +102,14 @@ grep -q '^SHIP: order overlay: given=1, job [0-9]*' "$HOME_DIR/orders-overlay.ou
   || fail "the order was not given from the screen"
 [ -f "$SHOT_GIVE" ] || fail "no screenshot of the order being given"
 [ -f "$SHOT_ANSWER" ] || fail "no screenshot of the recipient's answer"
+[ -f "$GAME_DIR/screenshots/lwh_order_closed.tga" ] || fail "no before frame for the overlay assertion"
+# The picture, not the path: the frame must differ from a frame taken at the same vantage before
+# the change, in the region the claim lives in. (tools/frames/frame.py; its limits in its header:
+# a difference proves the region *changed*, not that it changed into the thing meant -- the owner
+# judges that. A frame that does not differ is the defect an existence check cannot see.)
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_order_closed.tga" "$SHOT_GIVE" \
+  || fail "the order frame is unchanged from the world: the order screen did not open on screen"
 
 echo "PASS  the register and the dispatch agree both ways; the set is derived per recipient and"
 echo "      checked both ways with both failures planted and caught; an order pushes a job; an"

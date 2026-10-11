@@ -22,7 +22,7 @@ SHOT="$GAME_DIR/screenshots/lwh_tactical.tga"
 [ -d "$ROOT/build/baseEF" ] || { echo "no game data at build/baseEF -- run scripts/playtest-host-setup.sh" >&2; exit 1; }
 command -v xvfb-run >/dev/null 2>&1 || { echo "xvfb-run not found" >&2; exit 1; }
 mkdir -p "$GAME_DIR/ship"
-rm -f "${OUT:?}" "${SHOT:?}"
+rm -f "${OUT:?}" "${SHOT:?}" "$GAME_DIR/screenshots/lwh_tactical_closed.tga"
 
 find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
 echo "==> tactical"
@@ -55,13 +55,20 @@ grep -q '^SHIP: clearance test: sensors on, phasers off, condition 0$' "$HOME_DI
   || fail "the ship's state after the clearance test is not what the refusals imply"
 echo "PASS  a security ensign operates Tactical's own systems and nothing else, and does not call the alert"
 [ -f "$SHOT" ] || fail "no screenshot of the console"
+# The picture, not the path: the frame must differ from a frame taken at the same vantage before
+# the change, in the region the claim lives in. (tools/frames/frame.py; its limits in its header:
+# a difference proves the region *changed*, not that it changed into the thing meant -- the owner
+# judges that. A frame that does not differ is the defect an existence check cannot see.)
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_tactical_closed.tga" "$SHOT" \
+  || fail "the Tactical frame is unchanged from the world: the console did not open on screen"
 echo "      screenshot: $SHOT"
 
 # The other panels: the transporter's opens the Operations console, and Sickbay shows the medical
 # state. Both are the panel commands the maps carry, with the ship simulation running.
 OPS_SHOT="$GAME_DIR/screenshots/lwh_ops.tga"
 MED_SHOT="$GAME_DIR/screenshots/lwh_sickbay.tga"
-rm -f "$OPS_SHOT" "$MED_SHOT"
+rm -f "$OPS_SHOT" "$MED_SHOT" "$GAME_DIR/screenshots/lwh_ops_closed.tga" "$GAME_DIR/screenshots/lwh_sickbay_closed.tga"
 find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
 echo "==> panels"
 SDL_AUDIODRIVER=dummy timeout 180 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
@@ -72,6 +79,12 @@ grep -q 'LWH: the transporter panel opens the OPERATIONS console' "$HOME_DIR/s4-
 grep -q 'SHIP: medical state: INJURED ' "$HOME_DIR/s4-panels.out" \
   || fail "the Sickbay console has no medical state"
 [ -f "$OPS_SHOT" ] && [ -f "$MED_SHOT" ] || fail "the panels did not open (no screenshots)"
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_ops_closed.tga" "$OPS_SHOT" \
+  || fail "the Operations frame is unchanged from the world: the console did not open on screen"
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_sickbay_closed.tga" "$MED_SHOT" \
+  || fail "the Sickbay frame is unchanged from the world: the console did not open on screen"
 echo "PASS  the transporter panel opens Operations, and Sickbay shows the ship's medical state"
 echo "      screenshots: $OPS_SHOT, $MED_SHOT"
 
@@ -102,7 +115,7 @@ echo "PASS  the transporter beams and recalls, astrometrics surveys, the Conn la
 # The panels that are not stations: the log terminal, the ready room and the personnel padd open the
 # ship's own screens, from the command a map's interface fires.
 NON_SHOT="$GAME_DIR/screenshots/lwh_nonstation.tga"
-rm -f "$NON_SHOT"
+rm -f "$NON_SHOT" "$GAME_DIR/screenshots/lwh_nonstation_closed.tga"
 find "$GAME_DIR" -maxdepth 1 -name '*.pid' -delete
 echo "==> non-station panels"
 SDL_AUDIODRIVER=dummy timeout 180 xvfb-run -a "$ROOT/scripts/run-engine.sh" --home-dir "$HOME_DIR" \
@@ -117,4 +130,7 @@ grep -q '^LWH: the personnel panel opens the personnel screen' "$HOME_DIR/s4-non
 grep -q '^LWH: the replicator panel opens the OPERATIONS console' "$HOME_DIR/s4-nonstation.out" \
   || fail "the replicator panel did not open the Operations console"
 [ -f "$NON_SHOT" ] || fail "the non-station panel run did not screenshot"
+python3 "$ROOT/tools/frames/frame.py" diff --min-changed 0.05 --require \
+  "$GAME_DIR/screenshots/lwh_nonstation_closed.tga" "$NON_SHOT" \
+  || fail "the non-station frame is unchanged from the world: no ship screen opened on screen"
 echo "PASS  the log terminal, ready room, personnel padd and replicator panels open the ship's own screens"
