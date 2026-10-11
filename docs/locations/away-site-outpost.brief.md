@@ -89,8 +89,9 @@ materials, all present in the game or in the reuse source's census):
   "outside" read.
 - **Chokepoint:** the threshold between the sheltered half and the open apron, between the machinery
   and the console.
-- **Where a person stands:** the console post at `(720 908)` — the place the harness photographs the
-  room from — and the stores at `(924 780)`. Both are `waypoint_navgoal` posts the crew layer reads.
+- **Where a person stands:** the console post at `(720 1036)` — the place the harness photographs the
+  room from — and the stores at `(924 780)`. Both are `waypoint_navgoal` posts the crew layer reads;
+  the console itself stands at `(816 908)`, and the site's marker (`lwh_station_site`) at `(720 908)`.
 
 ## 6. Lighting brief
 
@@ -130,9 +131,10 @@ Machine-checkable, in `scripts/away-check.sh`:
 - it loads in the engine (`CM_LoadMap`, `Munro connected`) and the player stands at the site's own post;
 - `maps/lwh_away_depot.nav` is baked by the engine on first load (deleted before the run);
 - every material already exists in the game (`tools/shipmap/parts_census.py`);
-- the site's post reads from all six vantages, measured (`tools/frames/frame.py floor`, mid band);
+- the site's own two posts each read at their own four facings, measured (`tools/frames/frame.py
+  floor`, mid band); the rig's paces are measured too and the one dark pace is named;
 - the frame that looks out into the debris field **differs** from the frame that looks at the site's
-  own wall at the same vantage (`frame.py diff`), so "outside" is a picture of a world;
+  own wall at the same post (`frame.py diff`), so "outside" is a picture of a world;
 - the crew layer embodies the ship's roster on the site and **every body reaches its place**
   (`g_crew`, the `scripts/s5-check.sh` shape), with none in solid.
 

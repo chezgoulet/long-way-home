@@ -928,13 +928,22 @@ exterior dressing are designed and unbuilt. Built on `feat/the-away-site` (cut f
   `tools/mapgen/check-bsp.py` read the BSP (`OK`, 1/17 lumps empty); `-vis` ran, so the map is sealed ✅
 - **it loads and walks** — `CM_LoadMap(maps/lwh_away_depot.bsp)`, `Munro connected`, the player stands
   at the site's own post, and the engine bakes `maps/lwh_away_depot.nav` on first load ✅
-- **it reads as outside** — the frame that looks out into the debris field differs from the frame that
-  looks at the site's own wall at the same vantage by **71.3 %** of the mid band
-  (`tools/frames/frame.py diff`); the frame was looked at before it was captioned ✅
-- **the light, measured per viewpoint** — the site's own post reads from all six vantages
-  (`frame.py floor`, mid band: median 50–56, p90 81–121, all LEGIBLE); at the arrival, the one vantage
-  that looks straight into the debris field reads dark **because space is black**, and is named rather
-  than dressed over ✅
+- **it reads as outside — partly** — at the console post, the frame that looks out into the debris
+  field differs from the frame that looks at the site's own wall by **61.2 %** of the mid band
+  (`tools/frames/frame.py diff`); the frame was looked at before it was captioned. The site's own
+  structure encloses most facings and a machine block the re-dress's drop rule missed blocks the
+  stores post's outward view, so the site reads as a sheltered outpost with a window onto space rather
+  than an apron standing open on it — the frame that decided it is `lwh_away_depot_console_2.tga`, and
+  the opening is the next pass ✅/partly
+- **the light, measured per viewpoint** — both of the site's own posts read at their own four facings
+  (`frame.py floor`, mid band, 11 of 12 vantages LEGIBLE); the one dark frame is named: the rig's own
+  pace east of the stores post stands 16 units from the unlit face of a machine block on the apron,
+  and the block is the next pass's ✅
+- **the frames are the site's own** — the vantage test (`g_shipTest 96`) takes *where to stand* and
+  *what to call the frames* from its caller (`g_shipVantagePost`, `g_shipVantage`), so the depot's
+  frames are `lwh_away_depot_console_*` / `lwh_away_depot_stores_*` from its own two posts, and the
+  dark room's own command still yields `lwh_darkroom_security_*` unchanged
+  (`docs/evidence/the-away-vantages.md`; falsified by planting a post the map does not carry) ✅
 - **reachability, by the project's own instruments** — the crew layer embodies the ship's roster on
   the site (`g_crew`, the `scripts/s5-check.sh` shape): **13 embodied, 13 reached their place, 0 gave
   up, none in solid** ✅
@@ -1285,8 +1294,10 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   **One of the six archetypes is built** — the **space station / outpost**, map `lwh_away_depot`,
   re-dressed from the design's own source `ctf_space`, with the source's lit debris sky doing the
   exterior dressing (see *The away site* above; `docs/evidence/the-away-site.md`,
-  `scripts/away-check.sh`). **What remains:** the other five archetypes (derelict interior first), the
-  wider sky pass, and the away-mission loop, which is scenario content.
+  `docs/evidence/the-away-vantages.md`, `scripts/away-check.sh`). **What remains:** opening the site
+  onto the exterior (its structure encloses most of the posts' facings, and a machine block the
+  re-dress's drop rule missed blocks the stores post's outward view), the other five archetypes
+  (derelict interior first), the wider sky pass, and the away-mission loop, which is scenario content.
 - **O12 — the phenomenon's two canon story models** (`docs/exploration-and-science.md`).
 - **O13 — the Borg security squad embodied as bodies moving deck by deck** (`docs/borg-incursion.md`,
   *Still to come*).

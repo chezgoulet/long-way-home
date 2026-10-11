@@ -68,6 +68,12 @@ lwh_darkroom_security_5.tga                    mean  88.8 median  89.0 p90 141.0
 all 6 frame(s) legible
 ```
 
+**Note (2026-10-11, the vantages pass):** the rig is general now — the post it stands at and the stem
+it names its frames come from the caller (`g_shipVantagePost`, `g_shipVantage`), so its log prefix is
+`SHIP: vantage:` and the lines above are historical. Its own command above sets neither cvar, so its
+anchor and its frame names are unchanged; re-run and quoted in
+`docs/evidence/the-away-vantages.md`, Task B.
+
 **This is the diagnosis, said with the frames: the room is lit from another vantage, so the defect
 is the spawn, and no light needs adding.** The bake is not the cause and the light is not the cause;
 both were checked and cleared before anything changed. The office's own copied surfaces carry

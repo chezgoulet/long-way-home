@@ -11,6 +11,15 @@ defect: `docs/evidence/the-dark-room.md`.
 
 Nothing here is asserted without the command that produced it. The command is given before its output.
 
+**Corrected 2026-10-11 (the vantages pass, `docs/evidence/the-away-vantages.md`).** The frames this
+pass delivered were shot through the dark-room rig and named `lwh_darkroom_security_*` (the defect
+that pass repaired), so **Tasks C, D and E's frame names, anchors and numbers below are superseded**:
+the site's frames are now taken from its own two posts and named `lwh_away_depot_console_*` /
+`lwh_away_depot_stores_*`. The corrected commands, frames, numbers and the verdict on what reads as
+outside are in `docs/evidence/the-away-vantages.md`; the stale quotes are kept here, marked, as the
+record of what was delivered. **The exterior's verdict is downgraded there from the "outside" this
+pass read: partly, with the frame that decided it named.**
+
 ## What this is, and what it is not
 
 **One walkable away site**: the apron of an abandoned outpost standing in a debris field, re-dressed
@@ -99,6 +108,13 @@ accepts any `"x y z"` in `g_shipTestPos`, which its own header says it added as 
 tool, so no engine or module change was needed to stand a person on a new map. It photographs six
 vantages: four facings at the anchor and a pace each side.
 
+**Superseded by the vantages pass.** The anchor above was not one of the site's posts, and the six
+frames came out named `lwh_darkroom_security_*`. The vantages pass gives the rig the post and the
+frame name from the caller instead (`g_shipVantagePost`, `g_shipVantage`), and this check now stands
+at **the site's own two posts** -- `lwh_post_console` at `(720 1036 208)` and `lwh_post_stores` at
+`(924 780 192)` -- and names the frames for the depot. See
+`docs/evidence/the-away-vantages.md`, Task C.
+
 Navigation bakes on first load (the file was deleted before the run and the engine wrote it again):
 
 ```
@@ -107,6 +123,11 @@ $ ls -la build/away-home/baseEF/maps/
 ```
 
 ## Task D — the light, measured per viewpoint
+
+**Superseded by the vantages pass** (`docs/evidence/the-away-vantages.md`, Task D): the frames below
+were shot through the dark-room anchor and named `lwh_darkroom_security_*`, so their names and their
+anchors were not the site's. They are kept here as the record of what this pass delivered; the
+corrected names, posts and numbers are in the vantages evidence.
 
 The measure is `tools/frames/frame.py floor` (the generalisation of the dark-room legibility measure),
 on the **middle band** (`0.10,0.55` of the height: above it is the console text, below it the weapon
@@ -160,6 +181,16 @@ this one was established before anything was changed: it is the **subject**, whi
 
 ## Task E — the site reads as outside
 
+**Corrected by the vantages pass.** The pair below was the *arrival's* frames (`frames-edge/`), which
+are no longer shot: the arrival is not one of the site's posts, and the dark-room naming is gone. The
+same assertion is now made at **the console post** — the frame that looks out against the frame that
+looks at the site's own wall, at the same post — and it measures **61.2 %**, not 71.3 %. **The site's
+verdict is downgraded there to *partly*: the open half reads as a world, but the structure encloses
+most facings, and a machine block the re-dress's drop rule missed blocks the stores post's outward
+view. The frame that decided it is `lwh_away_depot_console_2.tga`.** See
+`docs/evidence/the-away-vantages.md`, Tasks E and the verdict; the stale quote is kept below as the
+record of what this pass delivered.
+
 A frame from a person's eye height, brought home as a PNG and looked at before it is captioned:
 
 ```
@@ -208,14 +239,17 @@ fails if one does not arrive, so a site with an unreachable pocket fails and nam
 
 ## The check, and the gates
 
-`scripts/away-check.sh` runs the whole chain (re-dress, build, artifact, census, vantages, light,
-outside, nav, crew) and is the regression:
+`scripts/away-check.sh` runs the whole chain (re-dress, build, artifact, census, the site's two
+posts' vantages, light, outside, nav, crew) and is the regression. The PASS lines after the vantages
+pass (`docs/evidence/the-away-vantages.md`):
 
 ```
 $ scripts/away-check.sh
 ...
-PASS  every vantage at the site's post is legible -- the room stands in the light
-PASS  the frame that looks out shows a world: it differs from the site's own wall at the same vantage
+PASS  every material already exists in the game; no new art
+PASS  both of the site's own posts read at their own four facings -- the site stands in its light
+PASS  the only dark vantage is the one named -- the stores post's east-west pace against the deck's own machine block
+PASS  the frame that looks out shows a world: it differs from the site's own wall at the same post
 PASS  the engine baked maps/lwh_away_depot.nav on first load
 PASS  every crew member the ship put on the site walked to its place, and none is in solid
 
@@ -245,7 +279,10 @@ PASS  the 2 unresolved references are exactly the recorded boundary   # exit 0
 3. **The machine blocks that stand on the deck are dropped.** The source's arena is packed with them,
    and a crop that keeps them is a maze rather than a place. The rule is mechanical — a body over 64
    units square, sitting on the deck rather than forming it — and the thin ribs, rails, floor plates
-   and walls stay. This is the largest single change to what was copied.
+   and walls stay. This is the largest single change to what was copied. **The vantages pass found the
+   rule has a hole**: a block whose bottom is *exactly* on the deck floor (`lo[2] > FLOOR + 8` is
+   false) survives, and one 80×80×80 block survives on the open apron and blocks the outward view from
+   the stores post (`docs/evidence/the-away-vantages.md`, Task D). Reported, not fixed here.
 4. **The shell (walls, roof, sky wall, parapet) and the console are new construction from the source's
    own materials** — the same move as deck 12's plant and shell (`docs/evidence/deck12-redress.md`).
 5. **The lighting is added and is ours.** The source's deck is dark by its own design (an arena); a
@@ -264,6 +301,10 @@ PASS  the 2 unresolved references are exactly the recorded boundary   # exit 0
     is a script. Nothing here is a game asset in the repository.
 
 ## What could not be verified here — including the biggest risk
+
+**Corrected by the vantages pass**: the frames this pass's verdict rested on were shot through the
+dark-room anchor and named for the security office, so the "reads as outside" below is a *partly* in
+`docs/evidence/the-away-vantages.md`, with the frame that decided it named.
 
 - **Whether the site reads as *somewhere*, rather than as assembled parts. That is the owner's
   walkthrough, and it is the biggest risk in this pass.** This is a slice of one source butted against

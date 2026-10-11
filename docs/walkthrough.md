@@ -183,8 +183,9 @@ there is to look at, what there is to do, and the question the stop answers.**
   *"the pattern buffer is at 100%, nominal: I would send anyone"* — and a degraded one can mangle, copy
   or merge a traveller (`docs/evidence/condition-sets-the-odds.md`).
 - **Question:** *is the transporter a decision or a button?* The risk statement is the design's answer;
-  whether it lands is yours. The away *site* does not exist, so the team arrives as a chart entry
-  (**G17**).
+  whether it lands is yours. No delivery lands the away team on the site's own map — the site is built
+  (`lwh_away_depot`) but the loop that beams a team onto it is not — so the team still arrives as a
+  chart entry (**G17**).
 
 ### Deck 5 — sickbay (published)
 - **Reach:** turbolift, deck 5.
@@ -231,7 +232,8 @@ there is to look at, what there is to do, and the question the stop answers.**
 - **Do:** the survey board (`U` on Ops) is the tricorder/away-kit decision; the chart is command's.
   Sensors survey the beacons; probes are launched from the launcher (`ship probe <beacon>`).
 - **Question:** *is exploration a mechanic here?* The rules exist (survey, probe, phenomenon,
-  dilithium); the **away site does not**, so a survey is a chart row rather than a place (**G17**).
+  dilithium); **no survey reads a place** — the away site's map is built, but a scan still reads a
+  chart row and no loop lands a team on it — so a survey is a chart row rather than a place (**G17**).
 
 ### Deck 9 — crew quarters (published)
 - **Reach:** turbolift, deck 9.
@@ -887,14 +889,19 @@ evidence: `docs/evidence/the-character-layer.md`.
 
 ### G17 — There is no away site, so the away mission's acceptance run is impossible
 - **Status 2026-10-11 — PARTLY CLOSED: the site is built and walkable; the acceptance run waits on the
-  away-mission loop.** `docs/evidence/the-away-site.md` and `docs/locations/away-site-outpost.brief.md`
+  away-mission loop.** `docs/evidence/the-away-site.md`, `docs/evidence/the-away-vantages.md` and
+  `docs/locations/away-site-outpost.brief.md`
   (`feat/the-away-site`): the **space station / outpost** archetype of `docs/outside-the-ship.md` is
   built as the map `lwh_away_depot`, re-dressed from `ctf_space` (the design's own source for it) by
   `tools/away/dress_away_site.py`. It loads (`CM_LoadMap`, `Munro connected`), bakes its own
-  `lwh_away_depot.nav`, reads as **outside** by measurement (the frame looking into the debris field
-  differs from the frame on the site's own wall by 71.3 % of the mid band), is lit by measurement (its
-  post reads LEGIBLE from all six vantages), and the crew layer's bodies reach every place on it
-  (**13 embodied, 13 arrived, 0 stuck**). `scripts/away-check.sh` is the regression. Left annotated:
+  `lwh_away_depot.nav`, **partly** reads as **outside** by measurement — from the site's own console
+  post, the frame looking into the debris field differs from the frame on the site's own wall by
+  61.2 % of the mid band, but the structure encloses most facings and a machine block the re-dress's
+  rule missed blocks the stores post's outward view (`lwh_away_depot_console_2.tga` is the frame that
+  decided it) — is lit by measurement (both posts read LEGIBLE at their own four facings, 11 of 12
+  vantages), and the crew layer's bodies reach every place on it (**13 embodied, 13 arrived, 0
+  stuck**). Its frames are the site's own, shot from its own two posts and named for the depot; the
+  dark room's frames are unchanged. `scripts/away-check.sh` is the regression. Left annotated:
   the rest of G17 is the loop, which is content.
 - **Missing:** the *acceptance run* itself — "an away mission can be solved by scanning rather than by
   shooting". The tricorder's `Scan` still reads a **chart row**, not a place
