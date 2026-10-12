@@ -298,13 +298,15 @@ worth quoting.
 - **Document:** `docs/character-derivation.md:232-246` — *"This is `EffectiveSkill(c, skill)` … This is what
   decides whether a repair is quick, slow, or dangerous … The failure roll's odds are now wired."*
 - **Code:** `WorkFactors` builds the skill term from **raw** `c.skills[skill]` plus the aptitude trait
-  (`module/ship/ship_core.cpp:5542-5548`) and adds conditions/deficit as separate factors; `EffectiveSkill`
-  (`:795`) is called only from `WorkReading`, `OfferRising`/`RisingOdds` and the console. The odds are wired —
-  through a parallel construction, not through `EffectiveSkill`.
+  (`module/ship/ship_core.cpp:5661, 5671-5678`) and adds each condition as its own named factor
+  (`:5682-5690`); `EffectiveSkill` (`:795`, the drag at `:803-808`) is called only from `WorkReading`,
+  `OfferRising`/`RisingOdds`, the rising transcript and the console. The odds are wired — through a parallel
+  construction, not through `EffectiveSkill`.
 - **Which side is wrong: fork.** Both encode the same design; the document names a function the roll does not
   call, so the two can drift without either failing a test.
 - **Disposition 2026-10-11:** **handed to the code list** — a fork: the failure roll uses raw skills via `WorkFactors`, not `EffectiveSkill`; the document names a function the roll does not call.
 - **Disposition 2026-10-12 (code pass):** **handed back** — a fork. Both encode the same design; making the roll call `EffectiveSkill` is a change to the odds the work system produces, and the document could instead name `WorkFactors`. Which side moves is the owner's rule; the code is left alone.
+- **Disposition 2026-10-12 (measured):** **measured, and handed back still open.** A condition **does** reach the roll today, through `WorkFactors`: the same person at the same task draws 4,724 of 20,000 anomalies clean and 7,347 carrying a sharp debuff (+0.1312 odds), and `COND_NONE` and a nominal system — the counter-cases — move nothing (`TestConditionReachesTheFailureRoll`; `test_ship_core --work`). **The price of each fork, in the same units:** making the roll call `EffectiveSkill` (condition subsumed) cuts the condition's weight in the odds multiplier from **+0.50 to +0.0600 (8.3×)**, moves the conditioned odds from 0.3673 to 0.2604, and moves **1 test (`TestConditionMovesTheOdds`, 5 checks)**; correcting the document to name `WorkFactors` moves **0 tests and 0 lines of code**, changing two sentences (`docs/character-derivation.md:234-235`, `docs/character-attributes.md:64-65`). The roll and the document are unchanged; the fork is the owner's. Evidence: `docs/evidence/the-failure-roll-measured.md`.
 
 ### The code pass, 2026-10-12 — what this pass did with the twelve it was handed
 
@@ -535,7 +537,7 @@ Two things that table will not say by itself, and should:
 | 40 | condition sources/clears table (`character-derivation.md:137-142`) | implemented | `module/ship/ship_core.cpp:1343-1368` | source strings match |
 | 41 | `SpeciesRecord` words + prone ids + restNeedHours/needsFood/sleeps (`character-derivation.md:150-163`) | implemented | `module/ship/ship_core.h:359-368` | `sleeps` declared, never read |
 | 42 | morale = 0.40·heart + 0.35·outlook + 0.25·holdings; bands; reason names the component (`character-derivation.md:197-226`) | implemented | `module/ship/ship_core.cpp:768-793`; `TestMoraleIsReadFromThree` | weights exact |
-| 43 | `EffectiveSkill` "is what decides whether a repair is quick, slow, or dangerous" (`character-derivation.md:232-246`) | contradicted | `WorkFactors:5542-5548` uses raw skills | **C-23** |
+| 43 | `EffectiveSkill` "is what decides whether a repair is quick, slow, or dangerous" (`character-derivation.md:232-246`) | contradicted | `WorkFactors:5671-5678` uses raw skills | **C-23** — measured 2026-10-12 (`docs/evidence/the-failure-roll-measured.md`): a condition reaches the roll (+0.1312 odds clean against sharp); fork A cuts its weight 8.3× and moves 1 test, fork B moves 0 and changes two sentences; fork still open |
 | 44 | manner is a read; precedence `hurt > breathless > … > band`, not stored (`character-derivation.md:264-291`) | implemented | `MannerFor:990`, `EmitManner:1052`; `scripts/manner-check.sh` | |
 | 45 | no morale meter; three things derived, never stored (`morale.md:8-20`) | implemented | `Morale:768` | holdings folded; deficit/outlook stored state |
 | 46 | department/watch morale aggregates exist and are derived (`morale.md:19-20`) | absent | `Morale` is per-person only | |
