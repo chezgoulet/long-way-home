@@ -212,3 +212,16 @@ this document carries the order):
    and the orders chain actually bind, which is the difference between a rule and a decoration.
 4. **The failure roll measured before it is ruled** — whether a condition reaches the roll today comes
    back as a number, then the fork is decided on the number rather than on the document.
+
+**Ruled 2026-10-12 (second batch), and what each queues:**
+
+5. **The sector honours its stated split** (C-4): the roll moves to `% 10`, and the four kinds the ledger
+   omits are added to it. Queued with the roll's own tests.
+6. **Damage control is three-tiered** (C-12, the owner's own design): a standing party, a severity that
+   scales its size, and large jobs that draw post-holders off their stations. Queued after the departments
+   lane, because *which* stations it draws from depends on how many departments there are.
+7. **Canon's twelve-shot adaptation, with the ramp inside it** (C-15). Queued: it changes the odds the
+   counter-play kit pushes against, so it lands with its own check.
+8. **Maintenance becomes a seventh job kind** (3.23). Queued small.
+9. **The played-character ceiling corrected** (8.52): 64 multiplayer, 1 single-player. Queued as a document
+   correction, no code.
