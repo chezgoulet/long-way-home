@@ -91,9 +91,16 @@ recorded is worth more than a paragraph of backstory**, because the player was t
 - The **dynamic** record -- morale, fatigue, injuries, assimilation, current duty, emergent bonds, memory
   flags -- lives in the ship blob.
 
-This matters because of a number we already measured. G3's save cost is **25 bytes per crew member** against
-a budget of 256, and that was for posts and schedules. A full psychological record is several hundred bytes;
-141 of them would be roughly seventy kilobytes of save on its own. So the budget needs restating honestly --
+This matters because of the numbers we have measured — and they measure three different things, which is how
+one of them came to be quoted as something it is not. The **crew blob** (the members, the posts and the
+schedule cursor) is fixed-width: **20 bytes per crew member plus a 16-byte header**, little-endian and
+independent of the host's layout, against **a budget of 256** bytes per NPC — the format and the budget are
+stated in `docs/g3-reactive-crew.md`, which owns them. The **layer's** own state measures **25 bytes per crew
+member**: the blob's 20 plus about five bytes held elsewhere in the layer
+(`docs/evidence/g3-reactive-crew-measured.md`). And the **save as a whole** grew **53,584 bytes when six crew
+were added** — roughly **9 KB per crew member** — because almost everything that scales with a person is not
+the blob: it is the roster, the queue, the morale, the memory. A full psychological record is several hundred
+bytes on top of that, and 141 of them is tens of kilobytes more. So the budget needs restating honestly --
 and keeping the static half out of the save is how it stays small and how characters remain editable.
 
 ## 6. The fabrication risk, and the check that catches it
