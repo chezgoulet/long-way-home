@@ -111,6 +111,7 @@ scripts/run-scenario.sh            # a scenario run, for the owner's own session
 - **A stale `*.pid` makes the next start hang.** A run that was killed leaves its pid file behind, and the
   launcher waits on a process that is not there. `scripts/run-lwh.sh` clears it; **if a launch ever hangs with
   no output, check for the stale pid before anything else.**
+- **`scripts/build-ship.sh` builds the ship's _map_, not the module — and a check that needs new module code will read a stale one and report _absence_.** The module is `libefgame.so`, built under `../upstream/efgame/build-linux` (outside this repository) with `cmake --build ../upstream/efgame/build-linux`; the map/pk3 is a different artifact whose build script has the more commanding name. A verification run against a stale module does not report a *wrong* answer — the new code's own output lines simply never appear, so a working feature reads as one that does nothing at all. **Assert the artifact, not the tree**: check the symbol is in the built library before believing either verdict. This cost a session twice in one night, on the holodeck reactor's air check, where the feature had been working the whole time.
 - **A new `.cpp` under `module/` is NOT compiled until cmake re-configures.** The module sources are found by a
   configure-time glob, so adding a file silently keeps the old source set — and because **the module links with
   unresolved symbols ignored**, the forgotten file appears only as "undefined symbol" *when the engine loads the
