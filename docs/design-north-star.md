@@ -192,7 +192,14 @@ Design consequences, now the record:
 - **The complement is hull data, not a constant.** Canon: an Intrepid-class ship carries approximately
   150; Voyager left drydock with 153 and was down to roughly 141 after the losses in "Caretaker." The
   complement belongs to the hull class, with Voyager's default set from canon, and `crew_current` is a
-  first-class ship statistic that attrition reduces and recruitment restores.
+  first-class ship statistic that attrition reduces and recruitment restores. **Built 2026-10-12 (the
+  owner's ruling on register row 8.53: "HULL DATA, as the design says").** The code carries the hull's
+  own record (`HullClass HULL_VOYAGER = {"Intrepid", 141}`); a `Ship` holds its `complement`; the one
+  lookup is `Complement(s)`, which the roster, the crowded-ship term, the transporter bound and the save
+  all read; and a start state may name its own (`StartState.complement`, 0 leaving the hull's), the
+  roster rebuilt to it on apply. The shipped **SKELETON** state fields 96, and **CANON** leaves the 141;
+  the save moved to format 62 to carry the number. Demonstration and falsification:
+  `docs/evidence/the-departments-and-the-complement.md`.
 - **The unit is the post, not the character.** A post exists whether or not a person holds it. A player
   who takes a post displaces the NPC holding it; when that player leaves, the NPC resumes — including
   taking back what it was doing. That hand-over is a first-class system requirement, not a fringe case.

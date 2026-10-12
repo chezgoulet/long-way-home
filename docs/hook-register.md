@@ -369,7 +369,7 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `BillHoles` | `const Ship &s, std::string *out` | the holes: posts with one holder, and stations no living crew member can fill | play | — | docs/crew-manifest.md |
 
 ### 4. Readers content can consult  
-*208 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "180 hooks"; **Corrected 2026-10-12:** five shield readers (`ShieldSectionName`, `ShieldSectionByName`, `ShieldsDown`, `ShieldSectionForHit`, `ShieldReadout`) were added, 203 → 208 rows follow.)*
+*212 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "180 hooks"; **Corrected 2026-10-12:** five shield readers (`ShieldSectionName`, `ShieldSectionByName`, `ShieldsDown`, `ShieldSectionForHit`, `ShieldReadout`) were added, 203 → 208 rows follow; **the nine departments and the complement** (`Complement`, `DepartmentName`, `DepartmentByName`, `DepartmentSize`) were added, 208 → 212 rows follow.)*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -581,6 +581,10 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `MeetingRoomAt` | `int i` | the room and deck one table row names | play | — | docs/staff-meetings.md |
 | `MeetingRoomFor` | `uint8_t kind, uint8_t dept` | the room a meeting of `kind` with subject `dept` is held in | play | — | docs/staff-meetings.md |
 | `MeetingSubjectDepartment` | `const Ship &s, uint8_t kind` | the department whose business a meeting of this kind is | play | — | docs/staff-meetings.md |
+| `Complement` | `const Ship &s` | The ship's complement: hull data a start state may vary, the one lookup the roster, the departments and a declaration all read | play | — | docs/design-north-star.md |
+| `DepartmentName` | `Department d` | the roster's own word for one of the nine departments | play | — | docs/crew-manifest.md |
+| `DepartmentByName` | `const char *word` | the department a word names, matched on the leading part; -1 when it names none -- the one lookup a scenario's staff field uses | nothing | post | docs/crew-manifest.md |
+| `DepartmentSize` | `Department d, int complement` | the department's size for a hull's complement: the design's split scaled to it, so the nine add to the whole | play | — | docs/crew-manifest.md |
 
 ## The counts (Task B)
 
@@ -706,6 +710,17 @@ and `ShieldReadout` (the read-out the console draws). By section — entry point
 **18**; **total 485** — and `scripts/hooks-check.sh` independently fixes the row count at **485**
 against `ship_core.h`. Evidence: `docs/evidence/the-shield-sections.md`.
 
+**Re-derived 2026-10-12, the nine departments and the complement as hull data (3.3, 8.53).** Four
+hooks are added by the owner's rulings that the departments are the roster's nine and the complement is
+hull data a start state may vary: `Complement` (the one lookup every reader uses; reached in play by
+the roster, the crowding term, the transporter bound and the save), `DepartmentName` (the roster's own
+word, reached in play by the computer read-out and the tests), `DepartmentSize` (the nine sized to a
+hull's complement; reached in play by the roster build) and `DepartmentByName` (the lookup a scenario's
+staff field uses; no play caller yet). By section — entry points **75**, situations **88**, outcomes
+**56**, orders (3b) **20**, the bills (3c) **20**, readers **212**, the configurator **18**; **total
+489** — and `scripts/hooks-check.sh` independently fixes the row count at **489** against
+`ship_core.h`. Evidence: `docs/evidence/the-departments-and-the-complement.md`.
+
 ### 5. The configurator — the player chooses the start state
 
 *docs/the-entry-point.md, part three; docs/start-states.md.* The entry point is a configurator with
@@ -791,6 +806,7 @@ has and the game does not yet offer.
 - `AssumeCommand` — reached only by the tests (entry)
 - `LogsPurged` — reached only by the tests (reader)
 - `Describe` — reached only by the tests (reader)
+- `DepartmentByName` — reached only by the tests (reader); the lookup a scenario's `staff` field will use
 
 ## The post-not-name law (Task B's last acceptance)
 

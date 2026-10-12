@@ -57,9 +57,11 @@ grep -q '^  unrouted: hits 2, so the next such shot strikes the starboard arc$' 
 # The gate reads the whole set.
 grep -q '^  all six arcs down: ShieldsDown 1' "$WORK/shields.txt" \
   || fail "the whole-set gate did not read every arc down"
-# The save: the new format loads, the old one is refused.
-grep -qE '^  save: format 61, the blob is [0-9]+ bytes and loads 1; the same blob at version 60 loads 0$' "$WORK/shields.txt" \
-  || fail "the save format did not move to 61, or an older save was not refused"
+# The save: the new format loads, and a save from before the set is refused. The current version is
+# pinned only as "a number" -- the header owns it, and it has moved again since this lane (62) -- but
+# the version-60 refusal is the tooth: a save before the six arcs must not load.
+grep -qE '^  save: format [0-9]+, the blob is [0-9]+ bytes and loads 1; the same blob at version 60 loads 0$' "$WORK/shields.txt" \
+  || fail "the save format did not move, or an older save was not refused"
 
 # The scalar is gone: nothing in the module or the tests reads it.
 if grep -rn 'shieldStrength' module/ tests/; then

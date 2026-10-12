@@ -53,6 +53,10 @@ echo "==> shields: canon's six arcs, and damage routes to one (C-14)"
 "$ROOT/scripts/shields-check.sh"
 
 echo
+echo "==> departments: the nine, and the complement as hull data (3.3, 8.53)"
+"$ROOT/scripts/departments-check.sh"
+
+echo
 echo "==> manner: the crew's state is audible and visible, and degrades without audio (G14)"
 "$ROOT/scripts/manner-check.sh"
 

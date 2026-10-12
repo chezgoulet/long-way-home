@@ -49,26 +49,40 @@ The chief petty officer rung matters more than it looks: it is where the ship's 
 is the natural source of the drama where the person who knows the job is outranked by the person who ordered
 it. Canon does this constantly.
 
-## Departments, and a size that adds to 141
+## Departments, and a size that adds to the complement
 
-Canon gives the complement and gives no breakdown, so **these numbers are ours** -- a proposal, to be tuned
-against the ship's actual needs.
+Canon gives the complement and gives no breakdown, so **these numbers are ours** -- a proposal, tuned
+against the ship's actual needs. They are the nine the code speaks (`DEPT_*` in
+`module/ship/ship_core.h`; `DepartmentName` is the one lookup), and they add to the hull's complement
+(`Complement(s)`, hull data -- see `docs/design-north-star.md`).
+
+**Five numbers moved from the first proposal, and the reason is the code's watch model** (recorded
+here, as the ruling requires): the code staffs every modelled system on **every one of the three
+watches** from its own department, and the named command crew all stand **alpha**. A department that
+owns systems therefore needs roughly three times its per-watch posts plus a party, and the named crew's
+alpha concentration has to be offset. Engineering and Security were short (Engineering 36 leaves two
+hands spare a watch, and the damage-control party needs four; Security 18 leaves three spare on alpha
+and exactly five on beta, and the guard posts four), and they were funded from the departments that own
+few or no stations -- Command, Operations and Science. **Engineering 36→42, Security and tactical
+18→25; Command 9→5, Operations 16→13, Science 15→9.** The nine still add to 141.
 
 | department | crew | holds |
 |---|---|---|
-| Command | 9 | CO, XO; the watch-officer pool; the chief of the boat; two admin |
-| Operations | 16 | ops, conn, comms, transporters, sensor watch, replicator systems |
-| Engineering | 36 | warp core, EPS, hull and structure, environmental, damage control, fabricator, computer |
-| Security and tactical | 18 | armed response, the brig, the armoury, tactical systems |
-| Science | 15 | astrometrics, stellar cartography, labs, sensors, data and archives |
+| Command | 5 | CO, XO; the watch-officer pool; the chief of the boat |
+| Operations | 13 | ops, conn, comms, transporters, sensor watch, replicator systems |
+| Engineering | 42 | warp core, EPS, hull and structure, environmental, damage control, fabricator, computer |
+| Security and tactical | 25 | armed response, the brig, the armoury, tactical systems |
+| Science | 9 | astrometrics, stellar cartography, labs, sensors, data and archives |
 | Medical | 12 | sickbay, medics, the surgical bay, the Doctor |
 | Flight and shuttlebay | 10 | pilots, shuttle maintenance, flight-deck crew |
 | Support and logistics | 19 | cargo and quartermaster, galley and mess, airponics, quarters, recreation |
 | Civilians and attached | 6 | morale officer, botanical aide, consultant, guest berths |
 
-Engineering is the largest department because it is the one the ship cannot survive losing, and Support is
-second because a crew that is not fed, rested and clean stops working -- which is the morale model in
-`docs/morale.md` with a payroll attached.
+Engineering is the largest department because it is the one the ship cannot survive losing. Support is
+the largest department that **owns no modelled station**, and it is deliberately big because a crew that
+is not fed, rested and clean stops working — the morale model in `docs/morale.md` with a payroll
+attached. Security and tactical is sized for its five posts a watch and the four-strong guard, not for
+its show-business flavour; the Hazard Team sits inside it and is why it reads as large in canon.
 
 ## Watch, and what a "full shift" is
 
@@ -121,6 +135,10 @@ transporter chief aboard* -- canon says exactly that, because the first transpor
 crossing.
 
 ## How many are on duty at any moment
+
+*(A design projection, not a measurement. The department sizes above were moved to fit the code's watch
+model — see the paragraph under the table — so the split that follows is indicative rather than exact;
+the register carries it as `unverified`, which is what a projection is.)*
 
 The tempting answer -- "a third, because there are three watches" -- is wrong, and the reason is the split
 between watch-standers and day specialists. Of 141 crew, roughly **80 stand watches** in rotation (about 27 per

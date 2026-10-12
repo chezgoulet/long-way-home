@@ -211,9 +211,12 @@ cast is good enough to ship as it stands, and better voices are a later pass rat
 ## What the first pass builds
 
 - **The configurator**, with those four dimensions, on the menu that G1 puts there.
-- **Three proving cases, and they are chosen because each exercises a different path**: the **canon default**
-  (nobody dies, the chain is intact), **the captain** (the chair is vacant and the derivation fills it), and
-  **an all-fictitious crew** (none of the show characters appear, and nothing in the run depends on their names).
+- **Four proving cases, and they are chosen because each exercises a different path**: the **canon
+  default** (nobody dies, the chain is intact, and the complement is the hull's own 141), **the captain**
+  (the chair is vacant and the derivation fills it), **an all-fictitious crew** (none of the show
+  characters appear, and nothing in the run depends on their names), and **an under-crewed hull** (the
+  complement is named as 96 rather than left to the hull, so the roster is built short and every
+  department is thin -- the proof that the complement is data a state can vary, `docs/design-north-star.md`).
 - **The derivation**, unchanged: casualties, then vacancies **by the rules that run in play**.
 - **The `log_seed`**, opened on the default and describing whatever the player configured — because that entry is
   how the game *tells* the player what they chose.

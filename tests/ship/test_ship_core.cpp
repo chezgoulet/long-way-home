@@ -48,8 +48,8 @@ static void TestNominalShip()
 {
 	g_test = "a new ship is whole and consistent";
 	const Ship s = NewShip();
-	CHECK(static_cast<int>(s.crew.size()) == COMPLEMENT);
-	CHECK(s.CrewFit() == COMPLEMENT);
+	CHECK(static_cast<int>(s.crew.size()) == Complement(s));
+	CHECK(s.CrewFit() == Complement(s));
 	CHECK(s.Watch() == 0 && s.SecondOfDay() == 8 * 3600);
 	CHECK(s.PowerAllocated() == s.PowerAvailable());
 	// Condition green: everything but weapons and shields runs at full output.
@@ -442,6 +442,73 @@ static void TestRoster()
 	CHECK(differs);
 }
 
+// The nine departments (docs/crew-manifest.md; the owner's ruling 2026-10-12, "NINE, as designed"):
+// the roster's own list, and their sizes adding to the complement.
+static void TestNineDepartments()
+{
+	g_test = "the nine departments, and their sizes adding to the complement";
+	CHECK(DEPT_COUNT == 9);
+	// The roster's own names, in the manifest's order (docs/crew-manifest.md).
+	static const char *const NINE[DEPT_COUNT] = {
+		"Command", "Operations", "Engineering", "Security and tactical", "Science",
+		"Medical", "Flight and shuttlebay", "Support and logistics", "Civilians and attached",
+	};
+	for (int d = 0; d < DEPT_COUNT; ++d)
+		CHECK(std::string(DepartmentName(static_cast<Department>(d))) == NINE[d]);
+	CHECK(DepartmentByName("engineering") == DEPT_ENGINEERING);
+	CHECK(DepartmentByName("operations") == DEPT_OPERATIONS);
+	CHECK(DepartmentByName("security") == DEPT_SECURITY);
+	CHECK(DepartmentByName("science") == DEPT_SCIENCE);
+	CHECK(DepartmentByName("medical") == DEPT_MEDICAL);
+	CHECK(DepartmentByName("flight") == DEPT_FLIGHT);
+	CHECK(DepartmentByName("support") == DEPT_SUPPORT);
+	CHECK(DepartmentByName("civilians") == DEPT_CIVILIANS);
+	CHECK(DepartmentByName("no such department") == -1);
+	const Ship s = NewShip();
+	int sum = 0, members = 0;
+	for (int d = 0; d < DEPT_COUNT; ++d) {
+		sum += DepartmentSize(static_cast<Department>(d), Complement(s));
+		for (const CrewMember &c : s.crew) if (c.dept == d) ++members;
+	}
+	CHECK(sum == Complement(s));      // the parts add to the whole
+	CHECK(members == Complement(s));  // and every berth is filled by its own department
+}
+
+// The complement is hull data a start state may vary (docs/design-north-star.md; the owner's ruling
+// 2026-10-12, "HULL DATA, as the design says").
+static void TestComplementIsHullData()
+{
+	g_test = "the complement is hull data, and a start state may vary it";
+	CHECK(COMPLEMENT_DEFAULT == 141);
+	CHECK(Complement(NewShip()) == HULL_VOYAGER.complement); // the hull's own default
+	// The canon state names no complement: it leaves the hull's default.
+	const StartState &canon = StartStateAt(0);
+	Ship a = NewShip();
+	ApplyStartState(a, canon);
+	CHECK(canon.complement == 0 && Complement(a) == HULL_VOYAGER.complement);
+	// A shipped state that names one fields a different complement, and both load.
+	int other = -1;
+	for (int i = 0; i < StartStateCount(); ++i) if (StartStateAt(i).complement > 0) other = i;
+	CHECK(other >= 0);
+	const StartState &named = StartStateAt(other);
+	Ship b = NewShip();
+	ApplyStartState(b, named);
+	CHECK(Complement(b) == named.complement);
+	CHECK(Complement(b) != Complement(a));
+	CHECK(static_cast<int>(b.crew.size()) == Complement(b));
+	int sum = 0;
+	for (int d = 0; d < DEPT_COUNT; ++d) sum += DepartmentSize(static_cast<Department>(d), Complement(b));
+	CHECK(sum == Complement(b));
+	for (Ship *ship : { &a, &b }) {
+		const std::vector<uint8_t> blob = Pack(*ship);
+		Ship back;
+		CHECK(Unpack(blob.data(), blob.size(), back));
+		CHECK(Complement(back) == Complement(*ship));       // the hull data survives the save
+		CHECK(back.crew.size() == ship->crew.size());       // and the roster it built
+		CHECK(Pack(back) == blob);                          // byte for byte
+	}
+}
+
 static void TestSchedule()
 {
 	g_test = "the daily routine";
@@ -509,7 +576,7 @@ static void TestRedAlertAndCasualties()
 	Tick(s, 1.0f);
 	CHECK(s.systems[SYS_WARP_DRIVE].manned == 0);
 	CHECK(s.systems[SYS_WARP_DRIVE].output == 0.5f); // automation holds it at half
-	CHECK(s.CrewFit() < COMPLEMENT);
+	CHECK(s.CrewFit() < Complement(s));
 }
 
 static void TestDamageAndRepair()
@@ -557,7 +624,7 @@ static void TestMoraleAndFatigue()
 
 	// The drivers move: a watch raises fatigue, and green lifts the reading.
 	Ship t = NewShip();
-	t.crew[0].watch = 0; t.crew[0].post = SYS_SENSORS; t.crew[0].dept = DEPT_SCIENCES;
+	t.crew[0].watch = 0; t.crew[0].post = SYS_SENSORS; t.crew[0].dept = DEPT_SCIENCE;
 	t.crew[0].fatigue = 0.0f; t.crew[0].deficit = 0.2f; t.crew[0].outlook = 0.2f; RegardTo(t.crew[0], 0.2f);
 	const float before = Morale(t.crew[0]);
 	Tick(t, Hours(t, 8.0f));                       // 0800 to 1600, alpha watch on duty throughout
@@ -645,9 +712,9 @@ static void TestSave()
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[6] = 7; // a different complement
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[61] = 5; // an alert condition that does not exist
+	bad = blob; bad[63] = 5; // an alert condition that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[65] = 0x7f; // a health that is not a fraction
+	bad = blob; bad[67] = 0x7f; // a health that is not a fraction
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[16] = 9; // a play mode that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
@@ -770,7 +837,7 @@ static void TestCasualties()
 	held.decks[0].atmosphere = 0.0f;
 	held.decks[0].hull = 0.0f;
 	for (int i = 0; i < SICKBAY_BEDS; ++i) held.crew[i].status = CREW_INJURED; // the beds are taken
-	CrewMember &last = held.crew[COMPLEMENT - 1];
+	CrewMember &last = held.crew[Complement(held) - 1];
 	last.status = CREW_INJURED;
 	last.quartersDeck = 1;
 	Tick(held, Hours(held, 0.05f)); // three minutes
@@ -1160,7 +1227,7 @@ static void TestWrittenOffList()
 			else ++unknown;
 		}
 		CHECK(saw == 2);
-		CHECK(rumoured == COMPLEMENT - 2);
+		CHECK(rumoured == Complement(w) - 2);
 		CHECK(unknown == 0);
 	}
 }
@@ -1289,6 +1356,17 @@ static void TestBoarding()
 	Ship back;
 	CHECK(Unpack(blob.data(), blob.size(), back));
 	CHECK(Hijacked(back, SYS_SENSORS) && Intruders(back) == Intruders(w));
+	// The whole state round-trips, except the fight's transient counters, which the next tick
+	// recomputes and which depend on the pre-fight boarder count -- a defender wounded out mid-tick is
+	// not re-posted by the reload's zero tick. That path-dependence is pre-existing
+	// (docs/evidence/the-sector-split.md); the saved state is what the save promises, so it is zeroed
+	// on both sides before the comparison rather than pretending the derived field round-trips.
+	for (int d = 0; d < DECKS; ++d) {
+		w.decks[d].defenders = back.decks[d].defenders = 0;
+		w.decks[d].stripping = back.decks[d].stripping = 0;
+		w.decks[d].sealing = back.decks[d].sealing = 0;
+		w.decks[d].firefighting = back.decks[d].firefighting = 0;
+	}
 	CHECK(Describe(back) == Describe(w));
 }
 
@@ -1361,7 +1439,7 @@ static void TestBorg()
 		if (c.status == CREW_ASSIMILATED) ++taken;
 	CHECK(taken >= 1);                         // they take the crew they find
 	CHECK(Intruders(s) >= 2 + taken);          // and each one taken is another drone
-	CHECK(s.CrewFit() < COMPLEMENT - 25);
+	CHECK(s.CrewFit() < Complement(s) - 25);
 
 	Tick(s, Hours(s, 0.5f));
 	CHECK(DeckAssimilated(s, 8));
@@ -1976,7 +2054,7 @@ static void TestCrewJusticeAndBorg()
 	Ship s = NewShip();
 	int scientist = -1;
 	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
-		if (s.crew[i].dept == DEPT_SCIENCES && s.crew[i].rank < 4 && s.crew[i].status == CREW_FIT && s.crew[i].post == SYS_COUNT) { scientist = i; break; }
+		if (s.crew[i].dept == DEPT_SCIENCE && s.crew[i].rank < 4 && s.crew[i].status == CREW_FIT && s.crew[i].post == SYS_COUNT) { scientist = i; break; }
 	CHECK(scientist >= 0);
 	CHECK(!MayOperate(s.crew[scientist], STN_TACTICAL));
 	CHECK(Train(s, scientist, STN_TACTICAL) && Qualified(s.crew[scientist], STN_TACTICAL));
@@ -2943,8 +3021,8 @@ static void TestTransporterAnomaly()
 	CHECK(Unpack(blob2.data(), blob2.size(), back2));
 	CHECK(Pack(back2) == blob2);
 	CHECK(back2.crew.size() == s.crew.size());
-	if (s.crew.size() > static_cast<size_t>(COMPLEMENT))
-		CHECK(back2.crew[COMPLEMENT].name == s.crew[COMPLEMENT].name); // the copy carries its name
+	if (s.crew.size() > static_cast<size_t>(Complement(s)))
+		CHECK(back2.crew[Complement(s)].name == s.crew[Complement(s)].name); // the copy carries its name
 }
 
 // The security squad: a fireteam command sends to retake a deck, advancing a deck at a time
@@ -3825,7 +3903,7 @@ static void TestRankAndRoles()
 	CHECK(CreateCharacter(p, "Too Senior", DEPT_ENGINEERING, 5) == -1);     // nobody is created a commander
 	const int me = CreateCharacter(p, "Ensign Reyes", DEPT_ENGINEERING, 1);
 	CHECK(me >= 19 && p.player == me && p.crew[me].name == "Ensign Reyes" && p.crew[me].rank == 1);
-	CHECK(static_cast<int>(p.crew.size()) == COMPLEMENT);                  // a place taken, not a berth added
+	CHECK(static_cast<int>(p.crew.size()) == Complement(p));                  // a place taken, not a berth added
 	CHECK(p.crew[me].post == SYS_COUNT);                                   // and nobody's station taken from them
 	CHECK(PlayerMayOperate(p, STN_ENGINEERING) && !PlayerMayOperate(p, STN_TACTICAL) && !PlayerMayCommand(p));
 	SetRole(p, ROLE_IN_COMMAND);
@@ -3839,7 +3917,7 @@ static void TestRankAndRoles()
 	cfg.mode = MODE_HOLODECK;
 	cfg.clockMode = CLOCK_WALL;
 	Ship w = NewShip(cfg);
-	const int who = CreateCharacter(w, "Lt. Okoro", DEPT_SCIENCES, 3);
+	const int who = CreateCharacter(w, "Lt. Okoro", DEPT_SCIENCE, 3);
 	w.wallSeconds = 1791234567ull;
 	const std::vector<uint8_t> blob = Pack(w);
 	Ship back;
@@ -4341,7 +4419,7 @@ static void TestCrewOnDeck()
 			++total;
 		}
 	}
-	CHECK(total == COMPLEMENT - 1);          // everyone alive is on exactly one deck
+	CHECK(total == Complement(s) - 1);          // everyone alive is on exactly one deck
 	CHECK(CrewOnDeck(s, 0).empty());         // the dead are on none
 	CHECK(CrewOnDeck(s, 99).empty());
 	// 0800: alpha at stations. The captain is on the bridge and the chief engineer in Engineering.
@@ -4445,6 +4523,45 @@ static int PrintShields()
 	Ship stale; const bool oldLoads = Unpack(old.data(), old.size(), stale);
 	std::printf("  save: format %u, the blob is %zu bytes and loads %d; the same blob at version 60 loads %d\n",
 		SAVE_VERSION, blob.size(), loads ? 1 : 0, oldLoads ? 1 : 0);
+	return 0;
+}
+
+// The nine departments and the complement as hull data (docs/crew-manifest.md,
+// docs/design-north-star.md; the owner's rulings, 2026-10-12), printed as evidence.
+static int PrintDepartments()
+{
+	// The nine, as the roster names them, with their sizes for the hull's complement: they add up.
+	Ship s = NewShip();
+	std::printf("  the nine departments (DEPT_COUNT %d), their sizes for the hull's complement %d:\n",
+		DEPT_COUNT, Complement(s));
+	int sum = 0;
+	for (int d = 0; d < DEPT_COUNT; ++d) {
+		const int size = DepartmentSize(static_cast<Department>(d), Complement(s));
+		sum += size;
+		int have = 0;
+		for (const CrewMember &c : s.crew) if (c.dept == d) ++have;
+		std::printf("    %-26s %3d  (%d in the roster)\n", DepartmentName(static_cast<Department>(d)), size, have);
+	}
+	std::printf("  the sizes add to %d, the complement\n", sum);
+	const int byName = DepartmentByName("security");
+	std::printf("  one lookup: DepartmentByName(\"security\") = %d, DepartmentName -> %s\n",
+		byName, DepartmentName(static_cast<Department>(byName)));
+
+	// The complement is hull data a start state may vary: the canon default leaves the hull's own
+	// figure, an under-crewed state names its own, and both load.
+	std::printf("  the hull (hull data): %s, default complement %d\n", HULL_VOYAGER.name, COMPLEMENT_DEFAULT);
+	for (int i = 0; i < StartStateCount(); ++i) {
+		const StartState &st = StartStateAt(i);
+		if (st.complement == 0 && i != 0) continue; // show the default once, and each named one
+		Config cfg;
+		Ship ship = NewShip(cfg);
+		ApplyStartState(ship, st);
+		const std::vector<uint8_t> blob = Pack(ship);
+		Ship back;
+		const bool loads = Unpack(blob.data(), blob.size(), back);
+		std::printf("  start state [%d] %-14s complement %3d (state names %2d), %zu crew, %d fit, loads %d\n",
+			i, st.name, Complement(ship), st.complement, ship.crew.size(), ship.CrewFit(), loads ? 1 : 0);
+	}
 	return 0;
 }
 
@@ -5789,7 +5906,7 @@ static void TestCastMap()
 		}
 	}
 	CHECK(canon == 9);                     // the canon few
-	CHECK(pool == COMPLEMENT - 9);         // the hazard team and the generated crew
+	CHECK(pool == Complement(s) - 9);         // the hazard team and the generated crew
 
 	// THE CHAIR: the captain died, so she has no voice and no line is authored for her.
 	Ship chair = NewShip(cfg);
@@ -7214,8 +7331,7 @@ static void PrintOneCrew(const CrewMember &c, int idx)
 {
 	std::printf("  [%d] %s -- %s, %s, %s department, post %s\n", idx, c.name.c_str(),
 		SpeciesName(c.species), c.rank >= 5 ? "senior officer" : c.rank >= 3 ? "officer" : "crewman",
-		c.dept == DEPT_COMMAND ? "command" : c.dept == DEPT_ENGINEERING ? "engineering"
-			: c.dept == DEPT_SECURITY ? "security" : c.dept == DEPT_SCIENCES ? "sciences" : "medical",
+		DepartmentName(c.dept),
 		c.post < SYS_COUNT ? Spec(static_cast<SystemId>(c.post)).name : "department duties");
 	std::printf("      skills:");
 	for (int k = 0; k < SKILL_COUNT; ++k) std::printf(" %s %d", SkillName(static_cast<uint8_t>(k)), c.skills[k]);
@@ -7533,8 +7649,8 @@ static void TestCanonStartUntouched()
 	Ship s = NewShip(cfg);
 	ApplyStartState(s, StartStateAt(0));
 	CHECK(!s.cfg.fictitious);
-	CHECK(static_cast<int>(s.crew.size()) == COMPLEMENT);
-	CHECK(s.CrewFit() == COMPLEMENT);                       // nobody died
+	CHECK(static_cast<int>(s.crew.size()) == Complement(s));
+	CHECK(s.CrewFit() == Complement(s));                       // nobody died
 	CHECK(s.seatHolder[SEAT_CAPTAIN] == 0);                 // Janeway still holds the chair
 	CHECK(s.crew[s.seatHolder[SEAT_FIRST_OFFICER]].type == "chakotay");
 	CHECK(s.player >= 0);                                   // a junior officer is chosen
@@ -7626,7 +7742,7 @@ static void TestFictitiousNoCanon()
 	cfg.fictitious = st.fictitious;
 	Ship s = NewShip(cfg);
 	CHECK(cfg.fictitious);
-	CHECK(static_cast<int>(s.crew.size()) == COMPLEMENT);
+	CHECK(static_cast<int>(s.crew.size()) == Complement(s));
 	ApplyStartState(s, st);
 	// None of the show characters appear: no record's type or name is a canon one.
 	static const char *const CANON[] = {"janeway", "chakotay", "tuvok", "paris", "kim", "torres", "doctor",
@@ -8773,7 +8889,7 @@ static void TestTheBills()
 	int stranded = 0;
 	for (const CrewMember &c : e.crew) {
 		if (c.status != CREW_FIT || c.deck != 9) continue;
-		if (!(c.dept == DEPT_ENGINEERING || c.dept == DEPT_SCIENCES || c.dept == DEPT_SECURITY)) ++stranded;
+		if (!(c.dept == DEPT_ENGINEERING || c.dept == DEPT_SCIENCE || c.dept == DEPT_SECURITY)) ++stranded;
 	}
 	CHECK(stranded == 0);
 	CHECK(StandDownEmergency(e, captain));
@@ -8943,7 +9059,7 @@ static int PrintBills()
 		Tick(s, 1.0f);
 		int left = 0;
 		for (const CrewMember &c : s.crew)
-			if (c.status == CREW_FIT && c.deck == 9 && !(c.dept == DEPT_ENGINEERING || c.dept == DEPT_SCIENCES || c.dept == DEPT_SECURITY)) ++left;
+			if (c.status == CREW_FIT && c.deck == 9 && !(c.dept == DEPT_ENGINEERING || c.dept == DEPT_SCIENCE || c.dept == DEPT_SECURITY)) ++left;
 		std::printf("  fire on deck 9: %d were on it, %d non-party hand(s) left; %s\n",
 			on9, left, EmergencyBillLine(s).c_str());
 		CallEmergency(s, EMERG_ABANDON, 0, captain);
@@ -8992,6 +9108,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
 	if (argc > 1 && !std::strcmp(argv[1], "--shields")) return PrintShields();
+	if (argc > 1 && !std::strcmp(argv[1], "--departments")) return PrintDepartments();
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
 	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
 	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
@@ -9014,6 +9131,8 @@ int main(int argc, char **argv)
 	TestHullBreach();
 	TestFuel();
 	TestRoster();
+	TestNineDepartments();
+	TestComplementIsHullData();
 	TestSchedule();
 	TestADayAboard();
 	TestRedAlertAndCasualties();
