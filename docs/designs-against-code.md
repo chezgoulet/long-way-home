@@ -78,6 +78,7 @@ worth quoting.
   honour the stated split, or the row is corrected to the roll. The evidence does not say which was intended,
   so the *fix* is a fork — but the number as written is not what the game does.
 - **Disposition 2026-10-11:** corrected to what the game does — `docs/lore-ledger.md` now states the `% 15` roll and the four extra beacon kinds; **the design fork is handed to the code list** (move the divisor, or keep the roll). <!-- register-row id=C-4 state=closed marker=symbol:module/ship/ship_core.cpp:BEACON_PREWARP -->
+- **Disposition 2026-10-12 (code pass):** **handed back** — the row's document half is closed, and its design fork is not decidable here: moving `next() % 15` to `% 10` to honour the stated 40/30/20/10 split, or keeping the roll, are two designs with the same evidence. The owner rules; `module/ship/ship_core.cpp` is left alone.
 
 ### C-5 — "Each recomposition costs her a fifteenth" — it costs 15 per cent, not a fifteenth
 
@@ -158,6 +159,7 @@ worth quoting.
   documented authority cannot actually dispatch an order at a rank-3 lieutenant over a rank-4 commander. The
   code has the rule and does not use it — an `implemented` predicate that is `absent` as authority.
 - **Disposition 2026-10-11:** **handed to the code list** — a fork: `OodMayOrder`/`OodRefusal` exist and are unit-tested but no decision consumes them, so the deck's documented authority cannot dispatch an order. Decide the code (`DispatchOrder` should consult the OOD rule) or the document.
+- **Disposition 2026-10-12 (code pass):** **fixed** — the register's own code option is taken: the predicate keeps its place and gains its consumer. `MayOrder` (`module/ship/ship_core.cpp:9948`) now returns true when the giver is the officer of the deck (`OfficerOfTheDeck`) and `OodMayOrder` allows it, so `DeriveOrders`, `OrderPermitted`, `OrderRefusalRule` and `DispatchOrder` all carry the deck's authority while the rank rule alone still refuses it. Proven by `TestOodDispatch`; falsified by reverting the branch, which fails it (see `docs/evidence/the-code-contradictions.md`). <!-- register-row id=C-11 state=closed marker=symbol:tests/ship/test_ship_core.cpp:TestOodDispatch -->
 
 ### C-12 — "Assigning a repair empties a station" — the repair party is stationless
 
@@ -170,6 +172,7 @@ worth quoting.
 - **Which side is wrong: fork.** The stationless party is the deliberate, commented design; two documents
   promise a cost the code does not charge.
 - **Disposition 2026-10-11:** **handed to the code list** — a fork: the stationless repair party is the deliberate, commented design, and two documents promise a cost the code does not charge.
+- **Disposition 2026-10-12 (code pass):** **handed back** — this is a design decision, not a defect. The stationless party is the code's own commented intent (`ship_core.cpp:1745-1746`: *"An engineer on duty with no station of their own joins the damage-control party"*), and charging the cost the documents promise (a repair that empties a station) would change how the crew and damage models meet. The fork is stated for the owner; the code is left as it is.
 
 ### C-13 — Rumour is a provenance the enum declares and nothing writes
 
@@ -180,6 +183,7 @@ worth quoting.
   `tests/`.
 - **Which side is wrong: the code.** Half the promise is unimplemented and the enum is decoration for it.
 - **Disposition 2026-10-11:** **handed to the code list** — the code is the wrong side: `MEM_RUMOUR` is declared and nothing writes it.
+- **Disposition 2026-10-12 (code pass):** **fixed** — the writer is built. `WriteOff` (`module/ship/ship_core.cpp`) now marks the crew when something is given up: those on the written-off deck saw it (`MEM_SAW`), everyone else hears it as a rumour (`MEM_RUMOUR`), and the two versions differ in valence — the deck-write-off case the document names (`docs/memory-and-consequence.md:74`). `MEM_RUMOUR` is no longer decoration. What is left: the full distortion/attribution model (a rumour's teller, and how its telling drifts) — the register's row 4.22, still `partial`/`absent`, and named in the evidence. Proven by `TestWrittenOffList`; falsified by reverting the writer, which fails it (see `docs/evidence/the-code-contradictions.md`). <!-- register-row id=C-13 state=closed marker=symbol:module/ship/ship_core.cpp:MEM_RUMOUR -->
 
 ### C-14 — Six shield sections and fourteen grids are one scalar
 
@@ -189,6 +193,7 @@ worth quoting.
   path (`module/ship/ship_core.cpp:3596-3597`). No section, no grid, no per-arc state.
 - **Which side is wrong: the code** (incomplete). The document is ahead of the build.
 - **Disposition 2026-10-11:** **handed to the code list** — the code is incomplete: one `shieldStrength` scalar, no sections or grids.
+- **Disposition 2026-10-12 (code pass):** **disputed** — the register names the code, but **I disagree that this is a defect to fix here.** A scalar where the design implies a set is the brief's own named example of a design decision ("a scalar where the design implies a set … guessing there manufactures a defect out of a decision nobody made"), and building it is the feature the brief forbids: six sections, fourteen grids, per-arc state and bypass conditions (`docs/ship-systems.md:39,113`). The code is not doing something else with no ruling; it is doing less than the design. The fork — the one `shieldStrength` (`module/ship/ship_core.h:1959`) against the shield model — is the owner's to rule, and the code is left alone. Reasoning in `docs/evidence/the-code-contradictions.md`.
 
 ### C-15 — "At most twelve shots penetrate" vs a continuous adaptation ramp
 
@@ -200,6 +205,7 @@ worth quoting.
 - **Which side is wrong: fork.** If the twelve-shot number is the design it is unbuilt; if the ramp is, the
   document is stale.
 - **Disposition 2026-10-11:** **handed to the code list** — a fork: the canon twelve-shot counter against the continuous adaptation ramp.
+- **Disposition 2026-10-12 (code pass):** **handed back** — a rate where the document implies a threshold, the other shape the brief routes to the owner. The ramp is the code (`module/ship/ship_core.cpp:3572`), the twelve-shot adapter is canon; which one is the design is not decidable from the evidence, and building a counter would replace a working mechanism with a guess.
 
 ### C-16 — "Ship-level failure is the Borg reaching the core" — the only loss is the core breach
 
@@ -287,6 +293,29 @@ worth quoting.
 - **Which side is wrong: fork.** Both encode the same design; the document names a function the roll does not
   call, so the two can drift without either failing a test.
 - **Disposition 2026-10-11:** **handed to the code list** — a fork: the failure roll uses raw skills via `WorkFactors`, not `EffectiveSkill`; the document names a function the roll does not call.
+- **Disposition 2026-10-12 (code pass):** **handed back** — a fork. Both encode the same design; making the roll call `EffectiveSkill` is a change to the odds the work system produces, and the document could instead name `WorkFactors`. Which side moves is the owner's rule; the code is left alone.
+
+### The code pass, 2026-10-12 — what this pass did with the twelve it was handed
+
+The doc pass corrected the document side and **handed twelve rows over** whose closure is a code change
+or a ruling. This pass took them, and also the design fork the register's own C-4 row hands here though
+the doc pass counts C-4 among its corrections. **One of the twelve, 3.20, was closed on the base before
+this pass rebased onto it** (`docs/crew-roster.md`, the owner's instruction, merged as PR #133), so it is
+not re-dispositioned here; the remaining twelve rows are:
+
+- **Fixed (3):** **C-11** — the OOD's predicate gains its consumer (`MayOrder` consults `OodMayOrder`);
+  **C-13** — `MEM_RUMOUR` gains its writer (`WriteOff` marks the crew, those aboard `MEM_SAW` and the
+  rest `MEM_RUMOUR`); **3.2** — the Doctor's rank. Each carries a closed marker above, and each fix's
+  falsification is quoted in `docs/evidence/the-code-contradictions.md`.
+- **Handed back (8):** **C-4** (its design fork), **C-12**, **C-15**, **C-23**, **3.3**, **3.23**,
+  **8.52**, **8.53** — forks the evidence will not decide. The code is left alone and each fork is
+  stated for the owner in the evidence.
+- **Disputed (1):** **C-14** — the register pins it on the code, but "a scalar where the design implies a
+  set" is a design decision, not a defect, and building six sections and fourteen grids is the feature
+  the brief forbids. Its reasoning is in the evidence.
+
+**No fix moves the save format; `SAVE_VERSION` stays 59.** Nothing here touches a document except the
+dispositions on these rows, and `docs/evidence/the-code-contradictions.md` is the record.
 
 ---
 
@@ -454,8 +483,8 @@ Two things that table will not say by itself, and should:
 | # | claim (doc:line) | verdict | witness | note |
 |---|---|---|---|---|
 | 1 | rank / post / department are three separate fields (`crew-manifest.md:23-32`) | implemented | `module/ship/ship_core.h:499-502` | |
-| 2 | "the Doctor is a post without a rank … holds no Starfleet commission" (`crew-manifest.md:29-32`) | contradicted | `module/ship/ship_core.cpp:1093` gives rank 3 | **C-3** family; the code is the likely wrong side **Disposition 2026-10-11:** **handed to the code list** — the register's own reading: the code is the likely wrong side (the Doctor is given rank 3). |
-| 3 | nine departments whose sizes add to 141 (`crew-manifest.md:52-71`) | contradicted | `DEPT_SIZE[5] = {20,50,25,30,16}` (`ship_core.cpp:241`) | fork: the nine-way split is not in code **Disposition 2026-10-11:** **handed to the code list** — a fork: the nine-way department split is a proposal, not the code's five-way `DEPT_SIZE`. |
+| 2 | "the Doctor is a post without a rank … holds no Starfleet commission" (`crew-manifest.md:29-32`) | contradicted | `module/ship/ship_core.cpp:1093` gives rank 3 | **C-3** family; the code is the likely wrong side **Disposition 2026-10-11:** **handed to the code list** — the register's own reading: the code is the likely wrong side (the Doctor is given rank 3). **Disposition 2026-10-12 (code pass): fixed** — the Doctor now carries rank 0, the record's no-commission rank (as Neelix the civilian and Seven the consultant already do), so rank says no commission and the department says sickbay, not the conn. What is left: the *situational* authority the document also gives him (sickbay, quarantine) — row 3.14's `absent` field, named in the evidence. Proven by `TestDoctorNoCommission`; falsified by restoring rank 3, which fails it. <!-- register-row id=D3-2 state=closed marker=symbol:tests/ship/test_ship_core.cpp:TestDoctorNoCommission --> |
+| 3 | nine departments whose sizes add to 141 (`crew-manifest.md:52-71`) | contradicted | `DEPT_SIZE[5] = {20,50,25,30,16}` (`ship_core.cpp:241`) | fork: the nine-way split is not in code **Disposition 2026-10-11:** **handed to the code list** — a fork: the nine-way department split is a proposal, not the code's five-way `DEPT_SIZE`. **Disposition 2026-10-12 (code pass): handed back** — a fork. The document itself calls the nine numbers *"ours -- a proposal, to be tuned"*; adopting them is a content decision (and moves five departments to nine across the roster, bills and deck map), not a contradiction to repair. The code's five-way `DEPT_SIZE` is left alone. |
 | 4 | three 8-hour watches Alpha/Beta/Gamma (`crew-manifest.md:75-76`) | implemented | `module/ship/ship_core.h:25,501`; `ScheduledActivity` | hours exact |
 | 5 | "one post and a set of bill assignments" (`crew-manifest.md:105-107`) | implemented | `module/ship/ship_core.h:506-507`; `DeriveBills` `ship_core.cpp:6095` | |
 | 6 | battle stations; "almost nobody's battle station is their normal post" (`crew-manifest.md:109-112`) | implemented | `BattleRoleFor` `ship_core.cpp:6083`; `UpdateCrew:1558-1566` | |
@@ -475,7 +504,7 @@ Two things that table will not say by itself, and should:
 | 20 | "25 bytes per crew member" (`crew-roster.md:94`) | contradicted | `SAVE_MEMBER_BYTES=20` (`crew_core.h:220`); `g3-reactive-crew.md:157` says 20 | **C-4** family; also `docs/gates.md:197` **Disposition 2026-10-11:** **the evidence will not decide; handed to the code list** — 25 bytes is a *measurement* (`docs/evidence/g3-reactive-crew-measured.md`) and 20 is the packed `SAVE_MEMBER_BYTES`; `docs/evidence/the-number-owners.md` already recorded this as the owner's to reconcile. **Disagreement with this row's `contradicted` verdict**: the document matches its measurement, so correcting it to 20 would replace a measured number with a different one. **RESOLVED 2026-10-11 by the steward, on the owner's instruction:** **all three figures are right and measure different scopes.** The **crew blob** is `20 bytes per member plus a 16-byte header` against the configured `saveBytesPerNpc = 256` (`crew_core.h:144,219-220`) — exact, by construction, and validated on load, and already stated correctly in `docs/g3-reactive-crew.md`, which owns the format. The **layer** measures **25 bytes per member** — the blob's 20 plus about five bytes held elsewhere in the layer. The **save as a whole** grew **53,584 bytes for six crew** (≈ 9 KB per member) because almost everything that scales with a person is not the blob. `docs/crew-roster.md` is corrected to carry all three, labelled, with each figure's owner named — the error was one dropped qualifier: *of layer state*, which turned a layer measurement into a claim about the save. The paragraph's own argument survives and is stronger on the honest figure. <!-- register-row id=3.20 state=closed marker=file:docs/crew-roster.md --> |
 | 21 | a collision check on desire/allegiance/trait, failing the build (`crew-roster.md:105-107`) | absent | no such check | |
 | 22 | per-character `provenance` field (`crew-roster.md:139-141`) | absent | `CrewMember` has none | |
-| 23 | job kind "maintenance, repair, build, reclaim" (`crew-work.md:20`) | contradicted | `JobKind` enum `ship_core.h:1689` | no maintenance; seal/secure/evacuate added **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's four job kinds against the code's six. |
+| 23 | job kind "maintenance, repair, build, reclaim" (`crew-work.md:20`) | contradicted | `JobKind` enum `ship_core.h:1689` | no maintenance; seal/secure/evacuate added **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's four job kinds against the code's six. **Disposition 2026-10-12 (code pass): handed back** — a fork. The code's six (`ship_core.h:1692`: `JOB_REPAIR, JOB_SEAL, JOB_RECLAIM, JOB_BUILD, JOB_SECURE, JOB_EVACUATE`) are the four the document names plus two the orders pass appended; the document has no *maintenance* kind, and adding or removing kinds changes the queue's contract. The owner rules the vocabulary; the code is left alone. |
 | 24 | job carries required skill, crew-hours, state, blocking (`crew-work.md:22-29`) | partial | `Job{kind,target,progress,priority}` `ship_core.h:1693-1698` | the named fields are absent |
 | 25 | "department heads queue their department's work" (`crew-work.md:69-75`) | partial | `SetJobPriority:4148` command-only | |
 | 26 | measure backlog-by-age, crew-hours/kind/watch, post-vacancy hours (`crew-work.md:77-81`) | unverified | `UpdateJobs:7101` exists; none produced | |
@@ -739,8 +768,8 @@ Two things that table will not say by itself, and should:
 | 49 | "persistent ship state. damage is stored per compartment and per system" (`design-north-star.md:29`) | implemented | `Ship` `ship_core.h:1934` | |
 | 50 | "the crew as a load-bearing system … deaths that leave a post empty" (`design-north-star.md:36`) | implemented | `ship_core.h:509-533`; `FillVacancies` | |
 | 51 | "the ship's state carries between missions; the save is the ship, not the level" (`design-north-star.md:40`) | implemented | `Pack`/`Unpack`; `g_ship.cpp:5361-5371` | |
-| 52 | "the ceiling is 64 played characters — the engine's `MAX_CLIENTS`" (`design-north-star.md:175`) | contradicted | `patches/0018:21` (MP 64) vs `:32` (SP 1) | fork: the shipped SP path is 1 **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's 64-client ceiling against the shipped single-player path's 1. |
-| 53 | "the complement is hull data, not a constant" (`design-north-star.md:192`) | contradicted | `const int COMPLEMENT = 141` `ship_core.h:23` | fork: one hard-coded hull **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's 'the complement is hull data' against the hard-coded `COMPLEMENT`. |
+| 52 | "the ceiling is 64 played characters — the engine's `MAX_CLIENTS`" (`design-north-star.md:175`) | contradicted | `patches/0018:21` (MP 64) vs `:32` (SP 1) | fork: the shipped SP path is 1 **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's 64-client ceiling against the shipped single-player path's 1. **Disposition 2026-10-12 (code pass): handed back** — a fork. The 64 is `MAX_CLIENTS` in the multiplayer engine header; the Retail single-player build defines it as 1 (with 128 commented). Both are the shipped engine's data, and which ceiling this project's multiplayer premise rests on is Track D's ruling, not a defect. `patches/0018` is untouched. |
+| 53 | "the complement is hull data, not a constant" (`design-north-star.md:192`) | contradicted | `const int COMPLEMENT = 141` `ship_core.h:23` | fork: one hard-coded hull **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's 'the complement is hull data' against the hard-coded `COMPLEMENT`. **Disposition 2026-10-12 (code pass): handed back** — a fork. The code carries one hull, Voyager, and `COMPLEMENT = 141` is its canon figure (`ship_core.h:23`); making the complement hull data is the multi-hull system Track D names, a feature, not a contradiction to repair. The owner rules; `COMPLEMENT` is untouched. |
 | 54 | "the unit is the post, not the character … a player who takes a post displaces the NPC" (`design-north-star.md:196`) | partial | `seatHolder[]:2065`; seat model | no player/NPC handover across a server |
 | 55 | "one ship equals one server" (`design-north-star.md:142`) | absent | Track D unbuilt | |
 | 56 | "scenarios have breeding conditions" is the content layer; no director (`walkthrough.md:494-498`) | absent | only the crew restaffing rule | G4 |
