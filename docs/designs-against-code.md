@@ -1001,3 +1001,5 @@ are in `docs/evidence/designs-against-code.md`.
 Each was also reached by the unit tests (`tests/ship/test_ship_core.cpp`:
 `TestHoldingsIsAFold`, `TestTheBills`, `TestMannerDeterminismAndSave`), run by `scripts/test.sh`.
 
+
+ **RULED 2026-10-12 (owner): the DOCUMENT is the stale side.** Conditions already reach the roll -- same person, same task, 4,724 anomalies in 20,000 clean against 7,347 carrying a sharp debuff, worth +0.1312 in odds (+55.6%), with a sentinel condition asserting *no* difference so the effect is the condition and not the instrument (`docs/evidence/the-failure-roll-measured.md`). Making the roll call `EffectiveSkill` was run for real to price it: the condition's own weight falls **8.3x** and the deficit is **counted twice**, once inside the skill and again through the morale factor. So the document is corrected to name `WorkFactors`.

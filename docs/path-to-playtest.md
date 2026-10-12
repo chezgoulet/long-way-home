@@ -228,3 +228,7 @@ this document carries the order):
 8. **Maintenance becomes a seventh job kind** (3.23). Queued small.
 9. **The played-character ceiling corrected** (8.52): 64 multiplayer, 1 single-player. Queued as a document
    correction, no code.
+
+10. **The failure-roll document correction** (C-23, ruled 2026-10-12): the document names `EffectiveSkill`; the
+    measurement shows conditions already reach the odds through `WorkFactors`, and the change that looks like
+    fixing the code would weaken them 8.3x and double-count the deficit. Queued as a document correction, no code.
