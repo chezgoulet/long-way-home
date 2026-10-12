@@ -5952,6 +5952,14 @@ void Svcmd_Ship_f( void )
 		return;
 	}
 	if ( !Q_stricmp( cmd, "status" ) ) { PrintStatus(); return; }
+	if ( !Q_stricmp( cmd, "party" ) )
+	{//the damage-control party (docs/crew-work.md; the owner's ruling on C-12): the hands this tick
+	 //dispatched and the departments they came from, named in the roster's nine. A read, like the
+	 //job board: the standing party, and the post-holders drawn for a large job and what they left.
+		gi.Printf( "SHIP: party: %s\n", ship::DamageControlLine( vessel ).c_str() );
+		gi.cvar_set( "lwh_ship_damage_control", ship::DamageControlLine( vessel ).c_str() );
+		return;
+	}
 	if ( !Q_stricmp( cmd, "voice" ) )
 	{//the audio plumbing's cache (docs/asset-doctrine.md): player-local, beside the save, never in
 	 //the repository. "ship voice" reads it; "ship voice prune" is the prune that goes with the save.

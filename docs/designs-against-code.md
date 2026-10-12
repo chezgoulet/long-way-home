@@ -169,16 +169,17 @@ worth quoting.
 
 **RULED 2026-10-12 (owner), in his own words: all of the above.** *"There should be standing repair team ready to dispatch, and more egregious repairs will take more people, which can take them off of their stations."* So the design is three-tiered rather than one of the three options: **a standing damage-control party** that a repair can be dispatched to, **a severity that scales the party's size**, and **a large enough job drawing post-holders off their stations** — which is the link both documents claimed. The code's stationless engineer is the first tier, not the whole model.
 
-- **Document:** `docs/ship-systems.md:139` — *"crew time comes from the same people who hold posts —
+- **Document:** `docs/ship-systems.md:180` — *"crew time comes from the same people who hold posts —
   assigning a repair empties a station. That single link is what makes the crew model and the damage model one
   system instead of two."* (`docs/crew-work.md:12` repeats it.)
-- **Code:** `module/ship/ship_core.cpp:1744-1746` — *"An engineer on duty with no station of their own joins
-  the damage-control party"*; a post-holder is counted at their station first (`:1735-1742`), and
-  `ORDER_SEE_TO` only sets a queue priority (`:10140`).
+- **Code (before):** `module/ship/ship_core.cpp:1896` — *"An engineer on duty with no station of their own joins
+  the damage-control party"*; a post-holder was counted at their station first, and
+  `ORDER_SEE_TO` only sets a queue priority.
 - **Which side is wrong: fork.** The stationless party is the deliberate, commented design; two documents
   promise a cost the code does not charge.
 - **Disposition 2026-10-11:** **handed to the code list** — a fork: the stationless repair party is the deliberate, commented design, and two documents promise a cost the code does not charge.
-- **Disposition 2026-10-12 (code pass):** **handed back** — this is a design decision, not a defect. The stationless party is the code's own commented intent (`ship_core.cpp:1745-1746`: *"An engineer on duty with no station of their own joins the damage-control party"*), and charging the cost the documents promise (a repair that empties a station) would change how the crew and damage models meet. The fork is stated for the owner; the code is left as it is.
+- **Disposition 2026-10-12 (code pass):** **handed back** — this is a design decision, not a defect. The stationless party is the code's own commented intent, and charging the cost the documents promise (a repair that empties a station) would change how the crew and damage models meet. The fork is stated for the owner; the code is left as it is.
+- **Disposition 2026-10-12 (this pass):** **fixed** — the three tiers are built, to the ruling's own words. **Tier one** is the standing party (the stationless engineers and the battle bill's damage-control hands), which answers a dispatch (`OrderRepairFirst`) as before. **Tier two** is severity scaling the hands: the axis is the system's damage (`1 - health`), named as our call -- not its criticality (the queue's order) and not the parts it costs (the budget); `RepairPartySize` sends the party as it stands (3) up to the threshold and scales to 6 for a wholly destroyed system. **Tier three** is the cost: past **`REPAIR_SEVERITY_LARGE = 0.50`**, more than half the system gone, a large job draws post-holders off their stations -- the owning department first, then any, because the organisation "pulls from every department" (`docs/crew-manifest.md`) -- and the party names its people in the roster's nine (`DamageControlLine`; the console `ship party`). A post left short delivers less and wears. **The party is derived every tick, so the save does not move (62) and an older save still loads.** Proven by `TestDamageControlParty` and `scripts/damage-control-check.sh`; falsified by forcing every repair down the first tier (the threshold raised past every severity), which fails it. Written into `docs/crew-work.md` and `docs/ship-systems.md` as ours, in the owner's words; the demonstration is `docs/evidence/the-damage-control-party.md`. <!-- register-row id=C-12 state=closed marker=check:scripts/damage-control-check.sh -->
 
 ### C-13 — Rumour is a provenance the enum declares and nothing writes
 
@@ -327,6 +328,12 @@ not re-dispositioned here; the remaining twelve rows are:
   set" is a design decision, not a defect, and building six sections and fourteen grids is the feature
   the brief forbids. Its reasoning is in the evidence.
 
+**Since this pass (2026-10-12):** the owner ruled the forks this pass handed back, and later passes built
+them. **C-12** was ruled and is now **built** — the three tiers of damage control, written into
+`docs/crew-work.md` and `docs/ship-systems.md` (`docs/evidence/the-damage-control-party.md`); **C-4** and
+**C-14** are likewise closed on their own rows above. The bullets above record what that pass did at the
+time; the rows above are the current state.
+
 **No fix moves the save format; `SAVE_VERSION` stays 59.** Nothing here touches a document except the
 dispositions on these rows, and `docs/evidence/the-code-contradictions.md` is the record.
 
@@ -405,7 +412,7 @@ Two things that table will not say by itself, and should:
 | 28 | "fourteen arrays with a power setting from stun to vaporize" (`ship-systems.md:114`) | partial | `module/ship/ship_core.h:237`; `ship_core.cpp:2758` | ladder built; the 14 arrays / 4 tubes are not |
 | 29 | "sickbay on deck 5, three biobeds plus a surgical bed" (`ship-systems.md:120`) | implemented | `module/ship/ship_core.h:2276,2280` | |
 | 30 | "per-deck `hull_integrity`, `pressure`, `eps`, `life_support`, plus ship-level `sif%`" (`ship-systems.md:133`) | partial | `module/ship/ship_core.h:202,204` | per-deck `eps`/`life_support` absent |
-| 31 | "assigning a repair empties a station" (`ship-systems.md:139`) | contradicted | `module/ship/ship_core.cpp:1744-1746` | **C-12** |
+| 31 | "assigning a repair empties a station" (`ship-systems.md` §*Repairs are the counter-play*) | implemented | `module/ship/ship_core.cpp` `RepairPartySize`, `DamageControlLine`; `scripts/damage-control-check.sh` | **C-12** — built 2026-10-12: three tiers; a large job draws post-holders off their stations <!-- register-row id=D1-31 state=closed marker=check:scripts/damage-control-check.sh --> |
 | 32 | "at most twelve shots penetrate before the Borg adapt" (`ship-systems.md:149`) | contradicted | `module/ship/ship_core.cpp:3572` | **C-15** |
 | 33 | "assimilation … five stages … a short reversal window" (`ship-systems.md:152`) | partial | `module/ship/ship_core.cpp:2608-2626,6357` | window built; no five *named* stages |
 | 34 | "around twenty minutes of ship time" to organise (`ship-systems.md:157`) | superseded | `module/ship/ship_core.h:194-196` (120/240/360 s) | `docs/borg-incursion.md:235-243` |
