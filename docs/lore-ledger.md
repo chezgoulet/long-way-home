@@ -313,7 +313,7 @@ All invented; none of these figures is stated on screen or in the manuals. They 
 | An undamped jump | injures one or two crew |
 | Structural integrity and hits | hull damage scales with `2 − integrity output` |
 | The EMH | holds the ward at 50% output, needs the computer core |
-| A Borg vessel's adaptation | phaser adaptation rises by 2× the damage dealt, torpedo by 1.5×; damage falls by `1 − adaptation` |
+| A Borg vessel's adapter | a per-weapon count of penetrating shots: the twelfth adapts that weapon; a ramp (steepened by borgAwareness) shapes what the shots before it do, and damage falls by `1 − ramp` |
 | A funeral | lifts a crew member's morale by 0.15, up to 0.7 |
 | The brig | a fit crew member confined, off duty, operating nothing |
 | A training credential | one station, earned by training, no crew-hours modelled |
@@ -338,7 +338,7 @@ All invented; none of these figures is stated on screen or in the manuals. They 
 | A build job | up to 4 free engineers make 1 spare part per 4 engineer-hours from 1 material each |
 | Deferred maintenance | a wholly undermanned station fails after 10 days of it, losing 40% of its health |
 | Boarder kinds | raider (loots stores when it holds), Borg (assimilates), hunter (wounds the crew); a party can be sent for a named deck |
-| Borg strategic awareness | +0.15 a cube contact, plus a little while assimilating; above 0.4 a quarter of hostiles become Borg in the next sector; adds to the adaptation rate |
+| Borg strategic awareness | +0.15 a cube contact, plus a little while assimilating; above 0.4 a quarter of hostiles become Borg in the next sector; steepens the adaptation ramp inside its twelve-shot bound |
 | A grudge toward command | remembered valence below −0.3 toward whoever commands multiplies a post-holder's effectiveness by (1 + bond) |
 | Visible damage | a system below 85% health sparks at its station on the player's deck | inv |
 | Visible fire | a burning deck draws min(8, ceil(fire×8)) smoke/flame effects, one in three a flame | inv |
@@ -410,8 +410,8 @@ year: 0.9696 × 0.98 × 0.98 × 1,000 c = 931 c, and 71,240 / 931 = 76 years.
 | `dwell` | ship-seconds the intruders have held unopposed | inv |
 | `compromised` | set when any system on the deck loses control to intruders, or assimilation begins | inv |
 | Deck controllers | crew / borg / contested / sealed / uninhabitable | design |
-| A modulation rotation | breaks 0.5 of the Borg's adaptation, then a 120-second cooldown | inv |
-| A vinculum raid | adaptation to zero and suppressed for 300 s, at the cost of one wounded security crew | inv |
+| A modulation rotation | moves every weapon's adaptation ramp down by 0.5 (the count stands), then a 120-second cooldown | inv |
+| A vinculum raid | every weapon's count and ramp to zero, and adaptation suppressed for 300 s, at the cost of one wounded security crew | inv |
 | De-assimilation window | a captive with wounds in (0, 0.8); past 0.8 it is too late | inv |
 | The cost of recovery | wounds × 40 supplies and × 20 material; the scar equals the wounds, and drags morale by scar × 0.25 | inv |
 

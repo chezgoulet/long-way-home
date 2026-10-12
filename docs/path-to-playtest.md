@@ -220,8 +220,11 @@ this document carries the order):
 6. **Damage control is three-tiered** (C-12, the owner's own design): a standing party, a severity that
    scales its size, and large jobs that draw post-holders off their stations. Queued after the departments
    lane, because *which* stations it draws from depends on how many departments there are.
-7. **Canon's twelve-shot adaptation, with the ramp inside it** (C-15). Queued: it changes the odds the
-   counter-play kit pushes against, so it lands with its own check.
+7. **Canon's twelve-shot adaptation, with the ramp inside it** (C-15). **BUILT 2026-10-12** on
+   `feat/the-adaptation` (`docs/evidence/the-adaptation.md`, save version 61): the adapter is a per-weapon
+   count of penetrating shots whose twelfth adapts the weapon, with the ramp inside the bound; it changes
+   the odds the counter-play kit pushes against, so it landed with its own check (`TestTheAdapter`,
+   `test_ship_core --adapt`, `scripts/counterplay-check.sh`).
 8. **Maintenance becomes a seventh job kind** (3.23). Queued small.
 9. **The played-character ceiling corrected** (8.52): 64 multiplayer, 1 single-player. Queued as a document
    correction, no code.

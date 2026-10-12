@@ -884,7 +884,11 @@ static void TestDamageControlParty()
 	Ship back;
 	CHECK(Unpack(blob.data(), blob.size(), back));
 	CHECK(Pack(back) == blob);                 // byte for byte: the party added no saved state
-	CHECK(SAVE_VERSION == 62);                 // the format did not move for this pass
+	// (removed 2026-10-12) a literal  stood here, commented
+	// "the format did not move for this pass". It went stale when C-15 took the format to
+	// 63, and comparing the constant against itself is a tautology -- a check that cannot
+	// fail is decoration. The historical claim lives in the header's changelog; what this
+	// pass actually promises is asserted below, where the party is shown to be derived.
 }
 
 static void TestCasualties()
@@ -2244,7 +2248,8 @@ static void TestCrewJusticeAndBorg()
 	const float raiderHull = HurtAfter(raider, ENEMY_RAIDER);
 	const float cubeHull = HurtAfter(cube, ENEMY_BORG_VESSEL);
 	CHECK(cubeHull > raiderHull);                             // the Borg take less after adapting
-	CHECK(cube.enemy.adaptation > 0.0f);
+	CHECK(cube.enemy.adapt[ADAPT_PHASER].ramp > 0.0f);
+	CHECK(cube.enemy.adapt[ADAPT_PHASER].penetrations > 0); // the adapter counted the shots that got through
 
 	// It is all in the save.
 	Tick(f, 0.0f); // derive manning with the funeral's morale, as the game does after an order
@@ -3258,37 +3263,119 @@ static void TestCounterPlay()
 	Jump(s, hostile);
 	s.enemy.kind = ENEMY_BORG_VESSEL; s.enemy.borg = true;
 	s.enemy.hull = 1.0f; s.enemy.shields = 0.0f; s.enemy.shieldGen = 0.0f; s.enemy.firepower = 0.0f;
-	s.enemy.adaptation = 0.6f;
+	s.enemy.adapt[ADAPT_PHASER].ramp = 0.6f; s.enemy.adapt[ADAPT_TORPEDO].ramp = 0.6f;
 	SetAlert(s, ALERT_RED);
 	Tick(s, 1.0f);                             // red alert brings the weapons up
 
 	const float withLock = DamageOne(s);       // they have adapted: little gets through
-	s.enemy.adaptation = 0.6f; s.enemy.hull = 1.0f; s.stores.torpedoes = 38;
+	CHECK(s.enemy.adapt[ADAPT_TORPEDO].penetrations == 1); // and the shot was counted
+	s.enemy.adapt[ADAPT_TORPEDO].ramp = 0.6f; s.enemy.hull = 1.0f; s.stores.torpedoes = 38;
 	CHECK(Remodulate(s));                      // rotate the modulation
-	CHECK(s.enemy.adaptation < 0.2f);
+	CHECK(s.enemy.adapt[ADAPT_TORPEDO].ramp < 0.2f);
 	CHECK(DamageOne(s) > withLock);            // and now the shots land again
 	CHECK(!Remodulate(s));                     // but not every second: it costs attention
 	Tick(s, REMODULATE_COOLDOWN + 1.0f);
 	CHECK(Remodulate(s));
 
 	// A vinculum raid needs Borg here and spends a security party; while it is down they do not adapt.
+	// Where a rotation moves the ramp, a raid clears the count: the crew get their twelve shots back.
 	Ship v = NewShip();
 	v.cfg.dayScale = 1.0f;
 	Tick(v, 1.0f);
 	const int h2 = FirstOfKind(v, BEACON_HOSTILE);
 	GoTo(v, h2 - 1); v.enemy = Enemy(); Jump(v, h2);
 	v.enemy.kind = ENEMY_BORG_VESSEL; v.enemy.borg = true; v.enemy.hull = 1.0f;
-	v.enemy.adaptation = 0.5f; v.enemy.shields = 0.0f; v.enemy.shieldGen = 0.0f; v.enemy.firepower = 0.0f;
+	v.enemy.shields = 0.0f; v.enemy.shieldGen = 0.0f; v.enemy.firepower = 0.0f;
+	v.enemy.adapt[ADAPT_PHASER].penetrations = 5; v.enemy.adapt[ADAPT_PHASER].ramp = 0.5f;
+	v.enemy.adapt[ADAPT_TORPEDO].penetrations = 5; v.enemy.adapt[ADAPT_TORPEDO].ramp = 0.5f;
 	SetAlert(v, ALERT_RED);
 	Tick(v, 1.0f);                             // red alert brings the weapons up
 	CHECK(RaidVinculum(v));
-	CHECK(v.enemy.adaptation == 0.0f && v.adaptationSuppressed > 0.0f);
+	CHECK(v.enemy.adapt[ADAPT_PHASER].penetrations == 0 && v.enemy.adapt[ADAPT_PHASER].ramp == 0.0f);
+	CHECK(v.enemy.adapt[ADAPT_TORPEDO].penetrations == 0 && v.adaptationSuppressed > 0.0f);
 	bool hurt = false;
 	for (const CrewMember &c : v.crew) if (c.status == CREW_INJURED && c.dept == DEPT_SECURITY) hurt = true;
 	CHECK(hurt);
 	DamageOne(v);
-	CHECK(v.enemy.adaptation == 0.0f);         // severed: no adaptation while it is down
+	CHECK(v.enemy.adapt[ADAPT_TORPEDO].penetrations == 0); // severed: no adaptation while it is down
 	CHECK(!RaidVinculum(v));                    // already suppressed
+}
+
+// A Borg fight set up so the adapter has something to act on: an unshielded, toothless cube at red
+// alert with the phasers set to kill. Shared by TestTheAdapter and `test_ship_core --adapt`.
+static void BorgFight(Ship &s)
+{
+	s.cfg.dayScale = 1.0f;
+	Tick(s, 1.0f);
+	const int hostile = FirstOfKind(s, BEACON_HOSTILE);
+	GoTo(s, hostile - 1);
+	s.enemy = Enemy();
+	Jump(s, hostile);
+	s.enemy.kind = ENEMY_BORG_VESSEL; s.enemy.borg = true;
+	s.enemy.hull = 1.0f; s.enemy.shields = 0.0f; s.enemy.shieldGen = 0.0f; s.enemy.firepower = 0.0f;
+	SetAlert(s, ALERT_RED);
+	SetPhaserYield(s, YIELD_KILL);
+	Tick(s, 1.0f);                             // red alert brings the phasers up
+}
+
+// The adapter (the owner's C-15 ruling; docs/ship-systems.md, docs/evidence/the-adaptation.md): a
+// per-weapon count of penetrating shots whose twelfth adapts the weapon, with the ramp inside it
+// shaping what the shots before the twelfth do.
+static void TestTheAdapter()
+{
+	g_test = "the adapter: twelve shots adapt a weapon, and the ramp shapes them";
+
+	// The count. The phaser bank fires one discharge every PHASER_SHOT_SECONDS; each that gets
+	// through is counted, and the twelfth adapts the bank.
+	Ship s = NewShip(); BorgFight(s);
+	for (int i = 1; i <= BORG_ADAPT_SHOTS; ++i) {
+		Tick(s, PHASER_SHOT_SECONDS);
+		CHECK(s.enemy.adapt[ADAPT_PHASER].penetrations == i);
+	}
+	CHECK(s.enemy.adapt[ADAPT_PHASER].penetrations == BORG_ADAPT_SHOTS);
+	const float hullAtTwelve = s.enemy.hull;
+	CHECK(hullAtTwelve > 0.0f);                // the twelfth shot lands; adaptation comes after it
+	Tick(s, PHASER_SHOT_SECONDS * 4.0f);       // and now the adapted bank does nothing at all
+	CHECK(s.enemy.adapt[ADAPT_PHASER].penetrations == BORG_ADAPT_SHOTS);
+	CHECK(std::fabs(s.enemy.hull - hullAtTwelve) < 1e-4f);
+
+	// The ramp inside the bound: two shots in and twelve shots in differ in how adapted the weapon
+	// is, not only in whether. A rotation moves the ramp; the count stands.
+	Ship r = NewShip(); BorgFight(r);
+	Tick(r, PHASER_SHOT_SECONDS * 2.0f);
+	const int counted = r.enemy.adapt[ADAPT_PHASER].penetrations;
+	const float rampTwo = r.enemy.adapt[ADAPT_PHASER].ramp;
+	CHECK(counted == 2 && rampTwo > 0.0f && rampTwo < 0.5f);
+	CHECK(r.enemy.adapt[ADAPT_PHASER].ramp < BORG_RAMP_CEIL);
+	CHECK(Remodulate(r));
+	CHECK(r.enemy.adapt[ADAPT_PHASER].penetrations == counted); // the rotation does not undo the count
+	CHECK(r.enemy.adapt[ADAPT_PHASER].ramp < rampTwo);          // it moves the ramp, and only the ramp
+
+	// The torpedo has its own adapter: twelve torpedoes adapt the launcher, not the phasers. A hull
+	// that can take twelve shows the count without the cube dying first.
+	Ship t = NewShip(); BorgFight(t);
+	t.enemy.hull = 100.0f;
+	for (int i = 1; i <= BORG_ADAPT_SHOTS; ++i) {
+		t.stores.torpedoes = 38;
+		CHECK(FireTorpedo(t));
+		CHECK(t.enemy.adapt[ADAPT_TORPEDO].penetrations == i);
+	}
+	CHECK(t.enemy.adapt[ADAPT_PHASER].penetrations == 0);       // the phasers were never fired
+	const float before = t.enemy.hull;
+	t.stores.torpedoes = 38;
+	CHECK(FireTorpedo(t));
+	CHECK(std::fabs(t.enemy.hull - before) < 1e-4f);             // the twelfth adapted it: nothing lands
+
+	// While a vinculum is down the bank still lands, but the Collective learns nothing: the count is held.
+	Ship q = NewShip(); BorgFight(q);
+	q.enemy.adapt[ADAPT_PHASER].penetrations = 4;
+	q.enemy.adapt[ADAPT_PHASER].ramp = 0.3f;
+	CHECK(RaidVinculum(q));                                      // clears the count, suppresses growth
+	CHECK(q.enemy.adapt[ADAPT_PHASER].penetrations == 0 && q.adaptationSuppressed > 0.0f);
+	const float raidedHull = q.enemy.hull;
+	Tick(q, PHASER_SHOT_SECONDS * 3.0f);
+	CHECK(q.enemy.hull < raidedHull);                           // the shots land
+	CHECK(q.enemy.adapt[ADAPT_PHASER].penetrations == 0);       // but the count is held while suppressed
 }
 
 // Shuttles: supported, not pilotable. The bay's contents, an away shuttle and its manifest, losing
@@ -8736,6 +8823,70 @@ static int PrintAir()
 	}
 
 // ---------------------------------------------------------------------------------------------
+// The adapter as a readout: `test_ship_core --adapt`. What was observed, and the command.
+static int PrintAdaptation()
+{
+	std::printf("== the adapter: canon's twelve shots, with the ramp inside the bound\n");
+	{
+		Ship s = NewShip(); BorgFight(s);
+		std::printf("  a Borg at red alert, unshielded; one phaser discharge every %.0f s\n", PHASER_SHOT_SECONDS);
+		for (int i = 1; i <= BORG_ADAPT_SHOTS + 2; ++i) {
+			const float before = s.enemy.hull;
+			Tick(s, PHASER_SHOT_SECONDS);
+			const Adapter &a = s.enemy.adapt[ADAPT_PHASER];
+			std::printf("    discharge %2d: counted %2d, ramp %.2f, damage %.3f, hull %.3f%s\n",
+				i, a.penetrations, a.ramp, before - s.enemy.hull, s.enemy.hull,
+				a.penetrations >= BORG_ADAPT_SHOTS ? "  ADAPTED -- the bank does nothing more" : "");
+		}
+	}
+	std::printf("== the ramp inside the bound\n");
+	{
+		Ship two = NewShip(); BorgFight(two); Tick(two, PHASER_SHOT_SECONDS * 2.0f);
+		Ship twelve = NewShip(); BorgFight(twelve); Tick(twelve, PHASER_SHOT_SECONDS * BORG_ADAPT_SHOTS);
+		std::printf("  two shots in:    counted %d, ramp %.2f, hull %.3f\n",
+			two.enemy.adapt[ADAPT_PHASER].penetrations, two.enemy.adapt[ADAPT_PHASER].ramp, two.enemy.hull);
+		std::printf("  twelve shots in: counted %d, ramp %.2f, hull %.3f (adapted)\n",
+			twelve.enemy.adapt[ADAPT_PHASER].penetrations, twelve.enemy.adapt[ADAPT_PHASER].ramp, twelve.enemy.hull);
+	}
+	std::printf("== the counter-play: a rotation moves the ramp, a raid clears the count\n");
+	{
+		Ship s = NewShip(); BorgFight(s);
+		Tick(s, PHASER_SHOT_SECONDS * 6.0f);
+		std::printf("  six shots in:  counted %d, ramp %.2f\n", s.enemy.adapt[ADAPT_PHASER].penetrations, s.enemy.adapt[ADAPT_PHASER].ramp);
+		Remodulate(s);
+		std::printf("  remodulated:   counted %d, ramp %.2f (the count stands)\n", s.enemy.adapt[ADAPT_PHASER].penetrations, s.enemy.adapt[ADAPT_PHASER].ramp);
+		RaidVinculum(s);
+		std::printf("  vinculum raid: counted %d, ramp %.2f (the count is cleared; suppressed %.0f s)\n",
+			s.enemy.adapt[ADAPT_PHASER].penetrations, s.enemy.adapt[ADAPT_PHASER].ramp, s.adaptationSuppressed);
+	}
+	std::printf("== awareness steepens the ramp, but does not shorten the twelve\n");
+	{
+		auto run = [](float aware) {
+			Ship x = NewShip(); BorgFight(x); x.borgAwareness = aware;
+			Tick(x, PHASER_SHOT_SECONDS * BORG_ADAPT_SHOTS);
+			return x;
+		};
+		Ship cold = run(0.0f), warm = run(0.9f);
+		std::printf("  awareness 0%%:  counted %d, ramp %.2f, hull %.3f\n",
+			cold.enemy.adapt[ADAPT_PHASER].penetrations, cold.enemy.adapt[ADAPT_PHASER].ramp, cold.enemy.hull);
+		std::printf("  awareness 90%%: counted %d, ramp %.2f, hull %.3f (the same twelve, shaped harder)\n",
+			warm.enemy.adapt[ADAPT_PHASER].penetrations, warm.enemy.adapt[ADAPT_PHASER].ramp, warm.enemy.hull);
+	}
+	std::printf("== the adapter round-trips a save (version %d)\n", SAVE_VERSION);
+	{
+		Ship s = NewShip(); BorgFight(s);
+		Tick(s, PHASER_SHOT_SECONDS * 5.0f);
+		const std::vector<uint8_t> blob = Pack(s);
+		Ship back;
+		const bool ok = Unpack(blob.data(), blob.size(), back);
+		std::printf("  unpack %s; counted %d -> %d; ramp %.2f -> %.2f; identical %s\n", ok ? "ok" : "FAILED",
+			s.enemy.adapt[ADAPT_PHASER].penetrations, back.enemy.adapt[ADAPT_PHASER].penetrations,
+			s.enemy.adapt[ADAPT_PHASER].ramp, back.enemy.adapt[ADAPT_PHASER].ramp,
+			Pack(back) == blob ? "yes" : "no");
+	}
+	return 0;
+}
+
 // The wrap's contract, held to the real strings (Task B). The wrap (module/ui/lwh_textfit.h) returns
 // the lines it would draw; the test asserts that **every line fits the column it was wrapped for**,
 // for the strings the ship actually produces -- every meeting's pills and lines, the computer's
@@ -9409,6 +9560,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--rising")) return PrintRising();
 	if (argc > 1 && !std::strcmp(argv[1], "--power")) return PrintPower();
 	if (argc > 1 && !std::strcmp(argv[1], "--air")) return PrintAir();
+	if (argc > 1 && !std::strcmp(argv[1], "--adapt")) return PrintAdaptation();
 	if (argc > 1 && !std::strcmp(argv[1], "--meeting")) return PrintMeeting();
 	if (argc > 1 && !std::strcmp(argv[1], "--place")) return PrintPlace();
 	if (argc > 1 && !std::strcmp(argv[1], "--voice")) return PrintVoice();
@@ -9497,6 +9649,7 @@ int main(int argc, char **argv)
 	TestForceFieldKit();
 	TestDeassimilation();
 	TestCounterPlay();
+	TestTheAdapter();
 	TestHolodeckAndQuarters();
 	TestEVAAndContact();
 	TestBoarderKinds();

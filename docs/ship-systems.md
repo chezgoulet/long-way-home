@@ -227,9 +227,18 @@ onto canon cleanly, with numbers:
 
 - **Boarding** happens by transporter or cutting beam after shields fail (canon: tractor, shield defeat,
   then boarding). So the Borg are the *consequence* of a defensive failure, not a scripted ambush.
-- **Adaptation is a counter per weapon**: canon's phaser adapter lets at most twelve shots penetrate
-  before the Borg adapt, and adaptation arrives "within minutes". This is a tension loop the crew can
-  play: remodulate, or lose the weapon.
+- **Adaptation is a counter per weapon, with the ramp inside it** (the owner's C-15 ruling): canon's
+  phaser adapter lets at most **twelve shots penetrate** before the Borg adapt, and adaptation arrives
+  "within minutes". So the adapter is a **count**: each weapon -- the phaser bank and the torpedo
+  launchers separately -- counts the shots that get through, where a shot is one phaser *discharge*
+  (`PHASER_SHOT_SECONDS`, twelve to a nominal six-minute engagement) or one torpedo launched, and the
+  **twelfth adapts that weapon**, which then does nothing at all until a counter-play resets the count.
+  Inside the bound a **ramp** is the shape: it rises with each penetration (more steeply the more the
+  Collective already knows -- `borgAwareness`), each shot's effect falls by `1 − ramp`, and the ramp is
+  capped below full immunity, so a weapon is not binary at shot twelve but **twelve shots along the
+  ramp**, and only the count can finish it. The crew can play against both: `Remodulate` moves the ramp
+  (buying damage, not shots) while a vinculum raid clears the count (buying the twelve back). This is a
+  tension loop the crew can play: remodulate, or lose the weapon.
 - **Assimilation is a crew-record transition with five stages**, nanoprobes visibly spreading within
   minutes, and a **short reversal window** -- canon makes reversal possible only early, never fully (Seven
   of Nine was never restored). Our window is therefore minutes of ship time, and past it the record

@@ -47,7 +47,7 @@ worth quoting.
 ### C-2 — The save format is quoted at a version it left two bumps ago
 
 - **Document:** `docs/morale.md:142` — *"the save format is **57** and an older save does not load"*.
-- **Code:** `module/ship/ship_core.h` — `const uint16_t SAVE_VERSION = 62;` (59: the bills; 60: the holodeck
+- **Code:** `module/ship/ship_core.h` — `const uint16_t SAVE_VERSION = 63;` (59: the bills; 60: the holodeck
   reactor as a per-deck source; 61: the shield sections, C-14; 62: the complement as hull data, 3.3/8.53).
 - **Which side is wrong: the document.** The moral claim it makes — the per-person `float` left the save — is
   true; the number is stale. `tools/docs/check_claims.py` polices only the claims registered in
@@ -218,6 +218,7 @@ worth quoting.
   document is stale.
 - **Disposition 2026-10-11:** **handed to the code list** — a fork: the canon twelve-shot counter against the continuous adaptation ramp.
 - **Disposition 2026-10-12 (code pass):** **handed back** — a rate where the document implies a threshold, the other shape the brief routes to the owner. The ramp is the code (`module/ship/ship_core.cpp:3572`), the twelve-shot adapter is canon; which one is the design is not decidable from the evidence, and building a counter would replace a working mechanism with a guess.
+- **Disposition 2026-10-12 (rulings pass, C-15):** **fixed** — the owner ruled *build canon's counter, with the ramp shaping it inside*. The adapter is now a **count per weapon**, with the **ramp inside the bound**: `Enemy::adapt[ADAPT_PHASER|ADAPT_TORPEDO]`, each an `Adapter { penetrations, ramp, charge }`. A shot is one phaser *discharge* (`PHASER_SHOT_SECONDS`, twelve to a nominal `PHASER_MINUTES` engagement) or one torpedo launched; each that gets through is counted, and the twelfth adapts that weapon (`BORG_ADAPT_SHOTS`), which then does nothing. The ramp rises per penetration (steepened by `borgAwareness`), each shot's effect falls by `1 − ramp`, and the ramp is capped at `BORG_RAMP_CEIL` so **only the count reaches immunity** — the composition. `Remodulate` moves the ramp and leaves the count; `RaidVinculum` clears both. The document is corrected in place (`docs/ship-systems.md:155`), the fork's shape is recorded, and the demonstration is `TestTheAdapter`, `test_ship_core --adapt`, and `docs/evidence/the-adaptation.md`. Deliberate cost: the save moves 60 → 61. <!-- register-row id=C-15 state=closed marker=symbol:module/ship/ship_core.h:BORG_ADAPT_SHOTS -->
 
 ### C-16 — "Ship-level failure is the Borg reaching the core" — the only loss is the core breach
 
@@ -321,9 +322,10 @@ not re-dispositioned here; the remaining twelve rows are:
   **C-13** — `MEM_RUMOUR` gains its writer (`WriteOff` marks the crew, those aboard `MEM_SAW` and the
   rest `MEM_RUMOUR`); **3.2** — the Doctor's rank. Each carries a closed marker above, and each fix's
   falsification is quoted in `docs/evidence/the-code-contradictions.md`.
-- **Handed back (8):** **C-4** (its design fork), **C-12**, **C-15**, **C-23**, **3.3**, **3.23**,
-  **8.52**, **8.53** — forks the evidence will not decide. The code is left alone and each fork is
-  stated for the owner in the evidence.
+- **Handed back (7, since C-15 was subsequently ruled and built):** **C-4** (its design fork), **C-12**,
+  **C-23**, **3.3**, **3.23**, **8.52**, **8.53** — forks the evidence will not decide. **C-15** was
+  handed back here, then ruled by the owner (2026-10-12) and built in the pass its own entry records. The
+  rest are left alone and each fork is stated for the owner in the evidence.
 - **Disputed (1):** **C-14** — the register pins it on the code, but "a scalar where the design implies a
   set" is a design decision, not a defect, and building six sections and fourteen grids is the feature
   the brief forbids. Its reasoning is in the evidence.
@@ -348,16 +350,16 @@ are recorded only in the tables.
 
 | domain | claims | implemented | partial | absent | contradicted | superseded | unverified |
 |---|---|---|---|---|---|---|---|
-| 1. The ship and its systems | 61 | 41 | 8 | 0 | 5 | 2 | 5 |
+| 1. The ship and its systems | 61 | 42 | 8 | 0 | 4 | 2 | 5 |
 | 2. Power, damage and the two budgets | 42 | 28 | 4 | 1 | 4 | 4 | 1 |
 | 3. The crew and their work | 57 | 27 | 13 | 5 | 7 | 2 | 3 |
 | 4. The record, the log and the memory | 32 | 23 | 5 | 3 | 0 | 0 | 1 |
 | 5. Orders, access and authority | 26 | 22 | 2 | 1 | 0 | 1 | 0 |
-| 6. The rooms, the screens and the meetings | 39 | 24 | 3 | 1 | 8 | 1 | 2 |
+| 6. The rooms, the screens and the meetings | 39 | 25 | 2 | 1 | 8 | 1 | 2 |
 | 7. Encounters and the outside | 42 | 24 | 11 | 7 | 0 | 0 | 0 |
 | 8. The start, the endings, the modes | 56 | 32 | 8 | 10 | 3 | 1 | 2 |
 | 9. The engine, the policy and the pipeline | 45 | 19 | 9 | 1 | 6 | 7 | 3 |
-| **total** | **400** | **240** | **63** | **29** | **33** | **18** | **17** |
+| **total** | **400** | **242** | **62** | **29** | **32** | **18** | **17** |
 
 Two things that table will not say by itself, and should:
 
@@ -413,7 +415,7 @@ Two things that table will not say by itself, and should:
 | 29 | "sickbay on deck 5, three biobeds plus a surgical bed" (`ship-systems.md:120`) | implemented | `module/ship/ship_core.h:2276,2280` | |
 | 30 | "per-deck `hull_integrity`, `pressure`, `eps`, `life_support`, plus ship-level `sif%`" (`ship-systems.md:133`) | partial | `module/ship/ship_core.h:202,204` | per-deck `eps`/`life_support` absent |
 | 31 | "assigning a repair empties a station" (`ship-systems.md` §*Repairs are the counter-play*) | implemented | `module/ship/ship_core.cpp` `RepairPartySize`, `DamageControlLine`; `scripts/damage-control-check.sh` | **C-12** — built 2026-10-12: three tiers; a large job draws post-holders off their stations <!-- register-row id=D1-31 state=closed marker=check:scripts/damage-control-check.sh --> |
-| 32 | "at most twelve shots penetrate before the Borg adapt" (`ship-systems.md:149`) | contradicted | `module/ship/ship_core.cpp:3572` | **C-15** |
+| 32 | "at most twelve shots penetrate before the Borg adapt" (`ship-systems.md:149`) | implemented | `module/ship/ship_core.h:BORG_ADAPT_SHOTS`; `TestTheAdapter` | **C-15**; the count is the bound, the ramp the shape |
 | 33 | "assimilation … five stages … a short reversal window" (`ship-systems.md:152`) | partial | `module/ship/ship_core.cpp:2608-2626,6357` | window built; no five *named* stages |
 | 34 | "around twenty minutes of ship time" to organise (`ship-systems.md:157`) | superseded | `module/ship/ship_core.h:194-196` (120/240/360 s) | `docs/borg-incursion.md:235-243` |
 | 35 | "ship-level failure is the Borg reaching the core" (`ship-systems.md:164`) | superseded | `module/ship/ship_core.cpp:6522` | **C-16**, `docs/endings.md:73` |
@@ -462,7 +464,7 @@ Two things that table will not say by itself, and should:
 | 9 | "never apply the ladder when a person has decided" (`power-assignment.md:72-81`) | implemented | `module/ship/ship_core.cpp:2134,2141`; `TestLadderOnlyInAutoMode` | |
 | 10 | a meeting is where allocations are argued and set (`power-assignment.md:65-68`) | implemented | `module/ship/ship_core.h:1062,1226`; `ship_core.cpp:8278` | state level; the rendered meeting not observed |
 | 11 | "total committed against total available … who set each commitment" (`power-assignment.md:87-94`) | implemented | `module/ship/g_ship.cpp:731-737`; `ship_core.cpp:2340` | BUYS is a number |
-| 12 | "save format 51" (`power-assignment.md:29`) | superseded | `SAVE_VERSION = 62` | historical **Corrected 2026-10-11:** the header is the owner and it reads 62 on this ref; this statement asserted the value at the time it was written. |
+| 12 | "save format 51" (`power-assignment.md:29`) | superseded | `SAVE_VERSION = 63` | historical **Corrected 2026-10-11:** the header is the owner and it reads 63 on this ref; this statement asserted the value at the time it was written. |
 | 13 | "the five added systems and a demand of 1,730" (`budget-squaring.md:9`) | implemented | `module/ship/ship_core.cpp:53-63`; `SPECS` sums to 1730 | |
 | 14 | "warp core 1,400 … impulse 250, auxiliary 90, batteries 60, fresh 1,800" (`budget-squaring.md:9-11`) | implemented | `module/ship/ship_core.cpp:226-231`; `PowerCapacityFresh()==1800` | |
 | 15 | "the ceiling-scaled warp core; … the torpedo complement at 38" (`budget-squaring.md:11-12`) | implemented | `module/ship/ship_core.cpp:1910,3712,3719`; `ship_core.h:244` | |
@@ -551,7 +553,7 @@ Two things that table will not say by itself, and should:
 | 47 | performance at post measurably degrades (`morale.md:41-43`) | partial | `ship_core.cpp:5606-5610` | ack latency not tied to morale |
 | 48 | compliance: delayed / done badly / refused on low outlook (`morale.md:44-46,88`) | partial | `r.resented:10224` | refusal is authority-based |
 | 49 | personnel screen: bands + top factor + "what would help" (`morale.md:60-63`) | partial | `MoraleReason:775-793` | "what would help" not produced |
-| 50 | "the save format is 57" (`morale.md:141-143`) | contradicted | `SAVE_VERSION = 62` | **C-2** **Corrected 2026-10-11:** the header is the owner and it reads 62 on this ref; this statement asserted the value at the time it was written. |
+| 50 | "the save format is 57" (`morale.md:141-143`) | contradicted | `SAVE_VERSION = 63` | **C-2** **Corrected 2026-10-11:** the header is the owner and it reads 63 on this ref; this statement asserted the value at the time it was written. |
 | 51 | holdings fold over marks, orphaned marks weigh 0 (`morale.md:113-126`) | implemented | `module/ship/ship_core.cpp:759-766`; `TestHoldingsIsAFold`, `TestPurgeMovesRegard` | |
 | 52 | `likes[]`/`dislikes[]`/`pursuits[]`, one store (`affinities-and-allegiance.md:18-41`) | absent | `CrewMember` has only `faction`, `resentment` | |
 | 53 | allegiance weights how an event lands and whether an order is carried (`affinities-and-allegiance.md:66-76`) | partial | `ship_core.cpp:5154` | faction is the only axis |
@@ -695,9 +697,9 @@ Two things that table will not say by itself, and should:
 | 7 | Borg "grow from what they hold"; retaking permanent, no spawn (`borg-incursion.md:112-115`) | implemented | `ship_core.cpp:2602-2627,4189-4192` | |
 | 8 | "you can reclaim a deck, and the deck is not the same afterwards" (`borg-incursion.md:127-131`) | partial | crew `assimScar:522`; **no deck residue field** | the place is fully restored |
 | 9 | force fields "rated 1-10; a level-10 field can cut a drone from the Collective" (`borg-incursion.md:135-139`) | implemented | `FIELD_MAX:198`; `ship_core.cpp:2528` | |
-| 10 | adaptation "(a) per weapon type" (`borg-incursion.md:143-147`) | partial | single `Enemy::adaptation:860` | not per weapon type |
+| 10 | adaptation "(a) per weapon type" (`borg-incursion.md:143-147`) | implemented | `Enemy::adapt[ADAPT_PHASER|ADAPT_TORPEDO]`; `TestTheAdapter` | **C-15**; the count is the bound, the ramp the shape, per weapon |
 | 11 | `DWELL_COMPROMISE` 120 / `DWELL_HOLD` 240 / `DWELL_SEIZE` 360 (`borg-incursion.md:235-243`) | implemented | `ship_core.h:194-196`; `TestIncursion:2975` | |
-| 12 | `Remodulate` "subtracting 0.5 … 120-second cooldown"; `RaidVinculum` zeroes adaptation for 300 s (`borg-incursion.md:245-250`) | implemented | `ship_core.h:2404-2406`; `ship_core.cpp:3200,3214` | |
+| 12 | `Remodulate` "subtracting 0.5 … 120-second cooldown"; `RaidVinculum` zeroes adaptation for 300 s (`borg-incursion.md:245-250`) | implemented | `Remodulate` (moves the ramp); `RaidVinculum` (clears count and ramp); `TestTheAdapter`, `TestCounterPlay` | |
 | 13 | `RecoverCaptive` window, permanent `assimScar`, `MEM_VIOLATION` (`borg-incursion.md:252-257`) | implemented | `RECOVERY_LIMIT:2339`; `ship_core.cpp:6357-6375`; test:2815 | |
 | 14 | `OrderAdvance` musters security and advances a deck in 3 minutes (`borg-incursion.md:266-270`) | implemented | `ship_core.cpp:4169,4181`; `ship_core.h:1711-1712` | |
 | 15 | "still to come: the crew layer embodying the squad as bodies" (`borg-incursion.md:272-275`) | absent | no crew-layer squad code | O13 |
@@ -936,9 +938,8 @@ row here is a gap the omissions sweep could not see — it asked *is this regist
 - **The engine run.** The falsification below uses the unit tests and the check scripts, not a running
   client; anything whose only witness is the rendered screen stays `unverified` or `partial`.
 - **The intention behind a fork.** Where the document and the code disagree and neither is provably the
-  later decision — the sector's `% 15` roll against the ledger's stated percentages; the twelve-shot
-  adaptation against the continuous ramp; standing distance 24-64 against 24-96 — the register gives the
-  fork and does not pick, because the evidence does not.
+  later decision — the sector's `% 15` roll against the ledger's stated percentages; standing distance
+  24-64 against 24-96 — the register gives the fork and does not pick, because the evidence does not.
 - **The Track D premise and its mechanical consequences.** `docs/multiplayer-premise.md` and
   `docs/design-north-star.md` §8 are claims about a programme with no code in this tree; their mechanisms
   are recorded `partial` or `absent`, and no rendering judgement is offered.
