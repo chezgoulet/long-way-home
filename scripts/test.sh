@@ -49,6 +49,10 @@ echo "==> bills: the watch bill and the reconfiguration bills (O6)"
 "$ROOT/scripts/bills-check.sh"
 
 echo
+echo "==> shields: canon's six arcs, and damage routes to one (C-14)"
+"$ROOT/scripts/shields-check.sh"
+
+echo
 echo "==> manner: the crew's state is audible and visible, and degrades without audio (G14)"
 "$ROOT/scripts/manner-check.sh"
 

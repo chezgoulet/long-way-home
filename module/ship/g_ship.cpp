@@ -802,7 +802,7 @@ void Publish( void )
 	gi.cvar_set( "lwh_ship_target_idx", Fmt( "%d", static_cast<int>( vessel.target ) ).c_str() );
 	gi.cvar_set( "lwh_ship_pursued", vessel.pursued ? Fmt( "%d", vessel.pursuitJumps ).c_str() : "" );
 	gi.cvar_set( "lwh_ship_sector", Fmt( "SECTOR %d OF %d%s", vessel.sectorNumber + 1, ship::SECTORS_TO_CROSS, vessel.won ? "   HOME" : "" ).c_str() );
-	gi.cvar_set( "lwh_ship_shields", Fmt( "%d", static_cast<int>( vessel.shieldStrength * 100 + 0.5f ) ).c_str() );
+	gi.cvar_set( "lwh_ship_shields", ship::ShieldReadout( vessel ).c_str() );
 	// The phaser bank's setting (Tactical's standing decision, and the one that exists with no
 	// contact): the setting, and what it asks of the power budget over its nominal demand.
 	{
@@ -3545,7 +3545,7 @@ void RunTest( void )
 		if ( level.time < 1000 ) step = 0;
 		if ( step == 0 && level.time >= 2000 )
 		{
-			vessel.shieldStrength = 0.0f;
+			for ( int i = 0; i < ship::SHIELD_SECTION_COUNT; ++i ) vessel.shields[i] = 0.0f;
 			vessel.sector[vessel.beacon].phenomenon = false;
 			vessel.sector[vessel.beacon].kind = ship::BEACON_EMPTY;
 			ship::SetAlert( vessel, ship::ALERT_GREEN );
@@ -6166,6 +6166,26 @@ void Svcmd_Ship_f( void )
 		else
 			gi.Printf( "SHIP: %s worked by %s\n", ship::Spec( static_cast<ship::SystemId>( sys ) ).name,
 				vessel.player >= 0 ? vessel.crew[vessel.player].name.c_str() : "the hand on duty" );
+	}
+	else if ( !Q_stricmp( cmd, "shield" ) && a[0] && b[0] )
+	{//ship shield <fwd|port|stbd|aft|dorsal|ventral|auto> <0..1>: put one hit into one arc (C-14).
+	 //`auto` is a hit that names no section -- it goes to the arc the ship's hit counter names, which
+	 //is where enemy fire with no bearing lands (ShieldSectionForHit). The same six names the
+	 //console read-out uses, so a scenario and a person address the same arc.
+		ship::ShieldSection sec = ship::ShieldSectionByName( a );
+		const bool unrouted = sec >= ship::SHIELD_SECTION_COUNT && !Q_stricmp( a, "auto" );
+		if ( unrouted ) sec = ship::ShieldSectionForHit( vessel );
+		const float amount = static_cast<float>( atof( b ) );
+		if ( sec >= ship::SHIELD_SECTION_COUNT )
+			gi.Printf( "SHIP: shield: name an arc -- fwd, port, stbd, aft, dorsal, ventral (or auto)\n" );
+		else
+		{
+			const float through = ship::ShieldHit( vessel, sec, amount );
+			gi.Printf( "SHIP: shield %s%s hit for %.0f%%: %s%s\n", ship::ShieldSectionName( sec ),
+				unrouted ? " (unrouted)" : "", amount * 100.0f, ship::ShieldReadout( vessel ).c_str(),
+				through > 0.0f ? "  (the hit passed through to the hull)" : "" );
+		}
+		Publish();
 	}
 	else if ( !Q_stricmp( cmd, "breach" ) && a[0] && b[0] ) ship::BreachDeck( vessel, atoi( a ), atof( b ) );
 	else if ( !Q_stricmp( cmd, "seal" ) && a[0] ) ship::RepairDeck( vessel, atoi( a ), 1.0f );

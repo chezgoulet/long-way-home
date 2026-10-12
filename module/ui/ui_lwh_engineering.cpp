@@ -329,8 +329,11 @@ void Draw( void )
 		if ( line[0] ) UI_DrawProportionalString( 44, 366, line, UI_TINYFONT, colorTable[CT_LTGOLD1] );
 		ui.Cvar_VariableStringBuffer( "lwh_ship_enemy", line, sizeof( line ) );
 		UI_DrawProportionalString( 44, 384, line[0] ? line : "NO CONTACTS", UI_SMALLFONT, colorTable[line[0] ? CT_RED : CT_LTBLUE2] );
-		UI_DrawProportionalString( 44, 398, va( "OUR SHIELDS %d%%", static_cast<int>( ui.Cvar_VariableValue( "lwh_ship_shields" ) ) ),
-			UI_TINYFONT, colorTable[CT_LTGOLD1] );
+		// The shields are canon's six arcs (C-14): the read-out is the set, not one number. The
+		// module publishes the line in `lwh_ship_shields` (ship::ShieldReadout), and the console
+		// draws it as it stands -- so what a person reads is what the damage routed to.
+		ui.Cvar_VariableStringBuffer( "lwh_ship_shields", line, sizeof( line ) );
+		UI_DrawProportionalString( 44, 398, line[0] ? line : "OUR SHIELDS DOWN", UI_TINYFONT, colorTable[CT_LTGOLD1] );
 	}
 	if ( screen.station == 3 )
 	{
