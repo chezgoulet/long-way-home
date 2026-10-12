@@ -99,6 +99,11 @@ marker, the compartment wiring, the breach triggers and field, and the status pa
 baked; the **emergency lighting state** (`hall/hall_light_red`, switched by the module at red alert
 or a life-support failure). Evidence, with the commands: `docs/evidence/deck12-redress.md`.
 
+Added 2026-10-11 (walkthrough G18): **the watch console's readout** — the deck's own air, its
+countdown to unbreathable, and the source holding it, on a `lwh/env` surface on the console's face
+toward the watch post (`lwh_env_post`). The surface, the post and the check:
+`docs/evidence/the-deck12-readout.md`, `scripts/deck12-readout-check.sh`.
+
 Open, and only the owner can close it: **does it read as somewhere a person watches over fifteen
 decks of air?** The compression is a hypothesis -- a tall room made low may read as machinery or as
 squashed. The tube, the plant and the watch post are placed by measurement, not by eye. Walk it; if

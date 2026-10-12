@@ -12,3 +12,17 @@ textures/lwh/panel
 		rgbGen identity
 	}
 }
+
+// The deck-12 environmental readout (G18, docs/evidence/the-deck12-readout.md). A second live
+// surface, and a separate one on purpose: it shows *this deck's* air, drawn where the problem is,
+// not the ship-wide status above. Its own image, so the two panels are independent. Placed on the
+// watch console in environmental control; same 128-wide image, half the height (128x64).
+textures/lwh/env
+{
+	nomipmaps
+	nopicmip
+	{
+		map gfx/lwh/env.tga
+		rgbGen identity
+	}
+}

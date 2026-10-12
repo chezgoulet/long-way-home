@@ -15,11 +15,18 @@
 namespace {
 
 const int PANEL_W = 128, PANEL_H = 128; // square: the screen face is square, so one tile fills it
+const int ENV_W = 128, ENV_H = 64;     // the deck-12 readout: a 2:1 strip at the watch console
 const int LINE_MS = 200;      // the panel is redrawn this often, not every frame
 
 unsigned char panel[PANEL_W * PANEL_H * 4];
+unsigned char envimg[ENV_W * ENV_H * 4];
 bool remapped = false;
 int nextDraw = 0;
+
+// The image the drawing helpers below write into, and its size. Render sets it to the status
+// panel; RenderEnv sets it to the deck-12 readout. One font, one set of helpers, two surfaces.
+unsigned char *g_target = panel;
+int g_target_w = PANEL_W, g_target_h = PANEL_H;
 
 // ---- a 5x7 font, column-major, bit 0 at the top. Only the characters a status line needs. ----
 struct Glyph5 { unsigned char c; unsigned char b[5]; };
@@ -87,8 +94,8 @@ const float DIM[4]    = { 0.16f, 0.18f, 0.30f, 1.0f };
 
 void Put( int x, int y, const float *col )
 {
-	if ( x < 0 || y < 0 || x >= PANEL_W || y >= PANEL_H ) return;
-	unsigned char *p = panel + ( y * PANEL_W + x ) * 4;
+	if ( x < 0 || y < 0 || x >= g_target_w || y >= g_target_h ) return;
+	unsigned char *p = g_target + ( y * g_target_w + x ) * 4;
 	p[0] = static_cast<unsigned char>( col[0] * 255 );
 	p[1] = static_cast<unsigned char>( col[1] * 255 );
 	p[2] = static_cast<unsigned char>( col[2] * 255 );
@@ -117,6 +124,7 @@ void Text( int x, int y, const char *s, const float *col )
 // The whole picture, from the live ship. Four short lines and a power bar.
 void Render( const ship::Ship *s )
 {
+	g_target = panel; g_target_w = PANEL_W; g_target_h = PANEL_H; // the helpers draw here, not into the readout
 	static const char *const WATCH[] = { "ALPHA", "BETA", "GAMMA" };
 	static const char *const ALERTS[] = { "GREEN", "YELLOW", "RED" };
 	static const float *const ALERT_COL[] = { GREEN, YELLOW, RED };
@@ -194,6 +202,65 @@ void Render( const ship::Ship *s )
 		}
 }
 
+// ---- the deck-12 environmental readout (G18) ------------------------------------------------
+
+// Environmental control lives on deck 12 (docs/ship-master-map.md), and this surface stands at its
+// watch console. It draws the three things the finding asks for and nothing else: the deck's air,
+// the countdown to the point the design calls unbreathable (`AIRLESS`), and which source is holding
+// that deck's air -- the triad the air pass built (docs/evidence/the-air.md). It reads the same
+// state the simulation and the console read, so the picture and the number cannot disagree.
+//
+// `wired` is the falsification (the check's planted break): with it false the surface stops
+// following the deck and keeps one frozen state, so the two states photograph identically -- which
+// is exactly the check must catch. docs/evidence/the-deck12-readout.md.
+const int ENV_DECK = 12;
+
+const char *ShortSource( uint8_t src )
+{
+	static const char *const NAMES[ship::SRC_COUNT + 1] = {
+		"WARP CORE", "IMPULSE", "AUX FUSION", "BATTERIES", "MAIN GRID"
+	};
+	return src <= ship::SRC_COUNT ? NAMES[src] : "?";
+}
+
+void RenderEnv( const ship::Ship *s, bool wired )
+{
+	g_target = envimg; g_target_w = ENV_W; g_target_h = ENV_H;
+	for ( int i = 0; i < ENV_W * ENV_H; ++i )
+	{
+		envimg[i * 4 + 0] = static_cast<unsigned char>( BLACK[0] * 255 );
+		envimg[i * 4 + 1] = static_cast<unsigned char>( BLACK[1] * 255 );
+		envimg[i * 4 + 2] = static_cast<unsigned char>( BLACK[2] * 255 );
+		envimg[i * 4 + 3] = 255;
+	}
+	Fill( 0, 0, ENV_W, 2, DIM );
+
+	char line[64];
+	Text( 6, 4, "DECK 12 AIR", GOLD );
+
+	// The readout, from the deck's own air -- unless `wired` is false, which is the planted break:
+	// the surface then keeps showing one frozen state whatever the deck does, so the two photographs
+	// come out identical and the check's difference assertion is what catches it.
+	const int deck = ENV_DECK;
+	const float atmos = wired ? s->decks[deck - 1].atmosphere : 1.0f;
+	const float minutes = wired ? ship::MinutesOfAir( *s, deck ) : -1.0f;
+	const int source = wired ? ship::AirSourceOf( *s, deck ) : static_cast<int>( ship::AIR_GRID );
+	const int pct = static_cast<int>( atmos * 100.0f + 0.5f );
+	const bool holding = minutes < 0.0f;
+
+	std::snprintf( line, sizeof( line ), "AIR %d%%", pct );
+	Text( 6, 20, line, holding ? GREEN : (pct >= 50 ? YELLOW : RED) );
+
+	if ( holding ) std::snprintf( line, sizeof( line ), "HOLDING" );
+	else if ( atmos <= ship::AIRLESS ) std::snprintf( line, sizeof( line ), "AIRLESS" );
+	else std::snprintf( line, sizeof( line ), "%.1f MIN TO AIRLESS", static_cast<double>( minutes ) );
+	Text( 6, 36, line, holding ? GREEN : RED );
+
+	std::snprintf( line, sizeof( line ), "SOURCE %s",
+		ShortSource( static_cast<uint8_t>( source ) ) );
+	Text( 6, 52, line, BLUE );
+}
+
 } // namespace
 
 void LWH_Panel_Frame( const ship::Ship *s )
@@ -215,4 +282,10 @@ void LWH_Panel_Frame( const ship::Ship *s )
 	nextDraw = level.time + LINE_MS;
 	Render( s );
 	gi.UpdatePanelImage( "textures/lwh/panel", panel, PANEL_W, PANEL_H );
+
+	// The deck-12 environmental readout, on its own surface (G18). `g_shipEnvStatic` cuts the
+	// wiring from the deck's air to this surface -- the check's planted break.
+	cvar_t *envstatic = gi.cvar( "g_shipEnvStatic", "0", 0 );
+	RenderEnv( s, !( envstatic && envstatic->integer ) );
+	gi.UpdatePanelImage( "textures/lwh/env", envimg, ENV_W, ENV_H );
 }

@@ -182,9 +182,11 @@ content engine needs, not the player:
 
 **Queued, in this order, decided 2026-10-11:**
 
-1. **The deck-12 environmental readout** (walkthrough G18) — the air/endurance countdown drawn *where the
-   problem is*, not only in a console, because the per-deck air ruling (C4) made deck-by-deck survival a
-   mechanism and this is the surface that makes it legible to a person standing there.
+1. ~~**The deck-12 environmental readout** (walkthrough G18)~~ — **built 2026-10-11** on
+   `feat/the-deck12-readout` (`docs/evidence/the-deck12-readout.md`,
+   `scripts/deck12-readout-check.sh`): the deck's air, its countdown and the source holding it, on a
+   surface at the deck-12 watch console, so the per-deck air ruling (C4) is legible to a person
+   standing there.
 2. **The holodeck reactor as a per-deck source** — the last piece of canon's three independent power sources
    (O2's remainder), behind the sources that already survive the main grid.
 3. **The derivation — declaration → primitive → call path** — the crossing instrument: for every field a

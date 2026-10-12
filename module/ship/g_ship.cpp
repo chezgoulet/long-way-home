@@ -1490,6 +1490,21 @@ bool TargetOrigin( const char *name, vec3_t out )
 	return false;
 }
 
+// The deck-12 environmental readout's own line, for the check (G18, docs/evidence/the-deck12-readout.md).
+// It reads exactly what the surface is drawn from (module/ship/lwh_panel.cpp, RenderEnv), so the
+// number in the log and the picture on the panel cannot disagree: the deck, its air, the countdown
+// to what the design calls unbreathable, and the source holding the deck's air.
+void PrintEnvReadout( void )
+{
+	const int deck = 12;
+	const float atmos = vessel.decks[deck - 1].atmosphere;
+	const float minutes = ship::MinutesOfAir( vessel, deck );
+	gi.Printf( "SHIP: env readout: deck %d air %d%% ", deck, static_cast<int>( atmos * 100.0f + 0.5f ) );
+	if ( minutes < 0.0f ) gi.Printf( "holding" );
+	else gi.Printf( "%.1f min to airless", minutes );
+	gi.Printf( ", source %s\n", ship::AirSourceName( static_cast<uint8_t>( ship::AirSourceOf( vessel, deck ) ) ) );
+}
+
 // Stand where a named thing can be seen, and look at it.
 bool StandWhereVisible( const char *targetname, float range, const char *label )
 {
@@ -1632,6 +1647,86 @@ void RunTest( void )
 			gi.SendConsoleCommand( "quit\n" );
 			step = 1;
 		}
+		return;
+	}
+	if ( g_shipTest->integer == 101 )
+	{//the deck-12 environmental readout (G18, docs/evidence/the-deck12-readout.md): stand at the
+	 //watch console in environmental control and photograph the deck's own air, its countdown and
+	 //the source holding it -- twice: a deck holding its air, and the same deck failing. The
+	 //surface is `lwh/env` at the console; `lwh_env_post` is the watch post and `lwh_env_screen`
+	 //the middle of the surface it looks at, so the aim follows the screen wherever it is placed.
+	 //With `g_shipEnvStatic` 1 the readout stops following the deck (the wiring is cut), which is
+	 //the check's planted break.
+		static int step = 0;
+		static vec3_t screenAt = { 0, 0, 0 };
+		static float envAimYaw = 0.0f, envAimElev = 0.0f;
+		if ( level.time < 1000 ) { step = 0; screenAt[0] = screenAt[1] = screenAt[2] = 0; }
+		if ( step == 0 && level.time >= 2500 )
+		{
+			vec3_t post = { 0, 0, 0 };
+			if ( !TargetOrigin( "lwh_env_post", post ) || !TargetOrigin( "lwh_env_screen", screenAt ) )
+			{
+				gi.Printf( "SHIP: env readout: no lwh_env_post/lwh_env_screen on this map -- nothing photographed\n" );
+				step = 9;
+				return;
+			}
+			TeleportPlayer( &g_entities[0], post, vec3_origin, 0 );
+			gi.Printf( "SHIP: env readout: standing at %s, looking at the screen at %s\n", vtos( post ), vtos( screenAt ) );
+			step = 1;
+		}
+		if ( step >= 1 && step <= 6 && g_entities[0].client )
+		{// aim from where the player actually stands, every frame: the post is on the floor and the
+		 // eye is the pose's own viewheight, so the camera points at the surface wherever it sits
+			// rather than at a pitch guessed at build time.
+			vec3_t eye, dir;
+			VectorCopy( g_entities[0].currentOrigin, eye );
+			eye[2] += g_entities[0].client->ps.viewheight;
+			VectorSubtract( screenAt, eye, dir );
+			vectoangles( dir, glanceAngles );
+			haveGlanceAim = true;
+			SetClientViewAngle( &g_entities[0], glanceAngles );
+			envAimYaw = atan2( dir[1], dir[0] ) * 180.0f / M_PI;
+			envAimElev = atan2( dir[2], sqrt( dir[0] * dir[0] + dir[1] * dir[1] ) ) * 180.0f / M_PI;
+		}
+		if ( step == 1 && level.time >= 4000 )
+		{// a deck holding its air, on the main grid
+			PrintEnvReadout();
+			gi.Printf( "SHIP: env readout: eye %s, aim yaw %.0f pitch %.0f (up positive)\n",
+				vtos( g_entities[0].currentOrigin ), envAimYaw, envAimElev );
+			gi.SendConsoleCommand( "screenshot lwh_env_hold\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 5200 )
+		{// the same deck failing: the hull is opened and the air is going
+			ship::BreachDeck( vessel, 12, 1.0f );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 6200 )
+		{// the number and the picture, once the breach has a countdown
+			PrintEnvReadout();
+			gi.Printf( "SHIP: env readout: eye %s, aim yaw %.0f pitch %.0f (up positive)\n",
+				vtos( g_entities[0].currentOrigin ), envAimYaw, envAimElev );
+			gi.SendConsoleCommand( "screenshot lwh_env_low\n" );
+			step = 4;
+		}
+		if ( step == 4 && level.time >= 7400 )
+		{// the deck held on its own source -- the mechanism the air pass built: the readout's
+		 // third line must name the source holding it, not the grid it left
+			ship::RepairDeck( vessel, 12, 1.0f );
+			ship::SetAirSource( vessel, 12, ship::SRC_AUXILIARY );
+			ship::SetSourceOnline( vessel, ship::SRC_WARP_CORE, false );
+			ship::Tick( vessel, 1.0f );
+			step = 5;
+		}
+		if ( step == 5 && level.time >= 8600 )
+		{
+			PrintEnvReadout();
+			gi.Printf( "SHIP: env readout: eye %s, aim yaw %.0f pitch %.0f (up positive)\n",
+				vtos( g_entities[0].currentOrigin ), envAimYaw, envAimElev );
+			gi.SendConsoleCommand( "screenshot lwh_env_aux\n" );
+			step = 6;
+		}
+		if ( step == 6 && level.time >= 9800 ) { gi.SendConsoleCommand( "quit\n" ); step = 7; }
 		return;
 	}
 	if ( g_shipTest->integer == 80 )
