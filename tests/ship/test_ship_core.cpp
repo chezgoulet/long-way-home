@@ -1136,6 +1136,29 @@ static void TestWrittenOffList()
 		for (const LossEntry &e : bl) if (!e.system && e.target == d) found = true;
 		CHECK(!found);
 	}
+
+	// C-13: the write-off leaves a mark, and the provenance tells the two versions apart. Those on
+	// the deck saw it (MEM_SAW); everyone else hears it as a rumour (MEM_RUMOUR) -- the declared
+	// source the register found nothing produced (docs/memory-and-consequence.md).
+	{
+		Ship w = NewShip();
+		for (CrewMember &c : w.crew) c.deck = 0;
+		w.crew[0].deck = 9;
+		w.crew[1].deck = 9;
+		CHECK(WriteOff(w, false, 9, LOSS_SEALED));
+		CHECK(RecallSource(w.crew[0], MEM_LOSS) == MEM_SAW);
+		CHECK(RecallSource(w.crew[1], MEM_LOSS) == MEM_SAW);
+		int saw = 0, rumoured = 0, unknown = 0;
+		for (const CrewMember &c : w.crew) {
+			const int src = RecallSource(c, MEM_LOSS);
+			if (src == MEM_SAW) ++saw;
+			else if (src == MEM_RUMOUR) ++rumoured;
+			else ++unknown;
+		}
+		CHECK(saw == 2);
+		CHECK(rumoured == COMPLEMENT - 2);
+		CHECK(unknown == 0);
+	}
 }
 
 // The tricorder gap: a scan reveals; a weak charge misreads; a dead tricorder does nothing.
@@ -3688,6 +3711,21 @@ static void TestRankAndRoles()
 	CHECK(back.player == who && back.crew[who].name == "Lt. Okoro" && back.crew[who].rank == 3);
 	CHECK(back.wallSeconds == 1791234567ull);
 	CHECK(Pack(back) == blob);
+}
+
+// The Doctor is a post with no rank: a chief medical officer with no Starfleet commission, holding
+// sickbay by his post's department and not by a rank (register 3.2; docs/crew-manifest.md, "Special
+// cases"). His record carries the same rank 0 as the other people-with-a-post-and-no-commission, so
+// rank says no commission and the department says what he may operate -- sickbay, not the conn.
+static void TestDoctorNoCommission()
+{
+	g_test = "the Doctor is a post with no rank";
+	Ship s = NewShip();
+	const CrewMember &doctor = s.crew[6];
+	CHECK(doctor.name == "The Doctor");
+	CHECK(doctor.rank == 0);
+	CHECK(!MayCommand(doctor));
+	CHECK(MayOperate(doctor, STN_SICKBAY) && !MayOperate(doctor, STN_CONN));
 }
 
 // The access model beyond rank: delegation, revocation, the emergency override, remote call-up and
@@ -8633,6 +8671,33 @@ static void TestOodAuthority()
 	CHECK(!OodMayOrder(d, o2, senior));
 }
 
+// C-11's consumer: the predicate above is wired to a decision, so the deck's documented authority
+// can actually dispatch an order to a senior officer. The rank rule alone refuses it (the OOD is
+// junior to them); the OOD rule carries it.
+static void TestOodDispatch()
+{
+	g_test = "the officer of the deck may dispatch an order to a senior";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int ood = OfficerOfTheDeck(s);
+	CHECK(ood >= 0);
+	int ordered = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT || c.brigged || c.away) continue;
+		if (c.rank > s.crew[ood].rank && c.rank < 6 && c.post < SYS_COUNT) { ordered = i; break; }
+	}
+	CHECK(ordered >= 0);
+	CHECK(s.crew[ordered].rank > s.crew[ood].rank);   // seniority alone would refuse the deck
+	CHECK(!MayCommand(s.crew[ordered]));
+	const OrderBrief b = BuildOrderBrief(s, ood, ordered);
+	const int idx = OptionOf(b, ORDER_SEE_TO);
+	CHECK(idx >= 0);                                  // offered because the deck may give it
+	const OrderOutcome r = DispatchOrder(s, b, idx, ood);
+	CHECK(r.given && !r.refused);
+	CHECK(s.orderRepairFirst == s.crew[ordered].post);
+}
+
 // `test_ship_core --bills` prints the bills as evidence (docs/evidence/the-bills.md): the census,
 // each bill called and observed, the crew's recorded state changing, and the officer of the deck.
 static int PrintBills()
@@ -8829,6 +8894,7 @@ int main(int argc, char **argv)
 	TestSleepAndExits();
 	TestTheQuitExit();
 	TestRankAndRoles();
+	TestDoctorNoCommission();
 	TestAccessAndAuthority();
 	TestOrders();
 	TestPlayerInTheWorld();
@@ -8904,6 +8970,7 @@ int main(int argc, char **argv)
 	TestOrderSaveRoundTrip();
 	TestTheBills();
 	TestOodAuthority();
+	TestOodDispatch();
 	TestTextFit();
 
 	if (g_failures) {

@@ -9,6 +9,11 @@ no engine, no code, no `module/` change, and the save version does not move.
 Every claim below is the output of a command named beside it, run on this tree. Where a verdict rests
 on a check that passes rather than on a person having seen the thing, it says so.
 
+> **Correction, 2026-10-11 (later the same day):** this snapshot reads **G18** as open. It is now
+> **closed** by `feat/the-deck12-readout` (`docs/evidence/the-deck12-readout.md`,
+> `scripts/deck12-readout-check.sh`): the deck-12 watch console carries the deck's own air readout.
+> The live register is `docs/walkthrough.md`; the table below is kept as this pass's own reading.
+
 ---
 
 ## Task A — every finding classified, against the tree and the ledger

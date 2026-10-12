@@ -73,10 +73,14 @@ Order is by dependency. S3 and S4 may overlap once S2 has fixed how a console ta
 
 - **The merged map against engine limits.** Ten decks of entities and brushes in one BSP will pass
   the entity, brush and visibility ceilings somewhere. S3 starts by measuring where.
-- **Crew cannot open doors** (found in G3). A crew that walks the whole ship needs door handling
-  before S5.
+- **Crew cannot open doors** (found in G3) — **CLOSED 2026-10-11 (C-17):** the crew layer opens doors now
+  (`OpenDoorFor`, gated by `LayerMayOpen`, in `module/crew/g_crew.cpp`, with `g_crewDoorOpen` defaulting on;
+  the regression is `scripts/crew-door-check.sh`). *The row is kept as the record of the find; the claim of
+  absence is no longer true.*
 - **Missing decks have no canonical interior plans.** What is generated is invention, logged as such.
 - **Borg asset replacement** means runtime shader and model swaps per section — an engine capability
-  that does not exist yet.
+  that does not exist yet. *(**Corrected 2026-10-11 (D1-56):** stale. The swap is built: `BorgAssets` in
+  `module/ship/g_ship.cpp` applies the ship's Borg state onto the generated decks, with
+  `scripts/borg-deck-check.sh` as the regression. The claim of absence is kept as the record of the find.)*
 - **Balance.** An FTL-like loop is tuned by playing it. Every invented number is in the ledger so it
   can be changed in one place.

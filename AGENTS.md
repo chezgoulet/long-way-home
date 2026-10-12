@@ -56,8 +56,10 @@ ledger and it is the authority. When this file and `docs/gates.md` disagree abou
 
 - **Game logic lives in `module/`, never in the engine.** Patches carry attach points into our files; a
   patch that contains logic is wrong. See `module/README.md`.
-- **The engine may be extended** (`docs/engine-extension-policy.md`), but every extension is cvar-gated and
-  **off by default**, keeps retail behaviour and saves intact, and stays a rebasable patch series.
+- **The engine may be extended** (`docs/engine-extension-policy.md`), but every **behaviour-changing**
+  extension is cvar-gated and **off by default**, keeps retail behaviour and saves intact, and stays a
+  rebasable patch series. A **limit raise** is the exception the policy names: it is not gated, and it
+  states its save cost in its own patch header (`patches/0008`, `patches/0018`).
 - **Evidence, not claims.** A milestone lands with a written record in `docs/evidence/` — what was
   observed, the command that produced it, and the result. Not an assertion that something works.
 - **A green check is not the answer to your question.** Ask what the check proves and whether that is what

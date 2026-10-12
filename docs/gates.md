@@ -362,13 +362,21 @@ moves when the crew act.
 **First slice 2026-10-07** (`docs/evidence/gap-air-and-endurance.md`, `tests/ship/test_ship_core.cpp`):
 `MinutesOfAir` per deck and `MinutesToDark` for the ship, read from the same rates the sim uses; a force
 field over a breach (`SetForceField`, save format **version 10**); the clocks published as `lwh_ship_clocks`
-and drawn on the Operations console. Force fields from the panel, endurance per source, and the clocks at
-deck 12 itself remain.
+and drawn on the Operations console. Force fields from the panel, endurance per source, and the
+readout at deck 12 itself are built (the last 2026-10-11, below).
 **The independent air source (Finding two / O2) built 2026-10-10** on `feat/the-air`
 (`docs/evidence/the-air.md`): the three sources that survive the main grid are separate state, a deck's
 life support can be fed from one of them so the deck holds its air with the grid down, the state says which
 source holds which deck, an over-committed source is reported as a shortfall number, and it is saved
 (version 56). The world half (the clock at a deck, the frame) is named as sasquatch's.
+**The readout at the problem built 2026-10-11** on `feat/the-deck12-readout`
+(`docs/evidence/the-deck12-readout.md`, `scripts/deck12-readout-check.sh`): the deck-12 watch console
+carries a surface of its own (`lwh/env`, drawn by `module/ship/lwh_panel.cpp`) showing the deck's air,
+its countdown to `AIRLESS`, and the source holding it; a holding deck, the same deck failing and the
+deck on an independent source photograph differently in the readout's own region (11.7 % and 16.4 %
+changed, against a 10 %/5 % bar), and with the wiring cut the two states photograph identically and
+the check fails. The same pass found and fixed q3map2 baking the live panel shaders as two tiles
+(the panel shaders were in the pak only; the compiler's own game dir now carries them).
 
 **4. The log as a browsable artifact.** *State:* log entries with time, author, subject and fact. *Control:*
 each post reads its own scope, command sees all, the player can search. *Visible:* the log itself -- and it
@@ -434,8 +442,10 @@ selects a manner, it is raised where the state changes and where the person acts
 and handed to the voice, and it degrades to text with no bank or no render (`MannerFor`,
 `EmitManner`, `scripts/manner-check.sh`, `docs/evidence/the-manner.md`; whether it *reads as a
 person* is the owner's ear, and remains), ~~the EMH (the mobile-emitter backlog item)~~ **the EMH and its mobile emitter
-were built 2026-10-07** (`ActivateEMH`, `SetMobileEmitter`, save versions 16 and 21; below), the
-environmental-control countdown at deck 12 itself (the deck build), and a walkable away site (content; the
+were built 2026-10-07** (`ActivateEMH`, `SetMobileEmitter`, save versions 16 and 21; below), ~~the
+environmental-control countdown at deck 12 itself (the deck build)~~ **built 2026-10-11** on
+`feat/the-deck12-readout` (`docs/evidence/the-deck12-readout.md`,
+`scripts/deck12-readout-check.sh`), and a walkable away site (content; the
 acceptance run needs it and a session). The model says so in each evidence document.
 <!-- register-row id=gaps-remaining state=partly marker=symbol:module/ship/ship_core.cpp:ActivateEMH -->
 <!-- register-row id=manner state=closed marker=check:scripts/manner-check.sh -->

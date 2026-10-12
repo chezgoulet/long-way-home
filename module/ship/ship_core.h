@@ -406,7 +406,10 @@ const char *SpeciesSusceptibility(uint8_t sp, int i);
 // is bounded, evicting the least salient first.
 enum MemorySource : uint8_t { MEM_SAW = 0, MEM_TOLD, MEM_RUMOUR, MEM_LOG, MEM_SOURCE_COUNT };
 enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, MEM_RESCUE, MEM_VIOLATION, MEM_FUNERAL, MEM_LOCKOUT,
-	MEM_OVERRULED = 9 }; // an officer's recommendation was refused: he remembers it (docs/power-assignment.md, Task C)
+	MEM_OVERRULED = 9, // an officer's recommendation was refused: he remembers it (docs/power-assignment.md, Task C)
+	MEM_LOSS = 10 };   // something the ship has given up: those aboard saw it, everyone else hears it as a rumour
+	                   // (docs/memory-and-consequence.md, "a deck written off is a mark in everyone who was aboard,
+	                   // and a rumour in everyone who was not") -- the event that makes MEM_RUMOUR a mark the crew carry
 const int MEMORY_MAX = 8;
 struct Memory {
 	uint16_t event = 0;

@@ -24,6 +24,13 @@ is standing, and the only "room" it knows is the participants list. So the place
 states and the code does not yet keep; binding a brief to its room is its own work, and it is not a label
 change on the overlay.
 
+*(**Corrected again 2026-10-11 (D6-2): this correction is now itself stale.** The room **landed 2026-10-10** —
+"the meeting's place" — as **save version 55**: each queued brief now knows the room it is held in and the
+department whose business it is, derived from the meeting's kind and subject (`MeetingBrief.room` in
+`module/ship/ship_core.h`; resolved in `BuildBrief`, `module/ship/ship_core.cpp`;
+`module/ship/meeting_rooms.def`). The code keeps the rule now; the paragraph above is kept as the record of
+the find.)*
+
 
 ## The three phases
 

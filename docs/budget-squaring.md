@@ -1,6 +1,12 @@
 # The ship's capability against her budgets
 
-**Status: implemented 2026-10-07, on `feat/the-budgets`. The number set below is the one in the code.**
+**Status: implemented 2026-10-07, on `feat/the-budgets`. The implemented number set below is Part five's** (with
+Part six's shed table); **Parts two and four are the pre-ruling history and their figures are not the code.**
+*(**Corrected 2026-10-11 (D2-16):** this header read "The number set below is the one in the code", which is
+false as literally written of Part two (`1,500` supply / `1,540` demand / `1,000` core) and Part 4a (the
+`1,100`-core proposal). The numbers that are in the code are **Part five's**: demand `1,730`, fresh supply
+`1,800`, warp core `1,400 × ceiling`, impulse `250`, auxiliary `90`, batteries `60`. The register recorded the
+overbroad header as contradicted.)*
 
 The **demand** table in Part four stands. The owner's headroom ruling of 2026-10-07 (**Part five**)
 **supersedes Part four's constant 230-EPS shortfall** and replaces it with a supply curve that starts *above*
@@ -99,6 +105,9 @@ budget target:
 
 ## Part two — what our model says today
 
+*(**Superseded, kept as history. Corrected 2026-10-11 (D2-16):** the `1,500` supply and `1,540` demand below are
+the pre-ruling model; the number now in the code is Part five's `1,730` demand against a fresh `1,800`.)*
+
 **Supply — four sources, 1,500 EPS nameplate.**
 
 | source | capacity | deuterium/day at full | antimatter/day at full |
@@ -160,6 +169,11 @@ place the drive at all; the code has placed it, and nothing says so out loud.
 
 ## Part three — where our model and canon disagree
 
+*(**Pre-ruling findings, kept as history. Corrected 2026-10-11 (D2-16):** the findings below — no labs, no
+astrometrics, no lighting, no cargo handling; three shed rungs in the code — describe the model *before*
+the owner's Part five ruling. All five loads are now in the code (`SPECS[]`), so read these as the argument,
+not as the state.)*
+
 **Finding one: the model is a warship's budget on a science vessel's hull.** The tactical fit — shields,
 phasers, torpedoes, tractor — is **440 EPS, 28.6 per cent of the grid.** The science fit, as modelled, is
 **one sensors row at 60 EPS: 3.9 per cent.** There are **no labs, no astrometrics, and no long-range
@@ -207,6 +221,9 @@ built as moments.
 ---
 
 ## Part four — the proposal, for ruling
+
+*(**Superseded, kept as history. Corrected 2026-10-11 (D2-16):** the `1,000 → 1,100` warp core below was the
+proposal; Part five's ruling sets it at `1,400 × ceiling`. Read 4a as the reasoning, not the numbers.)*
 
 ### 4a. Move the sources so the core is the plant, and the coreless ship is nearly dead
 
@@ -333,11 +350,14 @@ Demand stands at **1,730** (Part 4b). So the fresh grid must exceed it, or there
 | **supply** | **1,800** | **1,590** | **1,380** | **1,170** |
 | **against 1,730** | **+70 spare** | **−140** | **−350** | **−560** |
 
-**She leaves port with seventy EPS in hand.** Then each recomposition costs her a fifteenth of her plant
-forever, and the squeeze arrives in sequence: the comforts and the science first, then the operations, then
-the drive itself. At a ceiling of 0.55 she is running on two-thirds of the ship that left port, and the only
-way back is **a new crystal — which costs a detour, a trade, or a research programme.** That is the loop
-`docs/exploration-and-science.md` already describes: decline, recomposite, replace, improve.
+**She leaves port with seventy EPS in hand.** Then each recomposition costs her **15 per cent** of her plant
+forever *(**CORRECTED 2026-10-11 (C-5):** this read "a fifteenth", a 6.7-per-cent slip, contradicting the
+`RECOMPOSITE_CEILING_DROP = 0.15` that this same document states in the Part five table twenty lines above and
+that `module/ship/ship_core.h` defines)*, and the squeeze arrives in sequence: the comforts and the science
+first, then the operations, then the drive itself. At a ceiling of 0.55 she is running on two-thirds of the
+ship that left port, and the only way back is **a new crystal — which costs a detour, a trade, or a research
+programme.** That is the loop `docs/exploration-and-science.md` already describes: decline, recomposite,
+replace, improve.
 
 **And it makes the coreless state a slope rather than a cliff.** At a spent crystal the ship converges on the
 Part 4a coreless condition continuously: she lives, she limps at sublight, she keeps her deflector, and
