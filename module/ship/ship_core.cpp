@@ -1547,10 +1547,66 @@ static void TreatCasualties(Ship &s, float shipSeconds)
 	}
 }
 
+// The hands a repair job is sent (tier two, docs/crew-work.md): severity is the fraction of the
+// system destroyed. Up to the threshold the standing party as it stands; past it, scaling to the
+// large party, at least one more hand, reaching REPAIR_PARTY_LARGE at a wholly destroyed system.
+int RepairPartySize(float severity)
+{
+	if (severity <= 0.0f) return 0;
+	if (severity <= REPAIR_SEVERITY_LARGE) return REPAIR_TEAM_MAX;
+	const float t = (severity - REPAIR_SEVERITY_LARGE) / (1.0f - REPAIR_SEVERITY_LARGE);
+	const int extra = static_cast<int>(std::ceil(t * static_cast<float>(REPAIR_PARTY_LARGE - REPAIR_TEAM_MAX)));
+	return REPAIR_TEAM_MAX + std::max(1, extra);
+}
+
+// The damage-control party as this tick dispatched it (docs/crew-work.md): one clause per system
+// being worked, and every hand's department named from the roster's nine, so the party names its
+// people in the same vocabulary the roster and a scenario's staff field use. The standing hands
+// carry their own department; the hands drawn for a large job are marked off their posts.
+std::string DamageControlLine(const Ship &s)
+{
+	std::string out;
+	for (int id = 0; id < SYS_COUNT; ++id) {
+		int standing[DEPT_COUNT] = {0}, drawn[DEPT_COUNT] = {0}, total = 0;
+		for (const CrewMember &c : s.crew) {
+			if (c.dcSystem != id) continue;
+			++total;
+			if (c.dcFromPost >= 0 && c.dcFromPost < SYS_COUNT) ++drawn[c.dept < DEPT_COUNT ? c.dept : 0];
+			else ++standing[c.dept < DEPT_COUNT ? c.dept : 0];
+		}
+		if (total <= 0) continue;
+		if (!out.empty()) out += "; ";
+		out += std::string(SPECS[id].name) + " " + std::to_string(total) + " hands (";
+		bool first = true;
+		for (int d = 0; d < DEPT_COUNT; ++d) {
+			if (standing[d] <= 0) continue;
+			if (!first) out += ", ";
+			out += std::string(DepartmentName(static_cast<Department>(d))) + " " + std::to_string(standing[d]);
+			first = false;
+		}
+		for (int d = 0; d < DEPT_COUNT; ++d) {
+			if (drawn[d] <= 0) continue;
+			if (!first) out += ", ";
+			out += std::string(DepartmentName(static_cast<Department>(d))) + " " + std::to_string(drawn[d]) + " off their posts";
+			first = false;
+		}
+		if (first) out += "none";
+		out += ")";
+	}
+	if (out.empty()) out = "no repair party is dispatched";
+	return out;
+}
+
 static void UpdateCrew(Ship &s, float shipSeconds)
 {
 	const int sod = s.SecondOfDay();
 	for (int id = 0; id < SYS_COUNT; ++id) s.systems[id].manned = 0, s.systems[id].staffing = 0.0f, s.systems[id].repairing = 0;
+	// The damage-control party is re-derived every tick, so an older save still loads it: clear the
+	// per-hand marks first (docs/crew-work.md, tier one).
+	for (CrewMember &c : s.crew) c.dcSystem = -1, c.dcFromPost = -1;
+	// Which post-holders were counted at their station this tick, so tier three draws only a hand
+	// that is really standing a post -- never one already sent to fight or to hold a deck.
+	std::vector<char> atPost(s.crew.size(), 0);
 
 	// Damage control: which systems want hands, most critical first.
 	int wantRepair[SYS_COUNT], nWant = 0;
@@ -1562,6 +1618,12 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		if (fa != fb) return fa;
 		return s.systems[a].priority < s.systems[b].priority;
 	});
+	// Tier two: the hands each job is sent, from its severity -- the fraction of the system gone.
+	int wantHands[SYS_COUNT];
+	for (int k = 0; k < nWant; ++k) {
+		const int id = wantRepair[k];
+		wantHands[id] = RepairPartySize(1.0f - s.systems[id].health);
+	}
 	for (Deck &d : s.decks) d.defenders = d.stripping = d.sealing = d.firefighting = 0;
 	// The decks on fire, worst first: security and spare engineers fight them.
 	int burning[DECKS], nBurning = 0;
@@ -1828,10 +1890,14 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 			const float loyalty = Loyalty(s, static_cast<int>(&c - s.crew.data()));
 			if (loyalty < -0.3f) eff *= (1.0f + loyalty);
 			s.systems[c.post].staffing += eff;
+			atPost[static_cast<size_t>(&c - s.crew.data())] = 1; // really standing this post, so tier three may take them
 		}
 
 		// An engineer on duty with no station of their own joins the damage-control party -- and under
 		// the battle bill, so does every hand whose battle station is damage control (docs/crew-manifest.md).
+		// Tier one: these hands are the standing party; a dispatch (OrderRepairFirst) is worked first
+		// because wantRepair is ordered, and the party answers it. Tier two is the cap below: the
+		// standing party as it stands (REPAIR_TEAM_MAX) to one job, however many hands it has.
 		if (a == ACT_ON_DUTY && (billDc || (c.post == SYS_COUNT && c.dept == DEPT_ENGINEERING))) {
 			bool busy = false;
 			for (int k = 0; k < nWant && !busy; ++k) {
@@ -1840,6 +1906,8 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 				if (SPECS[wantRepair[k]].deck == s.orderEvacuate) continue; // not on a deck that has been cleared
 				++sys.repairing;
 				c.deck = static_cast<uint8_t>(SPECS[wantRepair[k]].deck); // they go to the work
+				c.dcSystem = static_cast<int16_t>(wantRepair[k]);
+				c.dcFromPost = static_cast<int16_t>(SYS_COUNT); // the standing party held no station
 				busy = true;
 			}
 			// With nothing broken to mend, they cut Borg technology out of any deck the drones have left.
@@ -1869,6 +1937,49 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 			if (buildingHands < 4)
 				for (size_t b = 0; b < s.jobs.size() && !busy; ++b)
 					if (s.jobs[b].kind == JOB_BUILD && s.jobs[b].target != 0) { ++buildingHands; busy = true; }
+		}
+	}
+
+	// Tier three (docs/crew-work.md, docs/ship-systems.md; the owner's ruling on C-12): a job past
+	// REPAIR_SEVERITY_LARGE draws the hands the standing party could not give -- off the stations of
+	// the watch, the owning department's first and then any department ("the emergency repair
+	// organisation, which pulls from every department", docs/crew-manifest.md). A hand drawn off a
+	// post leaves it short, and that is what the ship pays: the station's watch falls, so its system
+	// delivers less (`manned`/`staffing` are what UpdatePower reads) and, short of its need, it
+	// wears on the maintenance clock (MAINTENANCE_DAYS). Deterministic, in roster order, so a save
+	// replays it exactly. This is the tier that makes the crew model and the damage model one system.
+	// No parts, no large job: a job that cannot be worked does not hold hands off their stations.
+	if (s.stores.spareParts > 0.0f)
+	for (int k = 0; k < nWant; ++k) {
+		const int id = wantRepair[k];
+		if (1.0f - s.systems[id].health <= REPAIR_SEVERITY_LARGE) continue; // tier two only: not a large job
+		if (SPECS[id].deck == s.orderEvacuate) continue;                    // not on a deck that has been cleared
+		System &sys = s.systems[id];
+		// Pass 0 takes the system's own department's watch; pass 1 takes any department's.
+		for (int pass = 0; pass < 2 && sys.repairing < wantHands[id]; ++pass) {
+			while (sys.repairing < wantHands[id]) {
+				int picked = -1;
+				for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+					if (!atPost[static_cast<size_t>(i)]) continue;         // only a hand really standing a post
+					const CrewMember &c = s.crew[i];
+					if (c.dcSystem >= 0) continue;                          // already in the party
+					if (pass == 0 && c.dept != SPECS[id].dept) continue;    // the owning department first
+					picked = i;
+					break;
+				}
+				if (picked < 0) break; // no more of the watch to take this pass
+				CrewMember &c = s.crew[picked];
+				// Off their station: the post falls short this tick, by exactly what they gave it.
+				if (s.systems[c.post].manned > 0) --s.systems[c.post].manned;
+				float eff = Effectiveness(c);
+				const float loyalty = Loyalty(s, picked);
+				if (loyalty < -0.3f) eff *= (1.0f + loyalty);
+				s.systems[c.post].staffing = std::max(0.0f, s.systems[c.post].staffing - eff);
+				++sys.repairing;
+				c.deck = static_cast<uint8_t>(SPECS[id].deck);
+				c.dcSystem = static_cast<int16_t>(id);
+				c.dcFromPost = static_cast<int16_t>(c.post);
+			}
 		}
 	}
 

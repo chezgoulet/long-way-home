@@ -369,7 +369,7 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `BillHoles` | `const Ship &s, std::string *out` | the holes: posts with one holder, and stations no living crew member can fill | play | — | docs/crew-manifest.md |
 
 ### 4. Readers content can consult  
-*212 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "180 hooks"; **Corrected 2026-10-12:** five shield readers (`ShieldSectionName`, `ShieldSectionByName`, `ShieldsDown`, `ShieldSectionForHit`, `ShieldReadout`) were added, 203 → 208 rows follow; **the nine departments and the complement** (`Complement`, `DepartmentName`, `DepartmentByName`, `DepartmentSize`) were added, 208 → 212 rows follow.)*
+*212 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "180 hooks"; **Corrected 2026-10-12:** five shield readers (`ShieldSectionName`, `ShieldSectionByName`, `ShieldsDown`, `ShieldSectionForHit`, `ShieldReadout`) were added, 203 → 208 rows follow; **the nine departments and the complement** (`Complement`, `DepartmentName`, `DepartmentByName`, `DepartmentSize`) were added, 208 → 212 rows follow; **the damage-control party** (`RepairPartySize`, `DamageControlLine`) were added, 212 → 214 rows follow.)*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -585,6 +585,8 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `DepartmentName` | `Department d` | the roster's own word for one of the nine departments | play | — | docs/crew-manifest.md |
 | `DepartmentByName` | `const char *word` | the department a word names, matched on the leading part; -1 when it names none -- the one lookup a scenario's staff field uses | nothing | post | docs/crew-manifest.md |
 | `DepartmentSize` | `Department d, int complement` | the department's size for a hull's complement: the design's split scaled to it, so the nine add to the whole | play | — | docs/crew-manifest.md |
+| `RepairPartySize` | `float severity` | The hands a repair job is sent, from the fraction of the system destroyed: the standing party as it stands up to the threshold, scaling to the large party past it (the owner's ruling on C-12; docs/crew-work.md) | play | — | docs/crew-work.md |
+| `DamageControlLine` | `const Ship &s` | The damage-control party as this tick dispatched it: one clause per system being worked, every hand's department named from the roster's nine. Empty reads "no repair party is dispatched" (the console `ship party` prints it) | console | — | docs/crew-work.md |
 
 ## The counts (Task B)
 
@@ -756,7 +758,7 @@ developer console reaches it too (`ship startstate ...`).
 scenario author and the owner should read first: every one of these is a mechanism the simulation
 has and the game does not yet offer.
 
-### Reached only from the developer console (137)
+### Reached only from the developer console (138)
 
 **1. Entry points** (37): `OfferRising`, `OfferRisingTo`, `AttemptRising`, `NextRisingRoll`, `WritePersonalLog`, `VoiceWrite`, `VoiceRetire`, `EmitCue`, `QueueRender`, `CacheRendered`, `PruneVoiceCache`, `PlanMeetingAudio`, `WarmVoice`, `Repair`, `RepairDeck`, `LoadAwayKit`, `LaunchShuttle`, `RecallShuttle`, `LoseShuttle`, `ShuttleBayHit`, `RebuildShuttle`, `TractorWreck`, `TractorHold`, `LaunchProbe`, `RespondPhenomenon`, `FabricateParts`, `FabricateRations`, `MineBelt`, `EVA`, `TakeSurvivors`, `ObservePreWarp`, `InterferePreWarp`, `ReconcileFactions`, `Survey`, `CatchUp`, `Suspend`, `Sleep`
 
@@ -764,7 +766,7 @@ has and the game does not yet offer.
 
 **3. Outcomes content can ask for** (18): `SetAllocationBy`, `Hearing`, `SetMobileEmitter`, `EndHolodeckProgram`, `SetAirponics`, `Delegate`, `RevokeDelegation`, `RevokeCredential`, `LockOut`, `ClearLockout`, `Train`, `Brig`, `HoldFuneral`, `Brief`, `MakePromise`, `RunHolodeck`, `ImproveQuarters`, `SetRole`
 
-**4. Readers content can consult** (61): `OperatedFrom`, `AllocationByName`, `ControllerName`, `RisingOutcomeName`, `RisingDriveAtStake`, `RisingOdds`, `DeliveryName`, `DeliveryExaggeration`, `DeliveryKnown`, `MeetingEffectName`, `ResolveSpeaker`, `LineToSynthesis`, `VoiceProducerName`, `TrackOwner`, `OwnsTrack`, `TrackBusy`, `CueName`, `CueClip`, `CuePurpose`, `RenderKey`, `VoiceCachePath`, `VoiceCached`, `VoiceQueued`, `VoicePoolCount`, `VoicePoolName`, `VoiceIsCanonType`, `CastVoice`, `CastIsCanon`, `CachedDuration`, `MeetingLineKey`, `AllocationProvenance`, `ShuttleLocationName`, `ShuttlesInBay`, `ShuttlesAway`, `PhenomenonResponseName`, `Refugees`, `Resentment`, `BorgAwareness`, `MobileEmitter`, `Airponics`, `Target`, `MaySuspend`, `LeftStanding`, `MayOperate`, `MayCallAlert`, `DelegatedTo`, `OverrideActive`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `Brigged`, `PlayerDead`, `Recall`, `RecallSource`, `MemoryCount`, `Promises`, `PlayerMayOperate`, `CaptainLog`
+**4. Readers content can consult** (62): `OperatedFrom`, `AllocationByName`, `ControllerName`, `RisingOutcomeName`, `RisingDriveAtStake`, `RisingOdds`, `DeliveryName`, `DeliveryExaggeration`, `DeliveryKnown`, `MeetingEffectName`, `ResolveSpeaker`, `LineToSynthesis`, `VoiceProducerName`, `TrackOwner`, `OwnsTrack`, `TrackBusy`, `CueName`, `CueClip`, `CuePurpose`, `RenderKey`, `VoiceCachePath`, `VoiceCached`, `VoiceQueued`, `VoicePoolCount`, `VoicePoolName`, `VoiceIsCanonType`, `CastVoice`, `CastIsCanon`, `CachedDuration`, `MeetingLineKey`, `AllocationProvenance`, `ShuttleLocationName`, `ShuttlesInBay`, `ShuttlesAway`, `PhenomenonResponseName`, `Refugees`, `Resentment`, `BorgAwareness`, `MobileEmitter`, `Airponics`, `Target`, `MaySuspend`, `LeftStanding`, `MayOperate`, `MayCallAlert`, `DelegatedTo`, `OverrideActive`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `AccessRefusal`, `OperatedFromRefusal`, `Qualified`, `Brigged`, `PlayerDead`, `Recall`, `RecallSource`, `MemoryCount`, `Promises`, `PlayerMayOperate`, `CaptainLog`, `DamageControlLine`
 
 **5. Assimilation — what the Collective takes** (7, docs/the-record-and-the-log.md): `TakeMind`, `HeldByCollective`, `CollectiveLog`, `CollectiveMarks`, `CollectiveOperates`, `CollectiveRefusal`, `CollectiveVoice`. The Borg tick calls `TakeMind` in the normal case, and the console `ship collective` reads the rest; nothing in play yet shows the room the design's horror scene needs.
 

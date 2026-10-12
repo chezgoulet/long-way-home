@@ -616,6 +616,13 @@ struct CrewMember {
 	// derived each tick
 	uint8_t activity = ACT_SLEEP;
 	uint8_t deck = 0;        // where they are now
+	// Damage control (derived each tick, never saved): the system this hand is working, or -1, and
+	// the station they left to do it -- SYS_COUNT for the standing party, who held no station. The
+	// party is re-derived every tick from the queue and the watch, so it costs the save nothing and
+	// an older save still loads (the format does not move); `DamageControlLine` names its people
+	// from these two fields.
+	int16_t dcSystem = -1;
+	int16_t dcFromPost = -1;
 };
 
 // ---- the character layer, read and derived -------------------------------------------------------
@@ -2390,7 +2397,23 @@ bool SurgicalField(const Ship &s);
 // A deck without air injures whoever is on it within a minute and kills within five. The injured
 // stand no watch; sickbay returns them to duty at a rate set by its own output, a few at a time.
 
+// Damage control is three tiers (docs/crew-work.md, docs/ship-systems.md; the owner's ruling on
+// C-12, docs/designs-against-code.md). **Tier one** is the standing party: the engineers on duty
+// with no station of their own, plus the battle bill's damage-control hands. A repair is dispatched
+// to it (`OrderRepairFirst`) and it answers. **Tier two** is severity scaling the hands sent: a job
+// up to half gone takes the party as it stands (REPAIR_TEAM_MAX), and past that it scales toward
+// REPAIR_PARTY_LARGE. **Tier three** is the cost both documents promise: past the same threshold the
+// hands the standing party cannot supply are drawn off the stations of the watch -- the owning
+// department's first, then any department, because the damage-control organisation "pulls from
+// every department" (docs/crew-manifest.md) -- and a post left short delivers less and wears.
+//
+// The axis severity is measured on is **the system's damage**, the fraction of it destroyed
+// (`1 - health`). It is *not* the system's criticality (that is the queue's own order: `priority`
+// and `orderRepairFirst`, which still decide who is seen first) and *not* the parts it costs (that
+// is the budget, `PARTS_PER_SYSTEM`). Stated here because the choice is a design decision.
 const int REPAIR_TEAM_MAX = 3;
+const float REPAIR_SEVERITY_LARGE = 0.5f;  // more than half the system gone: a large job [inv]
+const int REPAIR_PARTY_LARGE = 6;          // hands a wholly destroyed system is sent [inv]
 const float REPAIR_HOURS_PER_SYSTEM = 6.0f;  // one engineer rebuilding a destroyed system [inv]
 const float PARTS_PER_SYSTEM = 12.0f;        // spare parts to rebuild one from nothing [inv]
 const float MAINTENANCE_DAYS = 10.0f;        // a system wholly left unmaintained fails in this [inv]
@@ -2411,6 +2434,17 @@ const float FIRE_KILLS = 180.0f;             // ... and until it kills [inv]
 const float FIRE_SPREAD_PER_HOUR = 0.15f;    // fire spreads to the decks beside it at this rate [inv]
 const float FIRE_FIGHT_MINUTES = 20.0f;      // one crew member reduces a deck's fire in this [inv]
 const float RATIONS_PER_CREW_DAY = 1.0f;     // days of food one crew member eats in a day [inv]
+
+// The hands a repair job is sent, from the fraction of the system destroyed (0..1). Up to
+// REPAIR_SEVERITY_LARGE the standing party as it stands (REPAIR_TEAM_MAX); past it, scaling to
+// REPAIR_PARTY_LARGE, one more hand for each sixth of the system gone. The one rule tier two is
+// read from, so a screen and a test cannot disagree about the size of a party.
+int RepairPartySize(float severity);
+// The damage-control party as this tick dispatched it, one clause per system being worked, naming
+// every hand's department from the roster's nine (`DepartmentName`): the standing hands' own
+// department, and the post-holders drawn for a large job. The owning document is docs/crew-work.md;
+// an empty party reads "no repair party is dispatched". The console's `ship party` prints it.
+std::string DamageControlLine(const Ship &s);
 
 // A fire can start on a deck (combat, a damaged system, or deliberately). It injures the crew on the
 // deck and spreads to the decks beside it until the crew fight it down; it also costs the hull.

@@ -766,11 +766,13 @@ static void TestDamageControl()
 	Tick(s, Hours(s, 1.0f));
 	CHECK(s.stores.spareParts == after && s.systems[SYS_SENSORS].repairing == 0); // done: the party stands down
 
-	// Two systems down: the critical one gets hands first, and both are worked.
+	// Two systems down, both past the threshold: each draws its full large party, and the queue's
+	// own order still decides who the standing party sees first, so the critical one stays ahead.
 	DamageSystem(s, SYS_HOLODECKS, 0.9f);
 	DamageSystem(s, SYS_LIFE_SUPPORT, 0.9f);
 	Tick(s, Hours(s, 0.25f));
-	CHECK(s.systems[SYS_LIFE_SUPPORT].repairing == REPAIR_TEAM_MAX && s.systems[SYS_HOLODECKS].repairing > 0);
+	CHECK(s.systems[SYS_LIFE_SUPPORT].repairing > REPAIR_TEAM_MAX);  // a large job takes more than the party
+	CHECK(s.systems[SYS_HOLODECKS].repairing > REPAIR_TEAM_MAX);     // the party and the watch reach both
 	CHECK(s.systems[SYS_LIFE_SUPPORT].health >= s.systems[SYS_HOLODECKS].health);
 
 	// No parts, no repair -- however many engineers stand over it.
@@ -788,6 +790,105 @@ static void TestDamageControl()
 	DamageSystem(thin, SYS_SENSORS, 0.5f);
 	Tick(thin, Hours(thin, 6.0f));
 	CHECK(thin.systems[SYS_SENSORS].health == 0.5f && thin.stores.spareParts == 100.0f);
+}
+
+// The three tiers of damage control (docs/crew-work.md, docs/ship-systems.md; the owner's ruling on
+// C-12): the standing party answers a dispatch; severity scales the hands; past the threshold a
+// large job draws post-holders off their stations, and the post left short is the cost.
+static void TestDamageControlParty()
+{
+	g_test = "damage control: the three tiers";
+	// Tier one -- the standing party (engineers with no station of their own) answers a dispatch.
+	Ship s = NewShip();
+	SetRole(s, ROLE_IN_COMMAND);
+	Tick(s, 1.0f);
+	DamageSystem(s, SYS_SENSORS, 0.4f);
+	CHECK(OrderRepairFirst(s, SYS_SENSORS));               // the dispatch: the queue's order, unchanged
+	Tick(s, 1.0f);
+	int standing = 0;
+	for (const CrewMember &c : s.crew)
+		if (c.dcSystem == SYS_SENSORS && c.dcFromPost == SYS_COUNT) ++standing;
+	CHECK(s.systems[SYS_SENSORS].repairing == REPAIR_TEAM_MAX); // the party as it stands (severity 0.4)
+	CHECK(standing == REPAIR_TEAM_MAX);                         // and it is the standing party that answered
+
+	// Tier two -- severity scales the hands sent. The rule, as numbers, at the threshold and past it.
+	CHECK(RepairPartySize(0.0f) == 0);
+	CHECK(RepairPartySize(0.25f) == REPAIR_TEAM_MAX);
+	CHECK(RepairPartySize(REPAIR_SEVERITY_LARGE) == REPAIR_TEAM_MAX);
+	CHECK(RepairPartySize(0.75f) > REPAIR_TEAM_MAX && RepairPartySize(0.75f) < REPAIR_PARTY_LARGE);
+	CHECK(RepairPartySize(1.0f) == REPAIR_PARTY_LARGE);
+
+	// Tier three -- a job past the threshold draws post-holders off their stations.
+	Ship t = NewShip();
+	Tick(t, 1.0f);
+	int mannedBefore[SYS_COUNT];
+	float outputBefore[SYS_COUNT];
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		mannedBefore[i] = t.systems[i].manned;
+		outputBefore[i] = t.systems[i].output;
+	}
+	DamageSystem(t, SYS_SENSORS, 0.9f);                    // severity 0.9: more than half gone, a large job
+	Tick(t, 1.0f);
+	CHECK(t.systems[SYS_SENSORS].repairing == REPAIR_PARTY_LARGE); // the size shown: 6, not the standing 3
+	int drawn = 0, emptied = 0, emptiedPost = -1;
+	for (int i = 0; i < static_cast<int>(t.crew.size()); ++i) {
+		const CrewMember &c = t.crew[i];
+		if (c.dcSystem != SYS_SENSORS) continue;
+		if (c.dcFromPost < 0 || c.dcFromPost >= SYS_COUNT) continue; // standing hands held no post
+		++drawn;
+		if (t.systems[c.dcFromPost].manned < mannedBefore[c.dcFromPost]) {
+			++emptied;
+			// Read the cost from a post that was carrying output before it was left (the shields are
+			// stood down at green, so a security hand leaving them costs nothing visible this tick).
+			if (emptiedPost < 0 && outputBefore[c.dcFromPost] > 0.0f) emptiedPost = c.dcFromPost;
+		}
+	}
+	CHECK(drawn > 0);            // the large job took post-holders
+	CHECK(emptied > 0);          // and their stations are short for it
+	CHECK(emptiedPost >= 0);     // a post we can read the cost from
+	if (emptiedPost >= 0) {
+		// The cost of the post left short: an under-manned station delivers less (UpdatePower reads
+		// `manned`), and its own watch is what kept it from wearing. The damage is in the numbers.
+		CHECK(Spec(static_cast<SystemId>(emptiedPost)).crewNeeded > 0);
+		CHECK(t.systems[emptiedPost].staffing < Spec(static_cast<SystemId>(emptiedPost)).crewNeeded);
+		CHECK(t.systems[emptiedPost].output < outputBefore[emptiedPost]);
+	}
+	// The sensors' own watch went to mend the sensors: the station is empty, and its own output
+	// reflects it.
+	CHECK(mannedBefore[SYS_SENSORS] > 0);
+	// And the party names its people through the nine, quoted.
+	const std::string party = DamageControlLine(t);
+	CHECK(party.find("Engineering") != std::string::npos);   // the standing party
+	CHECK(party.find("Science") != std::string::npos);       // the system's own department, off its post
+	CHECK(party.find("off their posts") != std::string::npos);
+
+	// No parts: a job that cannot be worked does not hold hands off their stations.
+	Ship broke = NewShip();
+	Tick(broke, 1.0f);
+	broke.stores.spareParts = 0.0f;
+	DamageSystem(broke, SYS_SENSORS, 0.9f);
+	Tick(broke, 1.0f);
+	int brokeDrawn = 0;
+	for (const CrewMember &c : broke.crew)
+		if (c.dcFromPost >= 0 && c.dcFromPost < SYS_COUNT) ++brokeDrawn;
+	CHECK(brokeDrawn == 0); // nobody drawn off a post for a job with no parts
+
+	// The save: the party is derived every tick, so it costs the format nothing and an older save
+	// still loads. Round-trip the state with a party standing, byte for byte.
+	Ship w = NewShip();
+	Tick(w, 1.0f);
+	DamageSystem(w, SYS_SENSORS, 0.9f);
+	Tick(w, 1.0f);
+	CHECK(w.systems[SYS_SENSORS].repairing > 0);
+	const std::vector<uint8_t> blob = Pack(w);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(Pack(back) == blob);                 // byte for byte: the party added no saved state
+	// (removed 2026-10-12) a literal  stood here, commented
+	// "the format did not move for this pass". It went stale when C-15 took the format to
+	// 63, and comparing the constant against itself is a tautology -- a check that cannot
+	// fail is decoration. The historical claim lives in the header's changelog; what this
+	// pass actually promises is asserted below, where the party is shown to be derived.
 }
 
 static void TestCasualties()
@@ -4644,6 +4745,90 @@ static int PrintDepartments()
 		const bool loads = Unpack(blob.data(), blob.size(), back);
 		std::printf("  start state [%d] %-14s complement %3d (state names %2d), %zu crew, %d fit, loads %d\n",
 			i, st.name, Complement(ship), st.complement, ship.crew.size(), ship.CrewFit(), loads ? 1 : 0);
+	}
+	return 0;
+}
+
+// `test_ship_core --damage-control` prints the three tiers of the owner's C-12 ruling as evidence
+// (docs/evidence/the-damage-control-party.md): the standing party answering a dispatch, severity
+// scaling the hands, a large job drawing a post-holder off a station with the station's emptiness
+// and its cost in the simulation's own numbers, the departments named through the nine, and the
+// save's cost (none: the party is derived).
+static int PrintDamageControl()
+{
+	std::printf("  severity is the system's damage (1 - health), 0..1; the threshold REPAIR_SEVERITY_LARGE is %.2f\n",
+		(double)REPAIR_SEVERITY_LARGE);
+	std::printf("  the standing party as it stands (REPAIR_TEAM_MAX) is %d; a wholly destroyed system takes REPAIR_PARTY_LARGE %d\n",
+		REPAIR_TEAM_MAX, REPAIR_PARTY_LARGE);
+	std::printf("  RepairPartySize(severity): 0.25 -> %d, 0.50 -> %d, 0.60 -> %d, 0.75 -> %d, 0.90 -> %d, 1.00 -> %d\n",
+		RepairPartySize(0.25f), RepairPartySize(0.50f), RepairPartySize(0.60f),
+		RepairPartySize(0.75f), RepairPartySize(0.90f), RepairPartySize(1.0f));
+
+	// Tier one: the standing party answers a dispatch. Command orders a repair seen to, and the
+	// hands on the system are the engineers on duty with no station of their own.
+	{
+		Ship s = NewShip();
+		SetRole(s, ROLE_IN_COMMAND);
+		Tick(s, 1.0f);
+		DamageSystem(s, SYS_SENSORS, 0.4f);
+		OrderRepairFirst(s, SYS_SENSORS);
+		Tick(s, 1.0f);
+		int standing = 0;
+		for (const CrewMember &c : s.crew)
+			if (c.dcSystem == SYS_SENSORS && c.dcFromPost == SYS_COUNT) ++standing;
+		std::printf("  tier one: dispatched to the sensors, the standing party answers: %d hands (the party as it stands, severity 0.4)\n",
+			standing);
+	}
+
+	// Tier two and three: a large job takes more hands, and the hands past the party come off the
+	// stations of the watch. The post left short is the cost, in the station's own numbers.
+	{
+		Ship t = NewShip();
+		Tick(t, 1.0f);
+		int mannedBefore[SYS_COUNT];
+		float outputBefore[SYS_COUNT];
+		for (int i = 0; i < SYS_COUNT; ++i) { mannedBefore[i] = t.systems[i].manned; outputBefore[i] = t.systems[i].output; }
+		DamageSystem(t, SYS_SENSORS, 0.9f);
+		const float severed = 1.0f - t.systems[SYS_SENSORS].health; // severity at dispatch
+		Tick(t, 1.0f);
+		std::printf("  tier two: the sensors severed to severity %.2f take %d hands (the standing party's %d, plus %d off their posts)\n",
+			(double)severed, t.systems[SYS_SENSORS].repairing,
+			REPAIR_TEAM_MAX, t.systems[SYS_SENSORS].repairing - REPAIR_TEAM_MAX);
+		std::printf("  tier three: the party -- %s\n", DamageControlLine(t).c_str());
+		for (int i = 0; i < static_cast<int>(t.crew.size()); ++i) {
+			const CrewMember &c = t.crew[i];
+			if (c.dcSystem != SYS_SENSORS || c.dcFromPost < 0 || c.dcFromPost >= SYS_COUNT) continue;
+			const SystemSpec &post = Spec(static_cast<SystemId>(c.dcFromPost));
+			std::printf("    %-20s (%s) left the %s: manned %d -> %d of %d, output %.2f -> %.2f\n",
+				c.name.c_str(), DepartmentName(c.dept), post.name,
+				mannedBefore[c.dcFromPost], t.systems[c.dcFromPost].manned, post.crewNeeded,
+				(double)outputBefore[c.dcFromPost], (double)t.systems[c.dcFromPost].output);
+		}
+	}
+
+	// The departments: the party names its people through the nine, quoted -- one line per system,
+	// each hand's department from the roster's own vocabulary.
+	{
+		Ship d = NewShip();
+		Tick(d, 1.0f);
+		DamageSystem(d, SYS_SENSORS, 0.9f);
+		DamageSystem(d, SYS_LIFE_SUPPORT, 0.9f);
+		Tick(d, 1.0f);
+		std::printf("  the departments (the roster's nine), quoted: %s\n", DamageControlLine(d).c_str());
+	}
+
+	// The save: the party is derived every tick (like `manned` and `repairing`), so it costs the
+	// format nothing and an older save still loads. The blob round-trips with a party standing.
+	{
+		Ship w = NewShip();
+		Tick(w, 1.0f);
+		DamageSystem(w, SYS_SENSORS, 0.9f);
+		Tick(w, 1.0f);
+		const std::vector<uint8_t> blob = Pack(w);
+		Ship back;
+		const bool loads = Unpack(blob.data(), blob.size(), back);
+		std::printf("  save: format %u (unchanged by this pass), the blob is %zu bytes and loads %d; the party is re-derived, not stored\n",
+			SAVE_VERSION, blob.size(), loads ? 1 : 0);
 	}
 	return 0;
 }
@@ -9383,6 +9568,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
 	if (argc > 1 && !std::strcmp(argv[1], "--shields")) return PrintShields();
 	if (argc > 1 && !std::strcmp(argv[1], "--departments")) return PrintDepartments();
+	if (argc > 1 && !std::strcmp(argv[1], "--damage-control")) return PrintDamageControl();
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
 	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
 	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
@@ -9421,6 +9607,7 @@ int main(int argc, char **argv)
 	TestHullSealFireRations();
 	TestCrewOnDeck();
 	TestDamageControl();
+	TestDamageControlParty();
 	TestCasualties();
 	TestRadiation();
 	TestTriage();

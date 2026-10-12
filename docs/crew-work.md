@@ -59,6 +59,28 @@ The cleanest expression: **a job queue always longer than the crew can serve.** 
 cleared is decoration; a queue that cannot be dented is despair. The target is permanently behind,
 always triaged, never hopeless -- which is precisely the attrition the programme is for.
 
+## The damage-control party, and its three tiers
+
+The owner's ruling, 2026-10-12, in his own words: *"There should be standing repair team ready to
+dispatch, and more egregious repairs will take more people, which can take them off of their
+stations."* It is the sentence above -- *assigning a repair empties a station* -- made real, and it
+is **three tiers, not one**:
+
+1. **A standing party, ready to dispatch.** The crew who are already the damage-control organisation:
+   the engineers on duty with no station of their own, and the hands the battle bill sends to damage
+   control. A repair is dispatched to it (`OrderRepairFirst`, the queue's own order) and it answers.
+   The queue's priority rules are unchanged; this adds a party, not a replacement for the queue.
+2. **Severity scales the party.** The axis is the system's **damage** -- the fraction of it destroyed,
+   `1 - health` -- not its criticality (the queue's own order) and not the parts it costs (the
+   budget). A job up to half gone takes the party as it stands (three hands); past it the party
+   scales to six for a wholly destroyed system.
+3. **Past the threshold, a large job draws post-holders off their stations.** The threshold is
+   **more than half the system gone**. The hands the standing party cannot give come off the watch --
+   the owning department's first, then any department, because damage control "pulls from every
+   department" (`docs/crew-manifest.md`) -- and a post left short is the cost: the station delivers
+   less and, kept short, it wears. This is the link the whole document is about: accepting a job is
+   accepting an empty station, and a repair names its people in the roster's nine.
+
 ## Materials
 
 Replicator reserves (rations as energy, canon-style), cargo stock, and salvage from what the ship finds

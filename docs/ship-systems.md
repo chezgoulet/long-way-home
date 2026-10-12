@@ -180,6 +180,46 @@ damage spreads along the EPS graph, and uninhabitable decks displace their crew 
 salvage; crew time comes from the same people who hold posts -- assigning a repair empties a station.
 That single link is what makes the crew model and the damage model one system instead of two.
 
+> **Built 2026-10-12 -- three tiers, not one (C-12; owner's ruling, in his own words: *"There should
+> be standing repair team ready to dispatch, and more egregious repairs will take more people, which
+> can take them off of their stations."*; `docs/designs-against-code.md`).** The sentence above was a
+> promise the code did not keep: the party was stationless and a repair emptied nothing. The ruling
+> makes the link real, in three tiers, and this is our design of it.
+>
+> **One -- a standing party, ready to dispatch.** The crew who are already the damage-control
+> organisation: the engineers on duty with no station of their own, plus the battle bill's
+> damage-control hands. A repair is dispatched to it -- `OrderRepairFirst`, the queue's own order --
+> and it answers. **The queue's priority rules are unchanged**: this adds a party, it does not
+> replace the queue.
+>
+> **Two -- severity scales the party.** The axis is the system's **damage**, the fraction of it
+> destroyed (`1 - health`). It is not its criticality (that is the queue's own order, `priority` and
+> `orderRepairFirst`) and not the parts it costs (that is the budget, `PARTS_PER_SYSTEM`); stated
+> here because the choice is a design decision and it was made in code. A job up to half gone takes
+> the party as it stands (`REPAIR_TEAM_MAX`, 3 hands); past that it scales one hand per sixth of the
+> system gone, to `REPAIR_PARTY_LARGE`, 6 for a wholly destroyed system. `RepairPartySize(severity)`
+> is the one rule.
+>
+> **Three -- past the threshold, a large job draws post-holders off their stations.** The threshold
+> is a number: **more than half the system gone** (`REPAIR_SEVERITY_LARGE = 0.50`). Past it, the
+> hands the standing party cannot give are drawn off the stations of the watch -- the owning
+> department's first, then any department, because the organisation "pulls from every department"
+> (`docs/crew-manifest.md`) -- and that is the cost both documents promised. A post left short
+> delivers less (its `staffing` falls, so its `output` falls) and, short of its need, wears on the
+> maintenance clock. The trade is the one `docs/damage-and-budgets.md` names: the security officer
+> holding a corridor is the person you might need in the coolant bay instead.
+>
+> **What an emptied station costs, demonstrated.** Drawing the transporters' hand for a large job
+> leaves that console unmanned: `manned 1 -> 0`, `output 1.00 -> 0.50` (the automation floor) -- the
+> station's own numbers, not an assertion. **No parts, no large job:** a job that cannot be worked
+> does not hold hands off their stations.
+>
+> **The party is derived, and it costs the save nothing.** It is recomputed every tick from the
+> queue and the watch, exactly as `manned` and `repairing` already were, so **`SAVE_VERSION` does
+> not move (62) and an older save still loads**. The departments are the roster's nine, and the
+> party names them (`DamageControlLine`; the console `ship party`). Demonstrated in
+> `docs/evidence/the-damage-control-party.md`.
+
 ## Tier 4 -- the Borg, as a progression with a threshold
 
 The owner's requirement -- board, and if left long enough to organise, take the crew and the ship -- maps
