@@ -1090,7 +1090,7 @@ static const Named NAMED[] = {
 	{"Tom Paris", "paris", 3, DEPT_COMMAND, SYS_COUNT, SPECIES_HUMAN},
 	{"Harry Kim", "kim", 1, DEPT_COMMAND, SYS_COMMUNICATIONS, SPECIES_HUMAN},
 	{"B'Elanna Torres", "torres", 3, DEPT_ENGINEERING, SYS_WARP_DRIVE, SPECIES_KLINGON},
-	{"The Doctor", "doctor", 3, DEPT_MEDICAL, SYS_SICKBAY, SPECIES_HOLOGRAM},
+	{"The Doctor", "doctor", 0, DEPT_MEDICAL, SYS_SICKBAY, SPECIES_HOLOGRAM}, // a post with no rank: CMO, no commission [lore]
 	{"Seven of Nine", "seven", 0, DEPT_SCIENCES, SYS_SENSORS, SPECIES_BORG_RECOVERED},
 	{"Neelix", "neelix", 0, DEPT_COMMAND, SYS_COUNT, SPECIES_TALAXIAN},
 	{"Vorik", "vorik", 1, DEPT_ENGINEERING, SYS_WARP_DRIVE, SPECIES_VULCAN},
@@ -7080,6 +7080,16 @@ bool WriteOff(Ship &s, bool system, int target, uint8_t kind)
 	e.who = CommandingOfficer(s);
 	s.losses.push_back(e);
 	if (static_cast<int>(s.losses.size()) > LOSS_MAX) s.losses.erase(s.losses.begin());
+	// The mark a write-off leaves (docs/memory-and-consequence.md): "a deck written off is a mark in
+	// everyone who was aboard, and a rumour in everyone who was not." Those who were on the deck saw
+	// it (MEM_SAW); everyone else learns it second-hand (MEM_RUMOUR), and the two versions differ --
+	// which is what makes the same afternoon answer differently depending on where a person stood.
+	// This is also what gives MEM_RUMOUR a writer: it was declared and nothing produced it (C-13).
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		if (s.crew[i].status == CREW_DEAD || s.crew[i].status == CREW_ASSIMILATED) continue;
+		const bool aboard = !system && s.crew[i].deck == target;
+		Remember(s, i, MEM_LOSS, -1, aboard ? MEM_SAW : MEM_RUMOUR, aboard ? -0.6f : -0.3f);
+	}
 	return true;
 }
 
@@ -9931,6 +9941,11 @@ bool MayOrder(const Ship &s, int giver, int recipient)
 {
 	if (giver == recipient) return false;
 	if (!CrewIsFitS(s, giver) || !CrewIsFitS(s, recipient)) return false;
+	// The officer of the deck commands the deck's operation for the watch, and that reaches officers
+	// senior to them who are not the captain (docs/crew-manifest.md, "Who reports to whom";
+	// docs/orders.md). The predicate was built and unit-tested but no decision consumed it (register
+	// C-11); this is the decision that does, so the deck's documented authority can dispatch an order.
+	if (giver == OfficerOfTheDeck(s) && OodMayOrder(s, giver, recipient)) return true;
 	// Command authority reaches anyone fit; otherwise authority is seniority (docs/access-and-
 	// authority.md: rank controls access absolutely, and here rank is who may give the order).
 	return MayCommand(s.crew[giver]) || s.crew[giver].rank > s.crew[recipient].rank;
