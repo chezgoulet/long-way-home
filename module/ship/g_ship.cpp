@@ -2007,7 +2007,10 @@ void RunTest( void )
 				ship::TakeBrief( vessel );
 
 			// The mapping the brief carries: the room and deck come from the kind and its subject.
-			static const char *const DEPTS[] = { "command", "engineering", "security", "sciences", "medical" };
+			// The short words match the nine departments (docs/crew-manifest.md); DepartmentName has the
+			// roster's full names for a declaration.
+			static const char *const DEPTS[] = { "command", "operations", "engineering", "security", "science",
+				"medical", "flight", "support", "civilians" };
 			static const uint8_t KINDS[] = { ship::MEET_WATCH_CHANGE, ship::MEET_BORG, ship::MEET_ALLOCATION,
 				ship::MEET_CASUALTIES, ship::MEET_DEPARTMENTAL };
 			for ( uint8_t k : KINDS )
@@ -2953,7 +2956,7 @@ void RunTest( void )
 				const char *head = ship::AppearanceHeadModel( c.appear );
 				const char *base = ship::AppearanceBuildName( c.appear.build );
 				const bool isCommand = c.dept == ship::DEPT_COMMAND;
-				const bool isScience = c.dept == ship::DEPT_SCIENCES || c.dept == ship::DEPT_MEDICAL;
+				const bool isScience = c.dept == ship::DEPT_SCIENCE || c.dept == ship::DEPT_MEDICAL;
 				const char *colour = isCommand ? ( c.appear.build == ship::BUILD_FEMALE ? "default" : "red" )
 					: isScience ? "blue" : "gold";
 				Q_strncpyz( npc->client->renderInfo.headModelName, head ? head : "",
@@ -5380,7 +5383,7 @@ void ApplyPlayerBody( void )
 		const bool female = c.type == "janeway" || c.type == "torres" || c.type == "seven"
 			|| ( c.type.size() >= 2 && c.type[1] == 'F' && ( c.type[0] == 'R' || c.type[0] == 'G' || c.type[0] == 'B' ) );
 		const bool isCommand = c.dept == ship::DEPT_COMMAND;
-		const bool isScience = c.dept == ship::DEPT_SCIENCES || c.dept == ship::DEPT_MEDICAL;
+		const bool isScience = c.dept == ship::DEPT_SCIENCE || c.dept == ship::DEPT_MEDICAL;
 		// the female torso has no red skin; a woman of command wears the neutral cut
 		const char *colour = isCommand ? ( female ? "default" : "red" ) : isScience ? "blue" : "gold";
 		std::snprintf( head, sizeof( head ), "%s/default", c.type.c_str() );
@@ -5404,7 +5407,7 @@ void ApplyPlayerBody( void )
 		}
 		const bool female = c.appear.head != 0xFFFF ? ( c.appear.build == ship::BUILD_FEMALE ) : false;
 		const bool isCommand = c.dept == ship::DEPT_COMMAND;
-		const bool isScience = c.dept == ship::DEPT_SCIENCES || c.dept == ship::DEPT_MEDICAL;
+		const bool isScience = c.dept == ship::DEPT_SCIENCE || c.dept == ship::DEPT_MEDICAL;
 		const char *colour = isCommand ? ( female ? "default" : "red" ) : isScience ? "blue" : "gold";
 		std::snprintf( head, sizeof( head ), "%s", derived );
 		std::snprintf( torso, sizeof( torso ), "%s/%s", female ? "crewfemale" : "crewthin", colour );
