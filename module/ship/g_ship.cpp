@@ -3444,8 +3444,9 @@ void RunTest( void )
 		if ( step == 0 && level.time >= 2500 )
 		{
 			vessel.enemy.present = true; vessel.enemy.kind = ship::ENEMY_BORG_VESSEL; vessel.enemy.borg = true;
-			vessel.enemy.hull = 1.0f; vessel.enemy.shields = 0.0f; vessel.enemy.adaptation = 0.6f;
-			gi.Printf( "SHIP: counterplay test: adaptation %d%% before remodulation\n", static_cast<int>( vessel.enemy.adaptation * 100 + 0.5f ) );
+			vessel.enemy.hull = 1.0f; vessel.enemy.shields = 0.0f;
+			vessel.enemy.adapt[ship::ADAPT_PHASER].ramp = 0.6f; vessel.enemy.adapt[ship::ADAPT_TORPEDO].ramp = 0.6f;
+			gi.Printf( "SHIP: counterplay test: adaptation %d%% before remodulation\n", static_cast<int>( vessel.enemy.adapt[ship::ADAPT_PHASER].ramp * 100 + 0.5f ) );
 			gi.SendConsoleCommand( "ship remodulate\n" );
 			step = 1;
 		}
@@ -5189,7 +5190,8 @@ void RunTest( void )
 		{
 			vessel.enemy = ship::Enemy();
 			vessel.enemy.present = true; vessel.enemy.borg = true; vessel.enemy.kind = ship::ENEMY_BORG_VESSEL;
-			vessel.enemy.hull = 1.0f; vessel.enemy.shields = 1.0f; vessel.enemy.adaptation = 0.6f;
+			vessel.enemy.hull = 1.0f; vessel.enemy.shields = 1.0f;
+			vessel.enemy.adapt[ship::ADAPT_PHASER].ramp = 0.6f; vessel.enemy.adapt[ship::ADAPT_TORPEDO].ramp = 0.6f;
 			ship::BoardBorg( vessel, ship::ENGINEERING_DECK, 2 );
 			gi.SendConsoleCommand( "ui_lwh_station 1\n" );
 			step = 1;
@@ -5205,14 +5207,14 @@ void RunTest( void )
 		if ( step == 4 && level.time >= 4400 )
 		{
 			gi.Printf( "SHIP: counterplay test: adaptation %d%% after remodulation (cooldown %d s)\n",
-				static_cast<int>( vessel.enemy.adaptation * 100 + 0.5f ), static_cast<int>( vessel.remodulateCooldown + 0.5f ) );
+				static_cast<int>( vessel.enemy.adapt[ship::ADAPT_PHASER].ramp * 100 + 0.5f ), static_cast<int>( vessel.remodulateCooldown + 0.5f ) );
 			gi.SendConsoleCommand( "lwh_eng_key n\n" ); // raid the vinculum
 			step = 5;
 		}
 		if ( step == 5 && level.time >= 5200 )
 		{
 			gi.Printf( "SHIP: counterplay test: vinculum suppressed for %d s (adaptation %d%%)\n",
-				static_cast<int>( vessel.adaptationSuppressed + 0.5f ), static_cast<int>( vessel.enemy.adaptation * 100 + 0.5f ) );
+				static_cast<int>( vessel.adaptationSuppressed + 0.5f ), static_cast<int>( vessel.enemy.adapt[ship::ADAPT_PHASER].ramp * 100 + 0.5f ) );
 			gi.SendConsoleCommand( "screenshot lwh_counterplay_after\n" );
 			step = 6;
 		}
@@ -6939,7 +6941,7 @@ void Svcmd_Ship_f( void )
 	{//the counter-play kit: rotate the phaser modulation and break the Borg's lock
 		if ( !ship::Remodulate( vessel ) )
 			gi.Printf( "SHIP: nothing to remodulate (no adaptation, or the adapter is still cooling)\n" );
-		else gi.Printf( "SHIP: modulation rotated; enemy adaptation now %d%%\n", static_cast<int>( vessel.enemy.adaptation * 100 + 0.5f ) );
+		else gi.Printf( "SHIP: modulation rotated; enemy adaptation now %d%%\n", static_cast<int>( vessel.enemy.adapt[ship::ADAPT_PHASER].ramp * 100 + 0.5f ) );
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "vinculum" ) )

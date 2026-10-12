@@ -3217,16 +3217,27 @@ bool Jump(Ship &s, int toBeacon)
 	return true;
 }
 
+// How much of a weapon's shot the Borg adapter lets through: nothing once the count has adapted it,
+// else the ramp's remainder. Shared by the phaser and the torpedo so the two cannot drift apart.
+static float AdaptAttenuation(const Enemy &e, int weapon)
+{
+	return e.adapt[weapon].penetrations >= BORG_ADAPT_SHOTS ? 0.0f : (1.0f - e.adapt[weapon].ramp);
+}
+
 bool FireTorpedo(Ship &s)
 {
 	if (!InCombat(s) || s.stores.torpedoes <= 0 || s.systems[SYS_TORPEDO_LAUNCHERS].output <= 0.0f) return false;
 	--s.stores.torpedoes;
-	// Shields take what they can of it; the rest reaches the hull. The Borg adapt to it like phasers.
+	// Shields take what they can of it; the rest reaches the hull. A torpedo is one shot of the
+	// launcher's own adapter, not of the phasers' (docs/ship-systems.md): the twelfth adapts it.
 	float dmg = TORPEDO_HULL;
 	if (s.enemy.kind == ENEMY_BORG_VESSEL) {
-		dmg *= (1.0f - s.enemy.adaptation);
-		if (s.adaptationSuppressed <= 0.0f)
-			s.enemy.adaptation = std::min(1.0f, s.enemy.adaptation + dmg * 1.5f);
+		Adapter &a = s.enemy.adapt[ADAPT_TORPEDO];
+		dmg *= AdaptAttenuation(s.enemy, ADAPT_TORPEDO);
+		if (dmg > 0.0f && s.adaptationSuppressed <= 0.0f && a.penetrations < BORG_ADAPT_SHOTS) {
+			++a.penetrations;
+			a.ramp = std::min(BORG_RAMP_CEIL, a.ramp + TORPEDO_RAMP_STEP * (1.0f + s.borgAwareness));
+		}
 	}
 	const float absorbed = std::min(s.enemy.shields, dmg);
 	s.enemy.shields -= absorbed;
@@ -3236,13 +3247,26 @@ bool FireTorpedo(Ship &s)
 }
 
 // The phaser adapter's rotating modulation (docs/borg-incursion.md): break the Borg's lock so the
-// next shots land again. It costs time and attention -- the crew cannot do it every second.
+// next shots land again. It costs time and attention -- the crew cannot do it every second. A
+// rotation moves the *ramp* of every weapon; it cannot undo a count, which is what a vinculum raid
+// is for (the owner's C-15 ruling: the counter is the bound and the ramp is the shape inside it).
 bool Remodulate(Ship &s)
 {
 	if (!InCombat(s) || s.remodulateCooldown > 0.0f) return false;
-	if (s.enemy.adaptation <= 0.0f && (!s.contact2.present || s.contact2.adaptation <= 0.0f)) return false;
-	s.enemy.adaptation = std::max(0.0f, s.enemy.adaptation - REMODULATE_ADAPTATION);
-	if (s.contact2.present) s.contact2.adaptation = std::max(0.0f, s.contact2.adaptation - REMODULATE_ADAPTATION);
+	bool broke = false;
+	auto breakRamp = [&](Enemy &e) {
+		if (!e.present || !e.borg) return;
+		for (int aw = 0; aw < ADAPT_WEAPON_COUNT; ++aw) {
+			if (e.adapt[aw].penetrations >= BORG_ADAPT_SHOTS) continue; // a count is not undone by a rotation
+			if (e.adapt[aw].ramp > 0.0f) {
+				e.adapt[aw].ramp = std::max(0.0f, e.adapt[aw].ramp - REMODULATE_ADAPTATION);
+				broke = true;
+			}
+		}
+	};
+	breakRamp(s.enemy);
+	if (s.contact2.present) breakRamp(s.contact2);
+	if (!broke) return false;
 	s.remodulateCooldown = REMODULATE_COOLDOWN;
 	LogEvent(s, AuthorFor(s, DEPT_SECURITY, "tactical"), "outside", "the phaser modulation is rotated; the Borg's lock is broken");
 	return true;
@@ -3250,7 +3274,8 @@ bool Remodulate(Ship &s)
 
 // A vinculum raid: destroy the local coordination node and the Collective stops adapting for a
 // while -- a reprieve with a cost, never a win (docs/borg-incursion.md). Needs Borg here, aboard or
-// a vessel, and spends a security party.
+// a vessel, and spends a security party. Where a rotation clears the ramp, a raid clears the count:
+// the crew get their twelve shots back.
 bool RaidVinculum(Ship &s)
 {
 	bool borgAboard = false;
@@ -3258,8 +3283,10 @@ bool RaidVinculum(Ship &s)
 	const bool borgVessel = s.enemy.present && s.enemy.borg;
 	if (!borgAboard && !borgVessel) return false;
 	if (s.adaptationSuppressed > 0.0f) return false;
-	s.enemy.adaptation = 0.0f;
-	if (s.contact2.present) s.contact2.adaptation = 0.0f;
+	for (int aw = 0; aw < ADAPT_WEAPON_COUNT; ++aw) {
+		s.enemy.adapt[aw] = Adapter();
+		if (s.contact2.present) s.contact2.adapt[aw] = Adapter();
+	}
 	s.adaptationSuppressed = VINCULUM_SUPPRESS;
 	for (CrewMember &c : s.crew)
 		if (c.status == CREW_FIT && c.dept == DEPT_SECURITY) { c.status = CREW_INJURED; c.severity = std::max(c.severity, 0.5f); LogEvent(s, AuthorFor(s, DEPT_MEDICAL, "sickbay"), "sickbay", c.name + " was hurt in the raid on the vinculum"); break; }
@@ -3602,25 +3629,42 @@ static void UpdateOutside(Ship &s, float shipSeconds)
 	if (s.contact2.present) s.contact2.shields = std::min(1.0f, s.contact2.shields + s.contact2.shieldGen * minutes / ENEMY_SHIELD_REGEN);
 
 	// Our phasers: their shields first; once their shields are down, the subsystem Tactical has
-	// targeted -- or the hull. A subsystem broken changes what the enemy can do. The Borg adapt: the
-	// more we hit them, the less each hit does.
+	// targeted -- or the hull. A subsystem broken changes what the enemy can do. The Borg adapt by
+	// count, not by rate (the owner's C-15 ruling; docs/ship-systems.md): the bank fires a discharge
+	// every PHASER_SHOT_SECONDS, the twelfth penetration adapts it, and the ramp inside the bound
+	// shapes what the discharges before the twelfth do.
 	float ours = s.systems[SYS_PHASERS].output * minutes / PHASER_MINUTES * PhaserYieldFactor(PhaserYieldOf(s));
-	if (s.enemy.kind == ENEMY_BORG_VESSEL) {
-		ours *= (1.0f - s.enemy.adaptation);
-		// A live vinculum lets them adapt; destroyed (adaptationSuppressed), they cannot for a while.
-		if (s.adaptationSuppressed <= 0.0f)
-			s.enemy.adaptation = std::min(1.0f, s.enemy.adaptation + ours * (2.0f + s.borgAwareness));
-	}
-	const float onShields = std::min(ours, s.enemy.shields);
-	s.enemy.shields -= onShields;
-	const float through = ours - onShields;
-	if (through > 0.0f) {
-		switch (s.target) {
-		case TARGET_WEAPONS: s.enemy.weapons = Clamp01(s.enemy.weapons - through); break;
-		case TARGET_ENGINES: s.enemy.engines = Clamp01(s.enemy.engines - through); break;
-		case TARGET_SHIELD_GEN: s.enemy.shieldGen = Clamp01(s.enemy.shieldGen - through); break;
-		default: s.enemy.hull = std::max(0.0f, s.enemy.hull - through); break;
+	auto deliver = [&](float amount) {
+		const float onShields = std::min(amount, s.enemy.shields);
+		s.enemy.shields -= onShields;
+		const float through = amount - onShields;
+		if (through > 0.0f) {
+			switch (s.target) {
+			case TARGET_WEAPONS: s.enemy.weapons = Clamp01(s.enemy.weapons - through); break;
+			case TARGET_ENGINES: s.enemy.engines = Clamp01(s.enemy.engines - through); break;
+			case TARGET_SHIELD_GEN: s.enemy.shieldGen = Clamp01(s.enemy.shieldGen - through); break;
+			default: s.enemy.hull = std::max(0.0f, s.enemy.hull - through); break;
+			}
 		}
+	};
+	if (s.enemy.kind == ENEMY_BORG_VESSEL) {
+		Adapter &a = s.enemy.adapt[ADAPT_PHASER];
+		// A live vinculum lets them adapt; destroyed (adaptationSuppressed), they cannot for a while --
+		// but our shots land either way, so the bank still fires and only the learning is held back.
+		if (s.systems[SYS_PHASERS].output > 0.0f && a.penetrations < BORG_ADAPT_SHOTS)
+			a.charge += shipSeconds;
+		const float perSecond = s.systems[SYS_PHASERS].output / (PHASER_MINUTES * 60.0f) * PhaserYieldFactor(PhaserYieldOf(s));
+		while (a.charge >= PHASER_SHOT_SECONDS && a.penetrations < BORG_ADAPT_SHOTS) {
+			a.charge -= PHASER_SHOT_SECONDS;
+			deliver(perSecond * PHASER_SHOT_SECONDS * (1.0f - a.ramp));
+			if (s.adaptationSuppressed <= 0.0f) {
+				++a.penetrations;
+				a.ramp = std::min(BORG_RAMP_CEIL, a.ramp + BORG_RAMP_STEP * (1.0f + s.borgAwareness));
+			}
+		}
+		if (a.penetrations >= BORG_ADAPT_SHOTS) a.charge = 0.0f; // adapted: nothing left to bank
+	} else {
+		deliver(ours);
 	}
 	if (s.enemy.hull <= 0.0f) { // it is over; whatever they sent across is still aboard
 		if (s.contact2.present) { s.enemy = s.contact2; s.contact2 = Enemy(); } // the wingman is next
@@ -8998,11 +9042,16 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(s.enemyHeld ? 1 : 0);
 	w.U8(s.enemy.present); w.U8(s.enemy.borg); w.U8(s.enemy.kind); w.F(s.enemy.hull); w.F(s.enemy.shields);
 	w.F(s.enemy.weapons); w.F(s.enemy.engines); w.F(s.enemy.shieldGen); w.F(s.enemy.firepower);
-	w.F(s.enemy.adaptation);
+	for (int aw = 0; aw < ADAPT_WEAPON_COUNT; ++aw) {
+		w.U8(s.enemy.adapt[aw].penetrations); w.F(s.enemy.adapt[aw].ramp); w.F(s.enemy.adapt[aw].charge);
+	}
 	w.U8(static_cast<uint8_t>(s.enemy.boarders));
 	w.U8(s.contact2.present); w.U8(s.contact2.borg); w.U8(s.contact2.kind); w.F(s.contact2.hull); w.F(s.contact2.shields);
 	w.F(s.contact2.weapons); w.F(s.contact2.engines); w.F(s.contact2.shieldGen); w.F(s.contact2.firepower);
-	w.F(s.contact2.adaptation); w.U8(static_cast<uint8_t>(s.contact2.boarders));
+	for (int aw = 0; aw < ADAPT_WEAPON_COUNT; ++aw) {
+		w.U8(s.contact2.adapt[aw].penetrations); w.F(s.contact2.adapt[aw].ramp); w.F(s.contact2.adapt[aw].charge);
+	}
+	w.U8(static_cast<uint8_t>(s.contact2.boarders));
 	w.U8(s.target);
 	w.U8(s.pursued ? 1 : 0); w.U8(static_cast<uint8_t>(s.pursuitJumps)); w.F(s.pursuitStrength);
 	w.U8(static_cast<uint8_t>(s.sectorNumber)); w.U8(s.reachedEnd ? 1 : 0); w.U8(s.won ? 1 : 0);
@@ -9392,7 +9441,12 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	s.enemy.weapons = r.Unit(); s.enemy.engines = r.Unit(); s.enemy.shieldGen = r.Unit();
 	s.enemy.firepower = r.F();
 	if (!(s.enemy.firepower >= 0.0f && s.enemy.firepower <= 100.0f)) return false;
-	s.enemy.adaptation = r.Unit();
+	for (int aw = 0; aw < ADAPT_WEAPON_COUNT; ++aw) {
+		s.enemy.adapt[aw].penetrations = r.U8();
+		s.enemy.adapt[aw].ramp = r.Unit();
+		s.enemy.adapt[aw].charge = r.F();
+		if (s.enemy.adapt[aw].penetrations > BORG_ADAPT_SHOTS) return false;
+	}
 	s.enemy.boarders = r.U8();
 	s.contact2.present = r.U8() != 0; s.contact2.borg = r.U8() != 0;
 	const uint8_t ekind2 = r.U8();
@@ -9402,7 +9456,12 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	s.contact2.weapons = r.Unit(); s.contact2.engines = r.Unit(); s.contact2.shieldGen = r.Unit();
 	s.contact2.firepower = r.F();
 	if (!(s.contact2.firepower >= 0.0f && s.contact2.firepower <= 100.0f)) return false;
-	s.contact2.adaptation = r.Unit();
+	for (int aw = 0; aw < ADAPT_WEAPON_COUNT; ++aw) {
+		s.contact2.adapt[aw].penetrations = r.U8();
+		s.contact2.adapt[aw].ramp = r.Unit();
+		s.contact2.adapt[aw].charge = r.F();
+		if (s.contact2.adapt[aw].penetrations > BORG_ADAPT_SHOTS) return false;
+	}
 	s.contact2.boarders = r.U8();
 	const uint8_t tgt = r.U8();
 	if (tgt >= TARGET_COUNT) return false;

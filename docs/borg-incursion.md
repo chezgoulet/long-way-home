@@ -242,12 +242,14 @@ The keystone and the owner's clean-intercept rule are in, in `module/ship/ship_c
   that reprieve recorded. `TestIncursion` walks all three thresholds on one deck: compromised but
   crew-held, then contested, then the transporter seized.
 
-- **The counter-play kit: remodulation and a vinculum raid.** `Remodulate` rotates the phaser
-  modulation, subtracting 0.5 from the Borg's `adaptation` so the next shots land again, with a
-  120-second cooldown (the cost in attention). `RaidVinculum` needs Borg here (aboard or a vessel),
-  sets `adaptation` to zero and suppresses its growth for 300 seconds -- a reprieve with a cost, never
-  a win -- and spends a security party (one is wounded). Console `ship remodulate|vinculum`;
-  `scripts/counterplay-check.sh` shows a 60% adaptation broken to 10%.
+- **The counter-play kit: remodulation and a vinculum raid.** With the adapter a **count** (above),
+  `Remodulate` rotates the phaser modulation and moves the **ramp** down by 0.5 on every weapon, so
+  the next shots land again, with a 120-second cooldown (the cost in attention) -- but the **count
+  stands**, so a remodulation late in a fight buys damage per shot, not more shots. `RaidVinculum` needs
+  Borg here (aboard or a vessel), clears the **count and the ramp** on every weapon and suppresses growth
+  for 300 seconds -- the crew get their twelve shots back, a reprieve with a cost, never a win -- and
+  spends a security party (one is wounded). Console `ship remodulate|vinculum`;
+  `scripts/counterplay-check.sh` shows a 60% ramp broken to 10%.
 
 - **De-assimilation: a narrow window, and never whole.** A crew member the drones have begun to take
   (their `wounds` in `(0, 0.8)`) can be recovered: `RecoverCaptive` spends sickbay and supplies,
