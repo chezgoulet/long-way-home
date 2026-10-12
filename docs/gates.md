@@ -863,7 +863,7 @@ lands is the owner's open question (Q3)**; the behaviour implemented is recorded
 `docs/crew-manifest.md` (*"The bills"*, *"Who reports to whom"*), implemented 2026-10-11 on
 `feat/the-bills` (`docs/evidence/the-bills.md`, `TestTheBills`, `TestOodAuthority`,
 `test_ship_core --bills`, `scripts/bills-check.sh`; the screen `ui_lwh_bills`, the console verb
-`ship bill`). **Save format 59** (the per-record assignments and the called state), the cost named in
+`ship bill`). **Save format 60** (the per-record assignments and the called state), the cost named in
 the evidence.
 
 **The census first, because a bill built twice is worse than one built late:** the **watch bill** and
