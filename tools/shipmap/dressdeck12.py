@@ -414,6 +414,21 @@ class Build:
             self.w(brush(((rail_x, ry, b), (rail_x + 8, ry + 8, b + 48)), "engineering/railsupports"))
         self.w(brush(((rail_x, RY0 + 128, FLOOR + 88), (rail_x + 8, RY1 - 96, FLOOR + 96)), "engineering/handrail"))
 
+    def readout_screen(self, bounds, tex, shift):
+        """A brush whose every face carries an explicit texture shift.
+
+        The readout is a *picture*, not a tiling material: the face is one tile of the live image
+        (tools/shipmap/panelart.py), so without a shift the image wraps at an arbitrary phase and
+        shows split across a seam. The shift puts image (0,0) at the face's own corner.
+        """
+        lines = aslines(brush(bounds, tex))
+        out = []
+        for ln in lines:
+            if ln.startswith("("):
+                ln = ln.replace(" %s 0 0 0 1 1" % tex, " %s %d %d 0 1 1" % (tex, shift[0], shift[1]))
+            out.append(ln)
+        self.w(out)
+
     def _console(self):
         import math
         _, (ox, oy), ba = self._open_spot()
@@ -428,7 +443,62 @@ class Build:
         y0, y1 = cy - 48, cy + 48
         self.w(brush(((x0, y0, cb), (x1, y1, cb + 48)), "engineering/console1"))
         self.w(brush(((x0 + 16, y0 + 8, cb + 48), (x1 - 16, y1 - 8, cb + 80)), "voyager/basic"))
-        self.w(brush(((x0 + 24, y0 + 12, cb + 80), (x1 - 24, y1 - 12, cb + 112)), "lwh/panel"))
+
+        # The environmental readout (G18): the deck's air, the countdown to what the design calls
+        # unbreathable, and which source is holding the deck's air -- drawn on a surface of its own
+        # at the watch console. That surface is the point: docs/evidence/the-deck12-readout.md.
+        #
+        # The watch post is the open spot at (ox, oy); the console stands 96 units away along
+        # (ba+90), so the face the watchkeeper looks at is the console's face toward the post,
+        # direction (ba-90). At this deck's own build that is +x, and the screen is bolted to the
+        # console's +x side. The screen is 128 wide x 64 tall x 8 thick: 128x64 at texture scale 1
+        # is exactly one tile of the 128x64 live image, and the shift below lands it whole on the
+        # face. The watch post is placed off the screen's face (112, stepped further where the
+        # room is not clear) so the whole of the screen reads.
+        dx = math.cos(math.radians(ba - 90))
+        dy = math.sin(math.radians(ba - 90))
+        facing = int(round(ba - 90)) % 360
+        sz0, sz1 = cb, cb + 64
+        # Texture axes for an axis-aligned face (q3map2's baseaxis): for a face whose normal is
+        # (+/-1,0,0), S runs along -y for +x and +y for -x, T along -z; for (+/-1 wall in y), S runs
+        # along +x for +y and -x for -y. The shift puts the image's own corner at the face's corner,
+        # so the image lands whole rather than wrapped at an arbitrary phase.
+        if abs(dx) >= abs(dy):
+            fx = x1 if dx > 0 else x0
+            sx0, sx1 = (fx, fx + 8) if dx > 0 else (fx - 8, fx)
+            sy0, sy1 = cy - 64, cy + 64
+            eye_at = (sx1 if dx > 0 else sx0) + (112 if dx > 0 else -112)
+            read_at = (eye_at, cy)
+            shift = (sy0 if dx > 0 else -sy0, sz1)   # S from -y (or +y), T from -z
+        else:
+            fy = y1 if dy > 0 else y0
+            sy0, sy1 = (fy, fy + 8) if dy > 0 else (fy - 8, fy)
+            sx0, sx1 = cx - 64, cx + 64
+            eye_at = (sy1 if dy > 0 else sy0) + (112 if dy > 0 else -112)
+            read_at = (cx, eye_at)
+            shift = (-sx0 if dy > 0 else sx1, sz1)
+        # The face is one tile of the image in each axis, so the shift only sets the phase; reduce
+        # it to the phase itself. A raw shift of -3840 texels is legal but needlessly large, and
+        # the compiler's own alignment arithmetic is easier to trust at a small value.
+        shift = (shift[0] % 128, shift[1] % 64)
+        self.readout_screen(((sx0, sy0, sz0), (sx1, sy1, sz1)), "lwh/env", shift)
+
+        # The watch post, placed the way the room passes place a post: a named point entity the
+        # harness stands at. It faces the readout, and a second marker stands at the screen's own
+        # centre so the harness (or a person) can be told to look at the surface itself rather than
+        # at a hard-coded pitch -- move the screen and the post still looks at it.
+        px, py = read_at
+        pz = self.solids.floor_at(px, py)
+        for _ in range(8):
+            if not self.solids.contains((px, py, pz + 40.0), pad=24.0):
+                break
+            px += 32 if dx > 0 else -32
+        pz = self.solids.floor_at(px, py)
+        self.point("info_notnull", "lwh_env_post", (px, py, pz + 24), {"angle": str(facing)})
+        self.point("info_notnull", "lwh_env_screen",
+                   ((sx0 + sx1) // 2, (sy0 + sy1) // 2, (sz0 + sz1) // 2))
+        self.report["readout"] = {"screen": [sx0, sy0, sz0, sx1, sy1, sz1], "post": [px, py, pz + 24],
+                                  "facing": facing}
 
     def _fixtures(self):
         # Working light and the emergency red, as strips along the ceiling, interleaved, so the

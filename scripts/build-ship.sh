@@ -81,10 +81,21 @@ cp "$ROOT/configs/lwh-start.cfg" "$ROOT/build/ship/files/"
 
 # The status panel's shader and its placeholder image: the ship's live state is drawn onto this
 # surface (gi.UpdatePanelImage), so the shader and a real image at the same size must be present.
+# `lwh/env` is the second live surface -- the deck-12 environmental readout (G18) -- at 128x64.
+#
+# Both go into the pak (the engine resolves them there) AND into the compiler's own game dir: with
+# the shader and the image only in the pak, q3map2 cannot size them and falls back to a 64x64
+# default, so a 128-unit face is baked as two tiles and the picture comes out split (the defect this
+# pass found and closes; see docs/evidence/the-deck12-readout.md).
 mkdir -p "$ROOT/build/ship/files/scripts" "$ROOT/build/ship/files/gfx/lwh"
+mkdir -p "$ROOT/build/lwhshaders/scripts" "$ROOT/build/lwhshaders/gfx/lwh"
 cp "$ROOT/tools/shipmap/data/lwh_panel.shader" "$ROOT/build/ship/files/scripts/"
 cp "$ROOT/tools/shipmap/data/lwh_borg.shader" "$ROOT/build/ship/files/scripts/"
+cp "$ROOT/tools/shipmap/data/lwh_panel.shader" "$ROOT/build/lwhshaders/scripts/"
 python3 "$ROOT/tools/shipmap/panelart.py" "$ROOT/build/ship/files/gfx/lwh/panel.tga"
+python3 "$ROOT/tools/shipmap/panelart.py" "$ROOT/build/ship/files/gfx/lwh/env.tga" --width 128 --height 64
+python3 "$ROOT/tools/shipmap/panelart.py" "$ROOT/build/lwhshaders/gfx/lwh/panel.tga"
+python3 "$ROOT/tools/shipmap/panelart.py" "$ROOT/build/lwhshaders/gfx/lwh/env.tga" --width 128 --height 64
 
 # The one room no post could save: astrometrics (deck 8) measured dark from every vantage, so the fix
 # is light, not a post, and it lives here so a rebuild keeps it (docs/evidence/the-room-posts.md). The

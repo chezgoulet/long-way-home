@@ -942,20 +942,26 @@ evidence: `docs/evidence/the-character-layer.md`, `docs/evidence/the-manner.md`.
   <!-- register-row id=G17 state=partly marker=check:scripts/away-check.sh -->
 
 ### G18 — The air/endurance countdown is not drawn where the problem is
-- **Status 2026-10-11 — OPEN.** `docs/evidence/gap-air-and-endurance.md`: *"The countdown and the field
-  control are on the Operations console; deck 12 itself is still a generated hall with a station marker.
-  Drawing the countdown at the environmental-control panel is the deck-12 build item."* Left
-  unannotated: the closure is a build item with no named file.
-- **Missing:** the clocks are on the Operations console, and the force-field key is there; deck 12
-  itself does not display its own countdown. `docs/evidence/gap-air-and-endurance.md` names this as the deck-12
-  build item.
-- **Says so:** `docs/evidence/gap-air-and-endurance.md`; `docs/ship-master-map.md`.
-- **To close:** an environmental-control readout at the deck-12 watch console; the panel surface path
-  already exists.
-- **Not touched by the away-site pass (2026-10-11).** The brief named this row alongside G17, but this
-  pass is **not a ship-side change** (no `module/` file is edited), so the deck-12 readout is untouched.
-  The related question on the *site* side — how long an away team's air lasts — belongs to the
-  away-mission loop, which is not built, and is named in `docs/evidence/the-away-site.md`.
+- **Status 2026-10-11 — CLOSED.** `feat/the-deck12-readout` (`docs/evidence/the-deck12-readout.md`,
+  `scripts/deck12-readout-check.sh`): the deck-12 watch console now carries a readout of **the
+  deck's own air** — `AIR n%`, `HOLDING` or `n.n MIN TO AIRLESS` (the countdown to what the design
+  calls unbreathable), and the source holding that air (`SOURCE MAIN GRID` / `AUX FUSION` / ...), the
+  triad the air pass built (`docs/evidence/the-air.md`).
+  It is a **surface in the room**: a `lwh/env` screen on the console's face, drawn by the module
+  (`module/ship/lwh_panel.cpp`, `RenderEnv`) from the same functions the simulation and the console
+  read. The check photographs a deck holding its air, the same deck failing and the deck held on an
+  independent source, and asserts both the numbers and the picture — the readout's own region
+  differs 11.7 % between the first two, where a HUD cannot reach; with the wiring cut
+  (`LWH_ENV_BREAK=1`, `g_shipEnvStatic 1`) the two states photograph identically and the check fails.
+  Found and fixed on the way: q3map2 could not *size* the live panel shaders, so the status panel —
+  and the new screen — were baked as two tiles; `build/lwhshaders/` now carries them.
+- **Missing:** nothing the row names. The readout is drawn where the problem is; the Operations
+  console's clocks and force-field key are unchanged beside it.
+- **Says so:** `docs/evidence/the-deck12-readout.md` — including what it could **not** verify
+  (whether it reads as the ship telling you something: the owner's eye) and that the room around the
+  post is dim by its own authoring, not by the vantage.
+- **To close:** done. What remains beside it is the owner's walkthrough of the room.
+  <!-- register-row id=G18 state=closed marker=check:scripts/deck12-readout-check.sh -->
 
 ### G19 — The shuttle load-screen is deliberately a menu and is not built
 - **Status 2026-10-11 — OPEN by design.** `docs/evidence/every-screen.md` row 18: *"a **decision menu at
@@ -1041,27 +1047,29 @@ evidence: `docs/evidence/the-character-layer.md`, `docs/evidence/the-manner.md`.
 ### The gap statuses, and which rows the check reads
 
 This list was re-read row by row against the tree and `docs/gates.md` on **2026-10-11**
-(`feat/the-walkthrough-status`). The **count**: **5 closed** — G1, G2, G12, G13, G14; **5 partly
-closed** — G3, G5, G11, G16, G17; **15 open** — G4, G6, G7, G8, G9, G10, G15, G18, G19, G20, G21,
+(`feat/the-walkthrough-status`). The **count**: **6 closed** — G1, G2, G12, G13, G14, G18 (the
+deck-12 readout, closed 2026-10-11 on `feat/the-deck12-readout`); **5 partly
+closed** — G3, G5, G11, G16, G17; **14 open** — G4, G6, G7, G8, G9, G10, G15, G19, G20, G21,
 G22, G23, G24, G25. Each row carries its 2026-10-11 status in place, its own finding text kept.
 
-**Rows the register check reads: the 5 closed rows and the partly-closed G17**, each with a marker
+**Rows the register check reads: the 6 closed rows and the partly-closed G17**, each with a marker
 naming the proof (`G1` `configs/lwh-start.cfg`; `G2` `scripts/configurator-check.sh`; `G12`
-`scripts/power-check.sh`; `G13` `scripts/docs-check.sh`; `G14` `scripts/character-check.sh`; `G17`
+`scripts/power-check.sh`; `G13` `scripts/docs-check.sh`; `G14` `scripts/character-check.sh`; `G18`
+`scripts/deck12-readout-check.sh`; `G17`
 `scripts/away-check.sh`, the away-site pass of 2026-10-11). The
 check is class 3 of `scripts/docs-check.sh`; the walkthrough is now one of its registers, so a closed
 row whose proof is later removed fails the suite.
 
-**Rows left unannotated: the other 4 partly-closed and the 15 open rows (19).** The rule is the
+**Rows left unannotated: the other 4 partly-closed and the 14 open rows (18).** The rule is the
 omissions register's own (`docs/evidence/the-number-owners.md`, Task B, and
 `tools/docs/check_register.py`): do not annotate a row whose closure cannot be reduced to a marker.
-Each of the 19 "Status" lines above says why in its own words; in brief, they fall into two kinds — a
+Each of the 18 "Status" lines above says why in its own words; in brief, they fall into two kinds — a
 closure that is **a person's act** (a walkthrough, a session, an owner's ruling: G3, G6, G7, G8, G9,
 G15, G19, G24 and the halves of G11 and G16) and a closure that is **content or a build item nothing
-has named yet** (G4, G5, G10, G18, G20, G21, G22, G23, G25). A marker for either would be an invented
+has named yet** (G4, G5, G10, G20, G21, G22, G23, G25). A marker for either would be an invented
 filename, which the register declines. **A green check is not the answer to this list's question**:
 the check proves a closed row's proof exists, not that the row's prose is true, and it is blind to the
-19 unannotated rows by construction.
+18 unannotated rows by construction.
 
 **One further correction made in the same pass — the section text's cross-references.** Sections 2–11
 cited G-numbers that did not match this gap list (they read as an earlier draft's numbering), so a

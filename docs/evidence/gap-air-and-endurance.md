@@ -49,9 +49,13 @@ passes, as do `test.sh`, `scripts/s2-check.sh`, `scripts/s4-check.sh` and `scrip
 
 ## What is left for this gap
 
-- **Environmental control as a place.** The countdown and the field control are on the Operations
-  console; deck 12 itself is still a generated hall with a station marker. Drawing the countdown at
-  the environmental-control panel is the deck-12 build item in `docs/ship-master-map.md`.
+- **Environmental control as a place.** *Closed 2026-10-11* (`feat/the-deck12-readout`,
+  `docs/evidence/the-deck12-readout.md`): the deck-12 watch console now carries the deck's own air —
+  its percentage, the countdown to `AIRLESS`, and which source is holding it — on a surface of its
+  own (`lwh/env`), drawn by the module from the same functions the simulation reads. A deck holding
+  its air, the same deck failing, and the deck held on an independent source photograph differently;
+  with the wiring cut the check fails (`scripts/deck12-readout-check.sh`). The Operations console's
+  clocks and force-field key are unchanged beside it.
 
 *Added 2026-10-10:* the **independent air source** — a deck holding its air on its own source with the
 main grid down — is built on `feat/the-air`; see `docs/evidence/the-air.md`. It is the deck-by-deck

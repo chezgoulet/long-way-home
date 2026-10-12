@@ -49,7 +49,9 @@ Where each modelled system lives, and therefore which decks the simulation is bl
 
 - **Power**: deck 11 (core, EPS), nacelle feed through the pylons, plasma relays on deck 15.
 - **Life support**: environmental control on deck 12, plant on deck 13 -- *both absent, both first*;
-  both are now built as re-dresses of `tour/deck11` (see the build order below).
+  both are now built as re-dresses of `tour/deck11` (see the build order below). The deck-12 watch
+  console carries **the deck's own air readout** -- air, countdown, source -- on a `lwh/env` surface
+  (`docs/evidence/the-deck12-readout.md`).
 - **Computer**: deck 10 (main core), deck 7 (auxiliary), gel packs distributed.
 - **Sensors**: astrometrics and science lab on deck 8; navigational control on deck 12.
 - **Medical**: deck 5. **Transporters**: deck 4. **Stores**: cargo bay 2 (deck 4), lower bays (deck 8).
@@ -81,7 +83,10 @@ no turbolifts); the holodecks (warmth, and a safety interlock failure).
    the life-support station marked, reachable and walkable on the merged ship, the emergency lighting
    state authored: `scripts/deck12-check.sh`, `g_shipTest 26`, screenshot `lwh_deck12.tga`. The tool
    is `tools/shipmap/dressdeck12.py`; the parts list `docs/locations/deck12-parts-list.md`; evidence
-   `docs/evidence/deck12-redress.md`. What is open is the walkthrough.
+   `docs/evidence/deck12-redress.md`. **The watch console now carries the deck's own air readout**
+   (walkthrough G18, 2026-10-11): a `lwh/env` screen on its face, drawn by the module, showing the
+   deck's air, its countdown and the source holding it — `scripts/deck12-readout-check.sh`,
+   `docs/evidence/the-deck12-readout.md`. What is open is the walkthrough.
 2. **Deck 13, life support plant** — **re-dressed from `tour/deck11` (2026-10-07)** and awaiting the
    owner's walkthrough. One plant hall: the warp core replaced by a central machinery island, a
    raised catwalk along the north wall with a stair, a Jefferies tube mouth at the far end, and the
