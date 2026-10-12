@@ -156,7 +156,7 @@ substance of the brief's point and stands.
 | `Unpack` | `const uint8_t *data, size_t len, Ship &s` | False, leaving `s` untouched, on a truncated, foreign or newer record | play | — | — |
 
 ### 2. Situations the simulation generates on its own  
-*87 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "74 hooks"; 87 rows follow.)*
+*88 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "74 hooks"; **Corrected 2026-10-12:** one row (`ShieldHit`) was added for the shield sections, 87 → 88 rows follow.)*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -221,6 +221,7 @@ substance of the brief's point and stands.
 | `DamageSystem` | `Ship &s, SystemId id, float amount` | damage system | console | post | — |
 | `DamageSource` | `Ship &s, SourceId id, float amount` | damage source | console | — | — |
 | `BreachDeck` | `Ship &s, int deck, float amount` | breach deck | console | — | — |
+| `ShieldHit` | `Ship &s, ShieldSection sec, float amount` | Route one hit into a named arc. Strips that arc by `amount` and returns what got through it (the part that reaches the hull), so the caller carries on with the overflow. This is the hook the console and a scenario call: "the hit struck the port arc, by this much" (C-14; docs/ship-systems.md) | console | — | docs/ship-systems.md |
 | `IgniteDeck` | `Ship &s, int deck, float amount` | A fire can start on a deck (combat, a damaged system, or deliberately) | console | — | — |
 | `Board` | `Ship &s, int deck, int boarders` | board | console | — | — |
 | `BoardAs` | `Ship &s, int deck, int boarders, BoarderKind kind, int objective` | board as | console | — | — |
@@ -368,7 +369,7 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `BillHoles` | `const Ship &s, std::string *out` | the holes: posts with one holder, and stations no living crew member can fill | play | — | docs/crew-manifest.md |
 
 ### 4. Readers content can consult  
-*203 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "180 hooks"; 203 rows follow.)*
+*212 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "180 hooks"; **Corrected 2026-10-12:** five shield readers (`ShieldSectionName`, `ShieldSectionByName`, `ShieldsDown`, `ShieldSectionForHit`, `ShieldReadout`) were added, 203 → 208 rows follow; **the nine departments and the complement** (`Complement`, `DepartmentName`, `DepartmentByName`, `DepartmentSize`) were added, 208 → 212 rows follow.)*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -509,6 +510,11 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `Target` | `const Ship &s` | target | console | — | — |
 | `EnemySubsystemName` | `EnemySubsystem t` | enemy subsystem name | play | — | — |
 | `EnemyKindName` | `EnemyKind k` | enemy kind name | play | — | — |
+| `ShieldSectionName` | `ShieldSection sec` | The arc's canon name, lowercase: "forward", "port", "starboard", "aft", "dorsal", "ventral" | play | — | docs/ship-systems.md |
+| `ShieldSectionByName` | `const char *name` | The arc a word names -- "fwd"/"forward", "stbd"/"starboard", and the rest -- or SHIELD_SECTION_COUNT when it names none. The console's and the manifest's one lookup, so a name means the same thing everywhere the six arcs are addressed | play | — | docs/ship-systems.md |
+| `ShieldsDown` | `const Ship &s` | True when every arc is down: the condition boarders cross on, and the condition the transporter needs. The gate is the whole set -- the bearing of an incoming beam is not modelled, so a single arc still up is still a shield | play | — | docs/ship-systems.md |
+| `ShieldSectionForHit` | `const Ship &s` | The arc an unrouted hit strikes: the one the ship's own hit counter names, cycling canon's order (hits % 6). A hit that arrives with no section named lands here, deterministically, so a save replays it identically | play | — | docs/ship-systems.md |
+| `ShieldReadout` | `const Ship &s` | The six sections as one line, for the consoles and the log: the read-out a person sees (module/ui/ui_lwh_engineering.cpp draws it; `lwh_ship_shields` carries it) | play | — | docs/ship-systems.md |
 | `PhaserYieldOf` | `const Ship &s` | phaser yield of | play | — | — |
 | `EffectiveDemand` | `const Ship &s, SystemId id` | The demand a system asks of the power budget this tick, before distribution | play | post | — |
 | `AwayTeam` | `const Ship &s` | away team | play | — | — |
@@ -575,6 +581,10 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `MeetingRoomAt` | `int i` | the room and deck one table row names | play | — | docs/staff-meetings.md |
 | `MeetingRoomFor` | `uint8_t kind, uint8_t dept` | the room a meeting of `kind` with subject `dept` is held in | play | — | docs/staff-meetings.md |
 | `MeetingSubjectDepartment` | `const Ship &s, uint8_t kind` | the department whose business a meeting of this kind is | play | — | docs/staff-meetings.md |
+| `Complement` | `const Ship &s` | The ship's complement: hull data a start state may vary, the one lookup the roster, the departments and a declaration all read | play | — | docs/design-north-star.md |
+| `DepartmentName` | `Department d` | the roster's own word for one of the nine departments | play | — | docs/crew-manifest.md |
+| `DepartmentByName` | `const char *word` | the department a word names, matched on the leading part; -1 when it names none -- the one lookup a scenario's staff field uses | nothing | post | docs/crew-manifest.md |
+| `DepartmentSize` | `Department d, int complement` | the department's size for a hull's complement: the design's split scaled to it, so the nine add to the whole | play | — | docs/crew-manifest.md |
 
 ## The counts (Task B)
 
@@ -691,6 +701,26 @@ derived as follows:
 left as their history, per this section's own convention. Evidence: this pass's
 `docs/evidence/the-doc-contradictions.md`.
 
+**Re-derived 2026-10-12, the shield sections (C-14).** Six hooks are added by the owner's ruling that
+shields are canon's six arcs: `ShieldHit` (the hit into a named arc, reached from the developer console
+`ship shield` and by the simulation's own fire), `ShieldSectionName`, `ShieldSectionByName`,
+`ShieldsDown`, `ShieldSectionForHit` (the whole-set gate and the unrouted hit's arc, reached in play)
+and `ShieldReadout` (the read-out the console draws). By section — entry points **75**, situations
+**88**, outcomes **56**, orders (3b) **20**, the bills (3c) **20**, readers **208**, the configurator
+**18**; **total 485** — and `scripts/hooks-check.sh` independently fixes the row count at **485**
+against `ship_core.h`. Evidence: `docs/evidence/the-shield-sections.md`.
+
+**Re-derived 2026-10-12, the nine departments and the complement as hull data (3.3, 8.53).** Four
+hooks are added by the owner's rulings that the departments are the roster's nine and the complement is
+hull data a start state may vary: `Complement` (the one lookup every reader uses; reached in play by
+the roster, the crowding term, the transporter bound and the save), `DepartmentName` (the roster's own
+word, reached in play by the computer read-out and the tests), `DepartmentSize` (the nine sized to a
+hull's complement; reached in play by the roster build) and `DepartmentByName` (the lookup a scenario's
+staff field uses; no play caller yet). By section — entry points **75**, situations **88**, outcomes
+**56**, orders (3b) **20**, the bills (3c) **20**, readers **212**, the configurator **18**; **total
+489** — and `scripts/hooks-check.sh` independently fixes the row count at **489** against
+`ship_core.h`. Evidence: `docs/evidence/the-departments-and-the-complement.md`.
+
 ### 5. The configurator — the player chooses the start state
 
 *docs/the-entry-point.md, part three; docs/start-states.md.* The entry point is a configurator with
@@ -776,6 +806,7 @@ has and the game does not yet offer.
 - `AssumeCommand` — reached only by the tests (entry)
 - `LogsPurged` — reached only by the tests (reader)
 - `Describe` — reached only by the tests (reader)
+- `DepartmentByName` — reached only by the tests (reader); the lookup a scenario's `staff` field will use
 
 ## The post-not-name law (Task B's last acceptance)
 

@@ -27,6 +27,10 @@ static const char *g_test = "";
 // Simulated seconds that advance the ship by the given ship-hours.
 static float Hours(const Ship &s, float h) { return h * 3600.0f / s.cfg.dayScale; }
 
+// The whole shield set down, as SetEnabled(SYS_SHIELDS, false) leaves it. The transporter and the
+// boarding gate read the set, not one scalar (C-14).
+static void DropShields(Ship &s) { for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) s.shields[i] = 0.0f; }
+
 // Holdings is a fold over the marks (Holdings()), not a stored value, so a test that wants a
 // particular regard gives the person the single mark that yields it: target in [0,1] -> net regard
 // in [-1,1]. Clearing the marks first makes the reading exactly the target.
@@ -44,8 +48,8 @@ static void TestNominalShip()
 {
 	g_test = "a new ship is whole and consistent";
 	const Ship s = NewShip();
-	CHECK(static_cast<int>(s.crew.size()) == COMPLEMENT);
-	CHECK(s.CrewFit() == COMPLEMENT);
+	CHECK(static_cast<int>(s.crew.size()) == Complement(s));
+	CHECK(s.CrewFit() == Complement(s));
 	CHECK(s.Watch() == 0 && s.SecondOfDay() == 8 * 3600);
 	CHECK(s.PowerAllocated() == s.PowerAvailable());
 	// Condition green: everything but weapons and shields runs at full output.
@@ -438,6 +442,73 @@ static void TestRoster()
 	CHECK(differs);
 }
 
+// The nine departments (docs/crew-manifest.md; the owner's ruling 2026-10-12, "NINE, as designed"):
+// the roster's own list, and their sizes adding to the complement.
+static void TestNineDepartments()
+{
+	g_test = "the nine departments, and their sizes adding to the complement";
+	CHECK(DEPT_COUNT == 9);
+	// The roster's own names, in the manifest's order (docs/crew-manifest.md).
+	static const char *const NINE[DEPT_COUNT] = {
+		"Command", "Operations", "Engineering", "Security and tactical", "Science",
+		"Medical", "Flight and shuttlebay", "Support and logistics", "Civilians and attached",
+	};
+	for (int d = 0; d < DEPT_COUNT; ++d)
+		CHECK(std::string(DepartmentName(static_cast<Department>(d))) == NINE[d]);
+	CHECK(DepartmentByName("engineering") == DEPT_ENGINEERING);
+	CHECK(DepartmentByName("operations") == DEPT_OPERATIONS);
+	CHECK(DepartmentByName("security") == DEPT_SECURITY);
+	CHECK(DepartmentByName("science") == DEPT_SCIENCE);
+	CHECK(DepartmentByName("medical") == DEPT_MEDICAL);
+	CHECK(DepartmentByName("flight") == DEPT_FLIGHT);
+	CHECK(DepartmentByName("support") == DEPT_SUPPORT);
+	CHECK(DepartmentByName("civilians") == DEPT_CIVILIANS);
+	CHECK(DepartmentByName("no such department") == -1);
+	const Ship s = NewShip();
+	int sum = 0, members = 0;
+	for (int d = 0; d < DEPT_COUNT; ++d) {
+		sum += DepartmentSize(static_cast<Department>(d), Complement(s));
+		for (const CrewMember &c : s.crew) if (c.dept == d) ++members;
+	}
+	CHECK(sum == Complement(s));      // the parts add to the whole
+	CHECK(members == Complement(s));  // and every berth is filled by its own department
+}
+
+// The complement is hull data a start state may vary (docs/design-north-star.md; the owner's ruling
+// 2026-10-12, "HULL DATA, as the design says").
+static void TestComplementIsHullData()
+{
+	g_test = "the complement is hull data, and a start state may vary it";
+	CHECK(COMPLEMENT_DEFAULT == 141);
+	CHECK(Complement(NewShip()) == HULL_VOYAGER.complement); // the hull's own default
+	// The canon state names no complement: it leaves the hull's default.
+	const StartState &canon = StartStateAt(0);
+	Ship a = NewShip();
+	ApplyStartState(a, canon);
+	CHECK(canon.complement == 0 && Complement(a) == HULL_VOYAGER.complement);
+	// A shipped state that names one fields a different complement, and both load.
+	int other = -1;
+	for (int i = 0; i < StartStateCount(); ++i) if (StartStateAt(i).complement > 0) other = i;
+	CHECK(other >= 0);
+	const StartState &named = StartStateAt(other);
+	Ship b = NewShip();
+	ApplyStartState(b, named);
+	CHECK(Complement(b) == named.complement);
+	CHECK(Complement(b) != Complement(a));
+	CHECK(static_cast<int>(b.crew.size()) == Complement(b));
+	int sum = 0;
+	for (int d = 0; d < DEPT_COUNT; ++d) sum += DepartmentSize(static_cast<Department>(d), Complement(b));
+	CHECK(sum == Complement(b));
+	for (Ship *ship : { &a, &b }) {
+		const std::vector<uint8_t> blob = Pack(*ship);
+		Ship back;
+		CHECK(Unpack(blob.data(), blob.size(), back));
+		CHECK(Complement(back) == Complement(*ship));       // the hull data survives the save
+		CHECK(back.crew.size() == ship->crew.size());       // and the roster it built
+		CHECK(Pack(back) == blob);                          // byte for byte
+	}
+}
+
 static void TestSchedule()
 {
 	g_test = "the daily routine";
@@ -505,7 +576,7 @@ static void TestRedAlertAndCasualties()
 	Tick(s, 1.0f);
 	CHECK(s.systems[SYS_WARP_DRIVE].manned == 0);
 	CHECK(s.systems[SYS_WARP_DRIVE].output == 0.5f); // automation holds it at half
-	CHECK(s.CrewFit() < COMPLEMENT);
+	CHECK(s.CrewFit() < Complement(s));
 }
 
 static void TestDamageAndRepair()
@@ -553,7 +624,7 @@ static void TestMoraleAndFatigue()
 
 	// The drivers move: a watch raises fatigue, and green lifts the reading.
 	Ship t = NewShip();
-	t.crew[0].watch = 0; t.crew[0].post = SYS_SENSORS; t.crew[0].dept = DEPT_SCIENCES;
+	t.crew[0].watch = 0; t.crew[0].post = SYS_SENSORS; t.crew[0].dept = DEPT_SCIENCE;
 	t.crew[0].fatigue = 0.0f; t.crew[0].deficit = 0.2f; t.crew[0].outlook = 0.2f; RegardTo(t.crew[0], 0.2f);
 	const float before = Morale(t.crew[0]);
 	Tick(t, Hours(t, 8.0f));                       // 0800 to 1600, alpha watch on duty throughout
@@ -641,9 +712,9 @@ static void TestSave()
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[6] = 7; // a different complement
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[61] = 5; // an alert condition that does not exist
+	bad = blob; bad[63] = 5; // an alert condition that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
-	bad = blob; bad[65] = 0x7f; // a health that is not a fraction
+	bad = blob; bad[67] = 0x7f; // a health that is not a fraction
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
 	bad = blob; bad[16] = 9; // a play mode that does not exist
 	CHECK(!Unpack(bad.data(), bad.size(), untouched));
@@ -766,7 +837,7 @@ static void TestCasualties()
 	held.decks[0].atmosphere = 0.0f;
 	held.decks[0].hull = 0.0f;
 	for (int i = 0; i < SICKBAY_BEDS; ++i) held.crew[i].status = CREW_INJURED; // the beds are taken
-	CrewMember &last = held.crew[COMPLEMENT - 1];
+	CrewMember &last = held.crew[Complement(held) - 1];
 	last.status = CREW_INJURED;
 	last.quartersDeck = 1;
 	Tick(held, Hours(held, 0.05f)); // three minutes
@@ -1156,7 +1227,7 @@ static void TestWrittenOffList()
 			else ++unknown;
 		}
 		CHECK(saw == 2);
-		CHECK(rumoured == COMPLEMENT - 2);
+		CHECK(rumoured == Complement(w) - 2);
 		CHECK(unknown == 0);
 	}
 }
@@ -1285,6 +1356,17 @@ static void TestBoarding()
 	Ship back;
 	CHECK(Unpack(blob.data(), blob.size(), back));
 	CHECK(Hijacked(back, SYS_SENSORS) && Intruders(back) == Intruders(w));
+	// The whole state round-trips, except the fight's transient counters, which the next tick
+	// recomputes and which depend on the pre-fight boarder count -- a defender wounded out mid-tick is
+	// not re-posted by the reload's zero tick. That path-dependence is pre-existing
+	// (docs/evidence/the-sector-split.md); the saved state is what the save promises, so it is zeroed
+	// on both sides before the comparison rather than pretending the derived field round-trips.
+	for (int d = 0; d < DECKS; ++d) {
+		w.decks[d].defenders = back.decks[d].defenders = 0;
+		w.decks[d].stripping = back.decks[d].stripping = 0;
+		w.decks[d].sealing = back.decks[d].sealing = 0;
+		w.decks[d].firefighting = back.decks[d].firefighting = 0;
+	}
 	CHECK(Describe(back) == Describe(w));
 }
 
@@ -1357,7 +1439,7 @@ static void TestBorg()
 		if (c.status == CREW_ASSIMILATED) ++taken;
 	CHECK(taken >= 1);                         // they take the crew they find
 	CHECK(Intruders(s) >= 2 + taken);          // and each one taken is another drone
-	CHECK(s.CrewFit() < COMPLEMENT - 25);
+	CHECK(s.CrewFit() < Complement(s) - 25);
 
 	Tick(s, Hours(s, 0.5f));
 	CHECK(DeckAssimilated(s, 8));
@@ -1490,6 +1572,53 @@ static void TestSector()
 	}
 }
 
+// C-4: the sector's stated split (docs/lore-ledger.md). Twelve beacons, of which beacon 0 is forced
+// empty and beacon 11 the goal, so the ten interior beacons carry the composition. The roll is
+// `next() % 10`, which gives the ledger's own 40/30/20/10 for the four headline classes; the four
+// kinds the split does not name (trader, distress, belt, pre-warp) do not fit it -- four plus three
+// plus two plus one is already all ten -- so they are drawn from its empty outcome and share the
+// "quiet" 40% (each recorded at 4%). This is the check whose falsification is the old `% 15` roll:
+// that puts the classes at 60/20/13.3/6.7, nowhere near the ledger, and fails every row below.
+static void TestSectorSplit()
+{
+	g_test = "the sector's split";
+	// Enough draws for the number to mean something: 2000 sectors, 20000 interior beacons.
+	long count[BEACON_KIND_COUNT] = {0};
+	long interior = 0;
+	for (uint32_t seed = 1; seed <= 2000; ++seed) {
+		Config cfg; cfg.seed = seed;
+		const Ship s = NewShip(cfg);
+		for (int i = 1; i + 1 < SECTOR_BEACONS; ++i) { ++count[s.sector[i].kind]; ++interior; }
+	}
+	CHECK(interior == 20000);
+	auto share = [&](BeaconKind k) { return static_cast<float>(count[k]) / static_cast<float>(interior); };
+	// The four headline classes: the quiet share is the empty outcome, so the four kinds drawn from it
+	// are counted with it, and quiet + hostile + derelict + Borg is the whole of the interior.
+	const float quiet = share(BEACON_EMPTY) + share(BEACON_TRADER) + share(BEACON_DISTRESS)
+		+ share(BEACON_BELT) + share(BEACON_PREWARP);
+	std::printf("  sector split over %ld interior beacons: quiet %.2f%% (empty %.2f, trader %.2f,"
+		" distress %.2f, belt %.2f, pre-warp %.2f), hostile %.2f%%, derelict %.2f%%, borg %.2f%%\n",
+		interior, 100.0f * quiet, 100.0f * share(BEACON_EMPTY), 100.0f * share(BEACON_TRADER),
+		100.0f * share(BEACON_DISTRESS), 100.0f * share(BEACON_BELT), 100.0f * share(BEACON_PREWARP),
+		100.0f * share(BEACON_HOSTILE), 100.0f * share(BEACON_DERELICT), 100.0f * share(BEACON_BORG));
+	CHECK(std::fabs(quiet - 0.40f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_HOSTILE) - 0.30f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_DERELICT) - 0.20f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_BORG) - 0.10f) < 0.02f);
+	// The four kinds the ledger used to omit: each recorded at 4% of the sector.
+	CHECK(std::fabs(share(BEACON_TRADER) - 0.04f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_DISTRESS) - 0.04f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_BELT) - 0.04f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_PREWARP) - 0.04f) < 0.02f);
+	// All four are reachable: none is a kind the roll can no longer produce.
+	CHECK(count[BEACON_TRADER] > 0 && count[BEACON_DISTRESS] > 0 && count[BEACON_BELT] > 0
+		&& count[BEACON_PREWARP] > 0);
+	// The ends do not move: beacon 0 is empty, the last beacon is the goal.
+	Config cfg0; cfg0.seed = 1;
+	const Ship e = NewShip(cfg0);
+	CHECK(e.sector[0].kind == BEACON_EMPTY && e.sector[SECTOR_BEACONS - 1].kind == BEACON_GOAL);
+}
+
 static void TestCombat()
 {
 	g_test = "ship to ship";
@@ -1507,7 +1636,7 @@ static void TestCombat()
 	// At condition green the weapons are stood down: we do them no harm and our shields are not up.
 	Tick(s, Hours(s, 2.0f / 60.0f));
 	CHECK(s.enemy.shields == 1.0f);
-	CHECK(s.shieldStrength == 0.0f);
+	CHECK(ShieldsDown(s)); // every arc down: condition green stands the shields off
 	bool hurt = false;
 	for (int i = 0; i < SYS_COUNT; ++i) hurt = hurt || s.systems[i].health < 1.0f;
 	for (const Deck &d : s.decks) hurt = hurt || d.hull < 1.0f;
@@ -1522,7 +1651,7 @@ static void TestCombat()
 	SetPhaserYield(s, YIELD_KILL);
 	Tick(s, Hours(s, 4.0f / 60.0f));
 	CHECK(s.enemy.shields < 1.0f);
-	CHECK(s.shieldStrength > 0.0f);
+	CHECK(!ShieldsDown(s));
 	const int torpedoes = s.stores.torpedoes;
 	CHECK(FireTorpedo(s) && s.stores.torpedoes == torpedoes - 1);
 	Tick(s, Hours(s, 20.0f / 60.0f));
@@ -1585,6 +1714,85 @@ static void TestCombat()
 	Tick(w, Hours(w, 5.0f / 60.0f));
 	Tick(back, Hours(back, 5.0f / 60.0f));
 	CHECK(Describe(back) == Describe(w));
+}
+
+// C-14 (owner's ruling 2026-10-12, "BUILD THE SET -- canon's six arcs"): the shields are six named
+// sections, not one scalar. A hit routes to a named arc; a hit with no section named goes to the arc
+// the ship's hit counter names; the gates read the whole set; the set round-trips the save.
+static void TestShieldSections()
+{
+	g_test = "shields are canon's six arcs, and damage routes to one";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW); // the shields are up (green stands them down; yellow does not)
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) s.shields[i] = 1.0f; // full, as recharge brings them
+	CHECK(SHIELD_SECTION_COUNT == 6);
+
+	// The set starts full, and the names are canon's.
+	const char *const want[SHIELD_SECTION_COUNT] = {"forward", "port", "starboard", "aft", "dorsal", "ventral"};
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) {
+		CHECK(s.shields[i] == 1.0f);
+		CHECK(std::string(ShieldSectionName(static_cast<ShieldSection>(i))) == want[i]);
+	}
+	CHECK(ShieldSectionByName("fwd") == SHIELD_FWD);
+	CHECK(ShieldSectionByName("FORWARD") == SHIELD_FWD);
+	CHECK(ShieldSectionByName("stbd") == SHIELD_STBD);
+	CHECK(ShieldSectionByName("starboard") == SHIELD_STBD);
+	CHECK(ShieldSectionByName("ventral") == SHIELD_VENTRAL);
+	CHECK(ShieldSectionByName("nonsense") == SHIELD_SECTION_COUNT);
+	CHECK(!ShieldsDown(s));
+
+	// A hit on a named arc strips that arc -- and only that arc: the other five are untouched.
+	const float held = ShieldHit(s, SHIELD_PORT, 0.6f);
+	CHECK(held == 0.0f);
+	CHECK(std::fabs(s.shields[SHIELD_PORT] - 0.4f) < 1e-6f);
+	CHECK(s.shields[SHIELD_FWD] == 1.0f && s.shields[SHIELD_STBD] == 1.0f && s.shields[SHIELD_AFT] == 1.0f
+		&& s.shields[SHIELD_DORSAL] == 1.0f && s.shields[SHIELD_VENTRAL] == 1.0f);
+
+	// A hit larger than the arc hands the rest back as overflow (what reaches the hull).
+	const float over = ShieldHit(s, SHIELD_PORT, 1.0f);
+	CHECK(std::fabs(over - 0.6f) < 1e-6f);
+	CHECK(s.shields[SHIELD_PORT] == 0.0f);
+
+	// The unrouted hit: with no section named, the arc is the one the hit counter names.
+	s.hits = 0;
+	CHECK(ShieldSectionForHit(s) == SHIELD_FWD);
+	s.hits = 1;
+	CHECK(ShieldSectionForHit(s) == SHIELD_PORT);
+	s.hits = 7;
+	CHECK(ShieldSectionForHit(s) == static_cast<ShieldSection>(7 % SHIELD_SECTION_COUNT));
+
+	// The gate is the whole set: one arc up is not down, every arc down is.
+	Ship d = NewShip();
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) d.shields[i] = 0.0f;
+	CHECK(ShieldsDown(d));
+	CHECK(!ShieldsDown(s));
+
+	// Enemy fire routes through the set: minutes of fire still less than one arc's holding reduces
+	// exactly the arc the counter names, and nothing else.
+	Ship f = NewShip();
+	SetAlert(f, ALERT_YELLOW);
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) f.shields[i] = 1.0f;
+	f.enemy.present = true; f.enemy.kind = ENEMY_WARSHIP;
+	f.enemy.hull = 1.0f; f.enemy.shields = 0.0f; f.enemy.shieldGen = 0.0f;
+	f.enemy.weapons = 1.0f; f.enemy.firepower = 0.1f; // 0.1 of an arc's worth of fire in one step
+	const ShieldSection struck = ShieldSectionForHit(f);
+	Tick(f, Hours(f, 1.0f / 60.0f));
+	int changed = 0;
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) if (f.shields[i] < 1.0f) ++changed;
+	CHECK(changed == 1);
+	CHECK(std::fabs(f.shields[struck] - 0.9f) < 1e-4f);
+	CHECK(f.hits == 0); // the arc held: nothing reached the hull
+
+	// The set round-trips the save, arc by arc. Red, because at green the shields are stood down and
+	// the load's own consistency tick would put them back to zero -- the state it just restored.
+	Ship a = NewShip();
+	SetAlert(a, ALERT_RED);
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) a.shields[i] = 0.1f * static_cast<float>(i);
+	a.shields[SHIELD_FWD] = 1.0f;
+	const std::vector<uint8_t> blob = Pack(a);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) CHECK(back.shields[i] == a.shields[i]);
 }
 
 static void StartFightTest(Ship &s);
@@ -1846,7 +2054,7 @@ static void TestCrewJusticeAndBorg()
 	Ship s = NewShip();
 	int scientist = -1;
 	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
-		if (s.crew[i].dept == DEPT_SCIENCES && s.crew[i].rank < 4 && s.crew[i].status == CREW_FIT && s.crew[i].post == SYS_COUNT) { scientist = i; break; }
+		if (s.crew[i].dept == DEPT_SCIENCE && s.crew[i].rank < 4 && s.crew[i].status == CREW_FIT && s.crew[i].post == SYS_COUNT) { scientist = i; break; }
 	CHECK(scientist >= 0);
 	CHECK(!MayOperate(s.crew[scientist], STN_TACTICAL));
 	CHECK(Train(s, scientist, STN_TACTICAL) && Qualified(s.crew[scientist], STN_TACTICAL));
@@ -2303,6 +2511,13 @@ static void TestNavigation()
 	sv.navCounterLast = 12.5f;
 	GoTo(sv, 0); sv.enemy = Enemy(); sv.contact2 = Enemy();
 	Jump(sv, 1);
+	// What is at the destination is the sector's roll, and this test is the counter's, not the
+	// beacon's: clear any contact the arrival left. Under the old `% 15` roll beacon 1 happened not
+	// to be hostile for this seed, so the test silently relied on standing somewhere empty; the `% 10`
+	// roll (C-4) makes it a hostile beacon, whose boarders are logged on load, so the saved blob was
+	// not a fixed point of `Unpack`. Clearing it keeps the round-trip about the counter (see
+	// docs/evidence/the-sector-split.md).
+	sv.enemy = Enemy(); sv.contact2 = Enemy();
 	DraftReport(sv, DEPT_COUNT);
 	CHECK(std::fabs(OpenReport(sv).counter - NavigationCounter(sv).currentYears) < 0.01f);
 	CHECK(OpenReport(sv).lines[0].text.find("since the last entry") != std::string::npos);
@@ -2589,7 +2804,7 @@ static void TestHazardInjuries()
 	for (int i = 0; i < static_cast<int>(s.sector.size()); ++i) if (s.sector[i].phenomenon) ph = i;
 	CHECK(ph >= 0);
 	GoTo(s, ph);
-	s.shieldStrength = 0.0f;
+	DropShields(s);
 	CHECK(TransportAway(s, 3));
 	bool siteHurt = false;
 	for (const LogEntry &e : s.log) if (e.what.find("was hurt by the site") != std::string::npos) siteHurt = true;
@@ -2741,7 +2956,7 @@ static void TestTransporterAnomaly()
 	g_test = "the transporter: the ruling end to end";
 	Ship s = NewShip();
 	s.cfg.dayScale = 1.0f;
-	s.shieldStrength = 0.0f;
+	DropShields(s);
 	s.sector[s.beacon].phenomenon = false;
 	s.sector[s.beacon].kind = BEACON_EMPTY;
 	SetAlert(s, ALERT_GREEN);
@@ -2807,8 +3022,8 @@ static void TestTransporterAnomaly()
 	CHECK(Unpack(blob2.data(), blob2.size(), back2));
 	CHECK(Pack(back2) == blob2);
 	CHECK(back2.crew.size() == s.crew.size());
-	if (s.crew.size() > static_cast<size_t>(COMPLEMENT))
-		CHECK(back2.crew[COMPLEMENT].name == s.crew[COMPLEMENT].name); // the copy carries its name
+	if (s.crew.size() > static_cast<size_t>(Complement(s)))
+		CHECK(back2.crew[Complement(s)].name == s.crew[Complement(s)].name); // the copy carries its name
 }
 
 // The security squad: a fireteam command sends to retake a deck, advancing a deck at a time
@@ -3771,7 +3986,7 @@ static void TestRankAndRoles()
 	CHECK(CreateCharacter(p, "Too Senior", DEPT_ENGINEERING, 5) == -1);     // nobody is created a commander
 	const int me = CreateCharacter(p, "Ensign Reyes", DEPT_ENGINEERING, 1);
 	CHECK(me >= 19 && p.player == me && p.crew[me].name == "Ensign Reyes" && p.crew[me].rank == 1);
-	CHECK(static_cast<int>(p.crew.size()) == COMPLEMENT);                  // a place taken, not a berth added
+	CHECK(static_cast<int>(p.crew.size()) == Complement(p));                  // a place taken, not a berth added
 	CHECK(p.crew[me].post == SYS_COUNT);                                   // and nobody's station taken from them
 	CHECK(PlayerMayOperate(p, STN_ENGINEERING) && !PlayerMayOperate(p, STN_TACTICAL) && !PlayerMayCommand(p));
 	SetRole(p, ROLE_IN_COMMAND);
@@ -3785,7 +4000,7 @@ static void TestRankAndRoles()
 	cfg.mode = MODE_HOLODECK;
 	cfg.clockMode = CLOCK_WALL;
 	Ship w = NewShip(cfg);
-	const int who = CreateCharacter(w, "Lt. Okoro", DEPT_SCIENCES, 3);
+	const int who = CreateCharacter(w, "Lt. Okoro", DEPT_SCIENCE, 3);
 	w.wallSeconds = 1791234567ull;
 	const std::vector<uint8_t> blob = Pack(w);
 	Ship back;
@@ -4042,7 +4257,7 @@ static void TestStationPurposes()
 	Ship red = NewShip();
 	SetAlert(red, ALERT_RED);
 	Tick(red, Hours(red, 0.2f));
-	CHECK(red.shieldStrength > 0.0f);
+	CHECK(!ShieldsDown(red));
 	CHECK(!TransportAway(red, 2) && AwayTeam(red) == 0);
 	// ... and with the transporters down, there is no beam at all.
 	Ship down = NewShip();
@@ -4287,7 +4502,7 @@ static void TestCrewOnDeck()
 			++total;
 		}
 	}
-	CHECK(total == COMPLEMENT - 1);          // everyone alive is on exactly one deck
+	CHECK(total == Complement(s) - 1);          // everyone alive is on exactly one deck
 	CHECK(CrewOnDeck(s, 0).empty());         // the dead are on none
 	CHECK(CrewOnDeck(s, 99).empty());
 	// 0800: alpha at stations. The captain is on the bridge and the chief engineer in Engineering.
@@ -4346,6 +4561,91 @@ static int PrintLosses()
 		WriteOffs(back).empty() ? "-" : WriteOffs(back).back().what.c_str(),
 		WriteOffs(back).empty() ? "-" : WriteOffs(back).back().who.c_str());
 	return restored && WriteOffs(back).size() == 4 ? 0 : 1;
+}
+
+// `test_ship_core --shields` prints the six arcs as evidence (docs/evidence/the-shield-sections.md):
+// the set named, a hit on one named arc with the other five unchanged, the unrouted hit and where it
+// goes, the read-out the Tactical console draws, the gate a scenario reads, and the save's cost.
+static int PrintShields()
+{
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW);
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) s.shields[i] = 1.0f;
+	std::printf("  the six sections (SHIELD_SECTION_COUNT %d):", SHIELD_SECTION_COUNT);
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) std::printf(" %s", ShieldSectionName(static_cast<ShieldSection>(i)));
+	std::printf("\n");
+	std::printf("  the read-out the Tactical console draws: %s\n", ShieldReadout(s).c_str());
+
+	// A hit on the port arc: state before and after, and the other five unchanged.
+	const float through = ShieldHit(s, SHIELD_PORT, 0.6f);
+	const bool others = s.shields[SHIELD_FWD] == 1.0f && s.shields[SHIELD_STBD] == 1.0f && s.shields[SHIELD_AFT] == 1.0f
+		&& s.shields[SHIELD_DORSAL] == 1.0f && s.shields[SHIELD_VENTRAL] == 1.0f;
+	std::printf("  a hit of 60%% on the port arc: port 100%% -> %.0f%%, overflow %.0f%%; the other five %s\n",
+		s.shields[SHIELD_PORT] * 100.0f, through * 100.0f, others ? "unchanged" : "CHANGED");
+	std::printf("  after:  %s\n", ShieldReadout(s).c_str());
+
+	// The unrouted hit: no section named, so the ship's hit counter names the arc.
+	Ship u = NewShip();
+	Tick(u, 1.0f);
+	std::printf("  unrouted: hits %u, so a shot with no section named strikes the %s arc\n",
+		u.hits, ShieldSectionName(ShieldSectionForHit(u)));
+	u.hits = 2;
+	std::printf("  unrouted: hits %u, so the next such shot strikes the %s arc\n",
+		u.hits, ShieldSectionName(ShieldSectionForHit(u)));
+
+	// The whole set down: the gate a scenario reads before boarding or beaming.
+	Ship d = NewShip();
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) d.shields[i] = 0.0f;
+	std::printf("  all six arcs down: ShieldsDown %d (the boarding and beaming gate reads this)\n", ShieldsDown(d) ? 1 : 0);
+
+	// The save's cost: six floats in place of one, and a version it does not know is refused.
+	Ship p = NewShip();
+	const std::vector<uint8_t> blob = Pack(p);
+	Ship modern; const bool loads = Unpack(blob.data(), blob.size(), modern);
+	std::vector<uint8_t> old = blob; old[4] = 60; old[5] = 0; // the byte before this pass
+	Ship stale; const bool oldLoads = Unpack(old.data(), old.size(), stale);
+	std::printf("  save: format %u, the blob is %zu bytes and loads %d; the same blob at version 60 loads %d\n",
+		SAVE_VERSION, blob.size(), loads ? 1 : 0, oldLoads ? 1 : 0);
+	return 0;
+}
+
+// The nine departments and the complement as hull data (docs/crew-manifest.md,
+// docs/design-north-star.md; the owner's rulings, 2026-10-12), printed as evidence.
+static int PrintDepartments()
+{
+	// The nine, as the roster names them, with their sizes for the hull's complement: they add up.
+	Ship s = NewShip();
+	std::printf("  the nine departments (DEPT_COUNT %d), their sizes for the hull's complement %d:\n",
+		DEPT_COUNT, Complement(s));
+	int sum = 0;
+	for (int d = 0; d < DEPT_COUNT; ++d) {
+		const int size = DepartmentSize(static_cast<Department>(d), Complement(s));
+		sum += size;
+		int have = 0;
+		for (const CrewMember &c : s.crew) if (c.dept == d) ++have;
+		std::printf("    %-26s %3d  (%d in the roster)\n", DepartmentName(static_cast<Department>(d)), size, have);
+	}
+	std::printf("  the sizes add to %d, the complement\n", sum);
+	const int byName = DepartmentByName("security");
+	std::printf("  one lookup: DepartmentByName(\"security\") = %d, DepartmentName -> %s\n",
+		byName, DepartmentName(static_cast<Department>(byName)));
+
+	// The complement is hull data a start state may vary: the canon default leaves the hull's own
+	// figure, an under-crewed state names its own, and both load.
+	std::printf("  the hull (hull data): %s, default complement %d\n", HULL_VOYAGER.name, COMPLEMENT_DEFAULT);
+	for (int i = 0; i < StartStateCount(); ++i) {
+		const StartState &st = StartStateAt(i);
+		if (st.complement == 0 && i != 0) continue; // show the default once, and each named one
+		Config cfg;
+		Ship ship = NewShip(cfg);
+		ApplyStartState(ship, st);
+		const std::vector<uint8_t> blob = Pack(ship);
+		Ship back;
+		const bool loads = Unpack(blob.data(), blob.size(), back);
+		std::printf("  start state [%d] %-14s complement %3d (state names %2d), %zu crew, %d fit, loads %d\n",
+			i, st.name, Complement(ship), st.complement, ship.crew.size(), ship.CrewFit(), loads ? 1 : 0);
+	}
+	return 0;
 }
 
 // The measurement the ruling asks to be shown: the odds as a function of condition, over twenty
@@ -5689,7 +5989,7 @@ static void TestCastMap()
 		}
 	}
 	CHECK(canon == 9);                     // the canon few
-	CHECK(pool == COMPLEMENT - 9);         // the hazard team and the generated crew
+	CHECK(pool == Complement(s) - 9);         // the hazard team and the generated crew
 
 	// THE CHAIR: the captain died, so she has no voice and no line is authored for her.
 	Ship chair = NewShip(cfg);
@@ -6696,6 +6996,109 @@ static void TestConditionMovesTheOdds()
 	CHECK(named);
 }
 
+// ---- C-23, measured: does a condition reach the failure roll, and what would EffectiveSkill change? --
+//
+// The register's C-23 is the fork the owner ordered measured rather than ruled: the failure roll's path
+// (UseSystemAt -> WorkFactors -> RollWork) builds its skill term from the raw rating and adds each
+// condition as its own named factor, while `docs/character-derivation.md` names `EffectiveSkill` -- "what
+// decides whether a repair is quick, slow, or dangerous". This measures the same person at the same task
+// clean and conditioned under both constructions, so the ruling has a number. It builds nothing and
+// changes nothing: the EffectiveSkill case is recomputed here from the same factors, so the live roll is
+// untouched.
+struct WorkForkReading {
+	float baseOdds = 0.0f, condOdds = 0.0f;       // today's roll: raw skill + a separate condition factor
+	float nilOdds = 0.0f, nominalOdds = 0.0f;     // the counter-cases: no condition, and a nominal system
+	float hypBaseOdds = 0.0f, hypCondOdds = 0.0f; // if the roll read EffectiveSkill (condition subsumed)
+	float effClean = 0.0f, effIll = 0.0f;
+	int baseHits = 0, condHits = 0, nilHits = 0, hypBaseHits = 0, hypCondHits = 0;
+};
+
+static WorkForkReading MeasureWorkFork()
+{
+	WorkForkReading r;
+	const float cond = 0.40f;   // the document's own degraded example
+	const float battle = 1.0f;  // battle stations: the load the design called the worst
+	// PlainCrew: morale exactly 0.5, so the morale factor is absent and the condition is isolated.
+	CrewMember clean = PlainCrew();
+
+	WorkFactor base[WORK_FACTOR_MAX];
+	const int bn = WorkFactors(clean, SKILL_ENGINEERING, WORK_ROUTINE, battle, base, WORK_FACTOR_MAX);
+	r.baseOdds = WorkOdds(cond, base, bn);
+	r.baseHits = MeasureWork(cond, battle, base, bn);
+
+	CrewMember ill = clean;
+	AddCondition(ill, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_SHARP,
+		CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW);
+	WorkFactor aft[WORK_FACTOR_MAX];
+	const int an = WorkFactors(ill, SKILL_ENGINEERING, WORK_ROUTINE, battle, aft, WORK_FACTOR_MAX);
+	r.condOdds = WorkOdds(cond, aft, an);
+	r.condHits = MeasureWork(cond, battle, aft, an);
+
+	// Counter-case 1: a condition slot carrying COND_NONE -- a record that must weigh nothing.
+	CrewMember nil = clean;
+	nil.conditionCount = 1;
+	nil.conditions[0].id = COND_NONE;
+	WorkFactor nf[WORK_FACTOR_MAX];
+	const int nn = WorkFactors(nil, SKILL_ENGINEERING, WORK_ROUTINE, battle, nf, WORK_FACTOR_MAX);
+	r.nilOdds = WorkOdds(cond, nf, nn);
+	r.nilHits = MeasureWork(cond, battle, nf, nn);
+	(void)nn;
+
+	// Counter-case 2: a nominal system (the top tenth). The design promises the operator cannot move the
+	// odds there, so the same condition on the same person must make no difference.
+	r.nominalOdds = WorkOdds(0.95f, aft, an);
+
+	// The fork: the same task under a roll that read EffectiveSkill. The skill term is rebuilt from
+	// EffectiveSkill, and the separate condition factor is subsumed -- it is already inside EffectiveSkill,
+	// so keeping both would count the condition twice. The weights are WORK_SKILL_STANDARD 2.0 and
+	// WORK_SKILL_SLOPE 0.10 (module/ship/ship_core.cpp; not exported through the header). This is a
+	// reproduction, not the live path.
+	r.effClean = EffectiveSkill(clean, SKILL_ENGINEERING);
+	r.effIll = EffectiveSkill(ill, SKILL_ENGINEERING);
+	WorkFactor hb[WORK_FACTOR_MAX], ha[WORK_FACTOR_MAX];
+	int hbn = 0, han = 0;
+	for (int i = 0; i < bn; ++i) {
+		if (base[i].kind == WORK_CONDITION) continue;
+		hb[hbn] = base[i];
+		if (hb[hbn].kind == WORK_SKILL) hb[hbn].delta = (2.0f - r.effClean) * 0.10f;
+		++hbn;
+	}
+	for (int i = 0; i < an; ++i) {
+		if (aft[i].kind == WORK_CONDITION) continue;
+		ha[han] = aft[i];
+		if (ha[han].kind == WORK_SKILL) ha[han].delta = (2.0f - r.effIll) * 0.10f;
+		++han;
+	}
+	r.hypBaseOdds = WorkOdds(cond, hb, hbn);
+	r.hypBaseHits = MeasureWork(cond, battle, hb, hbn);
+	r.hypCondOdds = WorkOdds(cond, ha, han);
+	r.hypCondHits = MeasureWork(cond, battle, ha, han);
+	return r;
+}
+
+// C-23's measurement, as a unit test: a condition reaches the failure roll's odds (through WorkFactors),
+// the counter-cases do not move them, and the condition reaches through EffectiveSkill too -- so the fork
+// is a matter of magnitude, not of reach. The magnitudes are printed by `--work` and priced in the
+// evidence; the test asserts reach and the counter-cases, not which magnitude is the design.
+static void TestConditionReachesTheFailureRoll()
+{
+	g_test = "C-23: a condition reaches the failure roll, and the fork is priced";
+	const WorkForkReading r = MeasureWorkFork();
+	// Does a condition reach the roll today? Yes: the same person, the same task, worse odds and more
+	// anomalies drawn while the condition holds.
+	CHECK(r.condOdds > r.baseOdds);
+	CHECK(r.condHits > r.baseHits);
+	// Counter-case 1: a COND_NONE slot weighs nothing.
+	CHECK(std::fabs(r.nilOdds - r.baseOdds) < 1e-6f);
+	CHECK(r.nilHits == r.baseHits);
+	// Counter-case 2: a nominal system stays nominal whatever the operator carries.
+	CHECK(r.nominalOdds == 0.0f);
+	// The fork: the same condition read through EffectiveSkill still reaches the roll, so the fork is a
+	// matter of magnitude, not of reach. The two magnitudes are printed by `--work` and priced in the
+	// evidence; which one is the design is the owner's ruling, so this asserts neither.
+	CHECK(r.hypCondOdds > r.hypBaseOdds);
+}
+
 // Task B(ii): a trait is durable and behavioural, and shapes performance by interacting with the
 // moment, not as a flat penalty. Steady under fire does nothing on a quiet watch and helps at battle
 // stations; quick healer does not touch the odds at all (it shapes recovery).
@@ -7114,8 +7517,7 @@ static void PrintOneCrew(const CrewMember &c, int idx)
 {
 	std::printf("  [%d] %s -- %s, %s, %s department, post %s\n", idx, c.name.c_str(),
 		SpeciesName(c.species), c.rank >= 5 ? "senior officer" : c.rank >= 3 ? "officer" : "crewman",
-		c.dept == DEPT_COMMAND ? "command" : c.dept == DEPT_ENGINEERING ? "engineering"
-			: c.dept == DEPT_SECURITY ? "security" : c.dept == DEPT_SCIENCES ? "sciences" : "medical",
+		DepartmentName(c.dept),
 		c.post < SYS_COUNT ? Spec(static_cast<SystemId>(c.post)).name : "department duties");
 	std::printf("      skills:");
 	for (int k = 0; k < SKILL_COUNT; ++k) std::printf(" %s %d", SkillName(static_cast<uint8_t>(k)), c.skills[k]);
@@ -7412,6 +7814,29 @@ static int PrintWork()
 				logged = true; break;
 			}
 	}
+
+	// C-23, measured: does a condition reach the roll, and what would EffectiveSkill change? The
+	// register's fork, measured rather than ruled (docs/designs-against-code.md).
+	std::printf("\n  C-23, measured: does a condition reach the roll, and the fork's size\n");
+	const WorkForkReading fork = MeasureWorkFork();
+	std::printf("    one person (engineering 3), engineering routine, 40%% under battle stations\n");
+	std::printf("      clean                    odds %.4f   measured %d of 20000\n",
+		fork.baseOdds, fork.baseHits);
+	std::printf("      afraid (sharp)           odds %.4f   measured %d of 20000   (%+.4f odds)\n",
+		fork.condOdds, fork.condHits, fork.condOdds - fork.baseOdds);
+	std::printf("      COND_NONE (counter)      odds %.4f   measured %d of 20000   (%+.4f odds)\n",
+		fork.nilOdds, fork.nilHits, fork.nilOdds - fork.baseOdds);
+	std::printf("      nominal system (counter) odds %.4f   (the top tenth: the operator cannot move it)\n",
+		fork.nominalOdds);
+	std::printf("    if the roll called EffectiveSkill (%.2f clean / %.2f conditioned; condition subsumed):\n",
+		fork.effClean, fork.effIll);
+	std::printf("      clean                    odds %.4f   measured %d of 20000\n",
+		fork.hypBaseOdds, fork.hypBaseHits);
+	std::printf("      afraid (sharp)           odds %.4f   measured %d of 20000   (%+.4f odds)\n",
+		fork.hypCondOdds, fork.hypCondHits, fork.hypCondOdds - fork.hypBaseOdds);
+	std::printf("    the condition's own weight, in the odds multiplier: today +0.50 (WORK_COND_SHARP);\n");
+	std::printf("    through EffectiveSkill %+.4f (a sharp debuff drags effective skill %.2f -> %.2f, slope %.2f/point)\n",
+		(fork.effClean - fork.effIll) * 0.10f, fork.effClean, fork.effIll, 0.10f);
 	return 0;
 }
 
@@ -7433,8 +7858,8 @@ static void TestCanonStartUntouched()
 	Ship s = NewShip(cfg);
 	ApplyStartState(s, StartStateAt(0));
 	CHECK(!s.cfg.fictitious);
-	CHECK(static_cast<int>(s.crew.size()) == COMPLEMENT);
-	CHECK(s.CrewFit() == COMPLEMENT);                       // nobody died
+	CHECK(static_cast<int>(s.crew.size()) == Complement(s));
+	CHECK(s.CrewFit() == Complement(s));                       // nobody died
 	CHECK(s.seatHolder[SEAT_CAPTAIN] == 0);                 // Janeway still holds the chair
 	CHECK(s.crew[s.seatHolder[SEAT_FIRST_OFFICER]].type == "chakotay");
 	CHECK(s.player >= 0);                                   // a junior officer is chosen
@@ -7526,7 +7951,7 @@ static void TestFictitiousNoCanon()
 	cfg.fictitious = st.fictitious;
 	Ship s = NewShip(cfg);
 	CHECK(cfg.fictitious);
-	CHECK(static_cast<int>(s.crew.size()) == COMPLEMENT);
+	CHECK(static_cast<int>(s.crew.size()) == Complement(s));
 	ApplyStartState(s, st);
 	// None of the show characters appear: no record's type or name is a canon one.
 	static const char *const CANON[] = {"janeway", "chakotay", "tuvok", "paris", "kim", "torres", "doctor",
@@ -8737,7 +9162,7 @@ static void TestTheBills()
 	int stranded = 0;
 	for (const CrewMember &c : e.crew) {
 		if (c.status != CREW_FIT || c.deck != 9) continue;
-		if (!(c.dept == DEPT_ENGINEERING || c.dept == DEPT_SCIENCES || c.dept == DEPT_SECURITY)) ++stranded;
+		if (!(c.dept == DEPT_ENGINEERING || c.dept == DEPT_SCIENCE || c.dept == DEPT_SECURITY)) ++stranded;
 	}
 	CHECK(stranded == 0);
 	CHECK(StandDownEmergency(e, captain));
@@ -8907,7 +9332,7 @@ static int PrintBills()
 		Tick(s, 1.0f);
 		int left = 0;
 		for (const CrewMember &c : s.crew)
-			if (c.status == CREW_FIT && c.deck == 9 && !(c.dept == DEPT_ENGINEERING || c.dept == DEPT_SCIENCES || c.dept == DEPT_SECURITY)) ++left;
+			if (c.status == CREW_FIT && c.deck == 9 && !(c.dept == DEPT_ENGINEERING || c.dept == DEPT_SCIENCE || c.dept == DEPT_SECURITY)) ++left;
 		std::printf("  fire on deck 9: %d were on it, %d non-party hand(s) left; %s\n",
 			on9, left, EmergencyBillLine(s).c_str());
 		CallEmergency(s, EMERG_ABANDON, 0, captain);
@@ -8956,6 +9381,8 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--voice")) return PrintVoice();
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
+	if (argc > 1 && !std::strcmp(argv[1], "--shields")) return PrintShields();
+	if (argc > 1 && !std::strcmp(argv[1], "--departments")) return PrintDepartments();
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
 	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
 	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
@@ -8978,6 +9405,8 @@ int main(int argc, char **argv)
 	TestHullBreach();
 	TestFuel();
 	TestRoster();
+	TestNineDepartments();
+	TestComplementIsHullData();
 	TestSchedule();
 	TestADayAboard();
 	TestRedAlertAndCasualties();
@@ -9005,7 +9434,9 @@ int main(int argc, char **argv)
 	TestBreachPuzzle();
 	TestBorg();
 	TestSector();
+	TestSectorSplit();
 	TestCombat();
+	TestShieldSections();
 	TestMultipleContacts();
 	TestEnemySystemsAndOutsideChoices();
 	TestMaterialsAndTravel();
@@ -9090,6 +9521,7 @@ int main(int argc, char **argv)
 	TestAppearanceSaveRoundTrip();
 	TestEffectiveSkillReachesTheOdds();
 	TestConditionMovesTheOdds();
+	TestConditionReachesTheFailureRoll();
 	TestTraitShapesPerformance();
 	TestDriveBiasesBehaviour();
 	TestMoraleReachesTheWork();

@@ -139,11 +139,13 @@ Purge): the documentary witness, the one a purge can eliminate. The human witnes
 → morale. **Every value answerable to the same evidence.**
 
 **The cost, named rather than discovered.** The per-person float left the record and the save, so the save format
-moved with this change and an older save does not load — the deliberate bump, with its cost stated as `AGENTS.md`
-requires rather than discovered later. *(**Corrected 2026-10-11:** this said **57**. The moral claim — the
-per-person float left the save — was true; the number had gone two bumps stale, 58 (the Collective's held minds)
-and 59 (the bills), and this change was **60**. The number has moved again since (the Borg adapter, C-15): the
-header, `module/ship/ship_core.h`'s `SAVE_VERSION`, is the owner and reads **61**. The register
-`docs/designs-against-code.md` records it as **C-2**, and `tools/docs/owned_claims.json` watches only the
-assertion form.)*
+is **63** and an older save does not load (`module/ship/ship_core.h`, `const uint16_t SAVE_VERSION = 63;`) — the
+deliberate bump, with its cost stated as `AGENTS.md` requires rather than discovered later. *(**Corrected
+2026-10-11:** this said **57**. The moral claim — the per-person float left the save — was true; the number had
+gone two bumps stale, 58 (the Collective's held minds) and 59 (the bills). The register `docs/designs-against-code.md`
+records it as **C-2**, and `tools/docs/owned_claims.json` left the prose form un-policed because only the assertion
+form `SAVE_VERSION = <n>` is watched. **Corrected 2026-10-12:** the number moved to **61** — 60 was the holodeck
+reactor as a per-deck source, and 61 the shield sections of C-14 — and then to **62**, the complement as hull data
+(3.3/8.53), which is saved so a start state that fields a different crew rebuilds its roster on load. The moral
+claim is unchanged; only the current value moves, and the assertion form is kept in step so it cannot go stale.)*
 

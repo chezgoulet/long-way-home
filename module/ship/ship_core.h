@@ -20,8 +20,23 @@
 namespace ship {
 
 const int DECKS = 15;
-const int COMPLEMENT = 141;
 const int MAX_DUPLICATES = 16; // a transporter copy adds a record beyond the complement, bounded [inv]
+
+// The complement is hull data, not a code constant (docs/design-north-star.md; the owner's ruling,
+// 2026-10-12). Canon gives an Intrepid-class ship about 150; Voyager left drydock with 153 and was
+// down to roughly 141 after the losses in "Caretaker", and `crew_current` is a first-class ship
+// statistic that attrition reduces and recruitment restores. The hull supplies the default, and a
+// start state may vary it -- the configurator lets the player field a wholly fictitious crew, so a
+// constant would contradict it. `Complement(s)` is the one lookup every reader and every declaration
+// uses; the department sizes are measured against it (docs/crew-manifest.md).
+struct HullClass {
+	const char *name;    // the class word a declaration names ("Intrepid")
+	int complement;      // the crew the hull is built for [lore]
+};
+const int COMPLEMENT_DEFAULT = 141;                         // Voyager's fielded complement, canon [lore]
+const HullClass HULL_VOYAGER = {"Intrepid", COMPLEMENT_DEFAULT};
+struct Ship;
+int Complement(const Ship &s); // the ship's complement: hull data a start state may vary
 const int WATCHES = 3;
 const int SECONDS_PER_DAY = 86400;
 const int SECONDS_PER_WATCH = SECONDS_PER_DAY / WATCHES;
@@ -62,7 +77,29 @@ enum SystemId : uint8_t {
 // everything; each other station sees and switches only its own systems.
 enum Station : uint8_t { STN_ENGINEERING = 0, STN_TACTICAL, STN_OPS, STN_CONN, STN_SICKBAY, STN_COUNT };
 
-enum Department : uint8_t { DEPT_COMMAND = 0, DEPT_ENGINEERING, DEPT_SECURITY, DEPT_SCIENCES, DEPT_MEDICAL, DEPT_COUNT };
+// The nine departments, as docs/crew-manifest.md names them. This list is the vocabulary the content
+// speaks: a scenario's staff field names a department, and a post belongs to one. The order is the
+// manifest's own. DEPT_COUNT (9) is the whole-ship sentinel the report uses.
+enum Department : uint8_t {
+	DEPT_COMMAND = 0,    // CO, XO; the watch-officer pool; the chief of the boat; two admin
+	DEPT_OPERATIONS,     // ops, conn, comms, transporters, sensor watch, replicator systems
+	DEPT_ENGINEERING,    // warp core, EPS, hull and structure, environmental, damage control, fabricator, computer
+	DEPT_SECURITY,       // security and tactical: armed response, the brig, the armoury, tactical systems
+	DEPT_SCIENCE,        // astrometrics, stellar cartography, labs, sensors, data and archives
+	DEPT_MEDICAL,        // sickbay, medics, the surgical bay, the Doctor
+	DEPT_FLIGHT,         // flight and shuttlebay: pilots, shuttle maintenance, flight-deck crew
+	DEPT_SUPPORT,        // support and logistics: cargo and quartermaster, galley and mess, airponics, quarters, recreation
+	DEPT_CIVILIANS,      // civilians and attached: morale officer, botanical aide, consultant, guest berths
+	DEPT_COUNT
+};
+const char *DepartmentName(Department d);   // the roster's own word for a department
+// The department a word names, matched on the leading part (case-insensitively), so "security" names
+// "Security and tactical"; -1 when it names none. The one lookup a staff field uses.
+int DepartmentByName(const char *word);
+// The department's size for a given hull complement: the design's 141-person split
+// (docs/crew-manifest.md) scaled to the complement, so the nine always add to the whole. At the
+// default it is the manifest's own figure.
+int DepartmentSize(Department d, int complement);
 
 struct SystemSpec {
 	const char *name;
@@ -905,6 +942,37 @@ struct Enemy {
 	Adapter adapt[ADAPT_WEAPON_COUNT]; // the Borg's adapter, one per weapon (Borg only)
 };
 
+// Shields are per-section, not one scalar (C-14, the owner's ruling 2026-10-12: "BUILD THE SET --
+// canon's six arcs"). Canon names six arcs (`docs/ship-systems.md`: fwd/port/stbd/aft/dorsal/
+// ventral) and fourteen external grids; the ruling takes the six and leaves the grids as they are.
+// Each arc carries its own level (0..1), so damage routes to a section and a scenario can name the
+// one it struck. The one scalar is gone: a single number cannot say where the hole is.
+enum ShieldSection : uint8_t { SHIELD_FWD = 0, SHIELD_PORT, SHIELD_STBD, SHIELD_AFT, SHIELD_DORSAL, SHIELD_VENTRAL, SHIELD_SECTION_COUNT };
+
+// The arc's canon name, lowercase: "forward", "port", "starboard", "aft", "dorsal", "ventral".
+const char *ShieldSectionName(ShieldSection sec);
+// The arc a word names -- "fwd"/"forward", "stbd"/"starboard", and the rest -- or
+// SHIELD_SECTION_COUNT when it names none. The console's and the manifest's one lookup, so a name
+// means the same thing everywhere the six arcs are addressed.
+ShieldSection ShieldSectionByName(const char *name);
+// True when every arc is down: the condition boarders cross on, and the condition the transporter
+// needs. The gate is the whole set -- the bearing of an incoming hull or beam is not modelled, so a
+// single arc still up is still a shield.
+bool ShieldsDown(const Ship &s);
+// The arc an unrouted hit strikes: the one the ship's own hit counter names, cycling canon's order
+// (hits % 6). A hit that arrives with no section named lands here, deterministically, so a save
+// replays it identically. The counter advances when a hit gets through an arc to the hull, so fire
+// that no section names presses one arc until it falls, then moves to the next.
+ShieldSection ShieldSectionForHit(const Ship &s);
+// Route one hit into a named arc. Strips that arc by `amount` and returns what got through it (the
+// part that reaches the hull), so the caller carries on with the overflow. This is the hook the
+// console and a scenario call: "the hit struck the port arc, by this much." An arc that goes to
+// zero is logged, because a shield failing is a thing a person must be able to see.
+float ShieldHit(Ship &s, ShieldSection sec, float amount);
+// The six sections as one line, for the consoles and the log: the read-out a person sees
+// (module/ui/ui_lwh_engineering.cpp draws it; `lwh_ship_shields` carries it).
+std::string ShieldReadout(const Ship &s);
+
 // Shuttles are supported but not pilotable (docs/shuttles.md): launching one is a load screen, and
 // what the ship tracks is whether each is in the bay, away, or lost. Everything else -- lifeboat
 // arithmetic, boarding, a hit on the shuttlebay, away missions, the job queue -- reads that.
@@ -1038,7 +1106,8 @@ std::vector<LogEntry> ReadOfficialLog(const Ship &s, int count, const std::strin
 // held by their status alone. [our call: the design says "assimilation adds a mind to the
 // Collective"; treating the taking itself as the addition is what makes the design's narrow recovery
 // window the counter-case it is written to be.]
-const int COLLECTIVE_MAX = COMPLEMENT; // one held mind per person; bounded like every other set [inv]
+// One held mind per person, so the bound is the ship's own complement, not a separate constant: the
+// collective may hold no more minds than the hull fields (Complement, hull data).
 bool HeldByCollective(const Ship &s, int crew);
 // The Collective takes a mind: the Borg tick's take site calls this the moment it begins taking a
 // person, and a scenario may call it directly. Idempotent, and bounded. A person wholly assimilated
@@ -1890,6 +1959,10 @@ struct StartState {
 	uint8_t playerDept = DEPT_COMMAND;
 	int playerSeat = -1;           // the seat the player inherits, or -1 for an ordinary post
 	uint8_t career = CAREER_JUNIOR;
+	// The complement this state fields, hull data a start state may vary (docs/design-north-star.md).
+	// 0 leaves the hull's own default (HULL_VOYAGER's 141); a state that names one rebuilds the roster
+	// to it, so a wholly fictitious or short crew is a number, not a second code path.
+	int complement = 0;
 	// The opening's cause and the ship's condition (the Caretaker aftermath).
 	const char *cause = "the Caretaker's array";
 	int shipDead = 12;             // the ship's dead from the Caretaker, canon at twelve or more
@@ -1978,6 +2051,7 @@ struct Config {
 
 struct Ship {
 	Config cfg;
+	int complement = COMPLEMENT_DEFAULT; // the hull's crew size: hull data a start state may vary [lore]
 	double clock = 8 * 3600;     // ship seconds since midnight of day 0; starts at 0800, alpha watch
 	Alert alert = ALERT_GREEN;
 	System systems[SYS_COUNT];
@@ -2003,7 +2077,9 @@ struct Ship {
 	int crystalReplacements = 0;
 
 	// the outside
-	float shieldStrength = 1.0f; // what stands between enemy fire and the hull; 0 = hits land
+	// Shields are canon's six arcs, each its own level (C-14). The one scalar is gone; the read-out
+	// and the gates (ShieldsDown) are derived from the set. Full is each arc at 1.0.
+	float shields[SHIELD_SECTION_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
 	std::vector<Beacon> sector;
 	int beacon = 0;              // where the ship is
 	Enemy enemy;
@@ -3045,7 +3121,7 @@ const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
 // queue already derives; a job kind is a single byte in the record and the two new values are only
 // ever written by this build, so a save made before them loads and replays identically and the
 // version is deliberately NOT bumped -- a change that makes a save load differently is a defect.
-const uint16_t SAVE_VERSION = 61;  // 61: the Borg adapter as a count with the ramp inside it -- per weapon, the penetrating shots (twelve adapt it) and the ramp that shapes them (the owner's C-15 ruling; docs/ship-systems.md, docs/evidence/the-adaptation.md). The old single `float adaptation` is gone: two adapters, each saving a count, a ramp and the banked phaser charge, on the enemy and on the wingman. Deliberate cost, named: an older save does not load. 60: the holodeck reactor as a per-deck source (O2's remainder) -- the reactor's own health and isolation, off the grid, so a save taken with a deck tied to it, and the cross-tie's cost, replay identically (docs/budget-squaring.md Finding two, docs/evidence/the-holodeck-reactor.md). Deliberate cost, named: an older save does not load. 59: the bills -- battle stations and one emergency bill as called state, each with who called it and when, and a per-crew battle and emergency assignment derived at roster build (docs/crew-manifest.md, docs/evidence/the-bills.md). Deliberate cost, named: an older save does not load. 58: the minds the Collective holds -- a bounded list of the crew the drones have begun taking, so a save taken mid-window replays and a recovery ends the transfer (docs/the-record-and-the-log.md, docs/evidence/the-assimilation.md). Deliberate cost, named: an older save does not load. 57: holdings is a fold over the marks, not a stored float (the owner's C2 ruling, "Derived"; docs/morale.md). The per-person `float holdings` is gone from the record and from the save, and the character layer's morale block loses one float per person. Deliberate cost, named: an older save does not load. 56: the independent air feed (O2) -- each deck's air source and who set it, so a deck holds its air on its own source with the main grid down (docs/budget-squaring.md, Finding two); 55: the meeting's place -- each queued brief now knows the room it is held in and the department whose business it is, derived from the meeting's kind and subject (docs/staff-meetings.md); 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
+const uint16_t SAVE_VERSION = 63;  // 63: the Borg adapter as a count with the ramp inside it -- per weapon, the penetrating shots (twelve adapt it) and the ramp that shapes them (the owner's C-15 ruling; docs/ship-systems.md, docs/evidence/the-adaptation.md). The old single `float adaptation` is gone: two adapters, each saving a count, a ramp and the banked phaser charge, on the enemy and on the wingman. Deliberate cost, named: an older save does not load. 62: the complement is hull data, not a constant -- the hull's crew size is saved so a start state that fields a different number (docs/design-north-star.md, the owner's ruling 2026-10-12) rebuilds its roster on load, and the nine departments (docs/crew-manifest.md) are the vocabulary the roster is built in. Deliberate cost, named: an older save (61) does not load -- the complement is read before the roster is rebuilt, and an older blob does not carry it. 61: the shields are canon's six arcs, not one scalar (C-14, the owner's ruling 2026-10-12, "BUILD THE SET"). Six `float` arcs replace the one scalar, so a save taken with an arc holed, and the unrouted-hit counter that routes the next shot, replay identically (docs/ship-systems.md, docs/evidence/the-shield-sections.md). Deliberate cost, named: an older save (60) does not load -- `Unpack` rejects a version it does not know rather than misread the wider set. 60: the holodeck reactor as a per-deck source (O2's remainder) -- the reactor's own health and isolation, off the grid, so a save taken with a deck tied to it, and the cross-tie's cost, replay identically (docs/budget-squaring.md Finding two, docs/evidence/the-holodeck-reactor.md). Deliberate cost, named: an older save does not load. 59: the bills -- battle stations and one emergency bill as called state, each with who called it and when, and a per-crew battle and emergency assignment derived at roster build (docs/crew-manifest.md, docs/evidence/the-bills.md). Deliberate cost, named: an older save does not load. 58: the minds the Collective holds -- a bounded list of the crew the drones have begun taking, so a save taken mid-window replays and a recovery ends the transfer (docs/the-record-and-the-log.md, docs/evidence/the-assimilation.md). Deliberate cost, named: an older save does not load. 57: holdings is a fold over the marks, not a stored float (the owner's C2 ruling, "Derived"; docs/morale.md). The per-person `float holdings` is gone from the record and from the save, and the character layer's morale block loses one float per person. Deliberate cost, named: an older save does not load. 56: the independent air feed (O2) -- each deck's air source and who set it, so a deck holds its air on its own source with the main grid down (docs/budget-squaring.md, Finding two); 55: the meeting's place -- each queued brief now knows the room it is held in and the department whose business it is, derived from the meeting's kind and subject (docs/staff-meetings.md); 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

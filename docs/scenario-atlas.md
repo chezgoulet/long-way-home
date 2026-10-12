@@ -68,7 +68,10 @@ Every scenario in the set asks one of four things, and the whole game is their p
 Each scenario declares, in data:
 
 - **Breeding conditions** -- which ship state makes it eligible.
-- **Systems stressed** -- the systems it reads and writes, by our system IDs.
+- **Systems stressed** -- the systems it reads and writes, by our system IDs. For the shields this now
+  reaches further than the system: the six arcs are addressable by name (C-14; `ShieldHit`,
+  `docs/ship-systems.md`), so a scenario can say *which* arc a hit struck rather than only that the
+  shields were stressed.
 - **Staff needed** -- posts it requires, so the crew model is the cost.
 - **Cost to answer**, **cost to ignore**, and **residue** -- what is permanently different afterwards.
 - **Visibility** -- what the player sees *where they are*, since a consequence they cannot perceive did

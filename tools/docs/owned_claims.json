@@ -52,7 +52,7 @@
       "id": "save-version",
       "description": "the save format version, and the current value of the SAVE_VERSION constant",
       "owner": "module/ship/ship_core.h",
-      "value": "61",
+      "value": "63",
       "owner_pattern": "const uint16_t SAVE_VERSION = (\\d+);",
       "current_form": "SAVE_VERSION\\s*=\\s*(\\d+)",
       "current_form_scope": "every *.md under the repository root, except docs/evidence/ (a dated record), the owner, and the exempt_files below",
@@ -65,10 +65,10 @@
     },
     {
       "id": "crew-complement",
-      "description": "the crew complement the ship is built for (canon; the owner's figure)",
+      "description": "the crew complement the hull is built for (hull data, not a code constant; the owner's ruling 2026-10-12; Voyager's canon figure)",
       "owner": "module/ship/ship_core.h",
       "value": "141",
-      "owner_pattern": "const int COMPLEMENT = (\\d+);",
+      "owner_pattern": "const int COMPLEMENT_DEFAULT = (\\d+);",
       "sources": [
         {
           "file": "docs/lore-ledger.md",

@@ -117,7 +117,42 @@ tubes become the only way -- which canon supports and which makes the authored c
 ## Tier 2 -- the systems that make her a character
 
 **Shields**: six sections, fourteen grids, percentages that buckle, bypass conditions (phased polaron
-weapons ignore them entirely). **Weapons**: fourteen arrays with a power setting from stun to vaporize,
+weapons ignore them entirely).
+
+> **Built 2026-10-12 — the set, not the scalar (C-14; owner's ruling: "BUILD THE SET — canon's six
+> arcs"; `docs/designs-against-code.md`).** The shields are canon's six sections as state:
+> `float shields[SHIELD_SECTION_COUNT]` in the ship block, in canon's order — **forward, port,
+> starboard, aft, dorsal, ventral** — each its own level. **The one scalar is gone**, and nothing
+> reads it: the search that proves it is in `docs/evidence/the-shield-sections.md`.
+>
+> **Damage routes to an arc.** Enemy fire, with no bearing modelled, strikes the arc the ship's own
+> hit counter names (`ShieldSectionForHit`: `hits % 6`), stated here because it is our call: a hit
+> that arrives with no section named goes somewhere defensible and deterministic, so a save replays
+> it. A caller *can* name the arc — the developer console's `ship shield <fwd|port|stbd|aft|dorsal|
+> ventral|auto> <0..1>` and, when it exists, the scenario manifest — through `ShieldHit`, which
+> strips the named arc and hands back what reaches the hull. The console, a script and (later) the
+> manifest address the same six arcs by the same six names.
+>
+> **The failure states are the design's own, per arc** (`docs/failure-is-content.md`): nominal;
+> **degraded** below two-thirds health; **offline** below a third or switched off; **destroyed** at
+> zero. An arc that reaches zero is logged — *"forward shields are down"* — because a shield failing
+> is a thing a person must be able to see. **The gates read the whole set** (`ShieldsDown`): boarders
+> cross only with every arc down, and the transporter needs the same; the bearing of an incoming
+> beam is not modelled, so a single arc still up is still a shield.
+>
+> **The read-out a person sees is the set.** The Tactical console draws all six
+> (`ShieldReadout`, published in `lwh_ship_shields`; `module/ui/ui_lwh_engineering.cpp`), not one
+> number. **Our calls, flagged for the owner:** *(1)* each arc recharges at the shield system's own
+> rate (`SHIELD_RECHARGE_MINUTES` restores an arc from nothing), so a lone attacker must now roll
+> through six arcs rather than break one number — the per-arc set changes the engagement's
+> arithmetic, and that is the owner's to tune; *(2)* the unrouted hit's destination above.
+>
+> **The fourteen grids are deliberately not built** — the ruling names six sections, and the grids
+> stay as they are. **The save moves 60 → 61**: six `float`s replace one, so an older save does not
+> load (`module/ship/ship_core.h`; cost and demonstration in
+> `docs/evidence/the-shield-sections.md`).
+
+**Weapons**: fourteen arrays with a power setting from stun to vaporize,
 four tubes, a finite torpedo inventory that canon refuses to total -- so **[our call]** we set a number
 and let it run out. **Sensors and astrometrics**: long and short range, array health, and astrometrics
 (Deck 8) as a data-quality modifier with a real cost when it is offline. **Transporters**: rooms 1 and 2
@@ -187,6 +222,8 @@ onto canon cleanly, with numbers:
 | question | canon | our call |
 |---|---|---|
 | brownout order | silent | the five-step ladder above |
+| the arc an unrouted hit strikes | silent (no bearing is modelled) | the arc the hit counter names, `hits % 6` (C-14; `ShieldSectionForHit`) |
+| per-arc recharge | silent | each arc recharges at the shield system's own rate, so the six together are tougher than the one scalar was — flagged for the owner to tune |
 | torpedo complement | totals not stated | 38, depleting; canon's waypoints are **eleven** at Day 32 of Year of Hell and **six** at Day 226 (`docs/budget-squaring.md`, Finding four) |
 | sensor ranges | Voyager's not stated | short range by compartment, long range by light-year with a scan time |
 | time-to-organise | no such mechanic | ~20 minutes of ship time, tunable |

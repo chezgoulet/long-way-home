@@ -28,10 +28,14 @@ MEETING_ROOM(MEET_WATCH_CHANGE, DEPT_COMMAND,     "the briefing room",   1)
 
 // The departmental meeting is held where the department's own work is.
 MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_COMMAND,     "the ready room",      1)
+MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_OPERATIONS,  "the bridge",          1)
 MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_ENGINEERING, "main engineering",   11)
 MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_SECURITY,    "the security office", 6)
-MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_SCIENCES,    "astrometrics",        8)
+MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_SCIENCE,     "astrometrics",        8)
 MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_MEDICAL,     "sickbay",             5)
+MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_FLIGHT,      "the shuttlebay",     10)
+MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_SUPPORT,     "the mess hall",       2)
+MEETING_ROOM(MEET_DEPARTMENTAL, DEPT_CIVILIANS,   "the mess hall",       2)
 
 // An engineering matter meets where the plant is.
 MEETING_ROOM(MEET_ALLOCATION,   DEPT_ENGINEERING, "main engineering",   11)

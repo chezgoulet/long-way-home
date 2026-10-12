@@ -6,6 +6,7 @@
 #include "ship_core.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -38,9 +39,9 @@ static const SystemSpec SPECS[SYS_COUNT] = {
 	{"life support",             12, "Environmental Control", DEPT_ENGINEERING,   60,   0,  1},
 	{"structural integrity",     11, "Main Engineering",      DEPT_ENGINEERING,   80,   1,  1},
 	{"inertial dampers",         11, "Main Engineering",      DEPT_ENGINEERING,   40,   2,  1},
-	{"computer core",            10, "Computer Core",         DEPT_SCIENCES,      60,   3,  1}, // main core, deck 10 (docs/ship-master-map.md); auxiliary on deck 7
+	{"computer core",            10, "Computer Core",         DEPT_ENGINEERING,   60,   3,  1}, // main core, deck 10 (docs/ship-master-map.md); auxiliary on deck 7
 	{"shields",                   1, "Bridge, Tactical",      DEPT_SECURITY,     200,   7,  1},
-	{"sensors",                   8, "Astrometrics",          DEPT_SCIENCES,      60,   6,  2},
+	{"sensors",                   8, "Astrometrics",          DEPT_SCIENCE,       60,   6,  2},
 	// The warp drive is shed last of all (docs/budget-squaring.md): the ship gives up her way home
 	// only after she has given up everything else, or the priorities invert and she keeps the
 	// holodecks lit at the cost of going anywhere.
@@ -49,18 +50,18 @@ static const SystemSpec SPECS[SYS_COUNT] = {
 	{"phasers",                   1, "Bridge, Tactical",      DEPT_SECURITY,     150,   8,  2},
 	{"torpedo launchers",        10, "Torpedo Bay",           DEPT_SECURITY,      30,   9,  2}, // fore tubes, deck 10; aft tubes deck 4 (docs/ship-master-map.md)
 	{"navigational deflector",   11, "Deflector Control",     DEPT_ENGINEERING,   50,  11,  1},
-	{"communications",            1, "Bridge, Operations",    DEPT_COMMAND,       20,  12,  1},
-	{"transporters",              4, "Transporter Room 1",    DEPT_ENGINEERING,   60,  13,  1},
+	{"communications",            1, "Bridge, Operations",    DEPT_OPERATIONS,    20,  12,  1},
+	{"transporters",              4, "Transporter Room 1",    DEPT_OPERATIONS,    60,  13,  1},
 	{"sickbay",                   5, "Sickbay",               DEPT_MEDICAL,       30,  15,  2},
 	{"turbolifts",                1, "Bridge, Operations",    DEPT_ENGINEERING,   20,  16,  0},
-	{"tractor beam",             10, "Shuttlebay Control",    DEPT_ENGINEERING,   60,  17,  1},
-	{"replicators",               2, "Mess Hall",             DEPT_ENGINEERING,   60,  19,  0},
-	{"holodecks",                 6, "Holodeck 2",            DEPT_ENGINEERING,   60,  20,  0}, // deck 6 carries Holodeck 2; Holodeck 1 is on deck 14
-	{"astrometrics",              8, "Astrometrics",          DEPT_SCIENCES,      60,  10,  0}, // canon's own facility, deck 8, with its own arrays
-	{"science labs",              8, "Science Labs",          DEPT_SCIENCES,      60,  14,  0}, // the mission's own load: she is a science vessel
+	{"tractor beam",             10, "Shuttlebay Control",    DEPT_FLIGHT,        60,  17,  1},
+	{"replicators",               2, "Mess Hall",             DEPT_OPERATIONS,    60,  19,  0},
+	{"holodecks",                 6, "Holodeck 2",            DEPT_SUPPORT,       60,  20,  0}, // deck 6 carries Holodeck 2; Holodeck 1 is on deck 14
+	{"astrometrics",              8, "Astrometrics",          DEPT_SCIENCE,       60,  10,  0}, // canon's own facility, deck 8, with its own arrays
+	{"science labs",              8, "Science Labs",          DEPT_SCIENCE,       60,  14,  0}, // the mission's own load: she is a science vessel
 	{"gravity plating",          12, "Environmental Control", DEPT_ENGINEERING,   30,  18,  0}, // the plating draws power; life support's own deck
 	{"non-essential lighting",   12, "Environmental Control", DEPT_ENGINEERING,   20,  21,  0}, // the first thing the show turns off, and the rung the ladder was missing
-	{"cargo handling",           10, "Cargo Bay",             DEPT_ENGINEERING,   20,  22,  0}, // the ladder's other missing rung
+	{"cargo handling",           10, "Cargo Bay",             DEPT_SUPPORT,       20,  22,  0}, // the ladder's other missing rung
 };
 
 const SystemSpec &Spec(SystemId id) { return SPECS[id < SYS_COUNT ? id : 0]; }
@@ -238,8 +239,12 @@ const float VENT_MINUTES = 5.0f;           // a deck fully open to space empties
 const float GRAVITY_FAIL_HOURS = 6.0f;     // with no life support the plating loses hold in this [inv]
 const float GRAVITY_REGEN_HOURS = 1.0f;    // ... and a supplied deck gets it back in this [inv]
 
-static const int DEPT_SIZE[DEPT_COUNT] = {20, 50, 25, 30, 16}; // sums to COMPLEMENT [inv split]
-static const int DEPT_DECK[DEPT_COUNT] = {1, 11, 4, 8, 5};     // where department duties are done
+// The nine departments' sizes, as docs/crew-manifest.md proposes them: the design's own split of the
+// default complement. They add to COMPLEMENT_DEFAULT -- 9+16+36+18+15+12+10+19+6 = 141. When a hull
+// or a start state fields a different complement the sizes scale to it (DepartmentSize), so the parts
+// always add to the whole.
+static const int DEPT_SIZE[DEPT_COUNT] = {5, 13, 42, 25, 9, 12, 10, 19, 6}; // sums to COMPLEMENT_DEFAULT [inv split]
+static const int DEPT_DECK[DEPT_COUNT] = {1, 1, 11, 4, 8, 5, 10, 2, 6};      // where department duties are done
 // MESS_DECK is declared in ship_core.h (the casualty-clearing deck the bills read).
 // The deck crew go to for recreation by default -- not "the holodeck". Holodeck 1 is on deck 14 and
 // Holodeck 2 on deck 6, per docs/locations/deck14-stasis.brief.md; SYS_HOLODECKS is one system and
@@ -296,12 +301,74 @@ const char *SkillName(uint8_t s)
 uint8_t DepartmentSkill(Department d)
 {
 	switch (d) {
+	case DEPT_OPERATIONS: return SKILL_OPERATIONS;
 	case DEPT_ENGINEERING: return SKILL_ENGINEERING;
 	case DEPT_MEDICAL: return SKILL_MEDICAL;
-	case DEPT_SCIENCES: return SKILL_SCIENCE;
+	case DEPT_SCIENCE: return SKILL_SCIENCE;
 	case DEPT_SECURITY: return SKILL_SECURITY;
-	default: return SKILL_COMMAND;
+	case DEPT_FLIGHT: return SKILL_FLIGHT;
+	default: return SKILL_COMMAND; // Command, Support and Civilians lead with command: people, not a discipline
 	}
+}
+
+// The nine departments as docs/crew-manifest.md names them, in the manifest's own order. This is the
+// vocabulary a scenario's staff field names and a console prints; the identifiers are DEPT_*.
+static const char *const DEPARTMENT_NAMES[DEPT_COUNT] = {
+	"Command", "Operations", "Engineering", "Security and tactical", "Science",
+	"Medical", "Flight and shuttlebay", "Support and logistics", "Civilians and attached",
+};
+const char *DepartmentName(Department d)
+{
+	return d < DEPT_COUNT ? DEPARTMENT_NAMES[d] : "a department";
+}
+// Case-insensitive leading-part match, the way SystemIdByName resolves a system's name: "security"
+// names "Security and tactical", "support" names "Support and logistics". -1 when nothing names it.
+int DepartmentByName(const char *word)
+{
+	if (!word || !word[0]) return -1;
+	const size_t n = std::strlen(word);
+	for (int d = 0; d < DEPT_COUNT; ++d) {
+		const char *name = DEPARTMENT_NAMES[d];
+		size_t k = 0;
+		while (k < n && name[k] != '\0'
+		       && std::tolower(static_cast<unsigned char>(word[k])) == std::tolower(static_cast<unsigned char>(name[k])))
+			++k;
+		if (k == n) return d;
+	}
+	return -1;
+}
+// The department's size for a given complement: the manifest's 141-person split scaled to the
+// complement by largest remainder, so the nine add to the whole exactly and deterministically [inv].
+// At the default complement it is DEPT_SIZE unchanged.
+int DepartmentSize(Department d, int complement)
+{
+	if (d >= DEPT_COUNT) return 0;
+	int total = 0;
+	for (int i = 0; i < DEPT_COUNT; ++i) total += DEPT_SIZE[i];
+	if (complement <= 0) complement = COMPLEMENT_DEFAULT;
+	if (complement == total) return DEPT_SIZE[d];
+	long part[DEPT_COUNT];
+	long rem[DEPT_COUNT];
+	long floorSum = 0;
+	for (int i = 0; i < DEPT_COUNT; ++i) {
+		part[i] = static_cast<long>(DEPT_SIZE[i]) * complement;
+		rem[i] = part[i] % total;
+		part[i] /= total;
+		floorSum += part[i];
+	}
+	long left = complement - floorSum;
+	while (left > 0) {
+		int best = -1;
+		for (int i = 0; i < DEPT_COUNT; ++i) {
+			if (rem[i] < 0) continue;
+			if (best < 0 || rem[i] > rem[best]) best = i;
+		}
+		if (best < 0) break;
+		part[best] += 1;
+		rem[best] = -1;
+		--left;
+	}
+	return static_cast<int>(part[d]);
 }
 
 const char *TraitName(uint8_t t)
@@ -669,7 +736,7 @@ static bool TypeIsFemale(const std::string &type)
 static uint8_t ColourFor(Department dept, bool female)
 {
 	if (dept == DEPT_COMMAND) return female ? COLOUR_DEFAULT : COLOUR_RED;
-	if (dept == DEPT_SCIENCES || dept == DEPT_MEDICAL) return COLOUR_BLUE;
+	if (dept == DEPT_SCIENCE || dept == DEPT_MEDICAL) return COLOUR_BLUE;
 	return COLOUR_GOLD;
 }
 
@@ -1087,12 +1154,12 @@ static const Named NAMED[] = {
 	{"Kathryn Janeway", "janeway", 6, DEPT_COMMAND, SYS_COUNT, SPECIES_HUMAN},
 	{"Chakotay", "chakotay", 5, DEPT_COMMAND, SYS_COUNT, SPECIES_HUMAN},
 	{"Tuvok", "tuvok", 4, DEPT_SECURITY, SYS_SHIELDS, SPECIES_VULCAN},
-	{"Tom Paris", "paris", 3, DEPT_COMMAND, SYS_COUNT, SPECIES_HUMAN},
-	{"Harry Kim", "kim", 1, DEPT_COMMAND, SYS_COMMUNICATIONS, SPECIES_HUMAN},
+	{"Tom Paris", "paris", 3, DEPT_OPERATIONS, SYS_COUNT, SPECIES_HUMAN},
+	{"Harry Kim", "kim", 1, DEPT_OPERATIONS, SYS_COMMUNICATIONS, SPECIES_HUMAN},
 	{"B'Elanna Torres", "torres", 3, DEPT_ENGINEERING, SYS_WARP_DRIVE, SPECIES_KLINGON},
 	{"The Doctor", "doctor", 0, DEPT_MEDICAL, SYS_SICKBAY, SPECIES_HOLOGRAM}, // a post with no rank: CMO, no commission [lore]
-	{"Seven of Nine", "seven", 0, DEPT_SCIENCES, SYS_SENSORS, SPECIES_BORG_RECOVERED},
-	{"Neelix", "neelix", 0, DEPT_COMMAND, SYS_COUNT, SPECIES_TALAXIAN},
+	{"Seven of Nine", "seven", 0, DEPT_CIVILIANS, SYS_SENSORS, SPECIES_BORG_RECOVERED},
+	{"Neelix", "neelix", 0, DEPT_CIVILIANS, SYS_COUNT, SPECIES_TALAXIAN},
 	{"Vorik", "vorik", 1, DEPT_ENGINEERING, SYS_WARP_DRIVE, SPECIES_VULCAN},
 	{"Les Foster", "Foster", 3, DEPT_SECURITY, SYS_COUNT, SPECIES_HUMAN},
 	{"Alexander Munro", "munro", 1, DEPT_SECURITY, SYS_COUNT, SPECIES_HUMAN},
@@ -1120,9 +1187,9 @@ static const SeatSpec SEATS[SEAT_COUNT] = {
 	{"the security seat",        "tuvok",    DEPT_SECURITY,    SYS_SHIELDS,        4},
 	{"the engineering seat",     "torres",   DEPT_ENGINEERING, SYS_WARP_DRIVE,     3},
 	{"the medical seat",         "doctor",   DEPT_MEDICAL,     SYS_SICKBAY,        3},
-	{"the sciences seat",        "seven",    DEPT_SCIENCES,    SYS_SENSORS,        3},
-	{"the operations seat",      "kim",      DEPT_COMMAND,     SYS_COMMUNICATIONS, 2},
-	{"the conn",                 "paris",    DEPT_COMMAND,     SYS_COUNT,          3},
+	{"the sciences seat",        "seven",    DEPT_SCIENCE,     SYS_SENSORS,        3},
+	{"the operations seat",      "kim",      DEPT_OPERATIONS,  SYS_COMMUNICATIONS, 2},
+	{"the conn",                 "paris",    DEPT_OPERATIONS,  SYS_COUNT,          3},
 };
 
 const char *SeatName(uint8_t s) { return s < SEAT_COUNT ? SEATS[s].name : "a seat"; }
@@ -1157,7 +1224,7 @@ const char *CareerPathBlurb(uint8_t p)
 static const char *GenericType(Department d, int n)
 {
 	static char buf[16];
-	const char *colour = d == DEPT_COMMAND ? "Red" : (d == DEPT_SCIENCES || d == DEPT_MEDICAL) ? "blue" : "Gold";
+	const char *colour = d == DEPT_COMMAND ? "Red" : (d == DEPT_SCIENCE || d == DEPT_MEDICAL) ? "blue" : "Gold";
 	const bool female = n % 11 < 3; // the game ships 8 male and 3 female faces per colour
 	std::snprintf(buf, sizeof(buf), "%s%c%d", colour, female ? 'F' : 'M', female ? n % 3 + 1 : n % 8 + 1);
 	return buf;
@@ -1170,7 +1237,16 @@ static void BuildRoster(Ship &s)
 	// One seed stream, drawn from for every record's static character data, so the same seed gives
 	// the same person -- on the first build and again on load (Unpack calls this).
 	uint32_t r = s.cfg.seed ? s.cfg.seed : 1;
-	int have[DEPT_COUNT] = {0, 0, 0, 0, 0};
+	int have[DEPT_COUNT] = {0}; // one counter per department; the compiler sizes it to DEPT_COUNT
+	// How many of each department stand each watch. The named command crew all stand alpha (they are
+	// the senior staff), so the generated hands are placed on the *thinnest* watch of their department
+	// rather than by a bare index: that is what "spread evenly over the watches" means once the named
+	// crew are counted, and it is what keeps a thin department from being short on beta or gamma.
+	// Deterministic, so a save replays identically.
+	int watchCount[DEPT_COUNT][WATCHES] = {{0}};
+	// The roster is built to the ship's complement -- hull data (docs/design-north-star.md) -- and the
+	// nine department sizes are the design's split scaled to it, so the parts add to the whole.
+	const int complement = Complement(s);
 	// The canon command crew, unless the roster is fictitious entirely: then none of these records
 	// exists, and every mark of them -- the command seats included -- must be absent too.
 	if (!s.cfg.fictitious)
@@ -1190,11 +1266,12 @@ static void BuildRoster(Ship &s)
 		const int seat = SeatForType(c.type);
 		if (seat >= 0) s.seatHolder[seat] = static_cast<int16_t>(s.crew.size() - 1);
 		++have[n.dept];
+		++watchCount[n.dept][0];
 	}
 
 	// The rest are generated, the same crew for the same seed, and spread evenly over the watches.
 	for (int d = 0; d < DEPT_COUNT; ++d) {
-		for (int i = have[d]; i < DEPT_SIZE[d]; ++i) {
+		for (int i = have[d]; i < DepartmentSize(static_cast<Department>(d), complement); ++i) {
 			CrewMember c;
 			char name[32];
 			std::snprintf(name, sizeof(name), "Crewman %03d", static_cast<int>(s.crew.size()) + 1);
@@ -1202,7 +1279,12 @@ static void BuildRoster(Ship &s)
 			c.dept = static_cast<Department>(d);
 			c.type = GenericType(c.dept, static_cast<int>(NextRandom(r) % 1000));
 			c.rank = NextRandom(r) % 5 == 0 ? 1 : 0;
-			c.watch = static_cast<uint8_t>(i % WATCHES);
+			// Place the hand on its department's thinnest watch, so the named crew all standing alpha
+			// do not leave beta or gamma short of the stations their department owns.
+			int w = 0;
+			for (int k = 1; k < WATCHES; ++k) if (watchCount[d][k] < watchCount[d][w]) w = k;
+			c.watch = static_cast<uint8_t>(w);
+			++watchCount[d][w];
 			c.quartersDeck = static_cast<uint8_t>(4 + NextRandom(r) % 6); // crew quarters, decks 4-9 [inv]
 			c.quartersQuality = 0.4f + (NextRandom(r) % 5) * 0.1f;        // some bunk better than others [inv]
 			c.faction = (NextRandom(r) % 6 == 0) ? 1 : 0;                 // a Maquis alongside the Starfleet crew [lore]
@@ -1405,6 +1487,13 @@ std::vector<int> Patients(const Ship &s)
 	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
 		if (s.crew[i].status == CREW_INJURED) hurt.push_back(i);
 	std::stable_sort(hurt.begin(), hurt.end(), [&](int a, int b) {
+		// A patient already being treated keeps their bed: being part-way through a course of treatment
+		// outranks a marginally worse arrival, so the ward does not thrash and no one's treatment
+		// restarts every tick. A patient whose course is complete (recovery reset to zero) competes
+		// afresh. Within each group the choice is unchanged: the worst first, or the most senior.
+		const bool recovering_a = s.crew[a].recovery > 0.0f;
+		const bool recovering_b = s.crew[b].recovery > 0.0f;
+		if (recovering_a != recovering_b) return recovering_a;
 		if (s.orderTriage == 1) return s.crew[a].rank > s.crew[b].rank; // rank first
 		return s.crew[a].severity > s.crew[b].severity;                 // worst first (default)
 	});
@@ -1498,7 +1587,7 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 	const float minority = std::min(maquis, static_cast<float>(s.crew.size()) - maquis);
 	const float factionDrag = (s.crew.empty() ? 0.0f : 0.15f * (minority / static_cast<float>(s.crew.size()))) + 0.15f * s.resentment;
 	// Population pressure: refugees and survivors crowd the ship and eat its stores.
-	const float crowding = 0.05f * static_cast<float>(s.refugees) / COMPLEMENT;
+	const float crowding = 0.05f * static_cast<float>(s.refugees) / static_cast<float>(Complement(s));
 	int buildingHands = 0; // engineers with nothing to mend, seal or fight, building a part
 
 	for (CrewMember &c : s.crew) {
@@ -2723,10 +2812,20 @@ static void BuildSector(Ship &s, int number)
 		s.sector[i + 2].links.push_back(i);
 	}
 	for (int i = 1; i < SECTOR_BEACONS; ++i) {
-		const uint32_t roll = next() % 15;
-		s.sector[i].kind = roll < 4 ? BEACON_EMPTY : roll < 7 ? BEACON_HOSTILE : roll < 9 ? BEACON_DERELICT
-			: roll < 10 ? BEACON_BORG : roll < 11 ? BEACON_TRADER : roll < 12 ? BEACON_DISTRESS
-			: roll < 13 ? BEACON_BELT : BEACON_PREWARP;
+		// The ledger's own split (docs/lore-ledger.md): 40/30/20/10 empty/hostile/derelict/Borg over
+		// the interior beacons, from a ten-way roll -- 4/3/2/1 of ten, as the design states (C-4).
+		const uint32_t roll = next() % 10;
+		s.sector[i].kind = roll < 4 ? BEACON_EMPTY : roll < 7 ? BEACON_HOSTILE : roll < 9 ? BEACON_DERELICT : BEACON_BORG;
+		// The four kinds that ten-way split does not name (trader, distress, belt, pre-warp) do not fit
+		// it: four plus three plus two plus one is already all ten. They are drawn from its empty
+		// outcome instead -- an "empty" beacon is one with no threat and no wreck, and these four are
+		// what such a beacon may hold -- so the four headline classes keep the ledger's exact split and
+		// the four kinds get a share of the empty one (C-4; the shape is recorded in docs/lore-ledger.md).
+		if (s.sector[i].kind == BEACON_EMPTY) {
+			const uint32_t quiet = next() % 10;
+			s.sector[i].kind = quiet < 6 ? BEACON_EMPTY : quiet < 7 ? BEACON_TRADER
+				: quiet < 8 ? BEACON_DISTRESS : quiet < 9 ? BEACON_BELT : BEACON_PREWARP;
+		}
 		// Borg strategic awareness: what the Collective knows makes more of the sector theirs.
 		if (s.borgAwareness >= 0.4f && s.sector[i].kind == BEACON_HOSTILE && next() % 4 == 0) s.sector[i].kind = BEACON_BORG;
 	}
@@ -2839,6 +2938,82 @@ const char *EnemyKindName(EnemyKind k)
 	return k < ENEMY_KIND_COUNT ? NAMES[k] : "a raider";
 }
 
+// ---- the six shield arcs (C-14) -----------------------------------------------------------------
+//
+// Canon's six sections, each its own level. The console addresses them by these names; the read-out
+// and the manifest will use the same six words, so a scenario can say which arc it struck.
+
+const char *ShieldSectionName(ShieldSection sec)
+{
+	static const char *const NAMES[SHIELD_SECTION_COUNT] = {"forward", "port", "starboard", "aft", "dorsal", "ventral"};
+	return sec < SHIELD_SECTION_COUNT ? NAMES[sec] : "forward";
+}
+
+// The same manual, case-insensitive compare `SystemIdByName` uses (ship_core.cpp has no engine
+// helpers): `name` matches an arc when it is the short form or the canon word.
+ShieldSection ShieldSectionByName(const char *name)
+{
+	if (!name || !name[0]) return SHIELD_SECTION_COUNT;
+	static const char *const SHORT[SHIELD_SECTION_COUNT] = {"fwd", "port", "stbd", "aft", "dorsal", "ventral"};
+	static const char *const FULL[SHIELD_SECTION_COUNT] = {"forward", "port", "starboard", "aft", "dorsal", "ventral"};
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i)
+	{
+		for (const char *cand : {SHORT[i], FULL[i]})
+		{
+			const size_t len = strlen(cand);
+			size_t k = 0;
+			for (; k < len && name[k]; ++k)
+			{
+				char a = name[k], b = cand[k];
+				if (a >= 'A' && a <= 'Z') a = static_cast<char>(a - 'A' + 'a');
+				if (b >= 'A' && b <= 'Z') b = static_cast<char>(b - 'A' + 'a');
+				if (a != b) break;
+			}
+			if (k == len && name[k] == '\0') return static_cast<ShieldSection>(i);
+		}
+	}
+	return SHIELD_SECTION_COUNT;
+}
+
+bool ShieldsDown(const Ship &s)
+{
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i)
+		if (s.shields[i] > 0.0f) return false;
+	return true;
+}
+
+ShieldSection ShieldSectionForHit(const Ship &s)
+{
+	return static_cast<ShieldSection>(s.hits % SHIELD_SECTION_COUNT);
+}
+
+float ShieldHit(Ship &s, ShieldSection sec, float amount)
+{
+	if (amount <= 0.0f) return 0.0f;
+	if (sec >= SHIELD_SECTION_COUNT) return amount; // no arc named: nothing absorbs it
+	const float was = s.shields[sec];
+	const float held = std::min(amount, was);
+	s.shields[sec] = was - held;
+	if (was > 0.0f && s.shields[sec] <= 0.0f)
+		LogEvent(s, AuthorFor(s, DEPT_SECURITY, "tactical"), "outside", std::string(ShieldSectionName(sec)) + " shields are down");
+	return amount - held;
+}
+
+std::string ShieldReadout(const Ship &s)
+{
+	static const char *const LABELS[SHIELD_SECTION_COUNT] = {"FWD", "PORT", "STBD", "AFT", "DORSAL", "VENTRAL"};
+	std::string out = "SHIELDS";
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i)
+	{
+		out += "  ";
+		out += LABELS[i];
+		out += " ";
+		out += std::to_string(static_cast<int>(s.shields[i] * 100.0f + 0.5f));
+		out += "%";
+	}
+	return out;
+}
+
 const char *BoarderKindName(BoarderKind k)
 {
 	static const char *const NAMES[BOARDER_KIND_COUNT] = {"a raider", "a drone", "a hunter"};
@@ -2927,7 +3102,7 @@ static std::string TransporterOutcome(Ship &s, bool away, uint8_t severity)
 	}
 	// Catastrophic: the pattern is not merely hurt, it is wrong, and which way is the draw's next half.
 	const bool copied = (AnomalyRoll(s.riskRolls++, s.cfg.seed) & 1u) == 0u;
-	if (copied && static_cast<int>(s.crew.size()) < COMPLEMENT + MAX_DUPLICATES) {
+	if (copied && static_cast<int>(s.crew.size()) < Complement(s) + MAX_DUPLICATES) {
 		const std::string name = c.name; // before push_back can reallocate the vector
 		CrewMember dup = c;              // the same face, and every relationship they had now doubled
 		dup.memories.clear();            // a new person: no shared history
@@ -2965,7 +3140,7 @@ bool TransportAway(Ship &s, int party, std::string *outcome)
 	if (party <= 0) return false;
 	if (s.awayBeacon >= 0) return false;                                  // a party is already down there
 	if (s.systems[SYS_TRANSPORTERS].output <= 0.0f) return false;         // no transporter, no beam
-	if (s.shieldStrength > 0.0f) return false;                            // we cannot beam through our own shields
+	if (!ShieldsDown(s)) return false;                                    // we cannot beam through our own shields
 	int sent = 0;
 	for (CrewMember &c : s.crew) {
 		if (sent >= party) break;
@@ -3058,7 +3233,7 @@ int RevealPhenomenon(Ship &s)
 	for (int i = 0; i < PHENOM_ATTR_COUNT; ++i) if (b.phenomAttrs & (1u << i)) ++revealed;
 	if (revealed >= PHENOM_ATTR_COUNT) return revealed; // already fully scanned
 	b.phenomAttrs = static_cast<uint8_t>(b.phenomAttrs | (1u << revealed));
-	LogEvent(s, AuthorFor(s, DEPT_SCIENCES, "astrometrics"), "outside",
+	LogEvent(s, AuthorFor(s, DEPT_SCIENCE, "astrometrics"), "outside",
 		std::string("a phenomenon: attribute ") + std::to_string(revealed + 1) + " of " + std::to_string(PHENOM_ATTR_COUNT)
 		+ " is " + PhenomenonAttributeName(b.phenomAttrVal[revealed]));
 	return revealed + 1;
@@ -3072,14 +3247,14 @@ bool RespondPhenomenon(Ship &s, int response)
 	if (response == b.phenomTruth) {
 		b.phenomAttrs = static_cast<uint8_t>((1u << PHENOM_ATTR_COUNT) - 1u); // fully understood
 		s.stores.materials += PHENOM_MATERIALS;
-		LogEvent(s, AuthorFor(s, DEPT_SCIENCES, "the lab"), "outside",
+		LogEvent(s, AuthorFor(s, DEPT_SCIENCE, "the lab"), "outside",
 			std::string("the phenomenon answers to ") + PhenomenonResponseName(response) + ": science data and material");
 		return true;
 	}
 	// Misread: a number the crew watch getting worse.
 	const int deck = static_cast<int>((s.hits + static_cast<uint32_t>(response)) % DECKS) + 1;
 	BreachDeck(s, deck, 0.3f);
-	LogEvent(s, AuthorFor(s, DEPT_SCIENCES, "the lab"), "hull",
+	LogEvent(s, AuthorFor(s, DEPT_SCIENCE, "the lab"), "hull",
 		std::string("the phenomenon lashes out at ") + PhenomenonResponseName(response) + ": deck " + std::to_string(deck) + " holed");
 	return false;
 }
@@ -3335,7 +3510,7 @@ bool LaunchProbe(Ship &s, int beacon)
 	const bool first = !b.visited && !b.surveyed;
 	b.surveyed = true; // its telemetry says what is there, whether or not we go
 	const bool lost = (s.hits + static_cast<uint32_t>(beacon)) % 3u == 0; // deterministic: sometimes it does not come back
-	LogEvent(s, AuthorFor(s, DEPT_SCIENCES, "astrometrics"), "outside",
+	LogEvent(s, AuthorFor(s, DEPT_SCIENCE, "astrometrics"), "outside",
 		std::string("a probe launched at beacon ") + std::to_string(beacon) + ": " + BeaconKindName(b.kind)
 		+ (first ? " (newly charted)" : "") + (lost ? "; the probe is lost" : ""));
 	return true;
@@ -3376,7 +3551,7 @@ bool MineBelt(Ship &s)
 	b.looted = true;
 	s.stores.materials += BELT_MATERIALS;
 	s.stores.deuterium = std::min(1.0f, s.stores.deuterium + BELT_DEUTERIUM);
-	LogEvent(s, AuthorFor(s, DEPT_SCIENCES, "astrometrics"), "outside",
+	LogEvent(s, AuthorFor(s, DEPT_SCIENCE, "astrometrics"), "outside",
 		"mined a belt: " + std::to_string(static_cast<int>(BELT_MATERIALS)) + " material, and siphoned gas for fuel");
 	return true;
 }
@@ -3421,7 +3596,7 @@ bool EVA(Ship &s)
 	if (b.kind == BEACON_BELT) {
 		b.looted = true;
 		s.stores.materials += BELT_MATERIALS;
-		LogEvent(s, AuthorFor(s, DEPT_SCIENCES, "the away team"), "outside", "an EVA party worked the belt by hand");
+		LogEvent(s, AuthorFor(s, DEPT_SCIENCE, "the away team"), "outside", "an EVA party worked the belt by hand");
 		return true;
 	}
 	if (b.kind == BEACON_DERELICT) {
@@ -3616,9 +3791,12 @@ bool AdvanceSector(Ship &s)
 static void UpdateOutside(Ship &s, float shipSeconds)
 {
 	const float minutes = shipSeconds / 60.0f;
-	// Our shields recharge by what the shield system delivers, and hold nothing without it.
+	// Our shields recharge by what the shield system delivers, and hold nothing without it. Every
+	// arc recharges at the shield system's own rate (SHIELD_RECHARGE_MINUTES restores an arc from
+	// nothing), so an arc that is down comes back on the system's clock, as the one scalar did.
 	const float shieldOut = s.systems[SYS_SHIELDS].output;
-	s.shieldStrength = std::min(shieldOut > 0.0f ? 1.0f : 0.0f, s.shieldStrength + shieldOut * minutes / SHIELD_RECHARGE_MINUTES);
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i)
+		s.shields[i] = std::min(shieldOut > 0.0f ? 1.0f : 0.0f, s.shields[i] + shieldOut * minutes / SHIELD_RECHARGE_MINUTES);
 	if (!InCombat(s)) {
 		if (s.contact2.present) { s.enemy = s.contact2; s.contact2 = Enemy(); } // the wingman is next
 		return;
@@ -3677,9 +3855,9 @@ static void UpdateOutside(Ship &s, float shipSeconds)
 		const float full = e.firepower * e.weapons;
 		if (full <= 0.0f) return;
 		float theirs = full * minutes;
-		const float held = std::min(theirs, s.shieldStrength);
-		s.shieldStrength -= held;
-		theirs -= held;
+		// A hit that arrives with no section named goes to the arc the ship's own hit counter names
+		// (ShieldSectionForHit); ShieldHit strips that arc and hands back what reaches the hull.
+		theirs = ShieldHit(s, ShieldSectionForHit(s), theirs);
 		if (theirs <= 0.0f) return;
 		const float share = e.weapons * minutes; // equivalent minutes of unopposed fire
 		const int deck = static_cast<int>(s.hits * 7u % DECKS);
@@ -3708,7 +3886,7 @@ static void UpdateOutside(Ship &s, float shipSeconds)
 	if (s.contact2.present && s.contact2.hull > 0.0f) fireOnUs(s.contact2);
 
 	// With our shields down they send their party across, once, to where it will hurt.
-	if (s.shieldStrength <= 0.0f && s.enemy.boarders > 0) {
+	if (ShieldsDown(s) && s.enemy.boarders > 0) {
 		if (s.enemy.borg) BoardBorg(s, ENGINEERING_DECK, s.enemy.boarders);
 		else Board(s, ENGINEERING_DECK, s.enemy.boarders);
 		s.enemy.boarders = 0;
@@ -3816,10 +3994,15 @@ int Ship::CrewFit() const
 	return n;
 }
 
+// The ship's complement, hull data (docs/design-north-star.md): the one lookup every reader uses.
+// NewShip sets it from the hull; ApplyStartState may vary it; the roster is built to it.
+int Complement(const Ship &s) { return s.complement; }
+
 Ship NewShip(const Config &cfg)
 {
 	Ship s;
 	s.cfg = cfg;
+	s.complement = HULL_VOYAGER.complement; // the hull's own crew size; a start state may vary it
 	for (int i = 0; i < SYS_COUNT; ++i) s.systems[i].priority = SPECS[i].priority;
 	BuildRoster(s);
 	BuildShuttles(s);
@@ -3887,7 +4070,8 @@ static bool DepartmentOperates(Department dept, Station st)
 	switch (st) {
 	case STN_ENGINEERING: return dept == DEPT_ENGINEERING;
 	case STN_TACTICAL: return dept == DEPT_SECURITY;
-	case STN_OPS: case STN_CONN: return dept == DEPT_COMMAND || dept == DEPT_SCIENCES;
+	case STN_OPS: case STN_CONN: return dept == DEPT_COMMAND || dept == DEPT_OPERATIONS
+		|| dept == DEPT_SCIENCE || dept == DEPT_FLIGHT;
 	case STN_SICKBAY: return dept == DEPT_MEDICAL;
 	default: return false;
 	}
@@ -4691,6 +4875,17 @@ static std::vector<StartState> BuildStartList()
 			"Mara Reyes", 1, DEPT_SECURITY);
 		v.push_back(st);
 	}
+	{
+		// The complement is hull data (docs/design-north-star.md): this state fields a hull that is
+		// short of the 141 it is rated for, so the roster is built to 96 and every department is thin.
+		// The other states leave the hull's own default, which is the acceptance's other half.
+		StartState st = MakeStart(CAREER_JUNIOR, false, "SKELETON",
+			"The hull is under-crewed: 96 people aboard instead of the 141 she is rated for, and every department is short.",
+			"the ship left with fewer hands than the hull is rated for, and the shortfall is on the record.",
+			"Reyes", 1, DEPT_SECURITY);
+		st.complement = 96;
+		v.push_back(st);
+	}
 	return v;
 }
 
@@ -4785,6 +4980,14 @@ void WriteLogSeed(Ship &s, const StartState &st)
 void ApplyStartState(Ship &s, const StartState &st)
 {
 	s.career = st.career;
+	// The complement is hull data (docs/design-north-star.md): a start state that names one rebuilds
+	// the roster to it before anything else, so every casualty, seat and log line below is measured
+	// against the crew the state actually fields. A state that names none leaves the hull's default.
+	if (st.complement > 0 && st.complement != s.complement) {
+		s.complement = st.complement;
+		BuildRoster(s);
+		Tick(s, 0.0f); // the rebuilt roster's posts, decks and power are derived, as a new ship's are
+	}
 	// Dimension two: the casualties, one command seat at a time.
 	for (int seat = 0; seat < SEAT_COUNT; ++seat) {
 		if (!st.casualty[seat]) continue;
@@ -5318,7 +5521,9 @@ bool RunHolodeck(Ship &s, HolodeckUse use, int crew)
 		case DEPT_ENGINEERING: st = STN_ENGINEERING; break;
 		case DEPT_SECURITY: st = STN_TACTICAL; break;
 		case DEPT_MEDICAL: st = STN_SICKBAY; break;
-		case DEPT_COMMAND: case DEPT_SCIENCES: st = STN_CONN; break;
+		case DEPT_OPERATIONS: st = STN_OPS; break;
+		case DEPT_FLIGHT: st = STN_CONN; break;
+		case DEPT_COMMAND: case DEPT_SCIENCE: st = STN_CONN; break;
 		default: break;
 		}
 		if (Qualified(c, st)) return false;
@@ -6183,17 +6388,19 @@ const char *EmergencyDeckPhrase(uint8_t k)
 
 // The battle station, derived from the department and the post (docs/crew-manifest.md, "Battle
 // stations": the kitchen goes to casualty clearing, the labs to damage control, the Doctor's staff
-// triage, the shuttlebay arms for boarding). The simulation's five departments are coarser than the
-// manifest's nine, so this mapping is ours and is recorded in docs/evidence/the-bills.md. The
-// command crew hold the bridge; the captain is not sent to a stretcher party.
+// triage, the shuttlebay arms for boarding). The nine departments are the manifest's own, so this
+// mapping is the manifest's list read into the four roles. The command crew hold the bridge; the
+// captain is not sent to a stretcher party.
 static uint8_t BattleRoleFor(const CrewMember &c)
 {
 	if (c.rank >= 4) return ROLE_POST;
 	switch (c.dept) {
 	case DEPT_ENGINEERING: return ROLE_DAMAGE_CONTROL;
-	case DEPT_SCIENCES:    return ROLE_DAMAGE_CONTROL; // the labs go to damage control
+	case DEPT_SCIENCE:    return ROLE_DAMAGE_CONTROL; // the labs go to damage control
 	case DEPT_MEDICAL:     return ROLE_TRIAGE;         // the Doctor's staff triage
 	case DEPT_SECURITY:    return ROLE_ARMED;          // armed response and the boarding party
+	case DEPT_FLIGHT:      return ROLE_ARMED;          // the shuttlebay arms for boarding
+	case DEPT_SUPPORT:     return ROLE_CASUALTY;       // the galley goes to casualty clearing
 	default:               return c.post == SYS_COUNT ? ROLE_CASUALTY : ROLE_POST;
 	}
 }
@@ -6228,10 +6435,11 @@ int EngineerOfTheWatch(const Ship &s)
 
 int OfficerOfTheDeck(const Ship &s)
 {
-	// The watch bill's bridge watch officer: a lieutenant or a lieutenant commander, on duty, of the
-	// bridge's own department. The captain and the first officer command the ship, not the deck, so
-	// they are not picked while anyone junior can hold it; a lieutenant holds the deck while a
-	// lieutenant commander sleeps.
+	// The watch bill's bridge watch officer: a lieutenant or a lieutenant commander, on duty, of a
+	// bridge department. The captain and the first officer command the ship, not the deck, so they are
+	// not picked while anyone junior can hold it; a lieutenant holds the deck while a lieutenant
+	// commander sleeps. The bridge's own departments are command and operations (docs/crew-manifest.md,
+	// "Operations | ops, conn, comms"): the conn holds the deck too.
 	int best = -1;
 	auto better = [&](int i) {
 		if (best < 0) return true;
@@ -6244,7 +6452,7 @@ int OfficerOfTheDeck(const Ship &s)
 		if (c.status != CREW_FIT || c.brigged || c.away) continue;
 		if (c.activity != ACT_ON_DUTY) continue;
 		if (c.rank < 3 || c.rank > 4) continue;
-		if (c.dept != DEPT_COMMAND) continue;
+		if (c.dept != DEPT_COMMAND && c.dept != DEPT_OPERATIONS) continue;
 		if (better(i)) best = i;
 	}
 	if (best < 0)
@@ -6709,14 +6917,14 @@ int LocateDilithium(Ship &s)
 		const BeaconKind k = s.sector[at].kind;
 		if (at != s.beacon && (k == BEACON_BELT || k == BEACON_TRADER || k == BEACON_DERELICT)) {
 			s.sector[at].surveyed = true;
-			LogEvent(s, AuthorFor(s, DEPT_SCIENCES, "astrometrics"), "outside",
+			LogEvent(s, AuthorFor(s, DEPT_SCIENCE, "astrometrics"), "outside",
 				std::string("the survey finds a dilithium source at beacon ") + std::to_string(at) + " (" + BeaconKindName(k) + ")");
 			return at;
 		}
 		for (int l : s.sector[at].links)
 			if (l >= 0 && l < static_cast<int>(s.sector.size()) && !seen[l]) { seen[l] = 1; queue.push_back(l); }
 	}
-	LogEvent(s, AuthorFor(s, DEPT_SCIENCES, "astrometrics"), "outside", "the survey finds no dilithium source in this sector");
+	LogEvent(s, AuthorFor(s, DEPT_SCIENCE, "astrometrics"), "outside", "the survey finds no dilithium source in this sector");
 	return -1;
 }
 
@@ -6739,7 +6947,7 @@ bool AcquireDilithium(Ship &s, DilithiumWay way)
 	case DIL_RESEARCH:
 		if (s.systems[SYS_COMPUTER_CORE].output < TRACTOR_MIN) return false; // the lab needs the computer core
 		s.crystalQuality += CRYSTAL_QUALITY_STEP;
-		LogEvent(s, AuthorFor(s, DEPT_SCIENCES, "the lab"), "outside", "a better dilithium: the lab improves the crystal's efficiency");
+		LogEvent(s, AuthorFor(s, DEPT_SCIENCE, "the lab"), "outside", "a better dilithium: the lab improves the crystal's efficiency");
 		return true;
 	default:
 		return false;
@@ -7119,7 +7327,7 @@ void TakeMind(Ship &s, int crew)
 	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return;
 	if (s.crew[crew].status == CREW_DEAD) return;
 	for (int16_t i : s.collective) if (i == crew) return; // already held
-	if (static_cast<int>(s.collective.size()) >= COLLECTIVE_MAX) return; // bounded; the roster caps it
+	if (static_cast<int>(s.collective.size()) >= Complement(s)) return; // bounded; the roster caps it
 	s.collective.push_back(static_cast<int16_t>(crew));
 }
 
@@ -7530,13 +7738,16 @@ static std::string ComputerReadCrew(const Ship &s, const std::string &args)
 		std::snprintf(buf, sizeof(buf), "deck %d: %d crew, %d on duty", deck, static_cast<int>(aboard.size()), duty);
 		return buf;
 	}
-	int have[DEPT_COUNT] = { 0, 0, 0, 0, 0 };
+	int have[DEPT_COUNT] = { 0 };
 	for (const CrewMember &c : s.crew) if (c.dept < DEPT_COUNT) ++have[c.dept];
-	char buf[220];
-	std::snprintf(buf, sizeof(buf), "the complement: %d crew, %d fit; command %d, engineering %d, security %d, sciences %d, medical %d",
-		static_cast<int>(s.crew.size()), s.CrewFit(), have[DEPT_COMMAND], have[DEPT_ENGINEERING],
-		have[DEPT_SECURITY], have[DEPT_SCIENCES], have[DEPT_MEDICAL]);
-	return buf;
+	// The complement is hull data (docs/design-north-star.md) and the departments are the nine the
+	// manifest names, so the read-out is built from the vocabulary rather than five hand-written words.
+	std::string out = "the complement: " + std::to_string(Complement(s)) + " hull, "
+		+ std::to_string(static_cast<int>(s.crew.size())) + " crew, "
+		+ std::to_string(s.CrewFit()) + " fit;";
+	for (int d = 0; d < DEPT_COUNT; ++d)
+		out += std::string(" ") + DepartmentName(static_cast<Department>(d)) + " " + std::to_string(have[d]);
+	return out;
 }
 
 static std::string ComputerReadChart(const Ship &s)
@@ -7864,7 +8075,7 @@ int ResolveSpeaker(const Ship &s, const MeetingBrief &brief, int speaker)
 		case SPEAK_COMMAND: want = DEPT_COMMAND; break;
 		case SPEAK_ENGINEERING: want = DEPT_ENGINEERING; break;
 		case SPEAK_SECURITY: want = DEPT_SECURITY; break;
-		case SPEAK_SCIENCES: want = DEPT_SCIENCES; break;
+		case SPEAK_SCIENCES: want = DEPT_SCIENCE; break;
 		case SPEAK_MEDICAL: want = DEPT_MEDICAL; break;
 		default: break; // SPEAK_ROOM
 	}
@@ -8064,7 +8275,7 @@ static const char *ScopeForDept(Department d)
 		case DEPT_COMMAND: return "command";
 		case DEPT_ENGINEERING: return "engineering";
 		case DEPT_SECURITY: return "security";
-		case DEPT_SCIENCES: return "outside";
+		case DEPT_SCIENCE: return "outside";
 		case DEPT_MEDICAL: return "sickbay";
 		default: return "crew";
 	}
@@ -8187,7 +8398,7 @@ static void ParticipantsFor(const Ship &s, uint8_t kind, MeetingBrief &b)
 			break;
 		case MEET_DILITHIUM:
 			add(DepartmentHead(s, DEPT_ENGINEERING));
-			add(DepartmentHead(s, DEPT_SCIENCES));
+			add(DepartmentHead(s, DEPT_SCIENCE));
 			break;
 		case MEET_CASUALTIES:
 			add(DepartmentHead(s, DEPT_MEDICAL));
@@ -8982,6 +9193,9 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(s.cfg.mode); w.U8(s.cfg.clockMode); w.U8(s.cfg.role);
 	w.U8(s.cfg.fictitious ? 1 : 0);
 	w.U8(s.career);
+	// The hull's crew size (version 62): hull data (docs/design-north-star.md), read before the roster
+	// rebuilds so a state that fields a different complement replays its own crew.
+	w.U16(static_cast<uint16_t>(s.complement));
 	w.U16(static_cast<uint16_t>(s.player));
 	// The configurator's seat occupancy: derived from the casualties by FillVacancies, stored so a
 	// configured start replays identically. 0xFFFF is a vacant seat.
@@ -9019,7 +9233,8 @@ std::vector<uint8_t> Pack(const Ship &s)
 		w.F(sh.cargoMaterial); w.F(sh.cargoRations); w.F(sh.cargoParts);
 	}
 	// The sector's shape comes back from the seed; where the ship is in it, and what it has met, is stored.
-	w.F(s.shieldStrength);
+	// The shields are the six arcs (version 61): one `float` became six, in canon's order.
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) w.F(s.shields[i]);
 	w.U8(static_cast<uint8_t>(s.beacon));
 	w.U32(s.hits);
 	w.U16(static_cast<uint16_t>(s.cleanIntercepts));
@@ -9071,7 +9286,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	// type have no seed to come back from and are stored.
 	for (size_t i = 0; i < s.crew.size(); ++i) {
 		const CrewMember &c = s.crew[i];
-		if (i >= static_cast<size_t>(COMPLEMENT)) {
+		if (i >= static_cast<size_t>(Complement(s))) {
 			w.U8(static_cast<uint8_t>(std::min<int>(static_cast<int>(c.name.size()), 31)));
 			for (size_t k = 0; k < c.name.size() && k < 31; ++k) w.U8(static_cast<uint8_t>(c.name[k]));
 			w.U8(static_cast<uint8_t>(std::min<int>(static_cast<int>(c.type.size()), 31)));
@@ -9187,7 +9402,7 @@ std::vector<uint8_t> Pack(const Ship &s)
 	// have begun taking. The list only; the private log, the marks, the access and the voice are read
 	// from the crew records on load, as they are in play.
 	{
-		const int n = std::min(static_cast<int>(s.collective.size()), COLLECTIVE_MAX);
+		const int n = std::min(static_cast<int>(s.collective.size()), Complement(s));
 		w.U8(static_cast<uint8_t>(n));
 		for (int i = 0; i < n; ++i) w.U16(static_cast<uint16_t>(s.collective[i] + 1));
 	}
@@ -9334,19 +9549,24 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	// The configurator (version 54): whether the roster is fictitious, and the career path. The
 	// fictitious flag must be known before BuildRoster, or the canon crew would be rebuilt on load.
 	const uint8_t fictitious = r.U8(), career = r.U8();
+	// The hull's crew size (version 62): hull data, read before BuildRoster so the roster is rebuilt to
+	// it. A sane bound; the count below must land within it.
+	const uint16_t complement = r.U16();
 	if (!r.ok || !(cfg.dayScale > 0.0f && cfg.dayScale <= 86400.0f)) return false;
 	if (mode > MODE_HOLODECK || clockMode > CLOCK_WALL || role > ROLE_MUNRO) return false;
 	if (fictitious > 1 || career >= CAREER_COUNT) return false;
+	if (complement < 1 || complement > 4096) return false;
 	cfg.mode = static_cast<PlayMode>(mode); cfg.clockMode = static_cast<ClockMode>(clockMode); cfg.role = static_cast<PlayerRole>(role);
 	cfg.fictitious = fictitious != 0;
 	Ship s;
 	s.cfg = cfg;
 	s.career = career;
+	s.complement = complement;
 	BuildRoster(s);
 	BuildShuttles(s);
 	BuildSector(s, 0);
 	// The complement, plus any transporter copies beyond it (bounded).
-	if (count < static_cast<size_t>(COMPLEMENT) || count > static_cast<size_t>(COMPLEMENT + MAX_DUPLICATES)) return false;
+	if (count < static_cast<size_t>(Complement(s)) || count > static_cast<size_t>(Complement(s) + MAX_DUPLICATES)) return false;
 	s.player = static_cast<int16_t>(r.U16());
 	// The configurator's seat occupancy. An index must name a real record; a vacant seat is 0xFFFF.
 	for (int i = 0; i < SEAT_COUNT; ++i) {
@@ -9411,7 +9631,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	if (!(s.stores.materials >= 0.0f && s.stores.materials <= 100000.0f)) return false;
 	if (!(s.stores.spareParts >= 0.0f && s.stores.spareParts <= 100000.0f)) return false;
 	if (!(s.stores.medicalSupplies >= 0.0f && s.stores.medicalSupplies <= 100000.0f)) return false;
-	s.shieldStrength = r.Unit();
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) s.shields[i] = r.Unit();
 	s.beacon = r.U8();
 	if (s.beacon >= static_cast<int>(s.sector.size())) return false;
 	s.hits = r.U32();
@@ -9656,7 +9876,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	s.collective.clear();
 	{
 		const int collectiveCount = r.U8();
-		if (collectiveCount > COLLECTIVE_MAX) return false;
+		if (collectiveCount > Complement(s)) return false;
 		for (int i = 0; i < collectiveCount && r.ok; ++i) {
 			const int held = static_cast<int>(r.U16()) - 1;
 			if (held < 0 || held >= static_cast<int>(count)) return false;
@@ -9923,8 +10143,8 @@ std::string Describe(const Ship &s)
 		s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes,
 		s.stores.spareParts, s.stores.materials, s.stores.medicalSupplies, s.stores.rations);
 	out += line;
-	std::snprintf(line, sizeof(line), "  beacon %d of %d in sector %d (%s)  shields at %.0f%%", s.beacon, static_cast<int>(s.sector.size()) - 1,
-		s.sectorNumber + 1, s.sector.empty() ? "?" : BeaconKindName(s.sector[s.beacon].kind), s.shieldStrength * 100);
+	std::snprintf(line, sizeof(line), "  beacon %d of %d in sector %d (%s)  %s", s.beacon, static_cast<int>(s.sector.size()) - 1,
+		s.sectorNumber + 1, s.sector.empty() ? "?" : BeaconKindName(s.sector[s.beacon].kind), ShieldReadout(s).c_str());
 	out += line;
 	if (s.course >= 0) { std::snprintf(line, sizeof(line), "  course: beacon %d", s.course); out += line; }
 	out += "\n";
@@ -10106,7 +10326,7 @@ static bool NeedMet(const CrewMember &c, uint16_t bit)
 		case ORD_NEED_ENGINEERING: return c.dept == DEPT_ENGINEERING;
 		case ORD_NEED_SECURITY: return c.dept == DEPT_SECURITY;
 		case ORD_NEED_MEDICAL: return c.dept == DEPT_MEDICAL;
-		case ORD_NEED_SCIENCE: return c.dept == DEPT_SCIENCES;
+		case ORD_NEED_SCIENCE: return c.dept == DEPT_SCIENCE;
 		case ORD_NEED_JUNIOR: return c.rank <= 2;
 		default: return false;
 	}

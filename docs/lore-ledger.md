@@ -240,7 +240,11 @@ All invented, FTL being the model the owner named.
 
 | fact | value |
 |---|---|
-| A sector | 12 beacons: 40% empty, 30% hostile, 20% derelict, 10% Borg — **the design split; the code does not produce it. CORRECTED 2026-10-11 (C-4):** `module/ship/ship_core.cpp` rolls `next() % 15`, so the interior beacons land **4/15 empty, 3/15 hostile, 2/15 derelict, 1/15 Borg**, plus four kinds this row does not list (trader, distress, belt, pre-warp); beacon 0 is forced empty and beacon 11 is the goal. Whether the divisor should move to `% 10` to honour the split, or the roll is the design, is a fork — the register hands it to the code list (`docs/designs-against-code.md`, C-4) |
+| A sector | 12 beacons: of the **ten interior** (beacon 0 is forced empty, beacon 11 the goal) **40% have no threat, 30% are hostile, 20% a derelict and 10% Borg** — the code's `next() % 10` now produces the design's own split. **Rewritten 2026-10-12 (C-4, the owner's ruling *honour the stated split*).** The four kinds this row once omitted cannot be a fifth outcome of a ten-way roll — 4+3+2+1 is already all ten — so they are drawn from the **empty outcome**: the 40% is the *quiet* share, **24% genuinely empty and 4% each a trader, a distress call, a resource belt and a pre-warp world** (the four rows below). The ruling also moves the divisor: before it, `next() % 15` gave 4/15, 3/15, 2/15, 1/15 of the interior plus the four kinds at 5/15 |
+| A trader beacon | 4% of the interior beacons, drawn from the roll's empty (quiet) outcome (C-4); a place to trade |
+| A distress call | 4% of the interior beacons, drawn from the roll's empty (quiet) outcome (C-4); an even beacon is a wreck to help, an odd one a trap |
+| A resource belt | 4% of the interior beacons, drawn from the roll's empty (quiet) outcome (C-4); worked for material and fuel (see *A resource belt*, below) |
+| A pre-warp world | 4% of the interior beacons, drawn from the roll's empty (quiet) outcome (C-4); observed or interfered with (see *A pre-warp contact*, below) |
 | A jump costs | 1% deuterium, 1% antimatter; needs the warp drive at half output or better |
 | Full phasers strip an enemy's shields, or hole a bare hull, in | 6 minutes |
 | One torpedo on an unshielded hull | 34% (three to destroy) |
