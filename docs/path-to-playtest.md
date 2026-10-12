@@ -198,3 +198,17 @@ content engine needs, not the player:
    works against, and it is the check that says the crossing is safe.**
 4. **Then content** (O15's nine-scenario slate), authored under the two laws already recorded: the
    post-not-name rule, and the delivery direction per line.
+
+**Ruled 2026-10-12, and what each queues** (recorded here because the register carries the decision and
+this document carries the order):
+
+1. **Shields become per-section — canon's six arcs** (C-14). Queues the largest of these lanes: damage
+   routes to a section, the save carries them, and a scenario can name the arc it struck. Until it lands,
+   no declaration can say *where* a hit went.
+2. **Nine departments, as designed** (3.3), and **the complement as hull data** (8.53). Queued together:
+   both are the crew's composition, both are what the manifest's staff and condition fields will be
+   written against, and doing them apart would settle the vocabulary twice.
+3. **The officer of the deck wired into `DispatchOrder`** (C-11). Queued: small, and it makes the bills
+   and the orders chain actually bind, which is the difference between a rule and a decoration.
+4. **The failure roll measured before it is ruled** — whether a condition reaches the roll today comes
+   back as a number, then the fork is decided on the number rather than on the document.
