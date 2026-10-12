@@ -931,6 +931,47 @@ static void TestTheAir()
 	CHECK(SetAirSource(o, 10, AIR_GRID));            // back on the grid, the shortfall clears
 	CHECK(AirShortfall(o) == 0);
 
+	// The holodeck reactor (O2's remainder): the fourth independent source, and the incompatible one.
+	// It is the same shape as the three -- a capacity, a health, a provenance, a shortfall -- but it
+	// is not a grid source, and it may hold a deck only while the main grid is down.
+	const SourceId HOLO = static_cast<SourceId>(AIR_HOLODECK);
+	Ship h = NewShip();
+	CHECK(SourceAirCapacity(h, HOLO) == 60);          // one life-support plant, the holodeck's own demand
+	CHECK(!SetAirSource(h, 9, AIR_HOLODECK));         // refused: incompatible with the live grid
+	CHECK(AirSourceOf(h, 9) == AIR_GRID);             // ... and nothing changed
+	CHECK(h.PowerCapacityFresh() == 1800);            // used as ship power, it adds nothing to the grid
+	CHECK(h.PowerAvailable() == NewShip().PowerAvailable());
+	SetSourceOnline(h, SRC_WARP_CORE, false);         // the main grid is down
+	CHECK(SetAirSource(h, 9, AIR_HOLODECK));
+	CHECK(AirSourceOf(h, 9) == AIR_HOLODECK);
+	SetEnabled(h, SYS_LIFE_SUPPORT, false);           // ... and so is the ship's own plant
+	Tick(h, 1.0f);
+	CHECK(DeckLifeSupport(h, 9) == 1.0f);             // the deck breathes on the holodeck reactor
+	CHECK(DeckLifeSupport(h, 8) == 0.0f);             // a deck still on the grid does not
+	CHECK(SourceDecksHeld(h, HOLO) == 1);
+	// Over-committed, it is a number like the others, and nothing is shed.
+	CHECK(SetAirSource(h, 10, AIR_HOLODECK));
+	CHECK(AirShortfall(h) == AIR_PLANT_PER_DECK);
+	CHECK(AirSourceOf(h, 10) == AIR_HOLODECK);
+	CHECK(SetAirSource(h, 10, AIR_GRID));
+	CHECK(AirShortfall(h) == 0);
+	// The cost: if the grid returns while a deck is still tied, the matrices meet and the reactor is
+	// spent -- the deck loses its air, and the loss is a number.
+	SetSourceOnline(h, SRC_WARP_CORE, true);
+	Tick(h, 1.0f);
+	CHECK(h.holodeckReactor.health == 0.0f);          // the cross-tie spends the reactor
+	CHECK(DeckLifeSupport(h, 9) == 0.0f);
+	CHECK(AirShortfall(h) == AIR_PLANT_PER_DECK);
+	// Isolation is a control, and it is enough to refuse the tie even with the grid down.
+	Ship iso = NewShip();
+	SetSourceOnline(iso, SRC_WARP_CORE, false);
+	SetSourceOnline(iso, HOLO, false);
+	CHECK(SourceAirCapacity(iso, HOLO) == 60);        // the reactor is intact ...
+	CHECK(SourceDecksHeld(iso, HOLO) == 0);
+	CHECK(SetAirSource(iso, 9, AIR_HOLODECK));        // ... the decision is set ...
+	CHECK(DeckLifeSupport(iso, 9) == 0.0f);           // ... but it is isolated, so the deck is not held
+	CHECK(AirShortfall(iso) == AIR_PLANT_PER_DECK);   // and the shortfall is a number
+
 	// The provenance, as every allocation's is: the player's, or an officer's under a grant.
 	Ship p = NewShip();
 	CHECK(SetAirSource(p, 9, SRC_BATTERIES));
@@ -943,7 +984,8 @@ static void TestTheAir()
 	CHECK(!SetAirSource(p, 0, SRC_BATTERIES));        // no deck 0
 	CHECK(!SetAirSource(p, 9, SRC_WARP_CORE));        // the core is the main grid
 
-	// And a save replays (version 56): the feed round-trips byte for byte.
+	// And a save replays (version 60): the feed round-trips byte for byte, including a deck tied to
+	// the holodeck reactor and a reactor the cross-tie has already spent.
 	Ship v = NewShip();
 	CHECK(SetAirSource(v, 9, SRC_BATTERIES));
 	CHECK(SetAirSource(v, 10, SRC_AUXILIARY));
@@ -954,6 +996,19 @@ static void TestTheAir()
 	CHECK(AirSourceOf(back, 10) == SRC_AUXILIARY);
 	CHECK(back.decks[8].airBy == ALLOC_PLAYER);
 	CHECK(Pack(back) == blob);
+
+	Ship w = NewShip();
+	SetSourceOnline(w, SRC_WARP_CORE, false);         // the grid is down, so the tie is allowed
+	CHECK(SetAirSource(w, 11, AIR_HOLODECK));
+	w.holodeckReactor.health = 0.4f;                  // a damaged reactor replays too
+	SetSourceOnline(w, HOLO, true);
+	const std::vector<uint8_t> hblob = Pack(w);
+	Ship hback;
+	CHECK(Unpack(hblob.data(), hblob.size(), hback));
+	CHECK(AirSourceOf(hback, 11) == AIR_HOLODECK);
+	CHECK(hback.holodeckReactor.health == 0.4f);
+	CHECK(hback.holodeckReactor.online);
+	CHECK(Pack(hback) == hblob);
 }
 
 // The environment in the world: one person's gravity is the deck's plating scaled onto the world's,
@@ -8037,6 +8092,28 @@ static int PrintAir()
 		SetAirSource(s, 10, SRC_BATTERIES);
 		std::printf("  batteries asked for 2 decks, hold %d; committed %d EPS, short %d EPS; deck 10 is still on %s\n",
 			SourceDecksHeld(s, SRC_BATTERIES), AirCommitted(s), AirShortfall(s), AirSourceName(AirSourceOf(s, 10)));
+	}
+
+	std::printf("== the holodeck reactor: the fourth source, and the incompatible one\n");
+	{
+		Ship s = NewShip();
+		const SourceId holo = static_cast<SourceId>(AIR_HOLODECK);
+		const bool tied = SetAirSource(s, 9, AIR_HOLODECK);
+		std::printf("  as ship power: grid fresh %d EPS (the reactor adds 0); tie with the grid up %s\n",
+			s.PowerCapacityFresh(), tied ? "allowed" : "refused");
+		SetSourceOnline(s, SRC_WARP_CORE, false);      // the main grid is down
+		SetAirSource(s, 9, AIR_HOLODECK);
+		SetEnabled(s, SYS_LIFE_SUPPORT, false);
+		Tick(s, 1.0f);
+		std::printf("  deck 9 feed %s, support %.2f, holds %d deck(s); deck 8 support %.2f\n",
+			AirSourceName(AirSourceOf(s, 9)), DeckLifeSupport(s, 9), SourceDecksHeld(s, holo), DeckLifeSupport(s, 8));
+		SetAirSource(s, 10, AIR_HOLODECK);
+		std::printf("  asked for 2 decks: short %d EPS, nothing shed (deck 10 still %s)\n",
+			AirShortfall(s), AirSourceName(AirSourceOf(s, 10)));
+		SetSourceOnline(s, SRC_WARP_CORE, true);       // the grid returns while the tie is still in
+		Tick(s, 1.0f);
+		std::printf("  the grid returned: reactor health %.0f%%, deck 9 support %.2f, short %d EPS\n",
+			s.holodeckReactor.health * 100, DeckLifeSupport(s, 9), AirShortfall(s));
 	}
 
 	std::printf("== the feed round-trips a save (version %d)\n", SAVE_VERSION);

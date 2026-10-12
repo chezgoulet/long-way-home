@@ -47,7 +47,7 @@ worth quoting.
 ### C-2 — The save format is quoted at a version it left two bumps ago
 
 - **Document:** `docs/morale.md:142` — *"the save format is **57** and an older save does not load"*.
-- **Code:** `module/ship/ship_core.h:2988` — `const uint16_t SAVE_VERSION = 59;` (58: the Collective's held
+- **Code:** `module/ship/ship_core.h:2988` — `const uint16_t SAVE_VERSION = 60;` (58: the Collective's held
   minds; 59: the bills).
 - **Which side is wrong: the document.** The moral claim it makes — the per-person `float` left the save — is
   true; the number is stale. `tools/docs/check_claims.py` polices only the claims registered in
@@ -442,7 +442,7 @@ Two things that table will not say by itself, and should:
 | 9 | "never apply the ladder when a person has decided" (`power-assignment.md:72-81`) | implemented | `module/ship/ship_core.cpp:2134,2141`; `TestLadderOnlyInAutoMode` | |
 | 10 | a meeting is where allocations are argued and set (`power-assignment.md:65-68`) | implemented | `module/ship/ship_core.h:1062,1226`; `ship_core.cpp:8278` | state level; the rendered meeting not observed |
 | 11 | "total committed against total available … who set each commitment" (`power-assignment.md:87-94`) | implemented | `module/ship/g_ship.cpp:731-737`; `ship_core.cpp:2340` | BUYS is a number |
-| 12 | "save format 51" (`power-assignment.md:29`) | superseded | `SAVE_VERSION = 59` | historical |
+| 12 | "save format 51" (`power-assignment.md:29`) | superseded | `SAVE_VERSION = 60` | historical **Corrected 2026-10-11:** the header is the owner and it reads 60 on this ref; this statement asserted the value at the time it was written. |
 | 13 | "the five added systems and a demand of 1,730" (`budget-squaring.md:9`) | implemented | `module/ship/ship_core.cpp:53-63`; `SPECS` sums to 1730 | |
 | 14 | "warp core 1,400 … impulse 250, auxiliary 90, batteries 60, fresh 1,800" (`budget-squaring.md:9-11`) | implemented | `module/ship/ship_core.cpp:226-231`; `PowerCapacityFresh()==1800` | |
 | 15 | "the ceiling-scaled warp core; … the torpedo complement at 38" (`budget-squaring.md:11-12`) | implemented | `module/ship/ship_core.cpp:1910,3712,3719`; `ship_core.h:244` | |
@@ -531,7 +531,7 @@ Two things that table will not say by itself, and should:
 | 47 | performance at post measurably degrades (`morale.md:41-43`) | partial | `ship_core.cpp:5606-5610` | ack latency not tied to morale |
 | 48 | compliance: delayed / done badly / refused on low outlook (`morale.md:44-46,88`) | partial | `r.resented:10224` | refusal is authority-based |
 | 49 | personnel screen: bands + top factor + "what would help" (`morale.md:60-63`) | partial | `MoraleReason:775-793` | "what would help" not produced |
-| 50 | "the save format is 57" (`morale.md:141-143`) | contradicted | `SAVE_VERSION = 59` | **C-2** |
+| 50 | "the save format is 57" (`morale.md:141-143`) | contradicted | `SAVE_VERSION = 60` | **C-2** **Corrected 2026-10-11:** the header is the owner and it reads 60 on this ref; this statement asserted the value at the time it was written. |
 | 51 | holdings fold over marks, orphaned marks weigh 0 (`morale.md:113-126`) | implemented | `module/ship/ship_core.cpp:759-766`; `TestHoldingsIsAFold`, `TestPurgeMovesRegard` | |
 | 52 | `likes[]`/`dislikes[]`/`pursuits[]`, one store (`affinities-and-allegiance.md:18-41`) | absent | `CrewMember` has only `faction`, `resentment` | |
 | 53 | allegiance weights how an event lands and whether an order is carried (`affinities-and-allegiance.md:66-76`) | partial | `ship_core.cpp:5154` | faction is the only axis |

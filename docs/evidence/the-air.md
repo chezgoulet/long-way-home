@@ -169,3 +169,14 @@ none of it is claimed:
 - `docs/hook-register.md`, `docs/budget-squaring.md`, `docs/ship-systems.md`,
   `docs/damage-and-budgets.md`, `docs/evidence/the-budgets.md`, `docs/gates.md`, `docs/omissions.md` —
   the register and the corrected "not yet built" statements.
+
+## Follow-up (2026-10-11): the fourth source
+
+The boundary this pass named — *"The holodeck reactor's use is the trap … the alternative reading would
+require capacities the design does not carry"* (judgement call 1, above) — is now closed by the next pass,
+in this pass's own shape. The holodeck reactor is a per-deck source (`AIR_HOLODECK`), held out of
+`sources[]` because canon says its matrix is incompatible with the ship's power: it holds one deck while
+the main grid is down, a tie with the grid up is refused, an over-commitment is a shortfall number, and a
+tie left in when the grid returns spends the reactor. `JumpStartFromHolodeck` is untouched. The capacity
+(the holodeck's own demand, 60 EPS) and the cost are *ours*, named in
+`docs/evidence/the-holodeck-reactor.md`. This file is otherwise left as the dated record it is.

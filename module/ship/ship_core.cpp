@@ -1942,6 +1942,12 @@ static bool SourceFuelled(const Ship &s, int i)
 
 static bool SourceAvailable(const Ship &s, SourceId id)
 {
+	// The holodeck reactor is not in `sources[]` (incompatible with the ship's power): it delivers only
+	// when it is online, intact, and its holodeck matrix still runs.
+	if (static_cast<uint8_t>(id) == AIR_HOLODECK)
+		return s.holodeckReactor.online && s.holodeckReactor.health > 0.0f
+			&& s.systems[SYS_HOLODECKS].health > 0.0f;
+	if (id >= SRC_COUNT) return false;
 	const Source &src = s.sources[id];
 	return src.online && src.health > 0.0f && SourceFuelled(s, id);
 }
@@ -1959,21 +1965,25 @@ static int DecksAssignedTo(const Ship &s, uint8_t source)
 
 int SourceAirCapacity(const Ship &s, SourceId id)
 {
+	if (static_cast<uint8_t>(id) == AIR_HOLODECK)
+		return static_cast<int>(HOLODECK_AIR_EPS * s.holodeckReactor.health + 0.5f);
 	if (id >= SRC_COUNT) return 0;
 	return SourceCapacity(s, id);
 }
 
 int SourceAirCommitment(const Ship &s, SourceId id)
 {
-	if (id >= SRC_COUNT) return 0;
-	return DecksAssignedTo(s, static_cast<uint8_t>(id)) * AIR_PLANT_PER_DECK;
+	const uint8_t sid = static_cast<uint8_t>(id);
+	if (sid != AIR_HOLODECK && id >= SRC_COUNT) return 0;
+	return DecksAssignedTo(s, sid) * AIR_PLANT_PER_DECK;
 }
 
 int SourceDecksHeld(const Ship &s, SourceId id)
 {
-	if (id >= SRC_COUNT || !SourceAvailable(s, id)) return 0;
+	const uint8_t sid = static_cast<uint8_t>(id);
+	if ((sid != AIR_HOLODECK && id >= SRC_COUNT) || !SourceAvailable(s, id)) return 0;
 	const int can = SourceAirCapacity(s, id) / AIR_PLANT_PER_DECK;
-	return std::min(can, DecksAssignedTo(s, static_cast<uint8_t>(id)));
+	return std::min(can, DecksAssignedTo(s, sid));
 }
 
 // A deck on its own source is held if it is within what that source can carry: the lowest-numbered
@@ -1981,7 +1991,8 @@ int SourceDecksHeld(const Ship &s, SourceId id)
 static bool DeckHeldBySource(const Ship &s, int deckIndex)
 {
 	const uint8_t src = s.decks[deckIndex].airSource;
-	if (src >= SRC_COUNT) return false;
+	if (src == AIR_GRID) return false;
+	if (src != AIR_HOLODECK && src >= SRC_COUNT) return false;
 	int rank = 0;
 	for (int d = 0; d < deckIndex; ++d) if (s.decks[d].airSource == src) ++rank;
 	return rank < SourceDecksHeld(s, static_cast<SourceId>(src));
@@ -1991,16 +2002,18 @@ float DeckLifeSupport(const Ship &s, int deck)
 {
 	if (deck < 1 || deck > DECKS) return -1.0f;
 	const Deck &d = s.decks[deck - 1];
-	if (d.airSource >= SRC_COUNT) return s.systems[SYS_LIFE_SUPPORT].output; // the pooled main grid
+	if (d.airSource == AIR_GRID) return s.systems[SYS_LIFE_SUPPORT].output; // the pooled main grid
+	if (d.airSource >= AIR_SOURCE_COUNT) return 0.0f;                        // an unknown feed: nothing
 	return DeckHeldBySource(s, deck - 1) ? 1.0f : 0.0f;                      // its own source, or nothing
 }
 
 const char *AirSourceName(uint8_t source)
 {
-	static const char *const NAMES[SRC_COUNT + 1] = {
-		"warp core", "impulse reactors", "auxiliary fusion", "emergency batteries", "the main grid"
+	static const char *const NAMES[AIR_SOURCE_COUNT] = {
+		"warp core", "impulse reactors", "auxiliary fusion", "emergency batteries", "the main grid",
+		"holodeck reactor"
 	};
-	return source <= SRC_COUNT ? NAMES[source] : "?";
+	return source < AIR_SOURCE_COUNT ? NAMES[source] : "?";
 }
 
 int AirSourceOf(const Ship &s, int deck)
@@ -2012,7 +2025,8 @@ int AirSourceOf(const Ship &s, int deck)
 int AirCommitted(const Ship &s)
 {
 	int n = 0;
-	for (int d = 0; d < DECKS; ++d) if (s.decks[d].airSource < SRC_COUNT) n += AIR_PLANT_PER_DECK;
+	for (int d = 0; d < DECKS; ++d)
+		if (s.decks[d].airSource != AIR_GRID && s.decks[d].airSource < AIR_SOURCE_COUNT) n += AIR_PLANT_PER_DECK;
 	return n;
 }
 
@@ -2020,15 +2034,35 @@ int AirShortfall(const Ship &s)
 {
 	int n = 0;
 	for (int d = 0; d < DECKS; ++d)
-		if (s.decks[d].airSource < SRC_COUNT && !DeckHeldBySource(s, d)) n += AIR_PLANT_PER_DECK;
+		if (s.decks[d].airSource != AIR_GRID && s.decks[d].airSource < AIR_SOURCE_COUNT && !DeckHeldBySource(s, d))
+			n += AIR_PLANT_PER_DECK;
 	return n;
+}
+
+// The holodeck reactor is incompatible with the ship's power (docs/lore-ledger.md: "the holodeck
+// matrix is a trap ... the matrices are incompatible"; VOY "Parallax"), so tying a deck to it while
+// the main grid is **up** is refused -- the cross-tie into live power is the first step of the trap.
+// It may be used only with the main grid down, the same `Coreless` condition `JumpStartFromHolodeck`
+// uses. The refusal is the incompatibility, demonstrated; leaving a tie in place when the grid
+// returns is the cost, applied in `UpdateHolodeckTie`.
+static bool RefuseHolodeckTie(const Ship &s, int source)
+{
+	if (source != AIR_HOLODECK) return false;
+	if (!Coreless(s)) return true;
+	return false;
 }
 
 bool SetAirSource(Ship &s, int deck, int source)
 {
 	if (deck < 1 || deck > DECKS) return false;
-	if (source < 0 || source > SRC_COUNT) return false;
+	if (source < 0 || source >= AIR_SOURCE_COUNT) return false;
 	if (source == SRC_WARP_CORE) return false; // the core is the main grid; AIR_GRID is that feed
+	if (RefuseHolodeckTie(s, source)) {
+		LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "environmental control"), "life support",
+			"deck " + std::to_string(deck) + "'s air is not tied to the holodeck reactor: the matrix is "
+			"incompatible with the main grid, and the grid is up");
+		return false;
+	}
 	Deck &d = s.decks[deck - 1];
 	d.airSource = static_cast<uint8_t>(source);
 	d.airBy = ALLOC_PLAYER;
@@ -2042,12 +2076,18 @@ bool SetAirSource(Ship &s, int deck, int source)
 bool SetAirSourceBy(Ship &s, int deck, int source, int officer)
 {
 	if (deck < 1 || deck > DECKS) return false;
-	if (source < 0 || source > SRC_COUNT || source == SRC_WARP_CORE) return false;
+	if (source < 0 || source >= AIR_SOURCE_COUNT || source == SRC_WARP_CORE) return false;
 	if (officer < 0 || officer >= static_cast<int>(s.crew.size())) return false;
 	bool granted = false;
 	for (const BandGrant &g : s.bandGrants)
 		if (g.grantee == officer && static_cast<BudgetBand>(g.band) == BAND_OPERATIONS) { granted = true; break; }
 	if (!granted) return false; // the authority to decide life support is not theirs
+	if (RefuseHolodeckTie(s, source)) {
+		LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "environmental control"), "life support",
+			"deck " + std::to_string(deck) + "'s air is not tied to the holodeck reactor: the matrix is "
+			"incompatible with the main grid, and the grid is up");
+		return false;
+	}
 	Deck &d = s.decks[deck - 1];
 	d.airSource = static_cast<uint8_t>(source);
 	d.airBy = ALLOC_DELEGATE;
@@ -5988,6 +6028,27 @@ static void UpdateAccess(Ship &s)
 		if (c.status == CREW_FIT) c.outlook = std::max(0.0f, c.outlook - (o.solo ? 0.05f : 0.02f));
 }
 
+// The incompatibility, as a cost: a deck may hold its air on the holodeck reactor only while the main
+// grid is down (SetAirSource refuses the tie while the grid is up). If the grid comes back up while a
+// deck is still tied to it, the two matrices meet and the cross-tie spends the reactor: it is wrecked
+// (health 0) and the holodeck matrix with it, so the deck loses its air and the shortfall becomes a
+// number. The player can prevent it by moving the deck back to the grid before restoring the core --
+// which is the decision the trap is made of, in small. The change persists: the reactor's health is
+// saved (version 60).
+static void UpdateHolodeckTie(Ship &s)
+{
+	if (Coreless(s)) return;                 // the grid is down: the tie is the safe emergency use
+	if (s.holodeckReactor.health <= 0.0f) return;
+	bool tied = false;
+	for (int d = 0; d < DECKS; ++d) if (s.decks[d].airSource == AIR_HOLODECK) { tied = true; break; }
+	if (!tied) return;
+	s.holodeckReactor.health = 0.0f;         // the reactor is spent by the cross-tie
+	s.systems[SYS_HOLODECKS].health = Clamp01(s.systems[SYS_HOLODECKS].health - 0.5f);
+	LogEvent(s, AuthorFor(s, DEPT_ENGINEERING, "environmental control"), "life support",
+		"the main grid returned while a deck was tied to the holodeck reactor: the matrices are "
+		"incompatible, the cross-tie wrecks the reactor, and the deck's air is lost");
+}
+
 static void Advance(Ship &s, double shipSecondsTotal)
 {
 	// Long steps are cut up, so a paused or fast-forwarded ship arrives where a played one would.
@@ -6005,6 +6066,7 @@ static void Advance(Ship &s, double shipSecondsTotal)
 		UpdateSquad(s, step); // the squad's defenders are added before the fight is worked
 		UpdateIntruders(s, step);
 		UpdatePower(s, step);
+		UpdateHolodeckTie(s); // the incompatible reactor, if a deck is still tied to it with the grid up
 		UpdateCore(s, step); // the warp core cascade, after power decides the core's condition
 		UpdateOutside(s, step);
 		UpdateDecks(s, step);
@@ -6452,6 +6514,9 @@ float BreachScore(const Breach &b, const std::vector<int> &picks)
 
 void SetSourceOnline(Ship &s, SourceId id, bool on)
 {
+	// The holodeck reactor is not in `sources[]`, but it is a `Source` in shape and can be isolated
+	// like one: cutting it out is the safe way to keep it from being tied in.
+	if (static_cast<uint8_t>(id) == AIR_HOLODECK) { s.holodeckReactor.online = on; return; }
 	if (id < SRC_COUNT) s.sources[id].online = on;
 }
 
@@ -6466,7 +6531,9 @@ void DamageSystem(Ship &s, SystemId id, float amount)
 
 void DamageSource(Ship &s, SourceId id, float amount)
 {
-	if (id < SRC_COUNT && amount > 0.0f) s.sources[id].health = Clamp01(s.sources[id].health - amount);
+	if (amount <= 0.0f) return;
+	if (static_cast<uint8_t>(id) == AIR_HOLODECK) { s.holodeckReactor.health = Clamp01(s.holodeckReactor.health - amount); return; }
+	if (id < SRC_COUNT) s.sources[id].health = Clamp01(s.sources[id].health - amount);
 }
 
 void DamagePylon(Ship &s, float amount)
@@ -8888,6 +8955,9 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.U8(s.alert);
 	for (const System &sys : s.systems) { w.F(sys.health); w.U8(sys.enabled); w.U16(static_cast<uint16_t>(sys.priority)); w.F(sys.control); }
 	for (const Source &src : s.sources) { w.F(src.health); w.U8(src.online); }
+	// The holodeck reactor (version 60, O2): the fourth independent source, off the grid, so a deck
+	// tied to it and the cost of the cross-tie replay identically.
+	w.F(s.holodeckReactor.health); w.U8(s.holodeckReactor.online);
 	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.gravity); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); w.F(d.forceFieldLevel); w.F(d.fire); w.U8(d.boarderKind); w.U8(static_cast<uint8_t>(d.objective)); w.U8(d.compromised ? 1 : 0); w.F(d.dwell); w.U8(d.engaged ? 1 : 0);
 		// The independent air feed (version 56, O2): which source holds the deck, and who set it.
 		w.U8(d.airSource); w.U8(d.airBy); w.U16(static_cast<uint16_t>(d.airCrew + 1)); }
@@ -9250,6 +9320,8 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	s.alert = static_cast<Alert>(alert);
 	for (System &sys : s.systems) { sys.health = r.Unit(); sys.enabled = r.U8() != 0; sys.priority = static_cast<int16_t>(r.U16()); sys.control = r.Unit(); }
 	for (Source &src : s.sources) { src.health = r.Unit(); src.online = r.U8() != 0; }
+	// The holodeck reactor (version 60, O2): its own health and isolation, saved like the grid sources'.
+	s.holodeckReactor.health = r.Unit(); s.holodeckReactor.online = r.U8() != 0;
 	for (Deck &d : s.decks) {
 		d.atmosphere = r.Unit(); d.gravity = r.Unit(); d.hull = r.Unit(); d.intruders = r.F();
 		if (!(d.intruders >= 0.0f && d.intruders <= 10000.0f)) return false;
@@ -9259,7 +9331,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		if (d.boarderKind >= BOARDER_KIND_COUNT || d.objective > DECKS) return false;
 		// The independent air feed (version 56, O2): which source holds the deck, and who set it.
 		d.airSource = r.U8(); d.airBy = r.U8(); d.airCrew = static_cast<int16_t>(r.U16()) - 1;
-		if (d.airSource > SRC_COUNT || d.airSource == SRC_WARP_CORE) return false;
+		if (d.airSource >= AIR_SOURCE_COUNT || d.airSource == SRC_WARP_CORE) return false;
 		if (d.airBy >= ALLOC_BY_COUNT) return false;
 		if (d.airCrew < -1 || d.airCrew >= static_cast<int>(count)) return false;
 	}
@@ -9861,6 +9933,14 @@ std::string Describe(const Ship &s)
 			SourceCapacity(s, static_cast<SourceId>(i)), s.sources[i].health * 100, s.sources[i].online ? "" : "  OFFLINE");
 		out += line;
 	}
+	// The holodeck reactor (O2's remainder): a `Source` in shape, off the grid -- its grid output is
+	// always 0, which is the incompatibility stated in the readout.
+	{
+		const SourceId holo = static_cast<SourceId>(AIR_HOLODECK);
+		std::snprintf(line, sizeof(line), "  source %-22s %4d of %4d  health %3.0f%%%s\n", AirSourceName(AIR_HOLODECK), 0,
+			SourceAirCapacity(s, holo), s.holodeckReactor.health * 100, s.holodeckReactor.online ? "" : "  OFFLINE");
+		out += line;
+	}
 	// The independent air feed (O2): which decks are on their own source, and the shortfall when
 	// their sources cannot hold them. A number, never a shed.
 	if (AirCommitted(s) > 0 || AirShortfall(s) > 0) {
@@ -9875,6 +9955,14 @@ std::string Describe(const Ship &s)
 			std::snprintf(line, sizeof(line), "    %-20s holds %d of %d deck(s)  (%d of %d EPS)%s\n",
 				SOURCES[i].name, SourceDecksHeld(s, id), asked / AIR_PLANT_PER_DECK, asked, SourceAirCapacity(s, id),
 				SourceAvailable(s, id) ? "" : "  OFFLINE");
+			out += line;
+		}
+		const SourceId holo = static_cast<SourceId>(AIR_HOLODECK);
+		const int holoAsked = SourceAirCommitment(s, holo);
+		if (holoAsked > 0) {
+			std::snprintf(line, sizeof(line), "    %-20s holds %d of %d deck(s)  (%d of %d EPS)%s\n",
+				AirSourceName(AIR_HOLODECK), SourceDecksHeld(s, holo), holoAsked / AIR_PLANT_PER_DECK, holoAsked,
+				SourceAirCapacity(s, holo), SourceAvailable(s, holo) ? "" : "  OFFLINE");
 			out += line;
 		}
 	}

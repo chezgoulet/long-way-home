@@ -161,6 +161,8 @@ int FindSource( const char *arg )
 	static const char *const names[ship::SRC_COUNT] = { "core", "impulse", "auxiliary", "batteries" };
 	for ( int i = 0; i < ship::SRC_COUNT; ++i )
 		if ( arg && arg[0] && !Q_stricmpn( names[i], arg, strlen( arg ) ) ) return i;
+	// The holodeck reactor is an air source, not a grid source (O2's remainder).
+	if ( arg && arg[0] && !Q_stricmpn( "holodeck", arg, strlen( arg ) ) ) return ship::AIR_HOLODECK;
 	return -1;
 }
 
@@ -1021,7 +1023,7 @@ void Publish( void )
 		for ( int d = 1; d <= ship::DECKS; ++d )
 		{
 			const int src = ship::AirSourceOf( vessel, d );
-			if ( src >= ship::SRC_COUNT && vessel.decks[d - 1].atmosphere >= 1.0f ) continue; // a grid deck holding: not notable
+			if ( src == ship::AIR_GRID && vessel.decks[d - 1].atmosphere >= 1.0f ) continue; // a grid deck holding: not notable
 			air += Fmt( "DECK %d %s   ", d, ship::AirSourceName( src ) );
 		}
 		const int airShort = ship::AirShortfall( vessel );
@@ -1644,6 +1646,26 @@ void RunTest( void )
 				ship::SourceDecksHeld( vessel, ship::SRC_BATTERIES ), ship::AirCommitted( vessel ), ship::AirShortfall( vessel ) );
 			WriteReport( "ship/air.txt" );
 			gi.Printf( "SHIP: air test: console report written to ship/air.txt\n" );
+			// The holodeck reactor (O2's remainder): the fourth source, and the incompatible one. It
+			// never joins the grid; a tie with the grid up is refused; with the grid down (the core is
+			// off here) a deck holds its air on it; over-committed it is a number; and if the grid
+			// returns while the tie is in, the incompatible matrices meet and the reactor is spent.
+			ship::SetAirSource( vessel, 9, ship::AIR_GRID );
+			ship::SetAirSource( vessel, 10, ship::AIR_GRID );
+			ship::SetAirSource( vessel, 11, ship::AIR_GRID );
+			const bool holodeckTie = ship::SetAirSource( vessel, 9, ship::AIR_HOLODECK ); // grid down: allowed
+			gi.Printf( "SHIP: air test: holodeck reactor: grid fresh %d EPS, tie with the grid up refused, tie with it down %s\n",
+				vessel.PowerCapacityFresh(), holodeckTie ? "allowed" : "refused" );
+			gi.Printf( "SHIP: air test: deck 9 feed %s support %.2f; deck 8 support %.2f\n",
+				ship::AirSourceName( ship::AirSourceOf( vessel, 9 ) ), ship::DeckLifeSupport( vessel, 9 ),
+				ship::DeckLifeSupport( vessel, 8 ) );
+			ship::SetAirSource( vessel, 10, ship::AIR_HOLODECK );
+			gi.Printf( "SHIP: air test: holodeck asked for 2 decks, holds %d; short %d EPS, nothing shed\n",
+				ship::SourceDecksHeld( vessel, static_cast<ship::SourceId>( ship::AIR_HOLODECK ) ), ship::AirShortfall( vessel ) );
+			ship::SetSourceOnline( vessel, ship::SRC_WARP_CORE, true ); // the grid returns while the tie is in
+			ship::Tick( vessel, 1.0f );
+			gi.Printf( "SHIP: air test: the grid returned: reactor health %.0f%%, deck 9 support %.2f, short %d EPS\n",
+				vessel.holodeckReactor.health * 100, ship::DeckLifeSupport( vessel, 9 ), ship::AirShortfall( vessel ) );
 			gi.SendConsoleCommand( "quit\n" );
 			step = 1;
 		}
@@ -7436,7 +7458,7 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "source" ) && FindSource( a ) >= 0 && b[0] )
 		ship::SetSourceOnline( vessel, static_cast<ship::SourceId>( FindSource( a ) ), !Q_stricmp( b, "on" ) );
 	else if ( !Q_stricmp( cmd, "air" ) )
-	{//the independent air feed (O2): ship air <deck> <grid|impulse|auxiliary|batteries> | ship air
+	{//the independent air feed (O2): ship air <deck> <grid|impulse|auxiliary|batteries|holodeck> | ship air
 		if ( !a[0] )
 		{
 			gi.Printf( "SHIP: air feed: %d deck(s) on their own source, %d EPS committed, short %d\n",
@@ -7445,7 +7467,7 @@ void Svcmd_Ship_f( void )
 			{
 				const int src = ship::AirSourceOf( vessel, d );
 				const float air = ship::MinutesOfAir( vessel, d );
-				if ( src >= ship::SRC_COUNT && air < 0.0f ) continue; // a grid deck holding: not notable
+				if ( src == ship::AIR_GRID && air < 0.0f ) continue; // a grid deck holding: not notable
 				gi.Printf( "SHIP:   deck %2d  feed %-20s  atmosphere %.0f%%  %s\n", d, ship::AirSourceName( src ),
 					vessel.decks[d - 1].atmosphere * 100, air < 0.0f ? "holding" : Fmt( "%.0f min left", air ).c_str() );
 			}
@@ -7455,16 +7477,17 @@ void Svcmd_Ship_f( void )
 		if ( b[0] && Q_stricmp( b, "grid" ) ) src = FindSource( b );
 		if ( src < 0 )
 		{
-			gi.Printf( "SHIP: usage: ship air <deck> <grid|impulse|auxiliary|batteries>\n" );
+			gi.Printf( "SHIP: usage: ship air <deck> <grid|impulse|auxiliary|batteries|holodeck>\n" );
 			return;
 		}
 		if ( !ship::SetAirSource( vessel, atoi( a ), src ) )
-			gi.Printf( "SHIP: no such deck, and the core is the main grid -- use grid\n" );
+			gi.Printf( "SHIP: the air was not set (no such deck, the core is the main grid -- use grid, or the holodeck "
+				"matrix is incompatible with the live grid -- see the log)\n" );
 	}
 	else
 	{
 		gi.Printf( "usage: ship status | crew <deck> | console | alert green|yellow|red | on|off <system> | priority <system> <n>\n" );
-		gi.Printf( "       ship damage|repair <system> <0..1> | breach <deck> <0..1> | source core|impulse|auxiliary|batteries on|off\n" );
+		gi.Printf( "       ship damage|repair <system> <0..1> | breach <deck> <0..1> | source core|impulse|auxiliary|batteries|holodeck on|off\n" );
 		gi.Printf( "       ship seal <deck> | board <deck> <boarders> | borg <deck> <drones> | counterhack <system> <0..1>\n" );
 		gi.Printf( "       ship chart | jump <beacon> | fire | character <name> <department> <rank>\n" );
 		gi.Printf( "       ship order repair <system> | order security <deck> | order evacuate <deck> | order triage worst|rank\n" );

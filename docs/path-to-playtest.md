@@ -188,7 +188,10 @@ content engine needs, not the player:
    surface at the deck-12 watch console, so the per-deck air ruling (C4) is legible to a person
    standing there.
 2. **The holodeck reactor as a per-deck source** — the last piece of canon's three independent power sources
-   (O2's remainder), behind the sources that already survive the main grid.
+   (O2's remainder), behind the sources that already survive the main grid. **BUILT 2026-10-11**
+   (`feat/the-holodeck-reactor`, `docs/evidence/the-holodeck-reactor.md`, save version 60): the fourth
+   source, off the grid (incompatible), refused while the grid is up, a shortfall when over-committed, and
+   spent by a cross-tie. O2 is closed.
 3. **The derivation — declaration → primitive → call path** — the crossing instrument: for every field a
    scenario must be able to state, the primitive that answers it and the way the engine calls it. A primitive
    nothing can declare is neither a gap nor finished; it is inventory. **This is the table a content author

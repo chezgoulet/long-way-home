@@ -565,6 +565,9 @@ systems are added, so `SYS_COUNT` rises and older saves are invalid, as every bu
   survive the main grid — impulse reactors, auxiliary fusion, the batteries — are separate state, and a deck's
   life support can be fed from one of them, so the deck holds its air with the grid down; an over-committed
   source is a shortfall number, and nothing is shed (`SetAirSource`/`AirShortfall`, `scripts/air-check.sh`).
+  **And the fourth source, the holodeck reactor, added 2026-10-11** (`feat/the-holodeck-reactor`,
+  `docs/evidence/the-holodeck-reactor.md`, save version 60): the same shape, but off the grid — incompatible
+  with the ship's power — so it holds a deck only with the main grid down and its tie is refused live.
   <!-- register-row id=air-source state=closed marker=check:scripts/air-check.sh -->
 - `scripts/test.sh`, `scripts/check.sh` and the engine checks exit 0 ✅
 
@@ -860,7 +863,7 @@ lands is the owner's open question (Q3)**; the behaviour implemented is recorded
 `docs/crew-manifest.md` (*"The bills"*, *"Who reports to whom"*), implemented 2026-10-11 on
 `feat/the-bills` (`docs/evidence/the-bills.md`, `TestTheBills`, `TestOodAuthority`,
 `test_ship_core --bills`, `scripts/bills-check.sh`; the screen `ui_lwh_bills`, the console verb
-`ship bill`). **Save format 59** (the per-record assignments and the called state), the cost named in
+`ship bill`). **Save format 60** (the per-record assignments and the called state), the cost named in
 the evidence.
 
 **The census first, because a bill built twice is worse than one built late:** the **watch bill** and
@@ -1255,17 +1258,18 @@ evidence and the closing is this ledger's business. The same rule is stated in `
 
 **Committed, not built, not otherwise carried (kind 1 unless marked):**
 
-- **O2 — the three independent power sources and the holodeck-matrix trap** (kind 6): `docs/ship-systems.md`,
-  `docs/damage-and-budgets.md`, `docs/budget-squaring.md` Finding two, `docs/handoff-lwh-persistent-ship.md`.
-  **The sources are built (2026-10-10, `feat/the-air`, `docs/evidence/the-air.md`)**: the sources that
-  survive the main grid are separate state and a deck can hold its air on one of them. **The trap remains
-  built and unchanged** (`JumpStartFromHolodeck`). What is left of the canon triad is the holodeck reactor
-  as a per-deck source, which the brief for this pass did not build.
-  **Verified still absent 2026-10-11** (this pass, by content): the air feed's sources are
-  `SRC_WARP_CORE`/`SRC_IMPULSE_REACTORS`/`SRC_AUXILIARY`/`SRC_BATTERIES` and `AIR_GRID`
-  (`module/ship/ship_core.h`), with no holodeck source; the holodeck reactor exists only as the trap
-  (`JumpStartFromHolodeck`, `ship_core.cpp`). So this is a genuine remaining half, not a stale row.
-  <!-- register-row id=O2 state=partly marker=check:scripts/air-check.sh -->
+- **O2 — the three independent power sources and the holodeck-matrix trap — CLOSED 2026-10-11**
+  (kind 6): `docs/ship-systems.md`, `docs/damage-and-budgets.md`, `docs/budget-squaring.md` Finding two,
+  `docs/handoff-lwh-persistent-ship.md`. **The sources are built (2026-10-10, `feat/the-air`,
+  `docs/evidence/the-air.md`)**: the sources that survive the main grid are separate state and a deck can
+  hold its air on one of them. **The trap remains built and unchanged** (`JumpStartFromHolodeck`). **The
+  last half landed 2026-10-11 (`feat/the-holodeck-reactor`, `docs/evidence/the-holodeck-reactor.md`): the
+  holodeck reactor is now the fourth per-deck source** — canon's incompatible one — in the same shape as
+  the three, but held out of `sources[]` (it never feeds the grid, which is what "incompatible" means
+  here); a deck holds its air on it only while the main grid is down (`SetAirSource` refuses a tie with
+  the grid up), an over-commitment is a shortfall number, and a tie left in when the grid returns spends
+  the reactor (save version 60). The trap's `JumpStartFromHolodeck` is untouched and still demonstrated.
+  <!-- register-row id=O2 state=closed marker=check:scripts/air-check.sh -->
 - **O3 — canon named to model and never modelled** (kind 6): `docs/lore-ledger.md`'s closing list — bio-neural
   gel packs, the EMH's dependence on sickbay power and holo-emitters, the variable-geometry nacelles, cargo
   bays, replicator rations as a resource. **One item on that list is built and the row overstated it**:
