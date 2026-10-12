@@ -1490,6 +1490,53 @@ static void TestSector()
 	}
 }
 
+// C-4: the sector's stated split (docs/lore-ledger.md). Twelve beacons, of which beacon 0 is forced
+// empty and beacon 11 the goal, so the ten interior beacons carry the composition. The roll is
+// `next() % 10`, which gives the ledger's own 40/30/20/10 for the four headline classes; the four
+// kinds the split does not name (trader, distress, belt, pre-warp) do not fit it -- four plus three
+// plus two plus one is already all ten -- so they are drawn from its empty outcome and share the
+// "quiet" 40% (each recorded at 4%). This is the check whose falsification is the old `% 15` roll:
+// that puts the classes at 60/20/13.3/6.7, nowhere near the ledger, and fails every row below.
+static void TestSectorSplit()
+{
+	g_test = "the sector's split";
+	// Enough draws for the number to mean something: 2000 sectors, 20000 interior beacons.
+	long count[BEACON_KIND_COUNT] = {0};
+	long interior = 0;
+	for (uint32_t seed = 1; seed <= 2000; ++seed) {
+		Config cfg; cfg.seed = seed;
+		const Ship s = NewShip(cfg);
+		for (int i = 1; i + 1 < SECTOR_BEACONS; ++i) { ++count[s.sector[i].kind]; ++interior; }
+	}
+	CHECK(interior == 20000);
+	auto share = [&](BeaconKind k) { return static_cast<float>(count[k]) / static_cast<float>(interior); };
+	// The four headline classes: the quiet share is the empty outcome, so the four kinds drawn from it
+	// are counted with it, and quiet + hostile + derelict + Borg is the whole of the interior.
+	const float quiet = share(BEACON_EMPTY) + share(BEACON_TRADER) + share(BEACON_DISTRESS)
+		+ share(BEACON_BELT) + share(BEACON_PREWARP);
+	std::printf("  sector split over %ld interior beacons: quiet %.2f%% (empty %.2f, trader %.2f,"
+		" distress %.2f, belt %.2f, pre-warp %.2f), hostile %.2f%%, derelict %.2f%%, borg %.2f%%\n",
+		interior, 100.0f * quiet, 100.0f * share(BEACON_EMPTY), 100.0f * share(BEACON_TRADER),
+		100.0f * share(BEACON_DISTRESS), 100.0f * share(BEACON_BELT), 100.0f * share(BEACON_PREWARP),
+		100.0f * share(BEACON_HOSTILE), 100.0f * share(BEACON_DERELICT), 100.0f * share(BEACON_BORG));
+	CHECK(std::fabs(quiet - 0.40f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_HOSTILE) - 0.30f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_DERELICT) - 0.20f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_BORG) - 0.10f) < 0.02f);
+	// The four kinds the ledger used to omit: each recorded at 4% of the sector.
+	CHECK(std::fabs(share(BEACON_TRADER) - 0.04f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_DISTRESS) - 0.04f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_BELT) - 0.04f) < 0.02f);
+	CHECK(std::fabs(share(BEACON_PREWARP) - 0.04f) < 0.02f);
+	// All four are reachable: none is a kind the roll can no longer produce.
+	CHECK(count[BEACON_TRADER] > 0 && count[BEACON_DISTRESS] > 0 && count[BEACON_BELT] > 0
+		&& count[BEACON_PREWARP] > 0);
+	// The ends do not move: beacon 0 is empty, the last beacon is the goal.
+	Config cfg0; cfg0.seed = 1;
+	const Ship e = NewShip(cfg0);
+	CHECK(e.sector[0].kind == BEACON_EMPTY && e.sector[SECTOR_BEACONS - 1].kind == BEACON_GOAL);
+}
+
 static void TestCombat()
 {
 	g_test = "ship to ship";
@@ -2302,6 +2349,13 @@ static void TestNavigation()
 	sv.navCounterLast = 12.5f;
 	GoTo(sv, 0); sv.enemy = Enemy(); sv.contact2 = Enemy();
 	Jump(sv, 1);
+	// What is at the destination is the sector's roll, and this test is the counter's, not the
+	// beacon's: clear any contact the arrival left. Under the old `% 15` roll beacon 1 happened not
+	// to be hostile for this seed, so the test silently relied on standing somewhere empty; the `% 10`
+	// roll (C-4) makes it a hostile beacon, whose boarders are logged on load, so the saved blob was
+	// not a fixed point of `Unpack`. Clearing it keeps the round-trip about the counter (see
+	// docs/evidence/the-sector-split.md).
+	sv.enemy = Enemy(); sv.contact2 = Enemy();
 	DraftReport(sv, DEPT_COUNT);
 	CHECK(std::fabs(OpenReport(sv).counter - NavigationCounter(sv).currentYears) < 0.01f);
 	CHECK(OpenReport(sv).lines[0].text.find("since the last entry") != std::string::npos);
@@ -8857,6 +8911,7 @@ int main(int argc, char **argv)
 	TestBreachPuzzle();
 	TestBorg();
 	TestSector();
+	TestSectorSplit();
 	TestCombat();
 	TestMultipleContacts();
 	TestEnemySystemsAndOutsideChoices();

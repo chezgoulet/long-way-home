@@ -71,16 +71,16 @@ worth quoting.
 
 - **Document:** `docs/lore-ledger.md:242` — *"A sector | 12 beacons: 40% empty, 30% hostile, 20% derelict,
   10% Borg"*.
-- **Code:** `module/ship/ship_core.cpp:2686-2689` — `const uint32_t roll = next() % 15;` then
-  `roll < 4 ? EMPTY : roll < 7 ? HOSTILE : roll < 9 ? DERELICT : roll < 10 ? BORG : …`, i.e. among the
+- **Code (before the fix):** `BuildSector` (`module/ship/ship_core.cpp`) rolled `next() % 15`, i.e. among the
   interior beacons **4/15 empty, 3/15 hostile, 2/15 derelict, 1/15 Borg**, plus four kinds
   (trader, distress, belt, pre-warp) the ledger does not list. Beacon 0 is forced empty and beacon 11 is the
   goal.
 - **Which side is wrong: the ledger**, as a description of the code. Either the divisor moves to `% 10` to
   honour the stated split, or the row is corrected to the roll. The evidence does not say which was intended,
   so the *fix* is a fork — but the number as written is not what the game does.
-- **Disposition 2026-10-11:** corrected to what the game does — `docs/lore-ledger.md` now states the `% 15` roll and the four extra beacon kinds; **the design fork is handed to the code list** (move the divisor, or keep the roll). <!-- register-row id=C-4 state=closed marker=symbol:module/ship/ship_core.cpp:BEACON_PREWARP -->
+- **Disposition 2026-10-11:** corrected to what the game does — `docs/lore-ledger.md` now states the `% 15` roll and the four extra beacon kinds; **the design fork is handed to the code list** (move the divisor, or keep the roll).
 - **Disposition 2026-10-12 (code pass):** **handed back** — the row's document half is closed, and its design fork is not decidable here: moving `next() % 15` to `% 10` to honour the stated 40/30/20/10 split, or keeping the roll, are two designs with the same evidence. The owner rules; `module/ship/ship_core.cpp` is left alone.
+- **Disposition 2026-10-12 (implemented):** **fixed** to the ruling. `BuildSector` rolls `next() % 10` for the four headline classes — 4/3/2/1 of ten, the ledger's own 40/30/20/10 — and the four kinds the split cannot hold are drawn from its empty outcome: a second `% 10` roll leaves 6/10 of the quiet share genuinely empty and makes 1/10 each a trader, a distress call, a resource belt and a pre-warp world. So the four classes land 40/30/20/10 and the four kinds each 4% of the sector. `docs/lore-ledger.md` records the split and the four kinds, each with its share and where it came from. Measured in `docs/evidence/the-sector-split.md`; proven by `TestSectorSplit` over 2000 sectors, and falsified by restoring `% 15` (eight of its rows fail); the one test that encoded the old roll is named there. <!-- register-row id=C-4 state=closed marker=symbol:tests/ship/test_ship_core.cpp:TestSectorSplit -->
 
 ### C-5 — "Each recomposition costs her a fifteenth" — it costs 15 per cent, not a fifteenth
 
@@ -476,7 +476,7 @@ Two things that table will not say by itself, and should:
 | 33 | "damage from that engagement persists across a deck change, a save, and a reload" (`damage-and-budgets.md:98-99`) | implemented | `Pack`/`Unpack`; `TestSave` | |
 | 34 | "photon torpedoes 38, not replaceable" (`lore-ledger.md:19`) | implemented | `module/ship/ship_core.h:244`; `ship_core.cpp:3180-3183` | |
 | 35 | "sickbay 6 under treatment at once; 12 hours each" (`lore-ledger.md:209`) | contradicted | `SICKBAY_BEDS = 4` (`ship_core.h:2276`) | **C-3** |
-| 36 | "a sector: 40% empty, 30% hostile, 20% derelict, 10% Borg" (`lore-ledger.md:242`) | contradicted | `ship_core.cpp:2686-2689` (`roll % 15`) | **C-4** |
+| 36 | "a sector: 40% quiet (empty, a trader, a distress call, a belt, a pre-warp world), 30% hostile, 20% derelict, 10% Borg" (`lore-ledger.md:243`) | implemented | `BuildSector` `next() % 10` (`ship_core.cpp`); `TestSectorSplit` | **C-4** closed 2026-10-12 |
 | 37 | shedding order list "…torpedoes, phasers, then sensors, impulse, and the warp drive last" (`lore-ledger.md:183`) | partial | `module/ship/ship_core.cpp:42` shields `priority 7` | shields omitted from the list |
 | 38 | "with the warp core gone the ship runs only … 390 of the 400 remaining" (`lore-ledger.md:184`) | implemented | `module/ship/ship_core.cpp:2063,1914-1921` | |
 | 39 | burn rates, batteries 60/3 h, atmosphere 5 min/12 h/1 h, gravity 6 h/1 h (`lore-ledger.md:190-194`) | implemented | `module/ship/ship_core.h:233,235-239`; `ship_core.cpp:226-231` | |

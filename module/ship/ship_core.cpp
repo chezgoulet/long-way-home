@@ -2723,10 +2723,20 @@ static void BuildSector(Ship &s, int number)
 		s.sector[i + 2].links.push_back(i);
 	}
 	for (int i = 1; i < SECTOR_BEACONS; ++i) {
-		const uint32_t roll = next() % 15;
-		s.sector[i].kind = roll < 4 ? BEACON_EMPTY : roll < 7 ? BEACON_HOSTILE : roll < 9 ? BEACON_DERELICT
-			: roll < 10 ? BEACON_BORG : roll < 11 ? BEACON_TRADER : roll < 12 ? BEACON_DISTRESS
-			: roll < 13 ? BEACON_BELT : BEACON_PREWARP;
+		// The ledger's own split (docs/lore-ledger.md): 40/30/20/10 empty/hostile/derelict/Borg over
+		// the interior beacons, from a ten-way roll -- 4/3/2/1 of ten, as the design states (C-4).
+		const uint32_t roll = next() % 10;
+		s.sector[i].kind = roll < 4 ? BEACON_EMPTY : roll < 7 ? BEACON_HOSTILE : roll < 9 ? BEACON_DERELICT : BEACON_BORG;
+		// The four kinds that ten-way split does not name (trader, distress, belt, pre-warp) do not fit
+		// it: four plus three plus two plus one is already all ten. They are drawn from its empty
+		// outcome instead -- an "empty" beacon is one with no threat and no wreck, and these four are
+		// what such a beacon may hold -- so the four headline classes keep the ledger's exact split and
+		// the four kinds get a share of the empty one (C-4; the shape is recorded in docs/lore-ledger.md).
+		if (s.sector[i].kind == BEACON_EMPTY) {
+			const uint32_t quiet = next() % 10;
+			s.sector[i].kind = quiet < 6 ? BEACON_EMPTY : quiet < 7 ? BEACON_TRADER
+				: quiet < 8 ? BEACON_DISTRESS : quiet < 9 ? BEACON_BELT : BEACON_PREWARP;
+		}
 		// Borg strategic awareness: what the Collective knows makes more of the sector theirs.
 		if (s.borgAwareness >= 0.4f && s.sector[i].kind == BEACON_HOSTILE && next() % 4 == 0) s.sector[i].kind = BEACON_BORG;
 	}
