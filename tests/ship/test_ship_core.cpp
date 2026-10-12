@@ -27,6 +27,10 @@ static const char *g_test = "";
 // Simulated seconds that advance the ship by the given ship-hours.
 static float Hours(const Ship &s, float h) { return h * 3600.0f / s.cfg.dayScale; }
 
+// The whole shield set down, as SetEnabled(SYS_SHIELDS, false) leaves it. The transporter and the
+// boarding gate read the set, not one scalar (C-14).
+static void DropShields(Ship &s) { for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) s.shields[i] = 0.0f; }
+
 // Holdings is a fold over the marks (Holdings()), not a stored value, so a test that wants a
 // particular regard gives the person the single mark that yields it: target in [0,1] -> net regard
 // in [-1,1]. Clearing the marks first makes the reading exactly the target.
@@ -1554,7 +1558,7 @@ static void TestCombat()
 	// At condition green the weapons are stood down: we do them no harm and our shields are not up.
 	Tick(s, Hours(s, 2.0f / 60.0f));
 	CHECK(s.enemy.shields == 1.0f);
-	CHECK(s.shieldStrength == 0.0f);
+	CHECK(ShieldsDown(s)); // every arc down: condition green stands the shields off
 	bool hurt = false;
 	for (int i = 0; i < SYS_COUNT; ++i) hurt = hurt || s.systems[i].health < 1.0f;
 	for (const Deck &d : s.decks) hurt = hurt || d.hull < 1.0f;
@@ -1569,7 +1573,7 @@ static void TestCombat()
 	SetPhaserYield(s, YIELD_KILL);
 	Tick(s, Hours(s, 4.0f / 60.0f));
 	CHECK(s.enemy.shields < 1.0f);
-	CHECK(s.shieldStrength > 0.0f);
+	CHECK(!ShieldsDown(s));
 	const int torpedoes = s.stores.torpedoes;
 	CHECK(FireTorpedo(s) && s.stores.torpedoes == torpedoes - 1);
 	Tick(s, Hours(s, 20.0f / 60.0f));
@@ -1632,6 +1636,85 @@ static void TestCombat()
 	Tick(w, Hours(w, 5.0f / 60.0f));
 	Tick(back, Hours(back, 5.0f / 60.0f));
 	CHECK(Describe(back) == Describe(w));
+}
+
+// C-14 (owner's ruling 2026-10-12, "BUILD THE SET -- canon's six arcs"): the shields are six named
+// sections, not one scalar. A hit routes to a named arc; a hit with no section named goes to the arc
+// the ship's hit counter names; the gates read the whole set; the set round-trips the save.
+static void TestShieldSections()
+{
+	g_test = "shields are canon's six arcs, and damage routes to one";
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW); // the shields are up (green stands them down; yellow does not)
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) s.shields[i] = 1.0f; // full, as recharge brings them
+	CHECK(SHIELD_SECTION_COUNT == 6);
+
+	// The set starts full, and the names are canon's.
+	const char *const want[SHIELD_SECTION_COUNT] = {"forward", "port", "starboard", "aft", "dorsal", "ventral"};
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) {
+		CHECK(s.shields[i] == 1.0f);
+		CHECK(std::string(ShieldSectionName(static_cast<ShieldSection>(i))) == want[i]);
+	}
+	CHECK(ShieldSectionByName("fwd") == SHIELD_FWD);
+	CHECK(ShieldSectionByName("FORWARD") == SHIELD_FWD);
+	CHECK(ShieldSectionByName("stbd") == SHIELD_STBD);
+	CHECK(ShieldSectionByName("starboard") == SHIELD_STBD);
+	CHECK(ShieldSectionByName("ventral") == SHIELD_VENTRAL);
+	CHECK(ShieldSectionByName("nonsense") == SHIELD_SECTION_COUNT);
+	CHECK(!ShieldsDown(s));
+
+	// A hit on a named arc strips that arc -- and only that arc: the other five are untouched.
+	const float held = ShieldHit(s, SHIELD_PORT, 0.6f);
+	CHECK(held == 0.0f);
+	CHECK(std::fabs(s.shields[SHIELD_PORT] - 0.4f) < 1e-6f);
+	CHECK(s.shields[SHIELD_FWD] == 1.0f && s.shields[SHIELD_STBD] == 1.0f && s.shields[SHIELD_AFT] == 1.0f
+		&& s.shields[SHIELD_DORSAL] == 1.0f && s.shields[SHIELD_VENTRAL] == 1.0f);
+
+	// A hit larger than the arc hands the rest back as overflow (what reaches the hull).
+	const float over = ShieldHit(s, SHIELD_PORT, 1.0f);
+	CHECK(std::fabs(over - 0.6f) < 1e-6f);
+	CHECK(s.shields[SHIELD_PORT] == 0.0f);
+
+	// The unrouted hit: with no section named, the arc is the one the hit counter names.
+	s.hits = 0;
+	CHECK(ShieldSectionForHit(s) == SHIELD_FWD);
+	s.hits = 1;
+	CHECK(ShieldSectionForHit(s) == SHIELD_PORT);
+	s.hits = 7;
+	CHECK(ShieldSectionForHit(s) == static_cast<ShieldSection>(7 % SHIELD_SECTION_COUNT));
+
+	// The gate is the whole set: one arc up is not down, every arc down is.
+	Ship d = NewShip();
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) d.shields[i] = 0.0f;
+	CHECK(ShieldsDown(d));
+	CHECK(!ShieldsDown(s));
+
+	// Enemy fire routes through the set: minutes of fire still less than one arc's holding reduces
+	// exactly the arc the counter names, and nothing else.
+	Ship f = NewShip();
+	SetAlert(f, ALERT_YELLOW);
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) f.shields[i] = 1.0f;
+	f.enemy.present = true; f.enemy.kind = ENEMY_WARSHIP;
+	f.enemy.hull = 1.0f; f.enemy.shields = 0.0f; f.enemy.shieldGen = 0.0f;
+	f.enemy.weapons = 1.0f; f.enemy.firepower = 0.1f; // 0.1 of an arc's worth of fire in one step
+	const ShieldSection struck = ShieldSectionForHit(f);
+	Tick(f, Hours(f, 1.0f / 60.0f));
+	int changed = 0;
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) if (f.shields[i] < 1.0f) ++changed;
+	CHECK(changed == 1);
+	CHECK(std::fabs(f.shields[struck] - 0.9f) < 1e-4f);
+	CHECK(f.hits == 0); // the arc held: nothing reached the hull
+
+	// The set round-trips the save, arc by arc. Red, because at green the shields are stood down and
+	// the load's own consistency tick would put them back to zero -- the state it just restored.
+	Ship a = NewShip();
+	SetAlert(a, ALERT_RED);
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) a.shields[i] = 0.1f * static_cast<float>(i);
+	a.shields[SHIELD_FWD] = 1.0f;
+	const std::vector<uint8_t> blob = Pack(a);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) CHECK(back.shields[i] == a.shields[i]);
 }
 
 static void StartFightTest(Ship &s);
@@ -2642,7 +2725,7 @@ static void TestHazardInjuries()
 	for (int i = 0; i < static_cast<int>(s.sector.size()); ++i) if (s.sector[i].phenomenon) ph = i;
 	CHECK(ph >= 0);
 	GoTo(s, ph);
-	s.shieldStrength = 0.0f;
+	DropShields(s);
 	CHECK(TransportAway(s, 3));
 	bool siteHurt = false;
 	for (const LogEntry &e : s.log) if (e.what.find("was hurt by the site") != std::string::npos) siteHurt = true;
@@ -2794,7 +2877,7 @@ static void TestTransporterAnomaly()
 	g_test = "the transporter: the ruling end to end";
 	Ship s = NewShip();
 	s.cfg.dayScale = 1.0f;
-	s.shieldStrength = 0.0f;
+	DropShields(s);
 	s.sector[s.beacon].phenomenon = false;
 	s.sector[s.beacon].kind = BEACON_EMPTY;
 	SetAlert(s, ALERT_GREEN);
@@ -4013,7 +4096,7 @@ static void TestStationPurposes()
 	Ship red = NewShip();
 	SetAlert(red, ALERT_RED);
 	Tick(red, Hours(red, 0.2f));
-	CHECK(red.shieldStrength > 0.0f);
+	CHECK(!ShieldsDown(red));
 	CHECK(!TransportAway(red, 2) && AwayTeam(red) == 0);
 	// ... and with the transporters down, there is no beam at all.
 	Ship down = NewShip();
@@ -4317,6 +4400,52 @@ static int PrintLosses()
 		WriteOffs(back).empty() ? "-" : WriteOffs(back).back().what.c_str(),
 		WriteOffs(back).empty() ? "-" : WriteOffs(back).back().who.c_str());
 	return restored && WriteOffs(back).size() == 4 ? 0 : 1;
+}
+
+// `test_ship_core --shields` prints the six arcs as evidence (docs/evidence/the-shield-sections.md):
+// the set named, a hit on one named arc with the other five unchanged, the unrouted hit and where it
+// goes, the read-out the Tactical console draws, the gate a scenario reads, and the save's cost.
+static int PrintShields()
+{
+	Ship s = NewShip();
+	SetAlert(s, ALERT_YELLOW);
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) s.shields[i] = 1.0f;
+	std::printf("  the six sections (SHIELD_SECTION_COUNT %d):", SHIELD_SECTION_COUNT);
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) std::printf(" %s", ShieldSectionName(static_cast<ShieldSection>(i)));
+	std::printf("\n");
+	std::printf("  the read-out the Tactical console draws: %s\n", ShieldReadout(s).c_str());
+
+	// A hit on the port arc: state before and after, and the other five unchanged.
+	const float through = ShieldHit(s, SHIELD_PORT, 0.6f);
+	const bool others = s.shields[SHIELD_FWD] == 1.0f && s.shields[SHIELD_STBD] == 1.0f && s.shields[SHIELD_AFT] == 1.0f
+		&& s.shields[SHIELD_DORSAL] == 1.0f && s.shields[SHIELD_VENTRAL] == 1.0f;
+	std::printf("  a hit of 60%% on the port arc: port 100%% -> %.0f%%, overflow %.0f%%; the other five %s\n",
+		s.shields[SHIELD_PORT] * 100.0f, through * 100.0f, others ? "unchanged" : "CHANGED");
+	std::printf("  after:  %s\n", ShieldReadout(s).c_str());
+
+	// The unrouted hit: no section named, so the ship's hit counter names the arc.
+	Ship u = NewShip();
+	Tick(u, 1.0f);
+	std::printf("  unrouted: hits %u, so a shot with no section named strikes the %s arc\n",
+		u.hits, ShieldSectionName(ShieldSectionForHit(u)));
+	u.hits = 2;
+	std::printf("  unrouted: hits %u, so the next such shot strikes the %s arc\n",
+		u.hits, ShieldSectionName(ShieldSectionForHit(u)));
+
+	// The whole set down: the gate a scenario reads before boarding or beaming.
+	Ship d = NewShip();
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) d.shields[i] = 0.0f;
+	std::printf("  all six arcs down: ShieldsDown %d (the boarding and beaming gate reads this)\n", ShieldsDown(d) ? 1 : 0);
+
+	// The save's cost: six floats in place of one, and a version it does not know is refused.
+	Ship p = NewShip();
+	const std::vector<uint8_t> blob = Pack(p);
+	Ship modern; const bool loads = Unpack(blob.data(), blob.size(), modern);
+	std::vector<uint8_t> old = blob; old[4] = 60; old[5] = 0; // the byte before this pass
+	Ship stale; const bool oldLoads = Unpack(old.data(), old.size(), stale);
+	std::printf("  save: format %u, the blob is %zu bytes and loads %d; the same blob at version 60 loads %d\n",
+		SAVE_VERSION, blob.size(), loads ? 1 : 0, oldLoads ? 1 : 0);
+	return 0;
 }
 
 // The measurement the ruling asks to be shown: the odds as a function of condition, over twenty
@@ -8862,6 +8991,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--voice")) return PrintVoice();
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
+	if (argc > 1 && !std::strcmp(argv[1], "--shields")) return PrintShields();
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
 	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
 	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
@@ -8913,6 +9043,7 @@ int main(int argc, char **argv)
 	TestSector();
 	TestSectorSplit();
 	TestCombat();
+	TestShieldSections();
 	TestMultipleContacts();
 	TestEnemySystemsAndOutsideChoices();
 	TestMaterialsAndTravel();

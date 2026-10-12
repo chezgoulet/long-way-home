@@ -47,12 +47,12 @@ worth quoting.
 ### C-2 — The save format is quoted at a version it left two bumps ago
 
 - **Document:** `docs/morale.md:142` — *"the save format is **57** and an older save does not load"*.
-- **Code:** `module/ship/ship_core.h:2988` — `const uint16_t SAVE_VERSION = 60;` (58: the Collective's held
-  minds; 59: the bills).
+- **Code:** `module/ship/ship_core.h` — `const uint16_t SAVE_VERSION = 61;` (59: the bills; 60: the holodeck
+  reactor as a per-deck source; 61: the shield sections, C-14).
 - **Which side is wrong: the document.** The moral claim it makes — the per-person `float` left the save — is
   true; the number is stale. `tools/docs/check_claims.py` polices only the claims registered in
   `tools/docs/owned_claims.json`, and this one is not among them.
-- **Disposition 2026-10-11:** corrected — `docs/morale.md` now says the save format is **59**. <!-- register-row id=C-2 state=closed marker=symbol:module/ship/ship_core.h:SAVE_VERSION -->
+- **Disposition 2026-10-11:** corrected — `docs/morale.md` then said the save format is **59**. *(Two later bumps: **60** for the holodeck reactor, and **61** on 2026-10-12 for the shield sections, C-14; `docs/morale.md` now reads 61.)* <!-- register-row id=C-2 state=closed marker=symbol:module/ship/ship_core.h:SAVE_VERSION -->
 
 ### C-3 — Sickbay's bed count is six in the ledger and four in the code
 
@@ -197,11 +197,12 @@ worth quoting.
 
 - **Document:** `docs/ship-systems.md:39,113` — *"shields | fourteen external grids; six sections
   (fwd/port/stbd/aft/dorsal/ventral)"*; *"percentages that buckle"*.
-- **Code:** `module/ship/ship_core.h:1956` — `float shieldStrength = 1.0f;` — one number, used by the combat
-  path (`module/ship/ship_core.cpp:3596-3597`). No section, no grid, no per-arc state.
+- **Code (before):** `module/ship/ship_core.h` — `float shieldStrength = 1.0f;` — one number, used by the
+  combat path. No section, no grid, no per-arc state.
 - **Which side is wrong: the code** (incomplete). The document is ahead of the build.
 - **Disposition 2026-10-11:** **handed to the code list** — the code is incomplete: one `shieldStrength` scalar, no sections or grids.
-- **Disposition 2026-10-12 (code pass):** **disputed** — the register names the code, but **I disagree that this is a defect to fix here.** A scalar where the design implies a set is the brief's own named example of a design decision ("a scalar where the design implies a set … guessing there manufactures a defect out of a decision nobody made"), and building it is the feature the brief forbids: six sections, fourteen grids, per-arc state and bypass conditions (`docs/ship-systems.md:39,113`). The code is not doing something else with no ruling; it is doing less than the design. The fork — the one `shieldStrength` (`module/ship/ship_core.h:1959`) against the shield model — is the owner's to rule, and the code is left alone. Reasoning in `docs/evidence/the-code-contradictions.md`.
+- **Disposition 2026-10-12 (code pass):** **disputed** — the register names the code, but **I disagree that this is a defect to fix here.** A scalar where the design implies a set is the brief's own named example of a design decision ("a scalar where the design implies a set … guessing there manufactures a defect out of a decision nobody made"), and building it is the feature the brief forbids: six sections, fourteen grids, per-arc state and bypass conditions (`docs/ship-systems.md:39,113`). The code is not doing something else with no ruling; it is doing less than the design. The fork — the one `shieldStrength` against the shield model — is the owner's to rule, and the code is left alone. Reasoning in `docs/evidence/the-code-contradictions.md`.
+- **Disposition 2026-10-12 (owner's ruling, this pass):** **closed — the set is built.** The owner ruled "BUILD THE SET — canon's six arcs", so the code is the side that moves. `module/ship/ship_core.h` now declares `enum ShieldSection { SHIELD_FWD, SHIELD_PORT, SHIELD_STBD, SHIELD_AFT, SHIELD_DORSAL, SHIELD_VENTRAL, SHIELD_SECTION_COUNT }` and the ship carries `float shields[SHIELD_SECTION_COUNT]`, canon's arcs in canon's order; **the scalar is gone** — a repository-wide search finds no `shieldStrength` in `module/` or `tests/`. Damage routes to a named arc (`ShieldHit`, reached by the console's `ship shield <arc> <0..1>` and by the simulation's own fire), and an unrouted hit goes to the arc the hit counter names (`ShieldSectionForHit`), stated as our call rather than left implicit. The gates read the whole set (`ShieldsDown`), the failure states are the design's own per arc, and the Tactical read-out is the six arcs (`ShieldReadout`). The console, a script and (later) the manifest address the same six names. The fourteen grids are **deliberately not built** — the ruling names six sections. The save moves 60 → 61; an older save does not load. Written into the owning document as ours (`docs/ship-systems.md`), demonstrated in `docs/evidence/the-shield-sections.md`. <!-- register-row id=C-14 state=closed marker=symbol:module/ship/ship_core.h:SHIELD_SECTION_COUNT -->
 
 ### C-15 — "At most twelve shots penetrate" vs a continuous adaptation ramp
 
@@ -386,7 +387,7 @@ Two things that table will not say by itself, and should:
 | 12 | "standing orders are what the ship does while the player sleeps (save version 7)" (`ship-model.md:84`) | implemented | `module/ship/ship_core.h:2005-2009` | |
 | 13 | "presence grows while unchallenged; the clock advances it" (`ship-model.md:102`) | implemented | `module/ship/ship_core.h:194-196`; `ship_core.cpp:2605-2608` | value contested (C-16 family) |
 | 14 | "141 crew at launch … fifteen decks" (`ship-systems.md:9`) | implemented | `module/ship/ship_core.h:22-23`; `TestRoster` | other canon figures unaudited here |
-| 15 | "fourteen external grids; six sections" (`ship-systems.md:39`) | contradicted | `module/ship/ship_core.h:1956` one scalar | **C-14** |
+| 15 | "fourteen external grids; six sections" (`ship-systems.md:39`) | partial | `module/ship/ship_core.h` — six arcs built (`ShieldSection`, `shields[]`) | **C-14** — built 2026-10-12: six sections are the state; the fourteen grids are deliberately not built |
 | 16 | "force fields rated 1-10; level 10 can cut a drone from the Collective" (`ship-systems.md:42`) | implemented | `module/ship/ship_core.h:197-198`; `TestForceFieldKit` | |
 | 17 | "transporters … deck 4, rooms 1 and 2, six pads; 40,000 km" (`ship-systems.md:43`) | partial | `module/ship/ship_core.cpp:53` | pads and range absent |
 | 18 | "the holodeck reactors … matrix incompatible" (`ship-systems.md:45`) | implemented | `module/ship/ship_core.cpp:5275` `JumpStartFromHolodeck` | |
@@ -452,7 +453,7 @@ Two things that table will not say by itself, and should:
 | 9 | "never apply the ladder when a person has decided" (`power-assignment.md:72-81`) | implemented | `module/ship/ship_core.cpp:2134,2141`; `TestLadderOnlyInAutoMode` | |
 | 10 | a meeting is where allocations are argued and set (`power-assignment.md:65-68`) | implemented | `module/ship/ship_core.h:1062,1226`; `ship_core.cpp:8278` | state level; the rendered meeting not observed |
 | 11 | "total committed against total available … who set each commitment" (`power-assignment.md:87-94`) | implemented | `module/ship/g_ship.cpp:731-737`; `ship_core.cpp:2340` | BUYS is a number |
-| 12 | "save format 51" (`power-assignment.md:29`) | superseded | `SAVE_VERSION = 60` | historical **Corrected 2026-10-11:** the header is the owner and it reads 60 on this ref; this statement asserted the value at the time it was written. |
+| 12 | "save format 51" (`power-assignment.md:29`) | superseded | `SAVE_VERSION = 61` | historical **Corrected 2026-10-11:** the header is the owner and it reads 61 on this ref; this statement asserted the value at the time it was written. |
 | 13 | "the five added systems and a demand of 1,730" (`budget-squaring.md:9`) | implemented | `module/ship/ship_core.cpp:53-63`; `SPECS` sums to 1730 | |
 | 14 | "warp core 1,400 … impulse 250, auxiliary 90, batteries 60, fresh 1,800" (`budget-squaring.md:9-11`) | implemented | `module/ship/ship_core.cpp:226-231`; `PowerCapacityFresh()==1800` | |
 | 15 | "the ceiling-scaled warp core; … the torpedo complement at 38" (`budget-squaring.md:11-12`) | implemented | `module/ship/ship_core.cpp:1910,3712,3719`; `ship_core.h:244` | |
@@ -541,7 +542,7 @@ Two things that table will not say by itself, and should:
 | 47 | performance at post measurably degrades (`morale.md:41-43`) | partial | `ship_core.cpp:5606-5610` | ack latency not tied to morale |
 | 48 | compliance: delayed / done badly / refused on low outlook (`morale.md:44-46,88`) | partial | `r.resented:10224` | refusal is authority-based |
 | 49 | personnel screen: bands + top factor + "what would help" (`morale.md:60-63`) | partial | `MoraleReason:775-793` | "what would help" not produced |
-| 50 | "the save format is 57" (`morale.md:141-143`) | contradicted | `SAVE_VERSION = 60` | **C-2** **Corrected 2026-10-11:** the header is the owner and it reads 60 on this ref; this statement asserted the value at the time it was written. |
+| 50 | "the save format is 57" (`morale.md:141-143`) | contradicted | `SAVE_VERSION = 61` | **C-2** **Corrected 2026-10-11:** the header is the owner and it reads 61 on this ref; this statement asserted the value at the time it was written. |
 | 51 | holdings fold over marks, orphaned marks weigh 0 (`morale.md:113-126`) | implemented | `module/ship/ship_core.cpp:759-766`; `TestHoldingsIsAFold`, `TestPurgeMovesRegard` | |
 | 52 | `likes[]`/`dislikes[]`/`pursuits[]`, one store (`affinities-and-allegiance.md:18-41`) | absent | `CrewMember` has only `faction`, `resentment` | |
 | 53 | allegiance weights how an event lands and whether an order is carried (`affinities-and-allegiance.md:66-76`) | partial | `ship_core.cpp:5154` | faction is the only axis |

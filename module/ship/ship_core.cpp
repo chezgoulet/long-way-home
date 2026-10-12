@@ -2849,6 +2849,82 @@ const char *EnemyKindName(EnemyKind k)
 	return k < ENEMY_KIND_COUNT ? NAMES[k] : "a raider";
 }
 
+// ---- the six shield arcs (C-14) -----------------------------------------------------------------
+//
+// Canon's six sections, each its own level. The console addresses them by these names; the read-out
+// and the manifest will use the same six words, so a scenario can say which arc it struck.
+
+const char *ShieldSectionName(ShieldSection sec)
+{
+	static const char *const NAMES[SHIELD_SECTION_COUNT] = {"forward", "port", "starboard", "aft", "dorsal", "ventral"};
+	return sec < SHIELD_SECTION_COUNT ? NAMES[sec] : "forward";
+}
+
+// The same manual, case-insensitive compare `SystemIdByName` uses (ship_core.cpp has no engine
+// helpers): `name` matches an arc when it is the short form or the canon word.
+ShieldSection ShieldSectionByName(const char *name)
+{
+	if (!name || !name[0]) return SHIELD_SECTION_COUNT;
+	static const char *const SHORT[SHIELD_SECTION_COUNT] = {"fwd", "port", "stbd", "aft", "dorsal", "ventral"};
+	static const char *const FULL[SHIELD_SECTION_COUNT] = {"forward", "port", "starboard", "aft", "dorsal", "ventral"};
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i)
+	{
+		for (const char *cand : {SHORT[i], FULL[i]})
+		{
+			const size_t len = strlen(cand);
+			size_t k = 0;
+			for (; k < len && name[k]; ++k)
+			{
+				char a = name[k], b = cand[k];
+				if (a >= 'A' && a <= 'Z') a = static_cast<char>(a - 'A' + 'a');
+				if (b >= 'A' && b <= 'Z') b = static_cast<char>(b - 'A' + 'a');
+				if (a != b) break;
+			}
+			if (k == len && name[k] == '\0') return static_cast<ShieldSection>(i);
+		}
+	}
+	return SHIELD_SECTION_COUNT;
+}
+
+bool ShieldsDown(const Ship &s)
+{
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i)
+		if (s.shields[i] > 0.0f) return false;
+	return true;
+}
+
+ShieldSection ShieldSectionForHit(const Ship &s)
+{
+	return static_cast<ShieldSection>(s.hits % SHIELD_SECTION_COUNT);
+}
+
+float ShieldHit(Ship &s, ShieldSection sec, float amount)
+{
+	if (amount <= 0.0f) return 0.0f;
+	if (sec >= SHIELD_SECTION_COUNT) return amount; // no arc named: nothing absorbs it
+	const float was = s.shields[sec];
+	const float held = std::min(amount, was);
+	s.shields[sec] = was - held;
+	if (was > 0.0f && s.shields[sec] <= 0.0f)
+		LogEvent(s, AuthorFor(s, DEPT_SECURITY, "tactical"), "outside", std::string(ShieldSectionName(sec)) + " shields are down");
+	return amount - held;
+}
+
+std::string ShieldReadout(const Ship &s)
+{
+	static const char *const LABELS[SHIELD_SECTION_COUNT] = {"FWD", "PORT", "STBD", "AFT", "DORSAL", "VENTRAL"};
+	std::string out = "SHIELDS";
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i)
+	{
+		out += "  ";
+		out += LABELS[i];
+		out += " ";
+		out += std::to_string(static_cast<int>(s.shields[i] * 100.0f + 0.5f));
+		out += "%";
+	}
+	return out;
+}
+
 const char *BoarderKindName(BoarderKind k)
 {
 	static const char *const NAMES[BOARDER_KIND_COUNT] = {"a raider", "a drone", "a hunter"};
@@ -2975,7 +3051,7 @@ bool TransportAway(Ship &s, int party, std::string *outcome)
 	if (party <= 0) return false;
 	if (s.awayBeacon >= 0) return false;                                  // a party is already down there
 	if (s.systems[SYS_TRANSPORTERS].output <= 0.0f) return false;         // no transporter, no beam
-	if (s.shieldStrength > 0.0f) return false;                            // we cannot beam through our own shields
+	if (!ShieldsDown(s)) return false;                                    // we cannot beam through our own shields
 	int sent = 0;
 	for (CrewMember &c : s.crew) {
 		if (sent >= party) break;
@@ -3599,9 +3675,12 @@ bool AdvanceSector(Ship &s)
 static void UpdateOutside(Ship &s, float shipSeconds)
 {
 	const float minutes = shipSeconds / 60.0f;
-	// Our shields recharge by what the shield system delivers, and hold nothing without it.
+	// Our shields recharge by what the shield system delivers, and hold nothing without it. Every
+	// arc recharges at the shield system's own rate (SHIELD_RECHARGE_MINUTES restores an arc from
+	// nothing), so an arc that is down comes back on the system's clock, as the one scalar did.
 	const float shieldOut = s.systems[SYS_SHIELDS].output;
-	s.shieldStrength = std::min(shieldOut > 0.0f ? 1.0f : 0.0f, s.shieldStrength + shieldOut * minutes / SHIELD_RECHARGE_MINUTES);
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i)
+		s.shields[i] = std::min(shieldOut > 0.0f ? 1.0f : 0.0f, s.shields[i] + shieldOut * minutes / SHIELD_RECHARGE_MINUTES);
 	if (!InCombat(s)) {
 		if (s.contact2.present) { s.enemy = s.contact2; s.contact2 = Enemy(); } // the wingman is next
 		return;
@@ -3643,9 +3722,9 @@ static void UpdateOutside(Ship &s, float shipSeconds)
 		const float full = e.firepower * e.weapons;
 		if (full <= 0.0f) return;
 		float theirs = full * minutes;
-		const float held = std::min(theirs, s.shieldStrength);
-		s.shieldStrength -= held;
-		theirs -= held;
+		// A hit that arrives with no section named goes to the arc the ship's own hit counter names
+		// (ShieldSectionForHit); ShieldHit strips that arc and hands back what reaches the hull.
+		theirs = ShieldHit(s, ShieldSectionForHit(s), theirs);
 		if (theirs <= 0.0f) return;
 		const float share = e.weapons * minutes; // equivalent minutes of unopposed fire
 		const int deck = static_cast<int>(s.hits * 7u % DECKS);
@@ -3674,7 +3753,7 @@ static void UpdateOutside(Ship &s, float shipSeconds)
 	if (s.contact2.present && s.contact2.hull > 0.0f) fireOnUs(s.contact2);
 
 	// With our shields down they send their party across, once, to where it will hurt.
-	if (s.shieldStrength <= 0.0f && s.enemy.boarders > 0) {
+	if (ShieldsDown(s) && s.enemy.boarders > 0) {
 		if (s.enemy.borg) BoardBorg(s, ENGINEERING_DECK, s.enemy.boarders);
 		else Board(s, ENGINEERING_DECK, s.enemy.boarders);
 		s.enemy.boarders = 0;
@@ -8985,7 +9064,8 @@ std::vector<uint8_t> Pack(const Ship &s)
 		w.F(sh.cargoMaterial); w.F(sh.cargoRations); w.F(sh.cargoParts);
 	}
 	// The sector's shape comes back from the seed; where the ship is in it, and what it has met, is stored.
-	w.F(s.shieldStrength);
+	// The shields are the six arcs (version 61): one `float` became six, in canon's order.
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) w.F(s.shields[i]);
 	w.U8(static_cast<uint8_t>(s.beacon));
 	w.U32(s.hits);
 	w.U16(static_cast<uint16_t>(s.cleanIntercepts));
@@ -9372,7 +9452,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	if (!(s.stores.materials >= 0.0f && s.stores.materials <= 100000.0f)) return false;
 	if (!(s.stores.spareParts >= 0.0f && s.stores.spareParts <= 100000.0f)) return false;
 	if (!(s.stores.medicalSupplies >= 0.0f && s.stores.medicalSupplies <= 100000.0f)) return false;
-	s.shieldStrength = r.Unit();
+	for (int i = 0; i < SHIELD_SECTION_COUNT; ++i) s.shields[i] = r.Unit();
 	s.beacon = r.U8();
 	if (s.beacon >= static_cast<int>(s.sector.size())) return false;
 	s.hits = r.U32();
@@ -9874,8 +9954,8 @@ std::string Describe(const Ship &s)
 		s.stores.deuterium * 100, s.stores.antimatter * 100, s.stores.batteries * 100, s.stores.torpedoes,
 		s.stores.spareParts, s.stores.materials, s.stores.medicalSupplies, s.stores.rations);
 	out += line;
-	std::snprintf(line, sizeof(line), "  beacon %d of %d in sector %d (%s)  shields at %.0f%%", s.beacon, static_cast<int>(s.sector.size()) - 1,
-		s.sectorNumber + 1, s.sector.empty() ? "?" : BeaconKindName(s.sector[s.beacon].kind), s.shieldStrength * 100);
+	std::snprintf(line, sizeof(line), "  beacon %d of %d in sector %d (%s)  %s", s.beacon, static_cast<int>(s.sector.size()) - 1,
+		s.sectorNumber + 1, s.sector.empty() ? "?" : BeaconKindName(s.sector[s.beacon].kind), ShieldReadout(s).c_str());
 	out += line;
 	if (s.course >= 0) { std::snprintf(line, sizeof(line), "  course: beacon %d", s.course); out += line; }
 	out += "\n";

@@ -139,10 +139,12 @@ Purge): the documentary witness, the one a purge can eliminate. The human witnes
 → morale. **Every value answerable to the same evidence.**
 
 **The cost, named rather than discovered.** The per-person float left the record and the save, so the save format
-is **60** and an older save does not load (`module/ship/ship_core.h`, `const uint16_t SAVE_VERSION = 60;`) — the
+is **61** and an older save does not load (`module/ship/ship_core.h`, `const uint16_t SAVE_VERSION = 61;`) — the
 deliberate bump, with its cost stated as `AGENTS.md` requires rather than discovered later. *(**Corrected
 2026-10-11:** this said **57**. The moral claim — the per-person float left the save — was true; the number had
 gone two bumps stale, 58 (the Collective's held minds) and 59 (the bills). The register `docs/designs-against-code.md`
 records it as **C-2**, and `tools/docs/owned_claims.json` left the prose form un-policed because only the assertion
-form `SAVE_VERSION = <n>` is watched.)*
+form `SAVE_VERSION = <n>` is watched. **Corrected 2026-10-12:** the number is now **61** — 60 was the holodeck
+reactor as a per-deck source, and 61 is the shield sections of C-14. The moral claim is unchanged; only the
+current value moves, and the assertion form is kept in step so the number cannot go stale again.)*
 
