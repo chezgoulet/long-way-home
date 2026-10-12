@@ -260,6 +260,13 @@ Each of these is an owner's ruling. Neither side is a defect; the code is left a
   `EffectiveSkill` is called only from `WorkReading`, `OfferRising`/`RisingOdds` and the console.
 - **Ruling wanted:** make the roll call `EffectiveSkill`, or keep the parallel construction and name it
   in the document.
+- **Measured 2026-10-12** (`docs/evidence/the-failure-roll-measured.md`): a condition **does** reach the
+  roll today, through `WorkFactors` — 4,724 of 20,000 anomalies clean against 7,347 carrying a sharp debuff
+  (+0.1312 odds), with `COND_NONE` and a nominal system moving nothing. **Fork A** (the roll calls
+  `EffectiveSkill`, condition subsumed) cuts the condition's weight in the odds multiplier from +0.50 to
+  +0.0600 (**8.3×**) and moves **1 test** (`TestConditionMovesTheOdds`, 5 checks, verified on a throwaway
+  worktree); **fork B** (the document names `WorkFactors`) moves **0 tests and 0 lines of code**, changing two
+  sentences. The fork stays open for the owner.
 
 **3.3 — nine departments, or the code's five?**
 - *Document* (`docs/crew-manifest.md:52-71`): nine departments whose sizes add to 141 — Command 9,

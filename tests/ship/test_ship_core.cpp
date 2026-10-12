@@ -6796,6 +6796,109 @@ static void TestConditionMovesTheOdds()
 	CHECK(named);
 }
 
+// ---- C-23, measured: does a condition reach the failure roll, and what would EffectiveSkill change? --
+//
+// The register's C-23 is the fork the owner ordered measured rather than ruled: the failure roll's path
+// (UseSystemAt -> WorkFactors -> RollWork) builds its skill term from the raw rating and adds each
+// condition as its own named factor, while `docs/character-derivation.md` names `EffectiveSkill` -- "what
+// decides whether a repair is quick, slow, or dangerous". This measures the same person at the same task
+// clean and conditioned under both constructions, so the ruling has a number. It builds nothing and
+// changes nothing: the EffectiveSkill case is recomputed here from the same factors, so the live roll is
+// untouched.
+struct WorkForkReading {
+	float baseOdds = 0.0f, condOdds = 0.0f;       // today's roll: raw skill + a separate condition factor
+	float nilOdds = 0.0f, nominalOdds = 0.0f;     // the counter-cases: no condition, and a nominal system
+	float hypBaseOdds = 0.0f, hypCondOdds = 0.0f; // if the roll read EffectiveSkill (condition subsumed)
+	float effClean = 0.0f, effIll = 0.0f;
+	int baseHits = 0, condHits = 0, nilHits = 0, hypBaseHits = 0, hypCondHits = 0;
+};
+
+static WorkForkReading MeasureWorkFork()
+{
+	WorkForkReading r;
+	const float cond = 0.40f;   // the document's own degraded example
+	const float battle = 1.0f;  // battle stations: the load the design called the worst
+	// PlainCrew: morale exactly 0.5, so the morale factor is absent and the condition is isolated.
+	CrewMember clean = PlainCrew();
+
+	WorkFactor base[WORK_FACTOR_MAX];
+	const int bn = WorkFactors(clean, SKILL_ENGINEERING, WORK_ROUTINE, battle, base, WORK_FACTOR_MAX);
+	r.baseOdds = WorkOdds(cond, base, bn);
+	r.baseHits = MeasureWork(cond, battle, base, bn);
+
+	CrewMember ill = clean;
+	AddCondition(ill, COND_AFRAID, "the ship is at battle stations", CVAL_DEBUFF, CMAG_SHARP,
+		CLEAR_END_OF_WATCH, 0.0f, CVIS_PLAYER | CVIS_CREW);
+	WorkFactor aft[WORK_FACTOR_MAX];
+	const int an = WorkFactors(ill, SKILL_ENGINEERING, WORK_ROUTINE, battle, aft, WORK_FACTOR_MAX);
+	r.condOdds = WorkOdds(cond, aft, an);
+	r.condHits = MeasureWork(cond, battle, aft, an);
+
+	// Counter-case 1: a condition slot carrying COND_NONE -- a record that must weigh nothing.
+	CrewMember nil = clean;
+	nil.conditionCount = 1;
+	nil.conditions[0].id = COND_NONE;
+	WorkFactor nf[WORK_FACTOR_MAX];
+	const int nn = WorkFactors(nil, SKILL_ENGINEERING, WORK_ROUTINE, battle, nf, WORK_FACTOR_MAX);
+	r.nilOdds = WorkOdds(cond, nf, nn);
+	r.nilHits = MeasureWork(cond, battle, nf, nn);
+	(void)nn;
+
+	// Counter-case 2: a nominal system (the top tenth). The design promises the operator cannot move the
+	// odds there, so the same condition on the same person must make no difference.
+	r.nominalOdds = WorkOdds(0.95f, aft, an);
+
+	// The fork: the same task under a roll that read EffectiveSkill. The skill term is rebuilt from
+	// EffectiveSkill, and the separate condition factor is subsumed -- it is already inside EffectiveSkill,
+	// so keeping both would count the condition twice. The weights are WORK_SKILL_STANDARD 2.0 and
+	// WORK_SKILL_SLOPE 0.10 (module/ship/ship_core.cpp; not exported through the header). This is a
+	// reproduction, not the live path.
+	r.effClean = EffectiveSkill(clean, SKILL_ENGINEERING);
+	r.effIll = EffectiveSkill(ill, SKILL_ENGINEERING);
+	WorkFactor hb[WORK_FACTOR_MAX], ha[WORK_FACTOR_MAX];
+	int hbn = 0, han = 0;
+	for (int i = 0; i < bn; ++i) {
+		if (base[i].kind == WORK_CONDITION) continue;
+		hb[hbn] = base[i];
+		if (hb[hbn].kind == WORK_SKILL) hb[hbn].delta = (2.0f - r.effClean) * 0.10f;
+		++hbn;
+	}
+	for (int i = 0; i < an; ++i) {
+		if (aft[i].kind == WORK_CONDITION) continue;
+		ha[han] = aft[i];
+		if (ha[han].kind == WORK_SKILL) ha[han].delta = (2.0f - r.effIll) * 0.10f;
+		++han;
+	}
+	r.hypBaseOdds = WorkOdds(cond, hb, hbn);
+	r.hypBaseHits = MeasureWork(cond, battle, hb, hbn);
+	r.hypCondOdds = WorkOdds(cond, ha, han);
+	r.hypCondHits = MeasureWork(cond, battle, ha, han);
+	return r;
+}
+
+// C-23's measurement, as a unit test: a condition reaches the failure roll's odds (through WorkFactors),
+// the counter-cases do not move them, and the condition reaches through EffectiveSkill too -- so the fork
+// is a matter of magnitude, not of reach. The magnitudes are printed by `--work` and priced in the
+// evidence; the test asserts reach and the counter-cases, not which magnitude is the design.
+static void TestConditionReachesTheFailureRoll()
+{
+	g_test = "C-23: a condition reaches the failure roll, and the fork is priced";
+	const WorkForkReading r = MeasureWorkFork();
+	// Does a condition reach the roll today? Yes: the same person, the same task, worse odds and more
+	// anomalies drawn while the condition holds.
+	CHECK(r.condOdds > r.baseOdds);
+	CHECK(r.condHits > r.baseHits);
+	// Counter-case 1: a COND_NONE slot weighs nothing.
+	CHECK(std::fabs(r.nilOdds - r.baseOdds) < 1e-6f);
+	CHECK(r.nilHits == r.baseHits);
+	// Counter-case 2: a nominal system stays nominal whatever the operator carries.
+	CHECK(r.nominalOdds == 0.0f);
+	// The fork: the same condition read through EffectiveSkill still reaches the roll, so the fork is a
+	// matter of magnitude, not of reach. The two magnitudes are printed by `--work` and priced in the
+	// evidence; which one is the design is the owner's ruling, so this asserts neither.
+	CHECK(r.hypCondOdds > r.hypBaseOdds);
+}
+
 // Task B(ii): a trait is durable and behavioural, and shapes performance by interacting with the
 // moment, not as a flat penalty. Steady under fire does nothing on a quiet watch and helps at battle
 // stations; quick healer does not touch the odds at all (it shapes recovery).
@@ -7512,6 +7615,29 @@ static int PrintWork()
 				logged = true; break;
 			}
 	}
+
+	// C-23, measured: does a condition reach the roll, and what would EffectiveSkill change? The
+	// register's fork, measured rather than ruled (docs/designs-against-code.md).
+	std::printf("\n  C-23, measured: does a condition reach the roll, and the fork's size\n");
+	const WorkForkReading fork = MeasureWorkFork();
+	std::printf("    one person (engineering 3), engineering routine, 40%% under battle stations\n");
+	std::printf("      clean                    odds %.4f   measured %d of 20000\n",
+		fork.baseOdds, fork.baseHits);
+	std::printf("      afraid (sharp)           odds %.4f   measured %d of 20000   (%+.4f odds)\n",
+		fork.condOdds, fork.condHits, fork.condOdds - fork.baseOdds);
+	std::printf("      COND_NONE (counter)      odds %.4f   measured %d of 20000   (%+.4f odds)\n",
+		fork.nilOdds, fork.nilHits, fork.nilOdds - fork.baseOdds);
+	std::printf("      nominal system (counter) odds %.4f   (the top tenth: the operator cannot move it)\n",
+		fork.nominalOdds);
+	std::printf("    if the roll called EffectiveSkill (%.2f clean / %.2f conditioned; condition subsumed):\n",
+		fork.effClean, fork.effIll);
+	std::printf("      clean                    odds %.4f   measured %d of 20000\n",
+		fork.hypBaseOdds, fork.hypBaseHits);
+	std::printf("      afraid (sharp)           odds %.4f   measured %d of 20000   (%+.4f odds)\n",
+		fork.hypCondOdds, fork.hypCondHits, fork.hypCondOdds - fork.hypBaseOdds);
+	std::printf("    the condition's own weight, in the odds multiplier: today +0.50 (WORK_COND_SHARP);\n");
+	std::printf("    through EffectiveSkill %+.4f (a sharp debuff drags effective skill %.2f -> %.2f, slope %.2f/point)\n",
+		(fork.effClean - fork.effIll) * 0.10f, fork.effClean, fork.effIll, 0.10f);
 	return 0;
 }
 
@@ -9127,6 +9253,7 @@ int main(int argc, char **argv)
 	TestAppearanceSaveRoundTrip();
 	TestEffectiveSkillReachesTheOdds();
 	TestConditionMovesTheOdds();
+	TestConditionReachesTheFailureRoll();
 	TestTraitShapesPerformance();
 	TestDriveBiasesBehaviour();
 	TestMoraleReachesTheWork();
