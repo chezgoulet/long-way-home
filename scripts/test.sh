@@ -57,6 +57,10 @@ echo "==> departments: the nine, and the complement as hull data (3.3, 8.53)"
 "$ROOT/scripts/departments-check.sh"
 
 echo
+echo "==> damage control: the three tiers, severity scaling, and the post the large job empties (C-12)"
+"$ROOT/scripts/damage-control-check.sh"
+
+echo
 echo "==> manner: the crew's state is audible and visible, and degrades without audio (G14)"
 "$ROOT/scripts/manner-check.sh"
 
