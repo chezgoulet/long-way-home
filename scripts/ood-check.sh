@@ -29,7 +29,7 @@ trap 'rm -rf "${WORK:?}"' EXIT
 
 echo "==> ood: the unit test suite, built here"
 "$CXX" -std=c++17 -g -I module/ship -I module/ui \
-  tests/ship/test_ship_core.cpp module/ship/ship_core.cpp -o "$WORK/test_ship_core"
+  tests/ship/test_ship_core.cpp module/ship/ship_core.cpp module/ship/scenario_core.cpp -o "$WORK/test_ship_core"
 "$WORK/test_ship_core" >/dev/null
 
 echo
@@ -69,7 +69,7 @@ sed -i 's/if (giver == OfficerOfTheDeck(s) && OodMayOrder(s, giver, recipient)) 
 grep -q 'if (giver == OfficerOfTheDeck(s)) return true;' "$WORK/shipmod/ship_core.cpp" \
   || fail "the plant did not take"
 "$CXX" -std=c++17 -g -I "$WORK/shipmod" -I module/ui \
-  tests/ship/test_ship_core.cpp "$WORK/shipmod/ship_core.cpp" -o "$WORK/test_broken"
+  tests/ship/test_ship_core.cpp "$WORK/shipmod/ship_core.cpp" module/ship/scenario_core.cpp -o "$WORK/test_broken"
 if "$WORK/test_broken" >"$WORK/broken.txt" 2>&1; then
   echo "FAIL  the test passed on a broken core: the check has no teeth" >&2
   exit 1

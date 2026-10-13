@@ -31,7 +31,7 @@ fail() { echo "FAIL  $1" >&2; exit 1; }
 
 echo "==> departments: the unit test suite, built here"
 "$CXX" -std=c++17 -g -I module/ship -I module/ui \
-  tests/ship/test_ship_core.cpp module/ship/ship_core.cpp -o "$WORK/test_ship_core"
+  tests/ship/test_ship_core.cpp module/ship/ship_core.cpp module/ship/scenario_core.cpp -o "$WORK/test_ship_core"
 "$WORK/test_ship_core" >/dev/null
 
 echo
@@ -63,7 +63,7 @@ cp -r module/ship "$WORK/shipmod"
 sed -i 's/"Security and tactical", "Science",/"Security and tactical", "Sciences",/' "$WORK/shipmod/ship_core.cpp"
 grep -q '"Security and tactical", "Sciences",' "$WORK/shipmod/ship_core.cpp" || fail "the department plant did not take"
 "$CXX" -std=c++17 -g -I "$WORK/shipmod" -I module/ui \
-  tests/ship/test_ship_core.cpp "$WORK/shipmod/ship_core.cpp" -o "$WORK/test_broken_dept"
+  tests/ship/test_ship_core.cpp "$WORK/shipmod/ship_core.cpp" module/ship/scenario_core.cpp -o "$WORK/test_broken_dept"
 if "$WORK/test_broken_dept" >"$WORK/broken_dept.txt" 2>&1; then
   echo "FAIL  the test passed with a department the roster does not have: the check has no teeth" >&2
   exit 1
@@ -81,7 +81,7 @@ sed -i 's/int Complement(const Ship &s) { return s.complement; }/int Complement(
   "$WORK/shipmod2/ship_core.cpp"
 grep -q 'return COMPLEMENT_DEFAULT; }' "$WORK/shipmod2/ship_core.cpp" || fail "the complement plant did not take"
 "$CXX" -std=c++17 -g -I "$WORK/shipmod2" -I module/ui \
-  tests/ship/test_ship_core.cpp "$WORK/shipmod2/ship_core.cpp" -o "$WORK/test_broken_comp"
+  tests/ship/test_ship_core.cpp "$WORK/shipmod2/ship_core.cpp" module/ship/scenario_core.cpp -o "$WORK/test_broken_comp"
 if "$WORK/test_broken_comp" >"$WORK/broken_comp.txt" 2>&1; then
   echo "FAIL  the test passed with a complement that ignores its data: the check has no teeth" >&2
   exit 1

@@ -65,6 +65,10 @@ echo "==> damage control: the three tiers, severity scaling, and the post the la
 "$ROOT/scripts/damage-control-check.sh"
 
 echo
+echo "==> scenario: the declaration contract -- fields, the two laws, and the loader (O15)"
+"$ROOT/scripts/scenario-check.sh"
+
+echo
 echo "==> manner: the crew's state is audible and visible, and degrades without audio (G14)"
 "$ROOT/scripts/manner-check.sh"
 

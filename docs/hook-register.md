@@ -47,7 +47,7 @@ the code and not in this register.** If it fails, add the hook; do not weaken th
 - **owner** — the document that owns the design. `—` means the header names none; that is a
   document to write, not a gap in this register.
 
-### The three states of reachability (Task B)
+### The states of reachability (Task B)
 
 These are not the same claim, and the third is the one that hides:
 
@@ -57,6 +57,12 @@ These are not the same claim, and the third is the one that hides:
   `g_shipTest` harness reaches it. A player cannot get here by playing.
 - **nothing** — no path in the game reaches it at all: the mechanism exists and nothing calls it
   outside the unit tests. This is the state that hides, and the reason to look.
+- **content** — reached by an authored scenario declaration, through the loader
+  (`module/ship/scenario_core.cpp`; `docs/scenario-manifest.md`). Not a person's reach: it is the
+  crossing's other half, the derivation's fourth question (`docs/the-derivation.md`). The loader is
+  compiled into the module and driven by the simulation; **the game's own invocation of it — the
+  evaluator that decides a scenario fires — is the next pass**. A hook that was `nothing` and is now
+  `content` has a call path an author can use, which is the difference between inventory and readiness.
 
 **A fourth case the brief's three states did not separate, named as a call:** a hook the
 simulation raises on its own in play, but which no player can deliberately invoke. It is marked
@@ -404,8 +410,8 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `RisingDriveAtStake` | `const CrewMember &c, uint8_t skill, uint8_t context, float stress` | The drive a context realises in a person: the WORK_DRIVE factor the work-bites pass already computes (a fear realised by the task in front of them), or empty when... | console | — | — |
 | `RisingOdds` | `const RisingOffer &o, const CrewMember &c, const WorkFactor *f, int n` | The odds of the attempt: the person's own factors, moved by how far it is beyond their effective skill | console | — | docs/failure-is-content.md |
 | `ScheduledActivity` | `int watch, int secondOfDay` | Where a crew member is and what they are doing at a time of day, by their watch alone | play | — | — |
-| `PostsNeeded` | `` | The posts the ship's systems need to be fully manned, summed from the specs | nothing | — | — |
-| `CoverWithCrew` | `int crew` | cover with crew | nothing | person | — |
+| `PostsNeeded` | `` | The posts the ship's systems need to be fully manned, summed from the specs; **reached by a scenario's `staff` field** (`docs/scenario-manifest.md`, `module/ship/scenario_core.cpp`) | content | — | docs/scenario-atlas.md |
+| `CoverWithCrew` | `int crew` | cover with crew; **reached by a scenario's `staff` field** (`module/ship/scenario_core.cpp`) | content | person | docs/scenario-atlas.md |
 | `BeaconKindName` | `BeaconKind k` | beacon kind name | play | — | — |
 | `LogVisibilityName` | `uint8_t v` | log visibility name | nothing | — | — |
 | `PersonalLog` | `const Ship &s, int owner` | The private read: this person's entries, newest last, and nobody else's -- not a scope, not command, not a post's clearance | play | person | — |
@@ -787,8 +793,8 @@ has and the game does not yet offer.
 - `PromiseKindName` — no caller anywhere (reader)
 - `MannerLine` — reached only by the tests (situation)
 - `RetellRising` — reached only by the tests (entry)
-- `PostsNeeded` — reached only by the tests (reader)
-- `CoverWithCrew` — reached only by the tests (reader)
+- `PostsNeeded` — **wired 2026-10-13: a scenario's `staff` field reaches it** (entry point of the declaration contract; `docs/evidence/the-manifest-contract.md`)
+- `CoverWithCrew` — **wired 2026-10-13: a scenario's `staff` field reaches it** (entry point of the declaration contract; `docs/evidence/the-manifest-contract.md`)
 - `LogVisibilityName` — no caller anywhere (reader)
 - `VoiceTrackName` — reached only by the tests (reader)
 - `ActiveReply` — reached only by the tests (reader)
