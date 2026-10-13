@@ -1,0 +1,98 @@
+{
+  "name": "deck11-gel-pack",
+
+  "canon_root": "the gel pack fever (the forward bio-neural grid; slate 1, docs/scenario-atlas.md)",
+
+  "breeding_conditions": [
+    {"state": "deuterium", "op": "<", "value": 0.35},
+    {"state": "patients", "op": ">=", "value": 1},
+    {"state": "system_condition", "op": "<", "value": 0.7}
+  ],
+
+  "systems": [
+    {"id": "replicators", "stress": 0.3},
+    {"id": "life support", "stress": 0.15},
+    {"id": "holodecks", "off": true},
+    "sickbay"
+  ],
+
+  "staff": ["sickbay", "engineering", "operations"],
+
+  "cost": {
+    "answer": {
+      "text": "isolate the forward grid and treat the carriers",
+      "effects": [
+        {"effect": "fabricate_parts", "count": 2},
+        {"effect": "sicken", "post": "sickbay", "condition": "exhausted", "magnitude": "slight"}
+      ]
+    },
+    "ignore": {
+      "text": "let the fever run and keep the lights on",
+      "effects": [
+        {"effect": "damage_system", "system": "replicators", "amount": 0.4},
+        {"effect": "ignite", "deck": 11, "amount": 0.2}
+      ]
+    }
+  },
+
+  "residue": [
+    "one deck's upkeep gone quiet",
+    {"effect": "sicken", "post": "sickbay", "condition": "grieving", "magnitude": "clear"}
+  ],
+
+  "visibility": ["engineering", "sickbay", "deck:11"],
+
+  "warmth": ["holodeck"],
+
+  "positions": [
+    {
+      "post": "the engineering seat",
+      "information": ["system_condition", "console", "brief"],
+      "authority": ["operate", "call_alert"],
+      "responsible_for": ["engineering", "life support"],
+      "decision": "which systems go dark while the grid is down"
+    },
+    {
+      "post": "the medical seat",
+      "information": ["patients", "log", "brief"],
+      "authority": ["operate", "call_alert"],
+      "responsible_for": ["medical", "sickbay"],
+      "decision": "who is treated first, and what is turned off to keep the beds lit"
+    }
+  ],
+
+  "decision": {
+    "question": "What do you turn off while the grid is down?",
+    "options": [
+      {"label": "the holodecks, and ration the replicators",
+       "cost": [{"effect": "damage_system", "system": "replicators", "amount": 0.1}]},
+      {"label": "the science labs, and keep the holodecks running",
+       "cost": [{"effect": "damage_system", "system": "science labs", "amount": 0.1}]}
+    ]
+  },
+
+  "lines": [
+    {"to": "the engineering seat", "delivery": "order", "text": "Isolate the forward grid. Nothing draws from it until I say so."},
+    {"to": "the medical seat", "delivery": "condolence", "text": "Treat the carriers first. We will hold the deck."}
+  ],
+
+  "maps": [],
+  "scripts": [],
+  "inhabited": [],
+  "crew": {
+    "map": "tour/deck11",
+    "max": 4,
+    "members": [
+      {"name": "watch1", "type": "Renner", "at": [0, 0, 0]},
+      {"name": "watch2", "type": "Showers", "at": [64, 0, 0]},
+      {"name": "watch3", "type": "Green", "at": [0, 64, 0]},
+      {"name": "watch4", "type": "Lang", "at": [64, 64, 0]}
+    ],
+    "posts": [
+      {"name": "post1", "at": [0, 0, 0], "holder": "watch1"},
+      {"name": "post2", "at": [64, 0, 0], "holder": "watch2"},
+      {"name": "post3", "at": [0, 64, 0], "holder": "watch3"},
+      {"name": "post4", "at": [64, 64, 0], "holder": "watch4"}
+    ]
+  }
+}

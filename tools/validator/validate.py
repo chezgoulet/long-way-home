@@ -15,6 +15,9 @@ Error codes are stable so a fault can be referred to by name:
   E006  declared script fails to compile
   E007  compiled script fails round-trip (the game's reader rejects it)
   E008  crew section invalid            (malformed, or inconsistent with the map it names)
+  E009  declaration field invalid       (unknown key, wrong type, or a value outside its vocabulary)
+  E010  post-not-name law broken        (content names a crew member instead of addressing a post)
+  E011  delivery direction missing      (a line does not declare how it is delivered)
   W001  declared script never referenced by any map
   W004  map has no navigation coverage and is not declared inhabited (fine for space)
   W005  content registration approaching an engine limit (models/sounds) - see the note
@@ -126,6 +129,21 @@ def check_manifest(root, rep):
         if key not in man:
             rep.error("E005", "scenario.json", f"missing required key '{key}'")
     return man
+
+
+def check_declarations(man, rep):
+    """The declaration contract: every field the design says a scenario declares, and the two laws.
+
+    The rules live in `tools/validator/declarations.py` (the schema) so the validator and the builder
+    cannot drift. This maps a Finding onto the report's own error code.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import declarations
+    findings = []
+    declared = declarations.check(man, findings)
+    for f in findings:
+        rep.error(f.code, f.where, f.detail)
+    return declared, len(declarations.FIELDS)
 
 
 def check_crew(man, data_dir, rep, root):
@@ -310,6 +328,10 @@ def main():
     crew = man.get("crew")
     if crew is not None:
         check_crew(man, a.data, rep, root)
+
+    declared, total = check_declarations(man, rep)
+    if declared:
+        rep.note(f"declaration: {declared} field(s) declared and checked; {total} in the contract")
 
     maps = expand(man.get("maps", []))
     # A scenario that crews a deck the installation already has brings no map of its own.

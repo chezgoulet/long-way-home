@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SHIP ${CMAKE_CURRENT_SOURCE_DIR}/../../module/ship)
 set(UI ${CMAKE_CURRENT_SOURCE_DIR}/../../module/ui)
-add_executable(test_ship_core test_ship_core.cpp ${SHIP}/ship_core.cpp)
+add_executable(test_ship_core test_ship_core.cpp ${SHIP}/ship_core.cpp ${SHIP}/scenario_core.cpp)
 target_include_directories(test_ship_core PRIVATE ${SHIP} ${UI})
 target_compile_options(test_ship_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
 

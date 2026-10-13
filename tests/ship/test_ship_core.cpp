@@ -2,13 +2,16 @@
 // `test_ship_core --day` instead prints a simulated day, hour by hour, as evidence.
 
 #include "ship_core.h"
+#include "scenario_core.h"
 #include "lwh_textfit.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <set>
+#include <sstream>
 #include <string>
 
 using namespace ship;
@@ -4662,6 +4665,165 @@ static int PrintLosses()
 		WriteOffs(back).empty() ? "-" : WriteOffs(back).back().what.c_str(),
 		WriteOffs(back).empty() ? "-" : WriteOffs(back).back().who.c_str());
 	return restored && WriteOffs(back).size() == 4 ? 0 : 1;
+}
+
+// The declaration contract, in one fixture: every field the design says a scenario declares, present
+// once, addressed only by post. The manifest half is `docs/scenario-manifest.md`; the loader is
+// `module/ship/scenario_core.cpp`; the two laws are enforced by `tools/validator/declarations.py`.
+static const char *const SCENARIO_FIXTURE =
+	"scenario unit-fixture\n"
+	"canon-root \"the fixture\"\n"
+	"condition deuterium < 0.35\n"
+	"condition patients >= 1\n"
+	"system off \"holodecks\"\n"
+	"system stress \"replicators\" 0.3\n"
+	"system read \"sickbay\"\n"
+	"staff \"sickbay\"\n"
+	"staff \"engineering\"\n"
+	"cost-answer \"isolate the grid and treat the carriers\"\n"
+	"effect answer fabricate_parts count=2\n"
+	"cost-ignore \"let the fever run\"\n"
+	"effect ignore ignite deck=11 amount=0.2\n"
+	"residue \"one deck's upkeep gone quiet\"\n"
+	"visibility station \"engineering\"\n"
+	"visibility deck 11\n"
+	"warmth \"holodeck\"\n"
+	"position \"the engineering seat\"\n"
+	"position-info \"the engineering seat\" system_condition\n"
+	"position-authority \"the engineering seat\" operate\n"
+	"position-responsible \"the engineering seat\" engineering\n"
+	"position-decision \"the engineering seat\" \"which systems go dark\"\n"
+	"decision \"What do you turn off while the grid is down?\"\n"
+	"option \"the holodecks, and ration the replicators\"\n"
+	"line \"the engineering seat\" order \"Isolate the forward grid.\"\n"
+	"line \"the medical seat\" condolence \"We will hold the deck.\"\n";
+
+static ship::Ship FictitiousShip()
+{
+	ship::Config cfg;
+	cfg.fictitious = true;
+	ship::Ship s = ship::NewShip(cfg);
+	ship::ApplyStartState(s, ship::StartStateAt(2));
+	return s;
+}
+
+static void TestScenarioContract()
+{
+	g_test = "the declaration contract: fields parsed, laws held, posts resolved to people";
+	scenario::Decl d;
+	std::string err;
+	CHECK(scenario::Parse(SCENARIO_FIXTURE, d, err));
+	CHECK(err.empty());
+	CHECK(d.name == "unit-fixture");
+	CHECK(d.conditions.size() == 2);
+	CHECK(d.systems.size() == 3);
+	CHECK(d.staff.size() == 2);
+	CHECK(!d.answer_text.empty() && !d.ignore_text.empty());
+	CHECK(d.answer_effects.size() == 1 && d.ignore_effects.size() == 1);
+	CHECK(d.residue.size() == 1);
+	CHECK(d.visibility.size() == 2);
+	CHECK(d.warmth.size() == 1);
+	CHECK(d.positions.size() == 1);
+	CHECK(!d.decision_question.empty() && d.options.size() == 1);
+	CHECK(d.lines.size() == 2);
+	CHECK(d.lines[1].delivery == "condolence");
+
+	// The field list the loader carries is the schema's own list, all of it.
+	int n = 0;
+	const char *const *fields = scenario::Fields(&n);
+	CHECK(n == 11);
+	bool hasLines = false;
+	for (int i = 0; i < n; ++i) if (std::strcmp(fields[i], "lines") == 0) hasLines = true;
+	CHECK(hasLines);
+
+	// Applying the declaration changes the ship as declared: the holodecks go off, the replicators
+	// come under stress, the staff coverage is computed (the primitives the derivation found reached
+	// by nothing), and a program runs for warmth.
+	ship::Ship canon = ship::NewShip();
+	const float before = ship::SystemCondition(canon.systems[ship::SYS_REPLICATORS]);
+	std::vector<std::string> log;
+	scenario::Apply(canon, d, &log);
+	CHECK(!canon.systems[ship::SYS_HOLODECKS].enabled);
+	CHECK(ship::SystemCondition(canon.systems[ship::SYS_REPLICATORS]) < before);
+	CHECK(log.size() > 6);
+	bool sawStaff = false, sawWarmth = false, sawCarried = false;
+	for (const std::string &l : log) {
+		if (l.find("staff:") != std::string::npos) sawStaff = true;
+		if (l.find("warmth holodeck") != std::string::npos) sawWarmth = true;
+		if (l.find("carried:") != std::string::npos) sawCarried = true;
+	}
+	CHECK(sawStaff && sawWarmth && sawCarried);
+
+	// The post-not-name law holds at runtime: the same content resolves to whoever holds the post, and
+	// the line is unchanged when the crew is entirely fictitious.
+	const int canonEng = scenario::ResolvePost(canon, "the engineering seat");
+	CHECK(canonEng >= 0);
+	CHECK(canon.crew[canonEng].type.find("torres") != std::string::npos);
+	ship::Ship fict = FictitiousShip();
+	const int fictEng = scenario::ResolvePost(fict, "the engineering seat");
+	const int fictMed = scenario::ResolvePost(fict, "the medical seat");
+	CHECK(fictEng >= 0 && fictMed >= 0);
+	CHECK(fictEng != canonEng || fict.crew[fictEng].name != canon.crew[canonEng].name);
+	// The content is identical; only the person changes.
+	CHECK(d.lines[0].text == std::string("Isolate the forward grid."));
+	CHECK(fict.crew[fictEng].name != canon.crew[canonEng].name);
+
+	// A malformed declaration is refused whole, with its line number.
+	scenario::Decl bad;
+	std::string badErr;
+	CHECK(!scenario::Parse("scenario x\nnonsense here\n", bad, badErr));
+	CHECK(badErr.find("line 2") != std::string::npos);
+}
+
+// `test_ship_core --scenario FILE` prints a manifest's declaration as the simulation instantiates it:
+// the fields parsed, the ship the declaration makes, and the post-not-name law resolving each post to
+// a person. `--scenario-fields` prints the loader's field list for the coverage check.
+static int PrintScenario(const char *path)
+{
+	std::ifstream in(path);
+	if (!in) { std::printf("cannot read %s\n", path); return 1; }
+	std::stringstream ss; ss << in.rdbuf();
+	scenario::Decl d;
+	std::string err;
+	if (!scenario::Parse(ss.str(), d, err)) { std::printf("FAIL  %s\n", err.c_str()); return 1; }
+
+	int n = 0; scenario::Fields(&n);
+	std::printf("  scenario \"%s\": %d declaration field(s) carried by the loader\n", d.name.c_str(), n);
+	std::printf("  fields:"); for (int i = 0; i < n; ++i) std::printf(" %s", scenario::Fields(nullptr)[i]); std::printf("\n");
+	std::printf("  canon root: %s\n", d.canon_root.c_str());
+
+	ship::Ship s = ship::NewShip();
+	std::printf("  systems, as declared (before -> after):\n");
+	std::vector<std::string> log;
+	scenario::Apply(s, d, &log);
+	for (const std::string &l : log) std::printf("    %s\n", l.c_str());
+
+	// The same content, an all-fictitious crew: the posts are the same, the people are not.
+	ship::Ship fict = FictitiousShip();
+	std::printf("  the post-not-name law, at the two rosters:\n");
+	for (const scenario::Position &p : d.positions) {
+		const int a = scenario::ResolvePost(s, p.post);
+		const int b = scenario::ResolvePost(fict, p.post);
+		std::printf("    post %-22s canon: %-12s fictitious: %s\n", p.post.c_str(),
+			a >= 0 ? s.crew[a].name.c_str() : "(none)",
+			b >= 0 ? fict.crew[b].name.c_str() : "(none)");
+	}
+	for (const scenario::Line &ln : d.lines) {
+		const int a = scenario::ResolvePost(fict, ln.to);
+		std::printf("    %s to %s (%s): \"%s\"\n", ln.delivery.c_str(), ln.to.c_str(),
+			a >= 0 ? fict.crew[a].name.c_str() : "(none)", ln.text.c_str());
+	}
+	std::printf("  carried for the evaluator (not applied here): %zu condition(s), %zu option(s)\n",
+		d.conditions.size(), d.options.size());
+	return 0;
+}
+
+static int PrintScenarioFields()
+{
+	int n = 0;
+	const char *const *f = scenario::Fields(&n);
+	for (int i = 0; i < n; ++i) std::printf("%s\n", f[i]);
+	return 0;
 }
 
 // `test_ship_core --shields` prints the six arcs as evidence (docs/evidence/the-shield-sections.md):
@@ -9913,6 +10075,8 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
 	if (argc > 1 && !std::strcmp(argv[1], "--shields")) return PrintShields();
+	if (argc > 1 && !std::strcmp(argv[1], "--scenario") && argc > 2) return PrintScenario(argv[2]);
+	if (argc > 1 && !std::strcmp(argv[1], "--scenario-fields")) return PrintScenarioFields();
 	if (argc > 1 && !std::strcmp(argv[1], "--departments")) return PrintDepartments();
 	if (argc > 1 && !std::strcmp(argv[1], "--damage-control")) return PrintDamageControl();
 	if (argc > 1 && !std::strcmp(argv[1], "--maintenance")) return PrintMaintenance();
@@ -10088,6 +10252,7 @@ int main(int argc, char **argv)
 	TestOodAuthority();
 	TestOodDispatch();
 	TestOodRefusalLegible();
+	TestScenarioContract();
 	TestTextFit();
 
 	if (g_failures) {

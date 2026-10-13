@@ -113,6 +113,34 @@ def seed_broken_script(root):
         fh.write('this is not a script ( "unbalanced );\n')
 
 
+def seed_bad_declaration(root):
+    """A declaration field with a value outside its vocabulary (E009)."""
+    man = json.load(open(os.path.join(root, "scenario.json")))
+    man["systems"] = ["not_a_system"]
+    json.dump(man, open(os.path.join(root, "scenario.json"), "w"))
+
+
+def seed_unknown_manifest_key(root):
+    """A manifest key nothing reads -- the field the loader would ignore (E009)."""
+    man = json.load(open(os.path.join(root, "scenario.json")))
+    man["bogus_field"] = True
+    json.dump(man, open(os.path.join(root, "scenario.json"), "w"))
+
+
+def seed_post_not_name(root):
+    """Content that names a crew member rather than addressing a post (E010)."""
+    man = json.load(open(os.path.join(root, "scenario.json")))
+    man["lines"] = [{"to": "tuvok", "delivery": "order", "text": "Tuvok, seal the breach."}]
+    json.dump(man, open(os.path.join(root, "scenario.json"), "w"))
+
+
+def seed_no_delivery(root):
+    """A line that does not declare its delivery direction (E011)."""
+    man = json.load(open(os.path.join(root, "scenario.json")))
+    man["lines"] = [{"to": "sickbay", "text": "Anything at all."}]
+    json.dump(man, open(os.path.join(root, "scenario.json"), "w"))
+
+
 def seed_content_overflow(root):
     """A level whose model registration approaches MAX_MODELS. Warnings do not fail the run, so
     this case asserts the warning is *emitted and named* rather than that the exit code changes."""
@@ -134,6 +162,10 @@ CASES = [
     ("E004 unresolved internal asset", seed_missing_asset, "E004", "absent_shader"),
     ("E005 malformed manifest", seed_bad_manifest, "E005", "scenario.json"),
     ("E006 script fails to compile", seed_broken_script, "E006", "deck.txt"),
+    ("E009 bad declaration field", seed_bad_declaration, "E009", "not_a_system"),
+    ("E009 unknown manifest key", seed_unknown_manifest_key, "E009", "bogus_field"),
+    ("E010 post-not-name law", seed_post_not_name, "E010", "names a crew member"),
+    ("E011 delivery direction missing", seed_no_delivery, "E011", "delivery direction"),
 ]
 
 
@@ -170,8 +202,8 @@ def main():
                 print("      " + line)
             return 2
 
-        for label, seed, code, needle in CASES:
-            case = os.path.join(tmp, "case_" + code)
+        for i, (label, seed, code, needle) in enumerate(CASES):
+            case = os.path.join(tmp, f"case_{i}_{code}")
             shutil.copytree(clean, case)
             for dirpath, _, names in os.walk(case):
                 for n in names:
@@ -185,8 +217,8 @@ def main():
                 failures += 1
                 print("      output was:\n" + "\n".join("      " + l for l in out.splitlines()[:8]))
 
-        for label, seed, code, needle in WARN_CASES:
-            case = os.path.join(tmp, "warn_" + code)
+        for i, (label, seed, code, needle) in enumerate(WARN_CASES):
+            case = os.path.join(tmp, f"warn_{i}_{code}")
             shutil.copytree(clean, case)
             for dirpath, _, names in os.walk(case):
                 for n in names:

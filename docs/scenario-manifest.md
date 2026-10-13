@@ -118,10 +118,91 @@ defaults: a half-read configuration is worse than none.
 `E001` unknown entity class · `E002` script reference not among the declared scripts ·
 `E003` inhabited space with no navigation · `E004` scenario-owned asset missing ·
 `E005` manifest malformed · `E006` script fails to compile · `E007` compiled stream fails to read
-back · `E008` crew section invalid, or inconsistent with the map it names · `W001` declared but
-unreferenced script · `W002` retail asset references (informational) · `W003` checks skipped ·
+back · `E008` crew section invalid, or inconsistent with the map it names ·
+`E009` declaration field invalid — an unknown key, a wrong type, or a value outside its vocabulary ·
+`E010` the post-not-name law broken — content names a crew member instead of addressing a post ·
+`E011` a line declares no delivery direction, or one not in the engine's set ·
+`W001` declared but unreferenced script · `W002` retail asset references (informational) · `W003` checks skipped ·
 `W004` space with no navigation, not declared inhabited · `W005` models or sounds approaching an
 engine limit · `W006` configstring budget · `W007` crew section advisory (outside the G3 bar, or
 more crew than posts).
 
 Exit status is 0 when there are no errors; warnings never fail a build.
+
+## The declaration contract — what a scenario declares
+
+`docs/scenario-atlas.md` says a scenario is *declared*, not thrown: it states its breeding conditions, the
+systems it stresses, the staff it needs, the cost to answer or to ignore, its residue, its visibility and its
+warmth, the positions it can be experienced from, and the decision it owns — and it is instantiated **through
+the post**, never through a named person (`docs/the-entry-point.md`, part three). Those fields are now
+manifest keys, validated against the design that owns each one. `tools/validator/declarations.py` is the one
+machine form of this contract: the validator and the builder both read it, so they cannot disagree about what
+a field is, and `scripts/scenario-check.sh` proves the loader carries every field and no field the schema
+does not name.
+
+| key | type | meaning | allowed values | the design line |
+|---|---|---|---|---|
+| `canon_root` | string | the fiction's own root, the slate entry's name | free text; it may not name a crew member | `docs/scenario-atlas.md:184` (*"each names its canon root"*) |
+| `breeding_conditions` | array of `{state, op, value}` | which ship state makes it eligible | `state` ∈ the readable state below; `op` ∈ `<` `<=` `>` `>=` `==` `!=`; `value` a number (or `true`/`false` for `coreless`) | `:70` (*"which ship state makes it eligible"*) |
+| `systems` | array of a system id, or `{id, stress?, off?}` | the systems it reads and writes, by our system IDs | the 23 shipped system names (`SPECS[]`, `module/ship/ship_core.cpp`), or `<system>.<arc>` for one of canon's six arcs; the optional `stress`/`off` is the initial load | `:71` (*"the systems it reads and writes, by our system IDs"*) |
+| `staff` | array of a post | the posts it requires, so the crew model is the cost | a system id (the crew post vocabulary), one of the nine departments, or a command seat | `:72` (*"posts it requires, so the crew model is the cost"*) |
+| `cost.answer`, `cost.ignore` | `{text, effects: [...]}` | what answering spends, and what ignoring lets accrue | each `effects` entry is an effect kind below | `:73`; `:25-27` (*"ignoring something is not failing — it is a different state"*) |
+| `residue` | array of a string or an effect | what is permanently different afterwards | a lasting thing in words, or an effect kind | `:73` (*"what is permanently different afterwards"*) |
+| `visibility` | array | what the player sees *where they are* | a station (`engineering`, `tactical`, `operations`, `conn`, `sickbay`), a system id, or `deck:<n>` | `:74` (*"what the player sees where they are"*) |
+| `warmth` | array of a beat | the human beat it leaves behind | `holodeck`, `quarters`, `funeral`, `promote`, `rations`, `airponics`, `promise`, `manner`, `wall` | `:76` (*"the human beat it leaves behind"*) |
+| `positions` | array of `{post, information, authority, responsible_for, decision}` | the positions it can be experienced from | `post` a post; `information` ∈ `log`, `brief`, `console`, `station` or a readable state; `authority` ∈ `operate`, `call_alert`, `command`, `delegate`, `override`, `ood`; `responsible_for` a post or department | `:139-141` (*"the positions it can be experienced from … the information they receive, the authority they hold, the people they are responsible for, and the decision they own"*) |
+| `decision` | `{question, options: [{label, cost: [...]}]}` | the scenario's own decision | each option's `cost` is a list of effect kinds | `:184` (*"each names … its decision"*) |
+| `lines` | array of `{to, delivery, text}` | the content spoken, delivered | `to` a post; `delivery` ∈ `order`, `report`, `confession`, `condolence`, `flat`; `text` may not name a crew member | `:78-87`; the delivery vocabulary is `docs/gates.md` (*"every line carries a delivery direction"*) |
+
+**The effect kinds** a cost or a residue writes, each an existing primitive: `write_off`, `damage_system`,
+`shield_hit`, `ignite`, `breach`, `kill`, `sicken`, `promote`, `take_survivors`, `fabricate_parts`,
+`fabricate_rations`, `air_source`, `run_holodeck`. An effect that acts on a person acts on a **post** — the
+law holds inside an effect too.
+
+**The readable state** a breeding condition may name: `deuterium`, `antimatter`, `batteries`, `torpedoes`,
+`spare_parts`, `materials`, `rations`, `probes`, `patients`, `refugees`, `resentment`, `borg_awareness`,
+`power_shortfall`, `coreless`, `intruders`, `minutes_of_air`, `deck_life_support`, `system_condition`. These
+are the readers `docs/the-derivation.md` lists under *Breeding conditions*.
+
+### The two laws, and why they are checked rather than trusted
+
+- **The post-not-name rule.** Because the player may field an all-fictitious crew (`docs/the-entry-point.md`,
+  part three), content addresses a post, a system id or a role; the simulation resolves it to a person. A
+  manifest whose content names a crew member — its own declared members, or the canon command crew — is
+  **refused** (`E010`). The check is mechanical: the validator knows the manifest's own `crew.members`, and
+  the canon names are read from the engine's own seat table rather than copied.
+- **The delivery direction per line.** A line declares how it is delivered, from the engine's `Delivery`
+  vocabulary (`order` / `report` / `confession` / `condolence` / `flat`), rather than that being assumed. A
+  line with no `delivery`, or an unknown one, is **refused** (`E011`). `unmarked` is not authored content:
+  where a brief cannot know a direction the loader marks the line, and the synthesis seam refuses it.
+
+### An unknown key is refused
+
+The manifest is closed against the frame keys (`name`, `maps`, `scripts`, `inhabited`, `asset_roots`,
+`crew`) and this contract. Any other top-level key is **refused** (`E009`), because a key nothing reads is a
+field an author believes in that the game ignores — the failure this pass exists to prevent.
+
+### Where the design is silent, the shape is ours
+
+The design names the fields and their meaning; it does not fix every shape, and where it is silent the shape
+is decided here, once, so it can be overruled:
+
+1. **`breeding_conditions` is a list of `{state, op, value}`** rather than a free-text sentence, so it is a
+   thing a predicate can read.
+2. **`systems` entries may carry an initial load** (`stress`, `off`); the bare id is the systems the scenario
+   reads and writes with no initial change.
+3. **`positions` is a list of objects with the four sub-fields the design names**, and `post` is the only
+   required one.
+4. **A cost or residue is a list of effect objects** over the vocabulary above, rather than prose.
+5. **`visibility` is a station, a system id or `deck:<n>`** — the three places a person can be standing.
+
+### What the fields reach — the loader, and the evaluator that is not here
+
+`module/ship/scenario_core.cpp` parses the compiled declaration and **instantiates what can be instantiated
+now**: the systems it stresses (off, or under load), the staff coverage (the two primitives the derivation
+found reached by nothing but the tests), the warmth beat, and every position and line, each **resolved from
+its post to a person**. It **carries** the breeding conditions, the costs, the residue and the decision,
+because reading those and deciding a scenario fires is the **evaluator** — and the evaluator is the next
+pass, named here rather than half-built. The worked example is `scenarios/deck11-gel-pack/`; the evidence is
+`docs/evidence/the-manifest-contract.md`.
+

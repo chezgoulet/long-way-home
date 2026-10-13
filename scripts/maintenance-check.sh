@@ -33,7 +33,7 @@ fail() { echo "FAIL  $1" >&2; exit 1; }
 
 echo "==> maintenance: the unit test suite, built here"
 "$CXX" -std=c++17 -g -I module/ship -I module/ui \
-  tests/ship/test_ship_core.cpp module/ship/ship_core.cpp -o "$WORK/test_ship_core"
+  tests/ship/test_ship_core.cpp module/ship/ship_core.cpp module/ship/scenario_core.cpp -o "$WORK/test_ship_core"
 "$WORK/test_ship_core" >/dev/null
 
 echo
@@ -77,7 +77,7 @@ cp -r module/ship "$WORK/shipmod"
 sed -i 's/gain = std::min(gain, sys.wear);/gain = 0.0f; \/\/ planted: the maintenance runs and changes nothing/' "$WORK/shipmod/ship_core.cpp"
 grep -q 'planted: the maintenance runs and changes nothing' "$WORK/shipmod/ship_core.cpp" || fail "the wear plant did not take"
 "$CXX" -std=c++17 -g -I "$WORK/shipmod" -I module/ui \
-  tests/ship/test_ship_core.cpp "$WORK/shipmod/ship_core.cpp" -o "$WORK/test_broken"
+  tests/ship/test_ship_core.cpp "$WORK/shipmod/ship_core.cpp" module/ship/scenario_core.cpp -o "$WORK/test_broken"
 if "$WORK/test_broken" >"$WORK/broken.txt" 2>&1; then
   echo "FAIL  the test passed with a maintenance that changes nothing: the check has no teeth" >&2
   exit 1

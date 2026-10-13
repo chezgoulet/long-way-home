@@ -136,6 +136,41 @@ demanded uppercase), and it was not marked executable. **What the register canno
 hook it calls *diagnostic* is one a player would in fact want. That is the owner's, and the list to read
 is the 62 genuine gaps.
 
+### The manifest's field contract — the gate content waits on ✅ built 2026-10-13
+
+`docs/the-derivation.md` found the crossing one-sided: the manifest validated `name`, `maps`, `scripts`
+(and `inhabited`, `asset_roots`, `crew`) and **had no key for any declaration field**, so *no declaration
+reached any primitive*. This pass closes that half on `feat/the-manifest` (cut from `testing`; static host,
+no engine and no game data). Built:
+
+- **every field the atlas says a scenario declares is a manifest key**, with a type, a meaning and its
+  allowed values taken from the design that owns it — or, where the design is silent, decided once and
+  recorded as ours (`docs/scenario-manifest.md`, *The declaration contract*; `tools/validator/declarations.py`
+  is the one machine form the validator and the builder both read);
+- **the two authoring laws are enforced mechanically**: content that names a crew member is refused (`E010`,
+  the post-not-name law, `docs/the-entry-point.md`, part three), and a line that does not declare its
+  delivery direction is refused (`E011`); a field with an unknown key, a wrong type or a value outside its
+  vocabulary is refused (`E009`) — **including an unknown top-level key**, because a key nothing reads is
+  the failure this pass exists to prevent;
+- **the fields' call paths are real**: `module/ship/scenario_core.cpp` parses a validated manifest compiled
+  by `tools/scenario/scenario_build.py` and instantiates what can be instantiated now — the systems it
+  stresses, the staff coverage, the warmth beat, and every position and line, each **resolved from its post
+  to a person**. It **carries** the breeding conditions, costs, residue and decision: **the evaluator — the
+  thing that reads a scenario's breeding conditions and decides it fires — is the next pass**, named here
+  rather than half-built;
+- **the two primitives the derivation found reached by nothing but the tests now have a call path**:
+  `PostsNeeded` and `CoverWithCrew` are reached by a scenario's `staff` field (`docs/hook-register.md`'s
+  reach column, `docs/hook-triage.md` §5). **What is left of the 53 entry points is named, not rounded**:
+  the contract calls `LogEvent` (a line reaches the record) and `ScanCompartment` (the deck visibility is a
+  compartment read); the other 51 are the evaluator's event set and the voice/report layers, tabulated in
+  the evidence;
+- **one worked example**, every field used once: `scenarios/deck11-gel-pack/`, end to end — validated,
+  compiled, loaded, and shown doing what it declares.
+
+Evidence: `docs/evidence/the-manifest-contract.md`; check: `scripts/scenario-check.sh`, wired into
+`scripts/test.sh`. **O15 moves to *partly*** (the contract is built; the nine scenarios are content and
+remain). **Not in this pass:** the nine, the evaluator, and any engine change beyond the loader.
+
 ### The documentation contradictions, settled — and the check that keeps the mechanical ones settled ✅ 2026-10-09
 
 The walkthrough's **G13** named ten contradictions, each a false claim if quoted and several sitting at
@@ -1344,7 +1379,11 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   `feat/the-configurator`): because the player may field an all-fictitious crew, no scenario, meeting
   brief, log entry or voice line may name a crew member; each addresses a post and the simulation
   resolves it to a person (`docs/the-entry-point.md`, part three; `docs/hook-register.md`'s `law`
-  column). The slate itself is still to author.
+  column). **The field contract and the two laws are built 2026-10-13** (`feat/the-manifest`): every
+  declared field is a validated manifest key, the validator refuses a name and a missing delivery, and a
+  loader reaches the primitives the fields call (`docs/scenario-manifest.md`,
+  `docs/evidence/the-manifest-contract.md`, `scripts/scenario-check.sh`). **The slate itself is still to
+  author**, and the evaluator that decides a scenario fires is the next pass.
 - **O18 — Track D / the multiplayer premise** (kind 2, deferred): `docs/multiplayer-premise.md`,
   `docs/design-north-star.md` §8.
 
