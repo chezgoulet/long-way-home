@@ -10522,7 +10522,18 @@ std::string OrderRefusalRule(const Ship &s, int giver, int recipient, uint8_t or
 	if (giver < 0 || giver >= static_cast<int>(s.crew.size())) return "no one gave it";
 	if (giver == recipient) return "a person cannot order themselves";
 	if (s.crew[giver].status != CREW_FIT || s.crew[giver].brigged) return "the order of a person not fit for duty";
-	if (!MayOrder(s, giver, recipient)) return "you have no authority over " + who;
+	if (!MayOrder(s, giver, recipient)) {
+		// The deck's refusal is the deck's own to name (register C-11: "the refusal names its ground").
+		// When the officer of the deck is the giver, `DispatchOrder`'s refusal is spoken and logged from
+		// here, so the ground is `OodRefusal`'s own words -- "the captain is not the deck's to order" --
+		// rather than the generic denial. `OodMayOrder` is consumed by `MayOrder` (the consult that lets
+		// the deck *give* the order); this is the consumer that names why it may not.
+		if (giver == OfficerOfTheDeck(s)) {
+			const char *ground = OodRefusal(s, giver, recipient);
+			if (ground[0]) return ground;
+		}
+		return "you have no authority over " + who;
+	}
 	if (!RecipientMeets(s, recipient, OrderClassSpecOf(order).needs))
 		return who + " does not hold the post this order needs";
 	return std::string();

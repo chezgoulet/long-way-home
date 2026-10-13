@@ -9455,6 +9455,101 @@ static void TestOodDispatch()
 	CHECK(s.orderRepairFirst == s.crew[ordered].post);
 }
 
+// C-11's second leg, the brief's own acceptance: an order the deck may not give is refused, and the
+// refusal names the deck's own ground (OodRefusal's words) rather than a generic denial -- so whoever
+// gave it reads why. `DispatchOrder` reaches this through `OrderRefusalRule`, which now consults
+// `OodRefusal`. The ship is unchanged on the refusal.
+static void TestOodRefusalLegible()
+{
+	g_test = "the deck's refusal names its ground";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int ood = OfficerOfTheDeck(s);
+	const int captain = SeatHolder(s, SEAT_CAPTAIN);
+	CHECK(ood >= 0 && captain >= 0 && s.crew[captain].rank >= 6);
+	CHECK(!MayCommand(s.crew[ood]));   // the deck is not a commander: the deck's rule is what bites
+
+	// A brief as a commander would build it for the captain (the option exists because the captain
+	// meets it). Then the deck gives that option -- and the deck's authority is what refuses it.
+	int commander = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (i == captain || i == ood) continue;
+		if (c.status == CREW_FIT && !c.brigged && !c.away && MayCommand(c)) { commander = i; break; }
+	}
+	CHECK(commander >= 0);
+	const OrderBrief b = BuildOrderBrief(s, commander, captain);
+	CHECK(b.optionCount > 0);                                  // the captain can be given it by command
+	const uint8_t class0 = b.options[0].order;
+	CHECK(!OrderPermitted(s, ood, captain, class0));            // ... but not by the deck
+	const size_t jobsBefore = s.jobs.size();
+	const OrderOutcome r = DispatchOrder(s, b, 0, ood);
+	CHECK(r.refused && !r.given);
+	CHECK(r.refusal == std::string(OodRefusal(s, ood, captain)));   // the deck's own words
+	CHECK(r.refusal.find("captain") != std::string::npos);
+	CHECK(r.refusal.find("authority") == std::string::npos);        // not the generic denial
+	CHECK(r.replyCount >= 1 && r.reply[0].text.find("not yours") != std::string::npos);
+	CHECK(s.jobs.size() == jobsBefore);                             // the ship is unchanged
+}
+
+// The officer of the deck as a readout: `test_ship_core --ood` (docs/evidence/the-ood-binds.md). Both
+// legs, observed: the deck gives a senior an order, and the deck is refused the captain with the
+// deck's own ground.
+static int PrintOod()
+{
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int ood = OfficerOfTheDeck(s);
+	const int captain = SeatHolder(s, SEAT_CAPTAIN);
+	int senior = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status == CREW_FIT && !c.brigged && !c.away
+			&& c.rank > s.crew[ood].rank && c.rank < 6 && c.post < SYS_COUNT) { senior = i; break; }
+	}
+	std::printf("== the line: the deck's authority is authority, not access\n");
+	std::printf("  the deck is %s (rank %d); MayOperate(engineering) %d\n",
+		s.crew[ood].name.c_str(), s.crew[ood].rank, MayOperate(s, ood, STN_ENGINEERING) ? 1 : 0);
+	std::printf("  may order %s (rank %d): %s\n", s.crew[senior].name.c_str(), s.crew[senior].rank,
+		OodMayOrder(s, ood, senior) ? "yes" : OodRefusal(s, ood, senior));
+	std::printf("  may order the captain %s: %s\n", s.crew[captain].name.c_str(),
+		OodMayOrder(s, ood, captain) ? "yes" : OodRefusal(s, ood, captain));
+
+	std::printf("== the consult binds: the deck's order to a senior is dispatched\n");
+	{
+		const OrderBrief b = BuildOrderBrief(s, ood, senior);
+		const int idx = OptionOf(b, ORDER_SEE_TO);
+		CHECK(idx >= 0);
+		const OrderOutcome r = DispatchOrder(s, b, idx, ood);
+		std::printf("  the deck -> %s: %s; orderRepairFirst %d\n", s.crew[senior].name.c_str(),
+			r.given ? "given" : "refused", s.orderRepairFirst);
+	}
+
+	std::printf("== the refusal is legible: the deck's order to the captain names its ground\n");
+	{
+		Ship c = NewShip();
+		Tick(c, 1.0f);
+		const int cood = OfficerOfTheDeck(c);
+		const int ccaptain = SeatHolder(c, SEAT_CAPTAIN);
+		int commander = -1;
+		for (int i = 0; i < static_cast<int>(c.crew.size()); ++i) {
+			const CrewMember &m = c.crew[i];
+			if (i == ccaptain || i == cood) continue;
+			if (m.status == CREW_FIT && !m.brigged && !m.away && MayCommand(m)) { commander = i; break; }
+		}
+		const OrderBrief cb = BuildOrderBrief(c, commander, ccaptain);
+		const size_t jobsBefore = c.jobs.size();
+		const OrderOutcome cr = DispatchOrder(c, cb, 0, cood);
+		std::printf("  the deck -> the captain: %s\n", cr.given ? "given" : "refused");
+		std::printf("  the rule: \"%s\"\n", cr.refusal.c_str());
+		std::printf("  the rule is the deck's own words: %s\n",
+			cr.refusal == std::string(OodRefusal(c, cood, ccaptain)) ? "yes" : "no");
+		std::printf("  the ship is unchanged: %s; nobody was given it: %d\n",
+			c.jobs.size() == jobsBefore ? "yes" : "no", cr.given ? 1 : 0);
+	}
+	return 0;
+}
+
 // `test_ship_core --bills` prints the bills as evidence (docs/evidence/the-bills.md): the census,
 // each bill called and observed, the crew's recorded state changing, and the officer of the deck.
 static int PrintBills()
@@ -9549,6 +9644,7 @@ static int PrintBills()
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--bills")) return PrintBills();
+	if (argc > 1 && !std::strcmp(argv[1], "--ood")) return PrintOod();
 	if (argc > 1 && !std::strcmp(argv[1], "--textfit")) return PrintTextFit(true);
 	if (argc > 1 && !std::strcmp(argv[1], "--textfit-unwrapped")) return PrintTextFit(false);
 	if (argc > 1 && !std::strcmp(argv[1], "--crew")) return PrintCrew();
@@ -9739,6 +9835,7 @@ int main(int argc, char **argv)
 	TestTheBills();
 	TestOodAuthority();
 	TestOodDispatch();
+	TestOodRefusalLegible();
 	TestTextFit();
 
 	if (g_failures) {
