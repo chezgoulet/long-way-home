@@ -894,6 +894,14 @@ the evidence.
 because access-and-authority separates the axes itself: **the deck's authority is authority, not
 access** — it orders Tuvok and cannot operate the engine room (`MayOperate 0`). Extending the deck's
 access to match is the fork, and is not taken. Recorded as ours in the evidence.
+
+**The deck's authority binds, and its refusal is legible** (C-11, 2026-10-12): `MayOrder` consults
+`OodMayOrder`, so the deck's order reaches a senior it cannot reach by rank; and `OrderRefusalRule`
+consults `OodRefusal`, so `DispatchOrder`'s refusal of the deck is spoken and logged in the deck's own
+words (`the captain is not the deck's to order`) rather than a generic denial, with the ship unchanged
+(`TestOodDispatch`, `TestOodRefusalLegible`, `test_ship_core --ood`, `scripts/ood-check.sh`;
+`docs/evidence/the-ood-binds.md`). **Save format unchanged** — a derivation and a refusal write no
+state.
 <!-- register-row id=O6 state=closed marker=check:scripts/bills-check.sh -->
 
 ### The wrap — text is never clipped to fit

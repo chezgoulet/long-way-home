@@ -49,6 +49,10 @@ echo "==> bills: the watch bill and the reconfiguration bills (O6)"
 "$ROOT/scripts/bills-check.sh"
 
 echo
+echo "==> ood: the deck's authority binds, and its refusal names its ground (C-11)"
+"$ROOT/scripts/ood-check.sh"
+
+echo
 echo "==> shields: canon's six arcs, and damage routes to one (C-14)"
 "$ROOT/scripts/shields-check.sh"
 
