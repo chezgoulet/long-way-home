@@ -4775,6 +4775,100 @@ static void TestScenarioContract()
 	CHECK(badErr.find("line 2") != std::string::npos);
 }
 
+// The evaluator: what reads the breeding conditions and decides the scenario fires (docs/scenario-
+// manifest.md, the evaluator). Both directions, the nearest miss, the two degenerate conditions, the
+// ledger, and the save.
+static void TestScenarioEvaluator()
+{
+	g_test = "the evaluator: conditions decide, both ways, and the ledger records";
+	scenario::Decl d;
+	std::string err;
+	CHECK(scenario::Parse(SCENARIO_FIXTURE, d, err));
+
+	// A fresh ship does not fire: the nearest miss is named with the ship's own number, not a guess.
+	Ship idle = NewShip();
+	const scenario::Evaluation e0 = scenario::Evaluate(idle, d);
+	CHECK(!e0.fires);
+	CHECK(e0.nearest_miss >= 0);
+	CHECK(e0.readings[static_cast<size_t>(e0.nearest_miss)].outcome == scenario::COND_UNMET);
+	CHECK(e0.reason.rfind("does not fire", 0) == 0);
+	CHECK(e0.reason.find("nearest miss") != std::string::npos);
+
+	// The state the fixture's conditions ask for: deuterium low, one patient.
+	Ship s = NewShip();
+	s.stores.deuterium = 0.2f;
+	s.crew[0].status = CREW_INJURED;
+	const scenario::Evaluation e1 = scenario::Evaluate(s, d);
+	CHECK(e1.fires);
+	CHECK(e1.fired_by >= 0);
+	CHECK(e1.readings[static_cast<size_t>(e1.fired_by)].outcome == scenario::COND_MET);
+	CHECK(e1.reason.rfind("fires", 0) == 0);
+
+	// Recruit fires it once and records it in flight; a second call does not fire it twice.
+	std::vector<std::string> log;
+	CHECK(scenario::Recruit(s, d, &log));
+	CHECK(ScenarioFired(s, d.name));
+	CHECK(!scenario::Recruit(s, d, &log));
+	bool sawOrder = false;
+	for (const std::string &l : log)
+		if (l.find("order to the engineering seat (") != std::string::npos) sawOrder = true;
+	CHECK(sawOrder); // the post-not-name law at runtime
+
+	// Resolve takes the decision: the answer's cost is applied and the residue written.
+	Ship r = NewShip();
+	r.stores.deuterium = 0.2f;
+	r.crew[0].status = CREW_INJURED;
+	CHECK(scenario::Recruit(r, d, nullptr));
+	const float parts = r.stores.spareParts;
+	CHECK(scenario::Resolve(r, d, SCENARIO_ANSWER, nullptr));
+	CHECK(r.stores.spareParts >= parts); // effect fabricate_parts count=2
+	CHECK(FiredScenarios(r).size() == 1 && FiredScenarios(r)[0].branch == SCENARIO_ANSWER);
+	CHECK(!scenario::Resolve(r, d, SCENARIO_OPTION_BASE + 9, nullptr)); // no such option
+
+	// The save: the ledger round-trips, a fired scenario does not fire twice across a load, and an
+	// older save (version 64, without the ledger) is refused.
+	std::vector<uint8_t> blob = Pack(r);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(FiredScenarios(back).size() == 1 && FiredScenarios(back)[0].branch == SCENARIO_ANSWER);
+	CHECK(ScenarioFired(back, d.name));
+	CHECK(!scenario::Recruit(back, d, nullptr));
+	std::vector<uint8_t> older = blob;
+	older[4] = 64; // the version is the second field, after the 4-byte magic
+	Ship refuse;
+	CHECK(!Unpack(older.data(), older.size(), refuse));
+
+	// The falsification: a condition true for every value (a tautology) and one true for no value (a
+	// contradiction) are named as degenerate, not treated as ordinary.
+	scenario::Decl taut, contra;
+	CHECK(scenario::Parse("scenario taut\ncondition deuterium >= 0\n", taut, err));
+	CHECK(scenario::Parse("scenario contra\ncondition deuterium > 1\n", contra, err));
+	const scenario::Evaluation et = scenario::Evaluate(NewShip(), taut);
+	CHECK(et.degenerate && et.readings[0].outcome == scenario::COND_ALWAYS);
+	const scenario::Evaluation ec = scenario::Evaluate(NewShip(), contra);
+	CHECK(ec.degenerate && ec.readings[0].outcome == scenario::COND_NEVER);
+	CHECK(!ec.fires);
+
+	// What no state carries: the scoped states are named, and a condition naming one is still answered
+	// by the reader's default (so the worked example's system_condition fires). A state with *no*
+	// reader at all cannot recruit: it is unreadable, named, and it blocks.
+	int nscoped = 0;
+	const char *const *scoped = scenario::UnreadableStates(&nscoped);
+	CHECK(nscoped == 3 && scoped != nullptr);
+	int nread = 0;
+	CHECK(scenario::ReadableStates(&nread) != nullptr && nread == 15);
+	int nimplied = 0;
+	CHECK(scenario::DesignImpliedStates(&nimplied) != nullptr && nimplied == 6);
+	double worst = 1.0;
+	CHECK(scenario::ReadState(s, "system_condition", &worst, nullptr));
+	CHECK(worst >= 0.0 && worst <= 1.0);
+	scenario::Decl unknown;
+	CHECK(scenario::Parse("scenario unknown\ncondition nebula_contact >= 1\n", unknown, err));
+	const scenario::Evaluation eu = scenario::Evaluate(NewShip(), unknown);
+	CHECK(!eu.fires && eu.unreadable.size() == 1 && eu.unreadable[0] == "nebula_contact");
+	CHECK(eu.reason.find("no reader") != std::string::npos);
+}
+
 // `test_ship_core --scenario FILE` prints a manifest's declaration as the simulation instantiates it:
 // the fields parsed, the ship the declaration makes, and the post-not-name law resolving each post to
 // a person. `--scenario-fields` prints the loader's field list for the coverage check.
@@ -4823,6 +4917,123 @@ static int PrintScenarioFields()
 	int n = 0;
 	const char *const *f = scenario::Fields(&n);
 	for (int i = 0; i < n; ++i) std::printf("%s\n", f[i]);
+	return 0;
+}
+
+// `test_ship_core --recruit FILE` runs the evaluator on a compiled declaration: it decides on a
+// fresh ship (nothing met, nearest miss named), sets the state the declaration asks for, decides
+// again (fires, the condition named), recruits and instantiates it, resolves the decision, and shows
+// the ledger and the save. This is the simulation's own output for the worked example.
+static int PrintRecruit(const char *path)
+{
+	std::ifstream in(path);
+	if (!in) { std::printf("cannot read %s\n", path); return 1; }
+	std::stringstream ss; ss << in.rdbuf();
+	scenario::Decl d;
+	std::string err;
+	if (!scenario::Parse(ss.str(), d, err)) { std::printf("FAIL  %s\n", err.c_str()); return 1; }
+
+	std::printf("  scenario \"%s\": the evaluator decides against the ship's actual state\n", d.name.c_str());
+
+	// One: a fresh ship. It does not fire, and the nearest miss is named, quoted from the ship.
+	Ship fresh = NewShip();
+	const scenario::Evaluation e0 = scenario::Evaluate(fresh, d);
+	std::printf("    fresh ship: %s\n", e0.reason.c_str());
+	for (const scenario::ConditionReading &r : e0.readings)
+		std::printf("      %-18s %s %-3g  now %-8g  %s\n", r.cond.state.c_str(), r.cond.op.c_str(),
+			r.cond.value, r.now, scenario::ConditionOutcomeName(r.outcome));
+
+	// Two: the state the scenario's conditions ask for. The worked example needs deuterium under 35%,
+	// a patient in the ward, and a system below 0.7; a generic caller sets what it declares.
+	Ship s = NewShip();
+	s.stores.deuterium = 0.20f;
+	s.crew[0].status = CREW_INJURED;
+	DamageSystem(s, SYS_REPLICATORS, 0.4f);
+	double worst = 1.0;
+	scenario::ReadState(s, "system_condition", &worst, nullptr);
+	std::printf("    the state it asks for: deuterium %.2f, %d patient(s), worst system %.2f\n",
+		s.stores.deuterium, static_cast<int>(Patients(s).size()), worst);
+	const scenario::Evaluation e1 = scenario::Evaluate(s, d);
+	std::printf("    it decides: %s\n", e1.reason.c_str());
+
+	// Three: recruit and instantiate, end to end.
+	std::printf("    instantiating:\n");
+	std::vector<std::string> log;
+	const bool fired = scenario::Recruit(s, d, &log);
+	for (const std::string &l : log) std::printf("      %s\n", l.c_str());
+	if (!fired) { std::printf("  FAIL  the scenario did not fire on the state it asks for\n"); return 1; }
+
+	// Four: the decision, its cost, and the residue.
+	std::vector<std::string> res;
+	scenario::Resolve(s, d, SCENARIO_ANSWER, &res);
+	std::printf("    resolving (answer):\n");
+	for (const std::string &l : res) std::printf("      %s\n", l.c_str());
+
+	// Five: the ledger, and the save.
+	std::printf("    the ledger:");
+	for (const FiredScenario &f : FiredScenarios(s))
+		std::printf(" %s(%s)", f.name.c_str(),
+			f.branch == SCENARIO_UNDECIDED ? "in flight" : f.branch == SCENARIO_ANSWER ? "answer"
+			: f.branch == SCENARIO_IGNORE ? "ignore" : "option");
+	std::printf("\n");
+	const std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	const bool loaded = Unpack(blob.data(), blob.size(), back);
+	std::vector<uint8_t> older = blob;
+	if (older.size() > 5) older[4] = 64; // claim to be the previous format
+	Ship refuse;
+	std::printf("    save: %zu bytes; round-trips the ledger: %s; an older save (v64) loads: %s\n",
+		blob.size(), loaded && FiredScenarios(back).size() == FiredScenarios(s).size() ? "yes" : "NO",
+		Unpack(older.data(), older.size(), refuse) ? "yes" : "no (refused)");
+
+	// Six: what no state carries. The scoped states the shape cannot pin, and the design's own facts
+	// no manifest key reaches at all.
+	int nscoped = 0;
+	const char *const *scoped = scenario::UnreadableStates(&nscoped);
+	std::printf("    declared but not answerable as declared (no subject in the condition shape):");
+	for (int i = 0; i < nscoped; ++i) std::printf(" %s", scoped[i]);
+	std::printf("\n");
+	int nimplied = 0;
+	const char *const *implied = scenario::DesignImpliedStates(&nimplied);
+	std::printf("    the design implies, and no manifest key reaches at all:");
+	for (int i = 0; i < nimplied; ++i) std::printf(" %s", implied[i]);
+	std::printf("\n");
+
+	// Seven: the two degenerate conditions, named rather than treated as ordinary.
+	scenario::Decl t, c;
+	std::string e2;
+	scenario::Parse("scenario t\ncondition deuterium >= 0\n", t, e2);
+	scenario::Parse("scenario c\ncondition deuterium > 1\n", c, e2);
+	const scenario::Evaluation et = scenario::Evaluate(NewShip(), t);
+	const scenario::Evaluation ec = scenario::Evaluate(NewShip(), c);
+	std::printf("    degenerate, and named (not ordinary): deuterium >= 0 -> %s; deuterium > 1 -> %s\n",
+		scenario::ConditionOutcomeName(et.readings[0].outcome),
+		scenario::ConditionOutcomeName(ec.readings[0].outcome));
+
+	// A condition that names state no reader carries cannot recruit at all: it is unreadable, named.
+	scenario::Decl u;
+	std::string e3;
+	scenario::Parse("scenario u\ncondition nebula_contact >= 1\n", u, e3);
+	const scenario::Evaluation eu = scenario::Evaluate(NewShip(), u);
+	std::printf("    a state no reader carries cannot recruit: nebula_contact >= 1 -> %s (%s)\n",
+		scenario::ConditionOutcomeName(eu.readings[0].outcome),
+		eu.unreadable.empty() ? "?" : eu.unreadable[0].c_str());
+
+	// Eight: the post-not-name law at runtime, across rosters. The same content recruits under an
+	// all-fictitious crew, and each line resolves to whoever holds the post -- demonstrated, not
+	// merely validated at load.
+	Ship fict = FictitiousShip();
+	fict.stores.deuterium = 0.20f;
+	fict.crew[0].status = CREW_INJURED;
+	DamageSystem(fict, SYS_REPLICATORS, 0.4f);
+	std::vector<std::string> flog;
+	scenario::Recruit(fict, d, &flog);
+	std::printf("    the law at runtime, an all-fictitious crew:\n");
+	for (const scenario::Line &ln : d.lines) {
+		const int who = scenario::ResolvePost(fict, ln.to);
+		std::printf("      %s to %s (%s): \"%s\"\n", ln.delivery.c_str(), ln.to.c_str(),
+			who >= 0 ? fict.crew[who].name.c_str() : "(none)", ln.text.c_str());
+	}
 	return 0;
 }
 
@@ -5090,7 +5301,7 @@ static int PrintMaintenance()
 		const bool loads = Unpack(blob.data(), blob.size(), back);
 		int mjobs = 0;
 		for (const Job &j : Jobs(back)) if (j.kind == JOB_MAINTENANCE) ++mjobs;
-		std::printf("  format %u (63 -> 64 this pass: the wear clock is saved, so an older save does not load); the blob is %zu bytes and loads %d; the maintenance job round-trips (%d), the party is re-derived\n",
+		std::printf("  format %u (the wear clock was saved at 64 and the scenario ledger at 65, so an older save does not load); the blob is %zu bytes and loads %d; the maintenance job round-trips (%d), the party is re-derived\n",
 			SAVE_VERSION, blob.size(), loads ? 1 : 0, mjobs);
 	}
 	return 0;
@@ -10077,6 +10288,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--shields")) return PrintShields();
 	if (argc > 1 && !std::strcmp(argv[1], "--scenario") && argc > 2) return PrintScenario(argv[2]);
 	if (argc > 1 && !std::strcmp(argv[1], "--scenario-fields")) return PrintScenarioFields();
+	if (argc > 1 && !std::strcmp(argv[1], "--recruit") && argc > 2) return PrintRecruit(argv[2]);
 	if (argc > 1 && !std::strcmp(argv[1], "--departments")) return PrintDepartments();
 	if (argc > 1 && !std::strcmp(argv[1], "--damage-control")) return PrintDamageControl();
 	if (argc > 1 && !std::strcmp(argv[1], "--maintenance")) return PrintMaintenance();
@@ -10253,6 +10465,7 @@ int main(int argc, char **argv)
 	TestOodDispatch();
 	TestOodRefusalLegible();
 	TestScenarioContract();
+	TestScenarioEvaluator();
 	TestTextFit();
 
 	if (g_failures) {

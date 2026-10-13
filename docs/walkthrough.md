@@ -680,17 +680,27 @@ would take to close.** Leniency is the failure mode; this is what is not there.
   consoles without the `ui_lwh_*` command names.
 
 ### G4 — There is no scenario content at all, and nothing recruits one
-- **Status 2026-10-11 — OPEN.** `docs/gates.md` still carries *"G5 — capstone scenario ⏳ pending"*, and
-  `docs/omissions.md` registers the nine-scenario slate as **O15** — *"the slate itself is still to
-  author."* `scenarios/` holds two measurement harnesses. Waits on the scenario content and a
-  breeding-condition director, this row's own "To close". Left unannotated: no single artifact names it.
-- **Missing:** `docs/scenario-atlas.md` designs nine scenarios with breeding conditions; no breeding
-  director exists. `scenarios/` holds two measurement harnesses (`deck04-watch`, `testroom-watch`).
-  Nothing spawns a contact, a distress call, an anomaly or a boarding during normal play.
-- **Says so:** `docs/scenario-atlas.md`; `scenarios/`; the absence of any director beyond the crew
-  layer's restaffing rule (`module/crew/g_crew.cpp`).
-- **To close:** the scenario manifest and a breeding-condition evaluator, plus at least one scenario end
-  to end. This is the largest content gap and the reason most of Section 8 is console-invoked.
+- **Status 2026-10-13 — PARTLY CLOSED.** Both halves of the "To close" are now built: the **scenario
+  manifest** (`feat/the-manifest`, #149; `docs/scenario-manifest.md`, `docs/evidence/the-manifest-contract.md`)
+  and the **breeding-condition evaluator** (`feat/the-evaluator`;
+  `docs/evidence/the-evaluator.md`, `scripts/evaluator-check.sh`). The evaluator reads a declaration's
+  breeding conditions against the ship's actual state, decides it fires **both ways** (naming the
+  condition that fired it, or the nearest miss), and **recruits** it: the worked example
+  (`scenarios/deck11-gel-pack/`) is instantiated through the post — the systems it stresses, the staff it
+  needs, every line resolved to a person — its decision resolved, its cost applied and its residue
+  written. What it names and does not carry: the three scoped states the condition shape cannot pin
+  (`system_condition`, `deck_life_support`, `minutes_of_air`) and the design facts no manifest key
+  reaches at all (a contact, a battle, a beacon, a breach, structural integrity, the clock).
+  **What is left:** the nine scenarios are content, and no in-game verb loads a `*.scenario` and
+  recruits it yet — the loader reads a string, and wiring a file into it in play is the playtest host's.
+  Left unannotated: no single artifact names the whole.
+- **Missing:** ~~`docs/scenario-atlas.md` designs nine scenarios with breeding conditions; no breeding
+  director exists.~~ The contract and the evaluator exist; the nine scenarios remain, and the in-game
+  reach does not.
+- **Says so:** `docs/scenario-atlas.md`; `docs/evidence/the-evaluator.md`; the ledger's *the manifest's
+  field contract* and O15.
+- **To close:** the nine scenarios (content, authored against the contract). The manifest and a
+  breeding-condition evaluator, and one scenario end to end, are built. <!-- register-row id=G4 state=partly marker=check:scripts/evaluator-check.sh -->
 
 ### G5 — The systems under stress are reachable only from the developer console
 - **Status 2026-10-11 — PARTLY CLOSED.** The first slice landed: `docs/gates.md` (*the hook register,

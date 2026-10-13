@@ -108,6 +108,98 @@ int ResolvePost(const ship::Ship &s, const std::string &post);
 // fields the evaluator owns are carried and named, not applied.
 void Apply(ship::Ship &s, const Decl &d, std::vector<std::string> *out);
 
+// ---- the evaluator: what reads the breeding conditions and decides the scenario fires ------------
+//
+// `docs/scenario-manifest.md` states it: the loader *carries* the breeding conditions, and reading
+// them and deciding a scenario fires is the evaluator. This is it. It reads each condition against
+// the ship's *actual* state -- the stores, the crew, the clock, the record -- and returns a verdict
+// a caller can act on and an author can read:
+//
+//   * `fires` names the condition that fired it (the one met by the narrowest margin, the load the
+//     premise leans on hardest);
+//   * a scenario that does not fire names its **nearest miss**, quoted with the ship's own number;
+//   * a condition that names state no reader carries is **UNREADABLE** and is named -- a field that
+//     cannot recruit anything;
+//   * a condition that is true for *every* value the state can take (`ALWAYS`) or for *no* value
+//     (`NEVER`) is named as **degenerate**: a scenario recruited by a tautology recruits itself, and
+//     one recruited by a contradiction can never fire. Neither is ordinary.
+//
+// The evaluator consumes the conditions and the decision; `Recruit` instantiates the scenario
+// through the loader (`Apply`) and records it in the ship's ledger; `Resolve` applies the chosen
+// branch's cost and writes the residue. So the seam is named: the evaluator *reads* the conditions
+// and the decision, the simulation *applies* the systems, the staff, the warmth, the cost and the
+// residue.
+
+enum ConditionOutcome : uint8_t {
+	COND_MET = 0,      // the state satisfies it now
+	COND_UNMET,        // the state does not satisfy it now
+	COND_UNREADABLE,   // it names state no reader carries
+	COND_ALWAYS,       // true for every value the state can take (a tautology: it recruits nothing)
+	COND_NEVER,        // true for no value the state can take (a contradiction: it can never fire)
+};
+const char *ConditionOutcomeName(uint8_t o);
+
+struct ConditionReading {
+	Condition cond;
+	uint8_t outcome = COND_UNMET;
+	bool has_now = false;   // the ship's current value was readable
+	double now = 0.0;       // ... and is this
+	double margin = 0.0;    // signed slack: how far past the threshold it is met (>= 0), or short (< 0)
+	std::string note;       // why, in words, for the report
+};
+
+struct Evaluation {
+	bool fires = false;
+	bool already_fired = false;         // `Recruit` only: the ledger holds it
+	bool degenerate = false;            // an ALWAYS or a NEVER condition was found
+	int fired_by = -1;                  // the decisive condition's index, when it fires
+	int nearest_miss = -1;              // the closest unmet condition's index, or -1
+	std::vector<ConditionReading> readings;
+	std::vector<std::string> unreadable; // the states named with no reader, deduplicated
+	std::vector<std::string> degenerate_conditions; // the tautologies and contradictions, named
+	std::string reason;                 // one line, in words: why it fired, or did not
+};
+
+// Read one breeding-condition state against the ship. Returns false (and leaves `out`) when the
+// state has no reader -- the condition cannot recruit. Scoped states (`system_condition`,
+// `deck_life_support`, `minutes_of_air`) name no subject in the condition tuple, so they are read as
+// the ship's worst: the most ailing system, the least-supported deck, the soonest-running-out deck.
+// That default is a decision recorded in `docs/scenario-manifest.md`; it is why those states are
+// also named by `UnreadableStates()` -- the reader answers, but the shape cannot say *which*.
+bool ReadState(const ship::Ship &s, const std::string &state, double *out, std::string *note);
+
+// The range a readable state can take, for the tautology/contradiction test. `hi` may be +inf. False
+// for a state with no reader.
+bool StateRange(const std::string &state, double *lo, double *hi);
+
+// Evaluate every condition against the ship. The ship is not changed.
+Evaluation Evaluate(const ship::Ship &s, const Decl &d);
+
+// Recruit: evaluate; if it fires and the ledger does not already hold it, instantiate it (`Apply`)
+// and record it in flight. Returns true if it fired on this call. `out` receives the transcript.
+bool Recruit(ship::Ship &s, const Decl &d, std::vector<std::string> *out);
+
+// The player's decision on a fired scenario: apply the chosen branch's effects and write the
+// residue. `branch` is SCENARIO_ANSWER, SCENARIO_IGNORE, or SCENARIO_OPTION_BASE + an option's
+// index. Returns false, changing nothing, if the scenario has not fired or the branch is not one the
+// declaration offers. Records the branch in the ledger.
+bool Resolve(ship::Ship &s, const Decl &d, int branch, std::vector<std::string> *out);
+
+// Apply one effect of the contract's vocabulary, through the primitive the design names. `post`,
+// where an effect acts on a person, is resolved to whoever holds it -- the law holds inside an
+// effect too. Returns false, changing nothing, for an unknown kind.
+bool ApplyEffect(ship::Ship &s, const Effect &e, std::vector<std::string> *out);
+
+// The breeding-condition states the contract names, split by whether this build can read them.
+// `UnreadableStates` is the list the report carries: the states the design implies but no state
+// carries *as declared*, so the next pass must give the condition shape a subject.
+const char *const *ReadableStates(int *count);
+const char *const *UnreadableStates(int *count);
+// The design's own breeding facts that no manifest key and no state reaches at all
+// (`docs/scenario-atlas.md`: a contact, a battle, a beacon, a breach, structural integrity, the
+// clock). Named for the next pass -- a condition cannot even be declared for them.
+const char *const *DesignImpliedStates(int *count);
+
 } // namespace scenario
 
 #endif // LWH_SCENARIO_CORE_H

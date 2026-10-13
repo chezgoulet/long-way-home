@@ -52,7 +52,7 @@
       "id": "save-version",
       "description": "the save format version, and the current value of the SAVE_VERSION constant",
       "owner": "module/ship/ship_core.h",
-      "value": "64",
+      "value": "65",
       "owner_pattern": "const uint16_t SAVE_VERSION = (\\d+);",
       "current_form": "SAVE_VERSION\\s*=\\s*(\\d+)",
       "current_form_scope": "every *.md under the repository root, except docs/evidence/ (a dated record), the owner, and the exempt_files below",

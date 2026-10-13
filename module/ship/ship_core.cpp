@@ -7604,6 +7604,30 @@ bool WriteOff(Ship &s, bool system, int target, uint8_t kind)
 
 const std::vector<LossEntry> &WriteOffs(const Ship &s) { return s.losses; }
 
+// ---- the scenario ledger (docs/scenario-manifest.md, the evaluator) -------------------------------
+
+const std::vector<FiredScenario> &FiredScenarios(const Ship &s) { return s.scenarios; }
+
+bool ScenarioFired(const Ship &s, const std::string &name)
+{
+	for (const FiredScenario &f : s.scenarios)
+		if (f.name == name) return true;
+	return false;
+}
+
+int RecordScenario(Ship &s, const std::string &name, int branch)
+{
+	for (size_t i = 0; i < s.scenarios.size(); ++i) {
+		if (s.scenarios[i].name == name) { s.scenarios[i].branch = branch; return static_cast<int>(i); }
+	}
+	FiredScenario f;
+	f.name = name;
+	f.branch = branch;
+	s.scenarios.push_back(f);
+	if (static_cast<int>(s.scenarios.size()) > SCENARIO_FIRED_MAX) s.scenarios.erase(s.scenarios.begin());
+	return static_cast<int>(s.scenarios.size()) - 1;
+}
+
 // ---- the job queue ----------------------------------------------------------------------------
 
 const char *JobKindName(uint8_t k)
@@ -9757,6 +9781,18 @@ std::vector<uint8_t> Pack(const Ship &s)
 	// it, so it is history, not a read: saved, or a load would forget how far a system has run down
 	// and would drop the maintenance job the wear raises. An older save (63) does not load.
 	for (const System &sys : s.systems) w.F(Clamp01(sys.wear));
+	// The scenario ledger (version 65, docs/scenario-manifest.md, the evaluator): the scenarios that
+	// have fired and the branch each was resolved to (SCENARIO_UNDECIDED while in flight). Saved, so a
+	// fired scenario fires once and an in-flight decision survives a load. Bounded; an older save (64)
+	// does not load.
+	{
+		const int n = std::min(static_cast<int>(s.scenarios.size()), SCENARIO_FIRED_MAX);
+		w.U8(static_cast<uint8_t>(n));
+		for (int i = 0; i < n; ++i) {
+			WriteStrCap(w, s.scenarios[i].name, 63);
+			w.U16(static_cast<uint16_t>(s.scenarios[i].branch + 1));
+		}
+	}
 	return w.b;
 }
 
@@ -10292,6 +10328,20 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 	}
 	// A system's wear (version 64; see Pack), read before the queue is re-derived by the Tick below.
 	for (System &sys : s.systems) sys.wear = r.Unit();
+	// The scenario ledger (version 65; see Pack): the scenarios that have fired, and the branch each
+	// was resolved to. A bound on the count and on the branch, so a corrupt blob is refused.
+	s.scenarios.clear();
+	{
+		const int n = r.U8();
+		if (n > SCENARIO_FIRED_MAX) return false;
+		for (int i = 0; i < n && r.ok; ++i) {
+			FiredScenario f;
+			f.name = ReadStrCap(r, 63);
+			f.branch = static_cast<int>(r.U16()) - 1;
+			if (f.branch < SCENARIO_UNDECIDED || f.branch > SCENARIO_OPTION_BASE + 64) return false;
+			s.scenarios.push_back(f);
+		}
+	}
 	if (!r.ok || r.left != 0) return false;
 
 	// Derive allocation and locations from the restored state. Power is derived first, so the crew's
