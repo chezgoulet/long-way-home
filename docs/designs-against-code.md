@@ -47,8 +47,9 @@ worth quoting.
 ### C-2 — The save format is quoted at a version it left two bumps ago
 
 - **Document:** `docs/morale.md:142` — *"the save format is **57** and an older save does not load"*.
-- **Code:** `module/ship/ship_core.h` — `const uint16_t SAVE_VERSION = 63;` (59: the bills; 60: the holodeck
-  reactor as a per-deck source; 61: the shield sections, C-14; 62: the complement as hull data, 3.3/8.53).
+- **Code:** `module/ship/ship_core.h` — `const uint16_t SAVE_VERSION = 64;` (59: the bills; 60: the holodeck
+  reactor as a per-deck source; 61: the shield sections, C-14; 62: the complement as hull data, 3.3/8.53;
+  63: the Borg adapter as a count, C-15; 64: the wear clock is saved, 3.23).
 - **Which side is wrong: the document.** The moral claim it makes — the per-person `float` left the save — is
   true; the number is stale. `tools/docs/check_claims.py` polices only the claims registered in
   `tools/docs/owned_claims.json`, and this one is not among them.
@@ -333,12 +334,15 @@ not re-dispositioned here; the remaining twelve rows are:
 
 **Since this pass (2026-10-12):** the owner ruled the forks this pass handed back, and later passes built
 them. **C-12** was ruled and is now **built** — the three tiers of damage control, written into
-`docs/crew-work.md` and `docs/ship-systems.md` (`docs/evidence/the-damage-control-party.md`); **C-4** and
-**C-14** are likewise closed on their own rows above. The bullets above record what that pass did at the
-time; the rows above are the current state.
+`docs/crew-work.md` and `docs/ship-systems.md` (`docs/evidence/the-damage-control-party.md`); **3.23** was
+ruled **BUILD MAINTENANCE as a seventh kind** and is now built (2026-10-13, its own row above);
+**C-4**, **C-14** and **C-15** are likewise closed on their own rows above. The bullets above record what
+that pass did at the time; the rows above are the current state.
 
-**No fix moves the save format; `SAVE_VERSION` stays 59.** Nothing here touches a document except the
-dispositions on these rows, and `docs/evidence/the-code-contradictions.md` is the record.
+**That pass moved no save version (it stood at 59 then).** Nothing there touched a document except the
+dispositions on those rows, and `docs/evidence/the-code-contradictions.md` is the record. *(The format has
+since moved: 60 the holodeck reactor, 61 the shield sections, 62 the complement, 63 the Borg adapter, 64
+the wear clock, 3.23.)*
 
 ---
 
@@ -465,7 +469,7 @@ Two things that table will not say by itself, and should:
 | 9 | "never apply the ladder when a person has decided" (`power-assignment.md:72-81`) | implemented | `module/ship/ship_core.cpp:2134,2141`; `TestLadderOnlyInAutoMode` | |
 | 10 | a meeting is where allocations are argued and set (`power-assignment.md:65-68`) | implemented | `module/ship/ship_core.h:1062,1226`; `ship_core.cpp:8278` | state level; the rendered meeting not observed |
 | 11 | "total committed against total available … who set each commitment" (`power-assignment.md:87-94`) | implemented | `module/ship/g_ship.cpp:731-737`; `ship_core.cpp:2340` | BUYS is a number |
-| 12 | "save format 51" (`power-assignment.md:29`) | superseded | `SAVE_VERSION = 63` | historical **Corrected 2026-10-11:** the header is the owner and it reads 63 on this ref; this statement asserted the value at the time it was written. |
+| 12 | "save format 51" (`power-assignment.md:29`) | superseded | `SAVE_VERSION = 64` | historical **Corrected 2026-10-11:** the header is the owner and it read 63 on that ref (64 since the wear clock was saved, 3.23); this statement asserted the value at the time it was written. |
 | 13 | "the five added systems and a demand of 1,730" (`budget-squaring.md:9`) | implemented | `module/ship/ship_core.cpp:53-63`; `SPECS` sums to 1730 | |
 | 14 | "warp core 1,400 … impulse 250, auxiliary 90, batteries 60, fresh 1,800" (`budget-squaring.md:9-11`) | implemented | `module/ship/ship_core.cpp:226-231`; `PowerCapacityFresh()==1800` | |
 | 15 | "the ceiling-scaled warp core; … the torpedo complement at 38" (`budget-squaring.md:11-12`) | implemented | `module/ship/ship_core.cpp:1910,3712,3719`; `ship_core.h:244` | |
@@ -527,7 +531,7 @@ Two things that table will not say by itself, and should:
 | 20 | "25 bytes per crew member" (`crew-roster.md:94`) | contradicted | `SAVE_MEMBER_BYTES=20` (`crew_core.h:220`); `g3-reactive-crew.md:157` says 20 | **C-4** family; also `docs/gates.md:197` **Disposition 2026-10-11:** **the evidence will not decide; handed to the code list** — 25 bytes is a *measurement* (`docs/evidence/g3-reactive-crew-measured.md`) and 20 is the packed `SAVE_MEMBER_BYTES`; `docs/evidence/the-number-owners.md` already recorded this as the owner's to reconcile. **Disagreement with this row's `contradicted` verdict**: the document matches its measurement, so correcting it to 20 would replace a measured number with a different one. **RESOLVED 2026-10-11 by the steward, on the owner's instruction:** **all three figures are right and measure different scopes.** The **crew blob** is `20 bytes per member plus a 16-byte header` against the configured `saveBytesPerNpc = 256` (`crew_core.h:144,219-220`) — exact, by construction, and validated on load, and already stated correctly in `docs/g3-reactive-crew.md`, which owns the format. The **layer** measures **25 bytes per member** — the blob's 20 plus about five bytes held elsewhere in the layer. The **save as a whole** grew **53,584 bytes for six crew** (≈ 9 KB per member) because almost everything that scales with a person is not the blob. `docs/crew-roster.md` is corrected to carry all three, labelled, with each figure's owner named — the error was one dropped qualifier: *of layer state*, which turned a layer measurement into a claim about the save. The paragraph's own argument survives and is stronger on the honest figure. <!-- register-row id=3.20 state=closed marker=file:docs/crew-roster.md --> |
 | 21 | a collision check on desire/allegiance/trait, failing the build (`crew-roster.md:105-107`) | absent | no such check | |
 | 22 | per-character `provenance` field (`crew-roster.md:139-141`) | absent | `CrewMember` has none | |
-| 23 | job kind "maintenance, repair, build, reclaim" (`crew-work.md:20`) | contradicted | `JobKind` enum `ship_core.h:1689` | no maintenance; seal/secure/evacuate added **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's four job kinds against the code's six. **Disposition 2026-10-12 (code pass): handed back** — a fork. The code's six (`ship_core.h:1692`: `JOB_REPAIR, JOB_SEAL, JOB_RECLAIM, JOB_BUILD, JOB_SECURE, JOB_EVACUATE`) are the four the document names plus two the orders pass appended; the document has no *maintenance* kind, and adding or removing kinds changes the queue's contract. The owner rules the vocabulary; the code is left alone. **RULED 2026-10-12 (owner): BUILD MAINTENANCE as a seventh kind.** Preventive upkeep is its own job, not a missing word: the code's six stay, and maintenance joins them. |
+| 23 | job kind "maintenance, repair, build, reclaim" (`crew-work.md:20`) | contradicted | `JobKind` enum `ship_core.h:1689` | no maintenance; seal/secure/evacuate added **Disposition 2026-10-11:** **handed to the code list** — a fork: the document's four job kinds against the code's six. **Disposition 2026-10-12 (code pass): handed back** — a fork. The code's six (`ship_core.h:1692`: `JOB_REPAIR, JOB_SEAL, JOB_RECLAIM, JOB_BUILD, JOB_SECURE, JOB_EVACUATE`) are the four the document names plus two the orders pass appended; the document has no *maintenance* kind, and adding or removing kinds changes the queue's contract. The owner rules the vocabulary; the code is left alone. **RULED 2026-10-12 (owner): BUILD MAINTENANCE as a seventh kind.** Preventive upkeep is its own job, not a missing word: the code's six stay, and maintenance joins them. **BUILT 2026-10-13:** `JOB_MAINTENANCE` is appended to `JobKind` (`ship_core.h`), so every existing kind id stays; `JobKindName` reads "maintenance". **The axis is a system's wear** (the deferred-maintenance clock the model already carried) -- not its damage, which is what a repair reads, and not its criticality, which is the queue's order -- and the threshold is a number, `MAINTENANCE_DUE = 0.20`. The standing party works it (`MAINTENANCE_TEAM_MAX` 2 hands, `MAINTENANCE_HOURS_PER_SYSTEM` 240 h to restore a wholly worn system, `MAINTENANCE_PARTS_PER_SYSTEM` 2 parts), and `MaintenanceOdds(wear) = 1 / ((1 - wear) * MAINTENANCE_DAYS)` is the failure odds the job moves -- the connection, stated because a maintenance that does not move the odds is a decoration. The order is the same authority surface as the rest (`ORDER_MAINTAIN` in `order_set.def`, `OrderMaintain` on the console; the officer of the deck's line needs no special case). The wear clock is saved, so **the format moves 63 → 64** and an older save does not load -- the deliberate cost, named. Proven by `TestMaintenanceJob` and `scripts/maintenance-check.sh`; falsified by planting the wear reduction out, which fails it. Written into `docs/crew-work.md` and `docs/ship-systems.md` as ours; the demonstration is `docs/evidence/the-maintenance-kind.md`. <!-- register-row id=3.23 state=closed marker=check:scripts/maintenance-check.sh --> |
 | 24 | job carries required skill, crew-hours, state, blocking (`crew-work.md:22-29`) | partial | `Job{kind,target,progress,priority}` `ship_core.h:1693-1698` | the named fields are absent |
 | 25 | "department heads queue their department's work" (`crew-work.md:69-75`) | partial | `SetJobPriority:4148` command-only | |
 | 26 | measure backlog-by-age, crew-hours/kind/watch, post-vacancy hours (`crew-work.md:77-81`) | unverified | `UpdateJobs:7101` exists; none produced | |
@@ -554,7 +558,7 @@ Two things that table will not say by itself, and should:
 | 47 | performance at post measurably degrades (`morale.md:41-43`) | partial | `ship_core.cpp:5606-5610` | ack latency not tied to morale |
 | 48 | compliance: delayed / done badly / refused on low outlook (`morale.md:44-46,88`) | partial | `r.resented:10224` | refusal is authority-based |
 | 49 | personnel screen: bands + top factor + "what would help" (`morale.md:60-63`) | partial | `MoraleReason:775-793` | "what would help" not produced |
-| 50 | "the save format is 57" (`morale.md:141-143`) | contradicted | `SAVE_VERSION = 63` | **C-2** **Corrected 2026-10-11:** the header is the owner and it reads 63 on this ref; this statement asserted the value at the time it was written. |
+| 50 | "the save format is 57" (`morale.md:141-143`) | contradicted | `SAVE_VERSION = 64` | **C-2** **Corrected 2026-10-11:** the header is the owner and it read 63 on that ref (64 since the wear clock was saved, 3.23); this statement asserted the value at the time it was written. |
 | 51 | holdings fold over marks, orphaned marks weigh 0 (`morale.md:113-126`) | implemented | `module/ship/ship_core.cpp:759-766`; `TestHoldingsIsAFold`, `TestPurgeMovesRegard` | |
 | 52 | `likes[]`/`dislikes[]`/`pursuits[]`, one store (`affinities-and-allegiance.md:18-41`) | absent | `CrewMember` has only `faction`, `resentment` | |
 | 53 | allegiance weights how an event lands and whether an order is carried (`affinities-and-allegiance.md:66-76`) | partial | `ship_core.cpp:5154` | faction is the only axis |

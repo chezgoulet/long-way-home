@@ -4833,6 +4833,107 @@ static int PrintDamageControl()
 	return 0;
 }
 
+static int OptionOf(const OrderBrief &b, uint8_t order); // defined with the orders tests, below
+
+// `test_ship_core --maintenance` prints the seventh job kind as evidence
+// (docs/evidence/the-maintenance-kind.md): the kind and the six it joins; the axis (wear) and the
+// threshold (MAINTENANCE_DUE) as numbers; the rule that connects the crew-hours to the odds; the same
+// system maintained and not, over fifteen days, with the wear and the failure odds moving; the order
+// and who may give it; and the save's cost (the format does not move).
+static int PrintMaintenance()
+{
+	std::printf("== the seventh kind: maintenance, preventive where repair is restorative\n");
+	std::printf("  the kinds: repair, seal, reclaim, build, secure, evacuate, maintenance; JOB_KIND_COUNT is %d\n", JOB_KIND_COUNT);
+	std::printf("  the axis: a system's wear (0 fresh .. 1 the deferred-maintenance failure); the threshold MAINTENANCE_DUE is %.2f\n",
+		(double)MAINTENANCE_DUE);
+	std::printf("  the party: up to MAINTENANCE_TEAM_MAX %d standing hands; MAINTENANCE_HOURS_PER_SYSTEM %.0f h of one engineer restores a wholly worn system (MAINTENANCE_DAYS %.0f)\n",
+		MAINTENANCE_TEAM_MAX, (double)MAINTENANCE_HOURS_PER_SYSTEM, (double)MAINTENANCE_DAYS);
+	std::printf("  the price: MAINTENANCE_PARTS_PER_SYSTEM %.0f spare parts to restore one from full wear; no parts, no upkeep\n",
+		(double)MAINTENANCE_PARTS_PER_SYSTEM);
+	std::printf("  the odds it moves: MaintenanceOdds(wear) = 1 / ((1 - wear) * MAINTENANCE_DAYS): wear 0.00 -> %.4f, 0.20 -> %.4f, 0.50 -> %.4f, 0.90 -> %.4f, 1.00 -> %.4f\n",
+		MaintenanceOdds(0.0f), MaintenanceOdds(0.20f), MaintenanceOdds(0.50f), MaintenanceOdds(0.90f), MaintenanceOdds(1.0f));
+
+	std::printf("\n== the same system, maintained and not: the sensors' whole watch lost, fifteen days\n");
+	{
+		Ship kept = NewShip();
+		Ship neglected = NewShip();
+		for (CrewMember &c : kept.crew) if (c.post == SYS_SENSORS) c.status = CREW_DEAD;
+		for (CrewMember &c : neglected.crew) if (c.post == SYS_SENSORS) c.status = CREW_DEAD;
+		neglected.stores.spareParts = 0.0f; // no upkeep without material
+		float keptPeak = 0.0f, neglectedPeak = 0.0f;
+		for (int day = 0; day < 15; ++day) {
+			keptPeak = std::max(keptPeak, kept.systems[SYS_SENSORS].wear);
+			neglectedPeak = std::max(neglectedPeak, neglected.systems[SYS_SENSORS].wear);
+			Tick(kept, Hours(kept, 24.0f));
+			Tick(neglected, Hours(neglected, 24.0f));
+		}
+		keptPeak = std::max(keptPeak, kept.systems[SYS_SENSORS].wear);
+		neglectedPeak = std::max(neglectedPeak, neglected.systems[SYS_SENSORS].wear);
+		int keptRaised = 0, neglectedRaised = 0;
+		for (const LogEntry &e : kept.log) if (e.what.find("work ordered: maintenance sensors") != std::string::npos) ++keptRaised;
+		for (const LogEntry &e : neglected.log) if (e.what.find("work ordered: maintenance sensors") != std::string::npos) ++neglectedRaised;
+		bool neglectedFailed = false;
+		for (const LogEntry &e : neglected.log) if (e.what.find("failed for want of maintenance") != std::string::npos) neglectedFailed = true;
+		std::printf("  maintained: health %.2f, wear peak %.2f (the clock never crossed 1), the failure odds peak %.4f, %d maintenance job(s) raised\n",
+			(double)kept.systems[SYS_SENSORS].health, (double)keptPeak, MaintenanceOdds(keptPeak), keptRaised);
+		std::printf("  neglected (no spare parts): health %.2f, wear peak %.2f, the failure odds peak %.4f, %d maintenance job(s) raised, failed for want of maintenance: %s\n",
+			(double)neglected.systems[SYS_SENSORS].health, (double)neglectedPeak, MaintenanceOdds(neglectedPeak), neglectedRaised,
+			neglectedFailed ? "yes" : "no");
+	}
+
+	std::printf("\n== the order: who may give it, and what it pushes\n");
+	{
+		Ship o = NewShip();
+		Tick(o, 1.0f);
+		const int giver = 0, eng = 1; // a captain and an engineer, as the orders tests set them
+		o.crew[giver].status = CREW_FIT; o.crew[giver].brigged = false; o.crew[giver].away = false;
+		o.crew[giver].dept = DEPT_COMMAND; o.crew[giver].rank = 6; o.crew[giver].post = SYS_COUNT;
+		o.crew[eng].status = CREW_FIT; o.crew[eng].brigged = false; o.crew[eng].away = false;
+		o.crew[eng].dept = DEPT_ENGINEERING; o.crew[eng].rank = 4; o.crew[eng].post = SYS_SENSORS;
+		o.systems[SYS_SENSORS].wear = 0.5f;
+		std::printf("  the class ORDER_MAINTAIN is %d of %d in the register; the pill reads \"%s\"; it costs \"%s\"\n",
+			static_cast<int>(ORDER_MAINTAIN) + 1, OrderClassCount(),
+			OrderClassSpecOf(ORDER_MAINTAIN).label, OrderClassSpecOf(ORDER_MAINTAIN).cost);
+		const OrderBrief b = BuildOrderBrief(o, giver, eng);
+		const int mi = OptionOf(b, ORDER_MAINTAIN);
+		if (mi >= 0)
+			std::printf("  offered to %s: pill %d \"%s\" -> the %s (wear %.2f)\n", o.crew[eng].name.c_str(), mi + 1,
+				b.options[mi].label.c_str(), Spec(static_cast<SystemId>(b.options[mi].target)).name,
+				(double)o.systems[b.options[mi].target].wear);
+		const OrderOutcome r = mi >= 0 ? DispatchOrder(o, b, mi, giver) : OrderOutcome();
+		std::printf("  dispatched: given %d, job %d, the job's place in the queue %d (the head)\n",
+			r.given ? 1 : 0, r.job, r.job >= 0 ? Jobs(o)[r.job].priority : 0);
+		const int ood = OfficerOfTheDeck(o);
+		int senior = -1;
+		for (int i = 0; i < static_cast<int>(o.crew.size()); ++i) {
+			const CrewMember &c = o.crew[i];
+			if (c.status != CREW_FIT || c.brigged || c.away) continue;
+			if (c.rank > o.crew[ood].rank && c.rank < 6 && c.post < SYS_COUNT) { senior = i; break; }
+		}
+		if (ood >= 0 && senior >= 0)
+			std::printf("  the officer of the deck (%s) may give it to a senior (%s, rank %d): %d\n",
+				o.crew[ood].name.c_str(), o.crew[senior].name.c_str(), o.crew[senior].rank,
+				OrderPermitted(o, ood, senior, ORDER_MAINTAIN) ? 1 : 0);
+	}
+
+	std::printf("\n== the save: the wear clock is saved, so the job survives a load\n");
+	{
+		Ship w = NewShip();
+		Tick(w, 1.0f);
+		for (CrewMember &c : w.crew) if (c.post == SYS_SENSORS) c.status = CREW_DEAD; // so wear persists
+		w.systems[SYS_SENSORS].wear = 0.4f;
+		Tick(w, 0.0f);
+		const std::vector<uint8_t> blob = Pack(w);
+		Ship back;
+		const bool loads = Unpack(blob.data(), blob.size(), back);
+		int mjobs = 0;
+		for (const Job &j : Jobs(back)) if (j.kind == JOB_MAINTENANCE) ++mjobs;
+		std::printf("  format %u (63 -> 64 this pass: the wear clock is saved, so an older save does not load); the blob is %zu bytes and loads %d; the maintenance job round-trips (%d), the party is re-derived\n",
+			SAVE_VERSION, blob.size(), loads ? 1 : 0, mjobs);
+	}
+	return 0;
+}
+
 // The measurement the ruling asks to be shown: the odds as a function of condition, over twenty
 // thousand draws each, and the severity the same condition takes light and at battle stations.
 static int PrintRisk()
@@ -9455,6 +9556,155 @@ static void TestOodDispatch()
 	CHECK(s.orderRepairFirst == s.crew[ordered].post);
 }
 
+// Preventive maintenance, the seventh job kind (docs/crew-work.md; the owner's ruling 2026-10-12,
+// register row 3.23). The kind is in the enum and the queue; the axis it reads is a system's **wear**
+// (the deferred-maintenance clock), not its damage; a job lowers the wear, and so the odds of the
+// deferred-maintenance failure it prevents; a ship that keeps up its upkeep does not fail, and one
+// that cannot does.
+static void TestMaintenanceJob()
+{
+	g_test = "maintenance: the seventh kind, its axis and its effect";
+	// The kind: appended after the six, so every save written before it still names the same six.
+	CHECK(JOB_MAINTENANCE == 6 && JOB_KIND_COUNT == 7);
+	CHECK(std::string(JobKindName(JOB_MAINTENANCE)) == "maintenance");
+
+	// The axis is wear, and the threshold is MAINTENANCE_DUE: a system below it carries no maintenance
+	// job (so the queue is not decoration), and one at it does.
+	{
+		Ship s = NewShip();
+		Tick(s, 1.0f);
+		for (CrewMember &c : s.crew) if (c.post == SYS_SENSORS) c.status = CREW_DEAD; // so wear persists
+		auto hasMaint = [](const Ship &sh, int sys) {
+			for (const Job &j : Jobs(sh)) if (j.kind == JOB_MAINTENANCE && j.target == sys) return true;
+			return false;
+		};
+		s.systems[SYS_SENSORS].wear = MAINTENANCE_DUE * 0.9f;
+		Tick(s, 0.0f);
+		CHECK(!hasMaint(s, SYS_SENSORS));                 // below the line: nothing to do
+		s.systems[SYS_SENSORS].wear = MAINTENANCE_DUE;
+		Tick(s, 0.0f);
+		CHECK(hasMaint(s, SYS_SENSORS));                  // at the line: the job is raised
+		CHECK(Jobs(s).front().kind == JOB_MAINTENANCE);   // default place 35, behind the repairs
+	}
+
+	// The effect, both ways, over the same fifteen days. Both ships lose the sensors' whole watch, so
+	// wear climbs on the same clock; one has spare parts and keeps up, the other does not.
+	{
+		Ship kept = NewShip();
+		Ship neglected = NewShip();
+		for (CrewMember &c : kept.crew) if (c.post == SYS_SENSORS) c.status = CREW_DEAD;
+		for (CrewMember &c : neglected.crew) if (c.post == SYS_SENSORS) c.status = CREW_DEAD;
+		neglected.stores.spareParts = 0.0f; // no upkeep without material
+		float keptPeak = 0.0f, neglectedPeak = 0.0f;
+		bool keptMaintHands = false;
+		for (int day = 0; day < 15; ++day) {
+			if (kept.systems[SYS_SENSORS].maintaining > 0) keptMaintHands = true;
+			keptPeak = std::max(keptPeak, kept.systems[SYS_SENSORS].wear);
+			neglectedPeak = std::max(neglectedPeak, neglected.systems[SYS_SENSORS].wear);
+			Tick(kept, Hours(kept, 24.0f));
+			Tick(neglected, Hours(neglected, 24.0f));
+		}
+		keptPeak = std::max(keptPeak, kept.systems[SYS_SENSORS].wear);
+		neglectedPeak = std::max(neglectedPeak, neglected.systems[SYS_SENSORS].wear);
+		// The maintained system is still whole, the crew were on the job, and the clock never left the
+		// band the threshold sets.
+		CHECK(keptMaintHands);
+		CHECK(kept.systems[SYS_SENSORS].health == 1.0f);
+		CHECK(keptPeak < 1.0f);
+		CHECK(keptPeak <= MAINTENANCE_DUE + 0.05f);
+		// The neglected one failed for want of maintenance, and the log traces it.
+		CHECK(neglected.systems[SYS_SENSORS].health < 1.0f);
+		bool traced = false;
+		for (const LogEntry &e : neglected.log)
+			if (e.what.find("sensors failed for want of maintenance") != std::string::npos) traced = true;
+		CHECK(traced);
+		// The clock climbs on the same rate, so the neglected peak is far higher even before it fails.
+		CHECK(neglectedPeak > MAINTENANCE_DUE);
+		// The odds the job moves: the hazard the wear sets, read the same way on both ships.
+		CHECK(MaintenanceOdds(keptPeak) < MaintenanceOdds(neglectedPeak));
+		CHECK(MaintenanceOdds(neglectedPeak) > 0.9f);
+	}
+
+	// Who may order it: the same authority surface the other kinds use. It is a class in the register
+	// (ORDER_MAINTAIN), refused without authority, offered to a post-holder or an engineer, and raised
+	// at the head of the queue when given. Because the officer of the deck's authority is a property of
+	// the giver and not the class, a maintenance order from the deck is permitted exactly as a repair
+	// order is.
+	{
+		Ship o = NewShip();
+		Tick(o, 1.0f);
+		const int giver = 0, eng = 1;                       // a captain and an engineer, as the orders tests set them
+		o.crew[giver].status = CREW_FIT; o.crew[giver].brigged = false; o.crew[giver].away = false;
+		o.crew[giver].dept = DEPT_COMMAND; o.crew[giver].rank = 6; o.crew[giver].post = SYS_COUNT;
+		o.crew[eng].status = CREW_FIT; o.crew[eng].brigged = false; o.crew[eng].away = false;
+		o.crew[eng].dept = DEPT_ENGINEERING; o.crew[eng].rank = 4; o.crew[eng].post = SYS_SENSORS;
+		for (CrewMember &c : o.crew) if (c.post == SYS_SENSORS) c.status = CREW_DEAD; // so wear persists
+		o.crew[eng].status = CREW_FIT;                      // ... except the engineer we are ordering
+		o.systems[SYS_SENSORS].wear = 0.5f;                 // the worn system the order reads
+		CHECK(o.systems[SYS_SENSORS].health == 1.0f);       // ... and it is whole: the axis is not damage
+		CHECK(!OrderMaintain(o, SYS_SENSORS));              // nobody commands: refused, changing nothing
+		SetRole(o, ROLE_IN_COMMAND);
+		CHECK(OrderMaintain(o, SYS_SENSORS));
+		Tick(o, 0.0f);
+		bool found = false; int priority = 1000;
+		for (const Job &j : Jobs(o))
+			if (j.kind == JOB_MAINTENANCE && j.target == SYS_SENSORS) { found = true; priority = j.priority; }
+		CHECK(found && priority == -1);                     // command puts it at the head
+		o.systems[SYS_HOLODECKS].wear = 0.0f;
+		CHECK(!OrderMaintain(o, SYS_HOLODECKS));            // a whole system has nothing to maintain
+		// The class is derived per recipient, and its target is the worn system.
+		CHECK(OrderPermitted(o, giver, eng, ORDER_MAINTAIN));
+		const OrderBrief b = BuildOrderBrief(o, giver, eng);
+		const int mi = OptionOf(b, ORDER_MAINTAIN);
+		CHECK(mi >= 0 && b.options[mi].target == SYS_SENSORS);
+		// The deck may give it to a senior post-holder it may order.
+		const int ood = OfficerOfTheDeck(o);
+		CHECK(ood >= 0);
+		int senior = -1;
+		for (int i = 0; i < static_cast<int>(o.crew.size()); ++i) {
+			const CrewMember &c = o.crew[i];
+			if (c.status != CREW_FIT || c.brigged || c.away) continue;
+			if (c.rank > o.crew[ood].rank && c.rank < 6 && c.post < SYS_COUNT) { senior = i; break; }
+		}
+		if (senior >= 0) {
+			CHECK(!MayCommand(o.crew[senior]));
+			CHECK(OrderPermitted(o, ood, senior, ORDER_MAINTAIN));
+		}
+	}
+
+	// The save: the kind is a new enum value in a job row the format already carried, and the party is
+	// re-derived every tick, so the format does not move (SAVE_VERSION unchanged) and an older save --
+	// one whose queue holds only the six kinds -- still loads. The blob round-trips byte for byte.
+	{
+		Ship w = NewShip();
+		Tick(w, 1.0f);
+		for (CrewMember &c : w.crew) if (c.post == SYS_SENSORS) c.status = CREW_DEAD; // so wear persists
+		w.systems[SYS_SENSORS].wear = 0.4f;
+		Tick(w, 0.0f);
+		bool raised = false;
+		for (const Job &j : Jobs(w)) if (j.kind == JOB_MAINTENANCE && j.target == SYS_SENSORS) raised = true;
+		CHECK(raised);
+		const std::vector<uint8_t> blob = Pack(w);
+		Ship back;
+		CHECK(Unpack(blob.data(), blob.size(), back));
+		CHECK(Pack(back) == blob);
+		bool backJob = false;
+		for (const Job &j : Jobs(back)) if (j.kind == JOB_MAINTENANCE && j.target == SYS_SENSORS) backJob = true;
+		CHECK(backJob);
+
+		Ship old = NewShip();
+		Tick(old, 1.0f);
+		DamageSystem(old, SYS_SENSORS, 0.5f);   // a queue of the six older kinds only
+		Tick(old, 0.0f);
+		const std::vector<uint8_t> oldBlob = Pack(old);
+		Ship oldBack;
+		CHECK(Unpack(oldBlob.data(), oldBlob.size(), oldBack));
+		bool oldMaint = false;
+		for (const Job &j : Jobs(oldBack)) if (j.kind == JOB_MAINTENANCE) oldMaint = true;
+		CHECK(!oldMaint);
+	}
+}
+
 // C-11's second leg, the brief's own acceptance: an order the deck may not give is refused, and the
 // refusal names the deck's own ground (OodRefusal's words) rather than a generic denial -- so whoever
 // gave it reads why. `DispatchOrder` reaches this through `OrderRefusalRule`, which now consults
@@ -9665,6 +9915,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--shields")) return PrintShields();
 	if (argc > 1 && !std::strcmp(argv[1], "--departments")) return PrintDepartments();
 	if (argc > 1 && !std::strcmp(argv[1], "--damage-control")) return PrintDamageControl();
+	if (argc > 1 && !std::strcmp(argv[1], "--maintenance")) return PrintMaintenance();
 	if (argc > 1 && !std::strcmp(argv[1], "--risk")) return PrintRisk();
 	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
 	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
@@ -9753,6 +10004,7 @@ int main(int argc, char **argv)
 	TestSoak();
 	TestJobQueue();
 	TestMaintenance();
+	TestMaintenanceJob();
 	TestModesAndClocks();
 	TestSleepAndExits();
 	TestTheQuitExit();

@@ -1028,6 +1028,13 @@ The other five archetypes remain, the derelict interior first. <!-- register-row
 - **The job queue** of `docs/crew-work.md` as a visible, saved, ordered work list (repair/seal/reclaim/
   **build** with kind, target, progress and priority; console `ship jobs`; a build job fabrics parts
   from material) and **deferred maintenance** (an undermanned station fails, traceably) ✅
+- **Preventive maintenance, the seventh job kind** (the owner's ruling 2026-10-12, register 3.23): the
+  queue carries `JOB_MAINTENANCE` for a system whose **wear** -- the deferred-maintenance clock -- is at
+  or past `MAINTENANCE_DUE = 0.20`; the standing party works it for crew-hours and material, lowering the
+  clock and the `MaintenanceOdds` it sets; ordered through the same authority surface as the rest
+  (`ORDER_MAINTAIN`), with the officer of the deck's line unchanged. `TestMaintenanceJob`,
+  `scripts/maintenance-check.sh`, `docs/evidence/the-maintenance-kind.md`; the wear clock is saved
+  (format 63 → 64, an older save does not load) ✅
 - **The dilithium constraint** that forces exploration (`docs/exploration-and-science.md`): the
   crystal's life falls with warp use, Engineering recomposites it until the ceiling will not rise
   again, and a new crystal is found by mining a belt, trading, salvaging or researching a better one;

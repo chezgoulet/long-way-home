@@ -1127,7 +1127,7 @@ void Publish( void )
 		{
 			const ship::Job &j = jobs[i];
 			std::string what;
-			if ( j.kind == ship::JOB_REPAIR ) what = ship::Spec( static_cast<ship::SystemId>( j.target ) ).name;
+			if ( j.kind == ship::JOB_REPAIR || j.kind == ship::JOB_MAINTENANCE ) what = ship::Spec( static_cast<ship::SystemId>( j.target ) ).name;
 			else if ( j.kind == ship::JOB_BUILD ) what = Fmt( "%d spare parts", j.target );
 			else what = Fmt( "deck %d", j.target );
 			rows += Fmt( "%d|%s|%s|%d|%d;", static_cast<int>( i ), ship::JobKindName( j.kind ), what.c_str(),
@@ -6390,6 +6390,17 @@ void Svcmd_Ship_f( void )
 			Publish();
 			return;
 		}
+		if ( !Q_stricmp( a, "maintain" ) )
+		{//preventive maintenance, the seventh job kind (docs/crew-work.md): it rides the job, not a
+		 //standing field, so it is refused for a system that is not worn
+			const int sys = FindSystem( b );
+			if ( !ship::OrderMaintain( vessel, sys ) )
+				gi.Printf( "SHIP: order refused: only whoever commands maintains, and the system must be worn\n" );
+			else
+				gi.Printf( "SHIP: the crew are to maintain %s\n", ship::Spec( static_cast<ship::SystemId>( sys ) ).name );
+			Publish();
+			return;
+		}
 		bool ok = false;
 		if ( !Q_stricmp( a, "repair" ) ) ok = ship::OrderRepairFirst( vessel, FindSystem( b ) );
 		else if ( !Q_stricmp( a, "security" ) ) ok = ship::OrderSecurityTo( vessel, atoi( b ) );
@@ -7339,7 +7350,7 @@ void Svcmd_Ship_f( void )
 		for ( const ship::Job &j : jobs )
 		{
 			char what[48];
-			if ( j.kind == ship::JOB_REPAIR ) Com_sprintf( what, sizeof( what ), "%s", ship::Spec( static_cast<ship::SystemId>( j.target ) ).name );
+			if ( j.kind == ship::JOB_REPAIR || j.kind == ship::JOB_MAINTENANCE ) Com_sprintf( what, sizeof( what ), "%s", ship::Spec( static_cast<ship::SystemId>( j.target ) ).name );
 			else Com_sprintf( what, sizeof( what ), "deck %d", j.target );
 			gi.Printf( "SHIP:   %-8s %-24s %3d%%  priority %d\n", ship::JobKindName( j.kind ), what,
 				static_cast<int>( j.progress * 100 + 0.5f ), j.priority );

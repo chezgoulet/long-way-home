@@ -41,7 +41,8 @@ _ROW = re.compile(
 # The needs and job tokens the register may name. A typo is a check failure, not a silent skip.
 _NEEDS = {"ORD_NEED_POST", "ORD_NEED_COMMAND", "ORD_NEED_ENGINEERING", "ORD_NEED_SECURITY",
           "ORD_NEED_MEDICAL", "ORD_NEED_SCIENCE", "ORD_NEED_JUNIOR"}
-_JOBS = {"JOB_REPAIR", "JOB_SEAL", "JOB_RECLAIM", "JOB_BUILD", "JOB_SECURE", "JOB_EVACUATE"}
+_JOBS = {"JOB_REPAIR", "JOB_SEAL", "JOB_RECLAIM", "JOB_BUILD", "JOB_SECURE", "JOB_EVACUATE",
+         "JOB_MAINTENANCE"}
 
 
 def _function_body(text, signature):
