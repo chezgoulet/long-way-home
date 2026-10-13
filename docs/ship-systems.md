@@ -220,6 +220,19 @@ That single link is what makes the crew model and the damage model one system in
 > party names them (`DamageControlLine`; the console `ship party`). Demonstrated in
 > `docs/evidence/the-damage-control-party.md`.
 
+> **Built 2026-10-13 -- preventive maintenance, the seventh job kind (3.23; owner's ruling: *"the
+> code's six stay, and maintenance joins them."*; `docs/crew-work.md`, `docs/designs-against-code.md`).**
+> The wear clock above is now something the crew can work, not only suffer. A system at or past
+> `MAINTENANCE_DUE = 0.20` carries a `JOB_MAINTENANCE` job in the queue; the same standing party
+> works it (`MAINTENANCE_TEAM_MAX`, 2 hands) for crew-hours and a little material
+> (`MAINTENANCE_PARTS_PER_SYSTEM`, 2 spare parts to restore a wholly worn system), and each crew-hour
+> lowers the clock by the rule the clock climbs -- `MAINTENANCE_HOURS_PER_SYSTEM = 240 h` of one
+> engineer restores a wholly worn system. The axis is **wear** (the clock's daily hazard,
+> `MaintenanceOdds`), not the system's damage and not its criticality. Ordering it is the same
+> authority surface as the rest (`ORDER_MAINTAIN`; `OrderMaintain` on the console). The wear clock is
+> saved (version 64), so a system run down and the job it raised replay. Demonstrated in
+> `docs/evidence/the-maintenance-kind.md`.
+
 ## Tier 4 -- the Borg, as a progression with a threshold
 
 The owner's requirement -- board, and if left long enough to organise, take the crew and the ship -- maps

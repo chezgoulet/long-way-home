@@ -48,6 +48,51 @@ In data:
    So a reclaimed compartment is usable and not the same, and a *half*-reclaimed one is a future
    scenario.
 
+## The code's seven kinds, and the ruling on the seventh
+
+The four above are the *design's* vocabulary. The code's enum carries **seven** (`JobKind`,
+`module/ship/ship_core.h`): `JOB_REPAIR`, `JOB_SEAL`, `JOB_RECLAIM`, `JOB_BUILD`, `JOB_SECURE`,
+`JOB_EVACUATE` and `JOB_MAINTENANCE`. Seal, secure and evacuate are the order-created kinds
+(`docs/orders.md`): an order to hold a deck or clear one is work with a face in the same queue. The
+seventh was ruled by the owner, 2026-10-12, and is recorded here as ours (register row **3.23**,
+`docs/designs-against-code.md`): **"the code's six stay, and maintenance joins them."**
+
+**Preventive upkeep is its own job, not a missing word.** Repair is restorative -- it acts on a system's
+**damage** (`1 - health`) and is dispatched by severity (the tiers below). The seventh kind is
+preventive: it acts on a system's **wear**, the deferred-maintenance clock `module/ship/` already
+carries (`System.wear`; a station left undermanned climbs it, and `MAINTENANCE_DAYS` of that fails the
+system). Maintenance keeps a thing from breaking; repair fixes what is broken.
+
+**The axis, and the number at which it is worth doing.** The axis is **wear** -- 0 fresh, 1 the failure.
+A system at or past **`MAINTENANCE_DUE = 0.20`**, a fifth of the way along the clock, carries a
+maintenance job; below it there is nothing to do, so the queue is not decoration. It is *not* the
+system's damage (a worn system is whole) and *not* its criticality (that is the queue's own order:
+`priority` and `orderRepairFirst`).
+
+**What it costs, and what it buys.** The job takes crew time like any other: the same standing party
+that answers a repair works it, up to **`MAINTENANCE_TEAM_MAX = 2`** hands, and it is paid for in a
+little material -- **`MAINTENANCE_PARTS_PER_SYSTEM = 2`** spare parts to restore a wholly worn system --
+so a ship out of spare parts cannot keep itself up. What it buys is a lower chance of the failure it
+prevents, and the two connect by the clock's own rule run backwards: an undermanned station climbs the
+clock at `1 / MAINTENANCE_DAYS` per day, so one engineer working as long --
+**`MAINTENANCE_HOURS_PER_SYSTEM = 240 h`** -- restores a fully worn system. **`MaintenanceOdds(wear)`**
+is that clock's daily hazard, `1 / ((1 - wear) * MAINTENANCE_DAYS)`: a tenth of a chance a day fresh,
+rising to certainty as wear approaches 1. A job that lowers the wear lowers this number with it, and the
+`work ordered` log line names both. **A maintenance that does not move the clock is a job-shaped
+decoration**, and the guard that catches it is `scripts/maintenance-check.sh`.
+
+**Who may order it, and where it shows.** The same authority surface the other kinds use, and no new
+one: `ORDER_MAINTAIN` is a class in the register (`module/ship/order_set.def`), derived per recipient
+from post, department and rank, and dispatched like any other order -- the post-holder or engineer is
+offered "overhaul the {post}", resolving to the worn system. The officer of the deck needs no special
+case, because the deck's authority is a property of the giver and not of the class (C-11), so a
+maintenance order from the deck is permitted exactly as a repair order is; command's own hook is
+`OrderMaintain` (the console `ship order maintain <system>`), which rides the job rather than a standing
+field: a system with no wear left has nothing to maintain. The kind has a face like the rest --
+`JobKindName` reads "maintenance", and the console `ship jobs` and the board name its target as a
+repair's is named. The wear clock is saved (version 64), so a system run down, and the job it raised,
+replay.
+
 ## Where the crew-hours come from
 
 Crew exist in three states: **on watch** at a post, **off watch** resting or living, and **assigned** to

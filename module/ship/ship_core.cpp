@@ -1597,13 +1597,25 @@ std::string DamageControlLine(const Ship &s)
 	return out;
 }
 
+// The deferred-maintenance failure's daily hazard (docs/crew-work.md; the seventh kind). The clock
+// climbs 1 / MAINTENANCE_DAYS per day for a station wholly off its watch, so the days left before the
+// failure are (1 - wear) * MAINTENANCE_DAYS and the per-day odds are the reciprocal. This is the
+// existing clock read out, not a second roll: the failure still fires when the clock passes 1 in
+// UpdatePower, and a maintenance job that lowers the wear lowers this number with it.
+float MaintenanceOdds(float wear)
+{
+	if (wear >= 1.0f) return 1.0f;
+	if (wear <= 0.0f) return 1.0f / MAINTENANCE_DAYS;
+	return Clamp01(1.0f / ((1.0f - wear) * MAINTENANCE_DAYS));
+}
+
 static void UpdateCrew(Ship &s, float shipSeconds)
 {
 	const int sod = s.SecondOfDay();
-	for (int id = 0; id < SYS_COUNT; ++id) s.systems[id].manned = 0, s.systems[id].staffing = 0.0f, s.systems[id].repairing = 0;
-	// The damage-control party is re-derived every tick, so an older save still loads it: clear the
-	// per-hand marks first (docs/crew-work.md, tier one).
-	for (CrewMember &c : s.crew) c.dcSystem = -1, c.dcFromPost = -1;
+	for (int id = 0; id < SYS_COUNT; ++id) s.systems[id].manned = 0, s.systems[id].staffing = 0.0f, s.systems[id].repairing = 0, s.systems[id].maintaining = 0;
+	// The damage-control and maintenance parties are re-derived every tick, so an older save still
+	// loads them: clear the per-hand marks first (docs/crew-work.md).
+	for (CrewMember &c : s.crew) c.dcSystem = -1, c.dcFromPost = -1, c.maintSystem = -1;
 	// Which post-holders were counted at their station this tick, so tier three draws only a hand
 	// that is really standing a post -- never one already sent to fight or to hold a deck.
 	std::vector<char> atPost(s.crew.size(), 0);
@@ -1624,6 +1636,21 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		const int id = wantRepair[k];
 		wantHands[id] = RepairPartySize(1.0f - s.systems[id].health);
 	}
+	// Preventive maintenance (docs/crew-work.md, the seventh kind): the systems whose wear has reached
+	// MAINTENANCE_DUE carry a maintenance job, worst first. The axis is **wear**, not damage -- a worn
+	// system is whole -- and the same standing party as a repair works it, so the two compete for the
+	// same hands and a damaged ship gets to the maintenance last: the queue's own "the easiest thing
+	// to skip". No parts, no maintenance: a ship out of spare parts cannot keep itself up.
+	int wantMaint[SYS_COUNT], nMaint = 0;
+	if (s.stores.spareParts > 0.0f)
+		for (int id = 0; id < SYS_COUNT; ++id) {
+			if (s.systems[id].wear <= 0.0f) continue;
+			bool raised = s.systems[id].wear >= MAINTENANCE_DUE;
+			if (!raised) // a job command raised (OrderMaintain) is worked through, below the threshold
+				for (const Job &j : s.jobs) if (j.kind == JOB_MAINTENANCE && j.target == id) { raised = true; break; }
+			if (raised) wantMaint[nMaint++] = id;
+		}
+	std::stable_sort(wantMaint, wantMaint + nMaint, [&](int a, int b) { return s.systems[a].wear > s.systems[b].wear; });
 	for (Deck &d : s.decks) d.defenders = d.stripping = d.sealing = d.firefighting = 0;
 	// The decks on fire, worst first: security and spare engineers fight them.
 	int burning[DECKS], nBurning = 0;
@@ -1933,6 +1960,18 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 				c.deck = static_cast<uint8_t>(burning[k] + 1);
 				busy = true;
 			}
+			// Nothing broken, stripped, sealed or burning: keep a worn system from failing. This is the
+			// maintenance party -- the same standing hands, on the seventh kind (docs/crew-work.md). It
+			// comes before the build because upkeep of a worn system outranks making more spare parts.
+			for (int k = 0; k < nMaint && !busy; ++k) {
+				System &sys = s.systems[wantMaint[k]];
+				if (sys.maintaining >= MAINTENANCE_TEAM_MAX) continue;
+				if (SPECS[wantMaint[k]].deck == s.orderEvacuate) continue; // not on a deck that has been cleared
+				++sys.maintaining;
+				c.deck = static_cast<uint8_t>(SPECS[wantMaint[k]].deck);
+				c.maintSystem = static_cast<int16_t>(wantMaint[k]);
+				busy = true;
+			}
 			// Nothing to mend, seal or fight: an engineer can build instead (fabricate a part).
 			if (buildingHands < 4)
 				for (size_t b = 0; b < s.jobs.size() && !busy; ++b)
@@ -2034,6 +2073,21 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		gain = std::min(gain, s.stores.spareParts / PARTS_PER_DECK_SEAL);
 		deck.hull += gain;
 		s.stores.spareParts = std::max(0.0f, s.stores.spareParts - gain * PARTS_PER_DECK_SEAL);
+	}
+
+	// The preventive work itself (docs/crew-work.md, the seventh kind): the maintenance party lowers the
+	// wear clock, paid for in crew-hours and a little material, so the deferred-maintenance failure it
+	// prevents is pushed back. The rule is the clock's own, run the other way -- one engineer, working
+	// as long as the system was neglected (MAINTENANCE_HOURS_PER_SYSTEM), restores it. This is what
+	// connects the job to the odds: `MaintenanceOdds(wear)` falls exactly as the wear the crew remove.
+	for (int k = 0; k < nMaint; ++k) {
+		System &sys = s.systems[wantMaint[k]];
+		if (!sys.maintaining || sys.wear <= 0.0f || s.stores.spareParts <= 0.0f) continue;
+		float gain = sys.maintaining * shipSeconds / (MAINTENANCE_HOURS_PER_SYSTEM * 3600.0f);
+		gain = std::min(gain, sys.wear);
+		gain = std::min(gain, s.stores.spareParts / MAINTENANCE_PARTS_PER_SYSTEM);
+		sys.wear = std::max(0.0f, sys.wear - gain);
+		s.stores.spareParts = std::max(0.0f, s.stores.spareParts - gain * MAINTENANCE_PARTS_PER_SYSTEM);
 	}
 
 	// Memories fade unless something retells or re-experiences them.
@@ -4578,6 +4632,31 @@ bool OrderRepairFirst(Ship &s, int system)
 	if (!PlayerMayCommand(s)) return false;
 	s.orderRepairFirst = system >= 0 && system < SYS_COUNT ? system : -1;
 	LogEvent(s, CommandingOfficer(s), "command", s.orderRepairFirst >= 0 ? std::string("damage control is to see first to ") + SPECS[s.orderRepairFirst].name : std::string("no priority repair order"));
+	return true;
+}
+
+// Preventive maintenance, ordered (docs/crew-work.md, the seventh kind). Unlike a repair, which is a
+// standing field (`orderRepairFirst`), the maintenance order rides the job it raises: a system with no
+// wear left has nothing to maintain, so there is no field to leave standing, and the job carries the
+// place (-1, the head) until the clock is back to zero. Refused for a whole system that is not worn.
+bool OrderMaintain(Ship &s, int system)
+{
+	if (!PlayerMayCommand(s)) return false;
+	if (system < 0 || system >= SYS_COUNT || s.systems[system].wear <= 0.0f) return false;
+	for (Job &j : s.jobs)
+		if (j.kind == JOB_MAINTENANCE && j.target == system) {
+			j.priority = -1;
+			LogEvent(s, CommandingOfficer(s), "command", std::string("the crew are to maintain ") + SPECS[system].name + " before any other upkeep");
+			return true;
+		}
+	if (static_cast<int>(s.jobs.size()) >= JOB_MAX) return false;
+	Job j;
+	j.kind = JOB_MAINTENANCE;
+	j.target = static_cast<int16_t>(system);
+	j.progress = s.systems[system].wear;
+	j.priority = -1;
+	s.jobs.push_back(j);
+	LogEvent(s, CommandingOfficer(s), "command", std::string("the crew are to maintain ") + SPECS[system].name + " before any other upkeep");
 	return true;
 }
 
@@ -7529,7 +7608,7 @@ const std::vector<LossEntry> &WriteOffs(const Ship &s) { return s.losses; }
 
 const char *JobKindName(uint8_t k)
 {
-	static const char *const NAMES[JOB_KIND_COUNT] = {"repair", "seal", "reclaim", "build", "secure", "evacuate"};
+	static const char *const NAMES[JOB_KIND_COUNT] = {"repair", "seal", "reclaim", "build", "secure", "evacuate", "maintenance"};
 	return k < JOB_KIND_COUNT ? NAMES[k] : "job";
 }
 
@@ -7547,6 +7626,27 @@ static void UpdateJobs(Ship &s)
 		for (const Job &j : s.jobs) if (j.kind == kind && j.target == target) return j.priority;
 		return def;
 	};
+	// Preventive maintenance (docs/crew-work.md, the seventh kind). A maintenance job is raised when a
+	// system's wear reaches MAINTENANCE_DUE, and it carries through while there is wear left to work --
+	// the way a build job carries -- so a job command has pushed to the head (OrderMaintain) keeps its
+	// place across the tick. The target is a system id, named the way a repair's is. Default place 35:
+	// after the repairs, seals and Borg reclamations and before the build, because upkeep is the first
+	// work skipped -- and command can lift it.
+	for (int i = 0; i < SYS_COUNT; ++i) {
+		// The job is raised when the wear reaches the threshold, while the party is still on it (so the
+		// queue shows the work being done), and while command has ordered it (OrderMaintain).
+		const bool due = s.systems[i].wear >= MAINTENANCE_DUE || s.systems[i].maintaining > 0;
+		bool ordered = false;
+		for (const Job &j : s.jobs) if (j.kind == JOB_MAINTENANCE && j.target == i) { ordered = true; break; }
+		if (!due && !ordered) continue;
+		if (s.systems[i].wear <= 0.0f) continue; // nothing left to work: the job is done
+		Job j;
+		j.kind = JOB_MAINTENANCE;
+		j.target = static_cast<int16_t>(i);
+		j.progress = s.systems[i].wear;
+		j.priority = static_cast<int16_t>(keepPriority(JOB_MAINTENANCE, i, 35));
+		next.push_back(j);
+	}
 	for (int i = 0; i < SYS_COUNT; ++i) {
 		if (s.systems[i].health >= 1.0f) continue;
 		Job j;
@@ -7598,10 +7698,19 @@ static void UpdateJobs(Ship &s)
 		for (const Job &old : s.jobs) if (old.kind == j.kind && old.target == j.target) { existed = true; break; }
 		if (!existed) {
 			std::string what = std::string(JobKindName(j.kind)) + " ";
-			what += j.kind == JOB_REPAIR ? SPECS[j.target].name
+			what += (j.kind == JOB_REPAIR || j.kind == JOB_MAINTENANCE) ? SPECS[j.target].name
 				: (j.kind == JOB_BUILD && j.target < 0 ? std::string(ShuttleClassName(static_cast<ShuttleClass>(-j.target - 1)))
 				: (std::string("deck ") + std::to_string(j.target)));
-			const char *scope = j.kind == JOB_REPAIR ? "engineering"
+			// The instrument is specific about the risk (docs/failure-is-content.md): a maintenance
+			// order names the wear it reads and the failure odds that wear sets, so the connection
+			// between the job and the odds it moves is on the record.
+			if (j.kind == JOB_MAINTENANCE) {
+				char risk[96];
+				std::snprintf(risk, sizeof(risk), " (wear %d%%, the failure odds %.2f/day)",
+					static_cast<int>(s.systems[j.target].wear * 100.0f + 0.5f), MaintenanceOdds(s.systems[j.target].wear));
+				what += risk;
+			}
+			const char *scope = (j.kind == JOB_REPAIR || j.kind == JOB_MAINTENANCE) ? "engineering"
 				: (j.kind == JOB_SECURE || j.kind == JOB_RECLAIM) ? "security" : "hull";
 			LogEvent(s, "damage control", scope, std::string("work ordered: ") + what);
 		}
@@ -7879,7 +7988,7 @@ static std::string ComputerReadJobs(const Ship &s)
 	if (jobs.empty()) return std::string("no jobs outstanding: the crew have no work waiting");
 	const Job &j = jobs.front();
 	char what[48];
-	if (j.kind == JOB_REPAIR) std::snprintf(what, sizeof(what), "%s", Spec(static_cast<SystemId>(j.target)).name);
+	if (j.kind == JOB_REPAIR || j.kind == JOB_MAINTENANCE) std::snprintf(what, sizeof(what), "%s", Spec(static_cast<SystemId>(j.target)).name);
 	else std::snprintf(what, sizeof(what), "deck %d", j.target);
 	char buf[200];
 	std::snprintf(buf, sizeof(buf), "%d job(s) outstanding; next: %s %s, %d%%, priority %d",
@@ -9643,6 +9752,11 @@ std::vector<uint8_t> Pack(const Ship &s)
 			WriteStrCap(w, cd.source, CONDITION_SOURCE_MAX);
 		}
 	}
+	// A system's wear, the deferred-maintenance clock (version 64; the seventh job kind,
+	// docs/crew-work.md). It accumulates while a station is undermanned and a maintenance job lowers
+	// it, so it is history, not a read: saved, or a load would forget how far a system has run down
+	// and would drop the maintenance job the wear raises. An older save (63) does not load.
+	for (const System &sys : s.systems) w.F(Clamp01(sys.wear));
 	return w.b;
 }
 
@@ -10176,6 +10290,8 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		}
 		for (int k = nc; k < CONDITION_MAX; ++k) c.conditions[k] = Condition();
 	}
+	// A system's wear (version 64; see Pack), read before the queue is re-derived by the Tick below.
+	for (System &sys : s.systems) sys.wear = r.Unit();
 	if (!r.ok || r.left != 0) return false;
 
 	// Derive allocation and locations from the restored state. Power is derived first, so the crew's
@@ -10361,7 +10477,7 @@ std::string Describe(const Ship &s)
 		std::snprintf(line, sizeof(line), "  %-24s deck %2d  alloc %3d%%  power %3d/%3d  output %3.0f%%  manned %d/%d  health %3.0f%%  %s%s%s\n", SPECS[i].name,
 			SPECS[i].deck, AllocationPercent(s, static_cast<SystemId>(i)), sys.allocated, SPECS[i].demand, sys.output * 100,
 			sys.manned, SPECS[i].crewNeeded, sys.health * 100, AllocationProvenance(s, static_cast<SystemId>(i)).c_str(),
-			sys.enabled ? "" : "  OFF", sys.repairing ? "  UNDER REPAIR" : "");
+			sys.enabled ? "" : "  OFF", sys.repairing ? "  UNDER REPAIR" : sys.maintaining ? "  UNDER MAINTENANCE" : "");
 		if (sys.control < 1.0f) {
 			out.erase(out.size() - 1);
 			std::snprintf(line, sizeof(line), "  control %3.0f%%%s\n", sys.control * 100, sys.control < HIJACKED ? "  HIJACKED" : "");
@@ -10496,6 +10612,21 @@ int16_t ResolveOrderTarget(const Ship &s, int recipient, uint8_t order)
 			if (SPECS[i].dept == d && s.systems[i].health < health) { health = s.systems[i].health; worst = i; }
 		return static_cast<int16_t>(worst >= 0 ? worst : SYS_LIFE_SUPPORT);
 	}
+	if (order == ORDER_MAINTAIN) {
+		// The worn system the crew should keep up: the recipient's own post when it is worn, else the
+		// most worn in their department, else the most worn anywhere. Wear, not damage -- the axis.
+		if (recipient >= 0 && recipient < static_cast<int>(s.crew.size()) && s.crew[recipient].post < SYS_COUNT
+			&& s.systems[s.crew[recipient].post].wear > 0.0f)
+			return static_cast<int16_t>(s.crew[recipient].post);
+		const Department d = (recipient >= 0 && recipient < static_cast<int>(s.crew.size())) ? s.crew[recipient].dept : DEPT_ENGINEERING;
+		int worst = -1; float wear = 0.0f;
+		for (int i = 0; i < SYS_COUNT; ++i)
+			if (SPECS[i].dept == d && s.systems[i].wear > wear) { wear = s.systems[i].wear; worst = i; }
+		if (worst < 0)
+			for (int i = 0; i < SYS_COUNT; ++i)
+				if (s.systems[i].wear > wear) { wear = s.systems[i].wear; worst = i; }
+		return static_cast<int16_t>(worst >= 0 ? worst : SYS_LIFE_SUPPORT);
+	}
 	if (sp.defaultTarget >= 0) return sp.defaultTarget;   // build: a fixed count
 	return static_cast<int16_t>(OrderDeck(s, recipient));
 }
@@ -10509,7 +10640,7 @@ std::string OrderLabel(const Ship &s, int recipient, uint8_t order)
 		const size_t p = label.find(needle);
 		if (p != std::string::npos) label.replace(p, std::strlen(needle), with);
 	};
-	if (order == ORDER_SEE_TO && t >= 0 && t < SYS_COUNT) replace("{post}", SPECS[t].name);
+	if ((order == ORDER_SEE_TO || order == ORDER_MAINTAIN) && t >= 0 && t < SYS_COUNT) replace("{post}", SPECS[t].name);
 	else if (order == ORDER_BUILD_PARTS) replace("{n}", std::to_string(t));
 	else replace("{deck}", std::string("deck ") + std::to_string(t));
 	return label;
@@ -10644,6 +10775,25 @@ static void ApplyOrder(Ship &s, uint8_t order, int16_t target)
 		case ORDER_EVACUATE_DECK:
 			s.orderEvacuate = (target >= 1 && target <= DECKS) ? target : 0;
 			break;
+		case ORDER_MAINTAIN: {
+			// Preventive maintenance (docs/crew-work.md, the seventh kind). It rides the job, not a
+			// standing field: the job is raised (or lifted to the head) for the worn system, and it
+			// leaves the queue when the wear is worked back to zero.
+			if (target >= 0 && target < SYS_COUNT && s.systems[target].wear > 0.0f) {
+				bool merged = false;
+				for (Job &j : s.jobs)
+					if (j.kind == JOB_MAINTENANCE && j.target == target) { j.priority = -1; merged = true; break; }
+				if (!merged && static_cast<int>(s.jobs.size()) < JOB_MAX) {
+					Job j;
+					j.kind = JOB_MAINTENANCE;
+					j.target = target;
+					j.progress = s.systems[target].wear;
+					j.priority = -1;
+					s.jobs.push_back(j);
+				}
+			}
+			break;
+		}
 		case ORDER_BUILD_PARTS: {
 			const int parts = target > 0 ? target : 1;
 			bool merged = false;
