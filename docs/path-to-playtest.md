@@ -225,7 +225,12 @@ this document carries the order):
    count of penetrating shots whose twelfth adapts the weapon, with the ramp inside the bound; it changes
    the odds the counter-play kit pushes against, so it landed with its own check (`TestTheAdapter`,
    `test_ship_core --adapt`, `scripts/counterplay-check.sh`).
-8. **Maintenance becomes a seventh job kind** (3.23). Queued small.
+8. **Maintenance becomes a seventh job kind** (3.23). **BUILT 2026-10-13** on `feat/the-maintenance`
+   (`docs/evidence/the-maintenance-kind.md`, save version 64): the kind is appended to `JobKind`, its
+   axis is a system's **wear** with `MAINTENANCE_DUE = 0.20`, the standing party lowers the clock and the
+   failure odds it sets, the order rides the same authority surface (`ORDER_MAINTAIN`), and the wear clock
+   is saved -- one small job, landed with its own check (`TestMaintenanceJob`, `test_ship_core --maintenance`,
+   `scripts/maintenance-check.sh`).
 9. **The played-character ceiling corrected** (8.52): 64 multiplayer, 1 single-player. Queued as a document
    correction, no code.
 

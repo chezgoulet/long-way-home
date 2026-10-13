@@ -179,9 +179,10 @@ struct System {
 	int manned = 0;         // on-duty crew at the station this tick
 	float staffing = 0.0f;  // ... weighted by how rested and willing they are (morale, fatigue)
 	int repairing = 0;      // damage-control crew working on it this tick
+	int maintaining = 0;    // crew on its preventive-maintenance job this tick (derived, not saved)
 	float control = 1.0f;   // 1 = the crew's, 0 = the intruders'; below HIJACKED it answers to them, not to us
 	float output = 0.0f;    // 0..1: what the system is actually delivering
-	float wear = 0.0f;      // 0..1: deferred maintenance (derived each tick, not saved); at 1 it fails
+	float wear = 0.0f;      // 0..1: deferred maintenance, saved (format 64), so a run-down system replays; at 1 it fails
 	uint8_t fault = 0;      // the last named failure state, to log the change (derived, but stored)
 	// The allocation a person sets: the fraction of its full demand the system is given (0..1).
 	// Operational capacity follows it -- at forty per cent the system underperforms at forty per
@@ -623,6 +624,10 @@ struct CrewMember {
 	// from these two fields.
 	int16_t dcSystem = -1;
 	int16_t dcFromPost = -1;
+	// Preventive maintenance (derived each tick, never saved): the system this hand's maintenance job
+	// is on, or -1. The maintenance party is re-derived every tick like damage control, so the seventh
+	// kind costs the save nothing either.
+	int16_t maintSystem = -1;
 };
 
 // ---- the character layer, read and derived -------------------------------------------------------
@@ -1801,13 +1806,17 @@ const std::vector<LossEntry> &WriteOffs(const Ship &s);
 // ---- the job queue (docs/crew-work.md) ---------------------------------------------------------
 //
 // The ship's outstanding work as a queue with a face: one job per thing that needs doing -- a damaged
-// system repaired, a breached hull sealed, an assimilated deck reclaimed -- with its kind, its
-// target, how far it has got, and its place in the order. The damage-control party works it; command
-// sets the order. The queue is bounded and saved, so a thing left undone is still there tomorrow.
-// The order-created kinds (docs/orders.md) are appended after the four the ship derives from its own
-// condition: a standing order to hold a deck or to clear one is work with a face in the same queue,
-// and it persists while the order stands (UpdateJobs). Appending keeps every existing id unchanged.
-enum JobKind : uint8_t { JOB_REPAIR = 0, JOB_SEAL, JOB_RECLAIM, JOB_BUILD, JOB_SECURE, JOB_EVACUATE, JOB_KIND_COUNT };
+// system repaired, a worn system maintained, a breached hull sealed, an assimilated deck reclaimed --
+// with its kind, its target, how far it has got, and its place in the order. The damage-control party
+// works it; command sets the order. The queue is bounded and saved, so a thing left undone is still
+// there tomorrow. The order-created kinds (docs/orders.md) are appended after the kinds the ship
+// derives from its own condition: a standing order to hold a deck or to clear one is work with a face
+// in the same queue, and it persists while the order stands (UpdateJobs). Appending keeps every
+// existing id unchanged: the seventh kind, **maintenance** (the owner's ruling 2026-10-12, register
+// row 3.23, docs/crew-work.md), is preventive where repair is restorative -- it reads a system's
+// **wear** (the deferred-maintenance clock) rather than its damage, and it is appended last so every
+// save written before it still names the same six kinds.
+enum JobKind : uint8_t { JOB_REPAIR = 0, JOB_SEAL, JOB_RECLAIM, JOB_BUILD, JOB_SECURE, JOB_EVACUATE, JOB_MAINTENANCE, JOB_KIND_COUNT };
 const char *JobKindName(uint8_t k);
 const int JOB_MAX = 24;
 const float BUILD_HOURS_PER_PART = 4.0f; // engineer-hours to fabricate one spare part [inv]
@@ -2417,6 +2426,23 @@ const int REPAIR_PARTY_LARGE = 6;          // hands a wholly destroyed system is
 const float REPAIR_HOURS_PER_SYSTEM = 6.0f;  // one engineer rebuilding a destroyed system [inv]
 const float PARTS_PER_SYSTEM = 12.0f;        // spare parts to rebuild one from nothing [inv]
 const float MAINTENANCE_DAYS = 10.0f;        // a system wholly left unmaintained fails in this [inv]
+
+// Preventive maintenance, the seventh job kind (the owner's ruling 2026-10-12, register row 3.23;
+// docs/crew-work.md). Repair is restorative -- it acts on a system's **damage** (1 - health). The
+// seventh kind is preventive: it acts on a system's **wear**, the deferred-maintenance clock the
+// model already carries (0 fresh, 1 the failure). The axis is wear, named the way damage control
+// named severity, and it is *not* the system's damage (a worn system is whole) nor its criticality
+// (the queue's own order). A system at or past MAINTENANCE_DUE wears a maintenance job in the queue;
+// the standing party works it, and each crew-hour spent lowers the clock by the same rule the clock
+// climbs -- one engineer, working as long as the system was neglected, restores it. Maintenance is
+// paid for in crew hours and a little material, so a ship out of spare parts cannot keep itself up.
+// The failure it prevents is the existing deferred-maintenance failure at wear 1 (UpdatePower):
+// `MaintenanceOdds` reads that clock's daily hazard, so lowering the wear lowers the odds, and a
+// maintenance that does not move the clock is the job-shaped decoration the brief warns against.
+const float MAINTENANCE_DUE = 0.20f;              // wear at which a system carries a maintenance job [inv]
+const int MAINTENANCE_TEAM_MAX = 2;               // hands the standing party sends to one maintenance job [inv]
+const float MAINTENANCE_HOURS_PER_SYSTEM = 240.0f; // one engineer, hours to undo MAINTENANCE_DAYS of neglect [inv]
+const float MAINTENANCE_PARTS_PER_SYSTEM = 2.0f;   // spare parts to restore a wholly worn system [inv]
 const float EXPOSURE_INJURES = 60.0f;        // seconds without air [inv]
 const float EXPOSURE_KILLS = 300.0f;
 const float RADIATION_INJURES = 60.0f;       // seconds in a failing core's radiation at half health [inv]
@@ -2445,6 +2471,11 @@ int RepairPartySize(float severity);
 // department, and the post-holders drawn for a large job. The owning document is docs/crew-work.md;
 // an empty party reads "no repair party is dispatched". The console's `ship party` prints it.
 std::string DamageControlLine(const Ship &s);
+// The deferred-maintenance failure's daily hazard: the per-day chance the wear clock reaches 1 and
+// the system fails, for a station wholly off its watch. It is the clock's own rate read out, not a
+// second roll -- the failure itself still fires when the clock passes 1 (UpdatePower) -- so it moves
+// with the wear a maintenance job lowers: 1/MAINTENANCE_DAYS fresh, rising to 1 as wear approaches 1.
+float MaintenanceOdds(float wear);
 
 // A fire can start on a deck (combat, a damaged system, or deliberately). It injures the crew on the
 // deck and spreads to the decks beside it until the crew fight it down; it also costs the hull.
@@ -2995,10 +3026,14 @@ int CreateCharacter(Ship &s, const std::string &name, Department dept, int rank)
 // Orders. Given by whoever commands; the crew carry them out until they are changed. They are the
 // ship's standing orders, so they persist when the one who gave them walks away -- and in the save.
 //   repair first   the damage-control party goes to this system before any other, however minor
+//   maintain       the crew keep this worn system up before any other maintenance, however small a job
 //   security to    security with no station goes to this deck, boarders or not, before answering others
 //   evacuate       nobody stays on this deck: stations there are left, off-duty crew go to the mess
-// Each returns false, changing nothing, if the player may not command. -1 / 0 clears an order.
+// Each returns false, changing nothing, if the player may not command. -1 / 0 clears an order. The
+// maintenance order is kept on the job it raises rather than a standing field: a system with no wear
+// left has nothing to maintain, so the order has nothing to point at.
 bool OrderRepairFirst(Ship &s, int system);
+bool OrderMaintain(Ship &s, int system);
 bool OrderSecurityTo(Ship &s, int deck);
 bool OrderEvacuate(Ship &s, int deck);
 bool OrderTriage(Ship &s, int policy);   // 0 worst first, 1 rank first
@@ -3151,11 +3186,13 @@ void SetRole(Ship &s, PlayerRole role);
 // ---- persistence ------------------------------------------------------------------------------
 
 const uint32_t SAVE_MAGIC = 0x50494853; // 'SHIP'
-// Orders (docs/orders.md) add two JobKinds (JOB_SECURE, JOB_EVACUATE) appended after the four the
-// queue already derives; a job kind is a single byte in the record and the two new values are only
-// ever written by this build, so a save made before them loads and replays identically and the
-// version is deliberately NOT bumped -- a change that makes a save load differently is a defect.
-const uint16_t SAVE_VERSION = 63;  // 63: the Borg adapter as a count with the ramp inside it -- per weapon, the penetrating shots (twelve adapt it) and the ramp that shapes them (the owner's C-15 ruling; docs/ship-systems.md, docs/evidence/the-adaptation.md). The old single `float adaptation` is gone: two adapters, each saving a count, a ramp and the banked phaser charge, on the enemy and on the wingman. Deliberate cost, named: an older save does not load. 62: the complement is hull data, not a constant -- the hull's crew size is saved so a start state that fields a different number (docs/design-north-star.md, the owner's ruling 2026-10-12) rebuilds its roster on load, and the nine departments (docs/crew-manifest.md) are the vocabulary the roster is built in. Deliberate cost, named: an older save (61) does not load -- the complement is read before the roster is rebuilt, and an older blob does not carry it. 61: the shields are canon's six arcs, not one scalar (C-14, the owner's ruling 2026-10-12, "BUILD THE SET"). Six `float` arcs replace the one scalar, so a save taken with an arc holed, and the unrouted-hit counter that routes the next shot, replay identically (docs/ship-systems.md, docs/evidence/the-shield-sections.md). Deliberate cost, named: an older save (60) does not load -- `Unpack` rejects a version it does not know rather than misread the wider set. 60: the holodeck reactor as a per-deck source (O2's remainder) -- the reactor's own health and isolation, off the grid, so a save taken with a deck tied to it, and the cross-tie's cost, replay identically (docs/budget-squaring.md Finding two, docs/evidence/the-holodeck-reactor.md). Deliberate cost, named: an older save does not load. 59: the bills -- battle stations and one emergency bill as called state, each with who called it and when, and a per-crew battle and emergency assignment derived at roster build (docs/crew-manifest.md, docs/evidence/the-bills.md). Deliberate cost, named: an older save does not load. 58: the minds the Collective holds -- a bounded list of the crew the drones have begun taking, so a save taken mid-window replays and a recovery ends the transfer (docs/the-record-and-the-log.md, docs/evidence/the-assimilation.md). Deliberate cost, named: an older save does not load. 57: holdings is a fold over the marks, not a stored float (the owner's C2 ruling, "Derived"; docs/morale.md). The per-person `float holdings` is gone from the record and from the save, and the character layer's morale block loses one float per person. Deliberate cost, named: an older save does not load. 56: the independent air feed (O2) -- each deck's air source and who set it, so a deck holds its air on its own source with the main grid down (docs/budget-squaring.md, Finding two); 55: the meeting's place -- each queued brief now knows the room it is held in and the department whose business it is, derived from the meeting's kind and subject (docs/staff-meetings.md); 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
+// Job kinds are appended to the enum, so a save made before a kind loads and replays identically: the
+// orders pass added JOB_SECURE and JOB_EVACUATE this way, and the maintenance pass added
+// JOB_MAINTENANCE (docs/crew-work.md, 3.23). A new *kind* does not move the version -- a kind is a
+// single byte in a row the record already carried. A new *field* does: the maintenance pass moved it
+// for the wear clock (below), an older save not loading. A change that makes a save load differently
+// is a defect.
+const uint16_t SAVE_VERSION = 64;  // 64: a system's wear, the deferred-maintenance clock, is saved (the seventh job kind, docs/crew-work.md). Wear accumulates while a station is undermanned and a maintenance job lowers it, so it is history, not a read: saved, the maintenance job the wear raises survives a load and the deferred-maintenance failure it prevents keeps its place, where before a load forgot how far a system had run down (docs/evidence/the-maintenance-kind.md). Deliberate cost, named: an older save (63) does not load. 63: the Borg adapter as a count with the ramp inside it -- per weapon, the penetrating shots (twelve adapt it) and the ramp that shapes them (the owner's C-15 ruling; docs/ship-systems.md, docs/evidence/the-adaptation.md). The old single `float adaptation` is gone: two adapters, each saving a count, a ramp and the banked phaser charge, on the enemy and on the wingman. Deliberate cost, named: an older save does not load. 62: the complement is hull data, not a constant -- the hull's crew size is saved so a start state that fields a different number (docs/design-north-star.md, the owner's ruling 2026-10-12) rebuilds its roster on load, and the nine departments (docs/crew-manifest.md) are the vocabulary the roster is built in. Deliberate cost, named: an older save (61) does not load -- the complement is read before the roster is rebuilt, and an older blob does not carry it. 61: the shields are canon's six arcs, not one scalar (C-14, the owner's ruling 2026-10-12, "BUILD THE SET"). Six `float` arcs replace the one scalar, so a save taken with an arc holed, and the unrouted-hit counter that routes the next shot, replay identically (docs/ship-systems.md, docs/evidence/the-shield-sections.md). Deliberate cost, named: an older save (60) does not load -- `Unpack` rejects a version it does not know rather than misread the wider set. 60: the holodeck reactor as a per-deck source (O2's remainder) -- the reactor's own health and isolation, off the grid, so a save taken with a deck tied to it, and the cross-tie's cost, replay identically (docs/budget-squaring.md Finding two, docs/evidence/the-holodeck-reactor.md). Deliberate cost, named: an older save does not load. 59: the bills -- battle stations and one emergency bill as called state, each with who called it and when, and a per-crew battle and emergency assignment derived at roster build (docs/crew-manifest.md, docs/evidence/the-bills.md). Deliberate cost, named: an older save does not load. 58: the minds the Collective holds -- a bounded list of the crew the drones have begun taking, so a save taken mid-window replays and a recovery ends the transfer (docs/the-record-and-the-log.md, docs/evidence/the-assimilation.md). Deliberate cost, named: an older save does not load. 57: holdings is a fold over the marks, not a stored float (the owner's C2 ruling, "Derived"; docs/morale.md). The per-person `float holdings` is gone from the record and from the save, and the character layer's morale block loses one float per person. Deliberate cost, named: an older save does not load. 56: the independent air feed (O2) -- each deck's air source and who set it, so a deck holds its air on its own source with the main grid down (docs/budget-squaring.md, Finding two); 55: the meeting's place -- each queued brief now knows the room it is held in and the department whose business it is, derived from the meeting's kind and subject (docs/staff-meetings.md); 54: the configurator -- the command-seat occupancy and the career path; the roster may be fictitious entirely (no canon crew), and each person's rank is now stored so a derived promotion survives a save (docs/the-entry-point.md). 53: the character layer -- the three morale reads (deficit, outlook, holdings) and each person's bounded conditions, with their source, cure and visibility (O8, docs/character-derivation.md). The old single `float morale` is gone; the static half (species, skills, traits, drives) is derived from the seed and not stored; 52: the meeting -- the queued briefs and the schedule they fall on (docs/staff-meetings.md); 51: power allocation -- each system's share and who set it, automatic mode, the pending recommendation and the band grants (docs/power-assignment.md); 2: parts, exposure; 3: control, intruders; 4: the Borg; 5: the outside; 6: modes, the player; 7: orders; 8: morale; 9: severity, supplies, triage; 10: force fields; 11: the log; 12: the away kit; 13: the away mission, the course, surveys; 14: kit condition, the surgical field; 15: fire, rations; 16: materials, the EMH, looted wrecks, the tractor hold; 17: credentials, faction, the brig, Borg adaptation; 18: crew memories; 19: resource belts and refugees; 20: quarters quality; 21: pylons, the mobile emitter, holodeck compulsion; 22: pre-warp contact and Maquis resentment; 23: the airponics bay; 24: boarder kinds and objectives; 25: Borg strategic awareness; 26: sealed quarters; 27: a second contact; 28: the job queue; 29: build jobs; 30: dilithium; 31: shuttles; 32: incursion controller, compromise and the clean-intercept count; 33: the counter-play kit (remodulation cooldown, vinculum suppression); 34: de-assimilation (the lasting scar); 35: force-field rating; 36: probes; 37: phenomena and their revealed attributes; 38: the security squad's advance; 39: the warp core cascade; 40: each system's named failure state; 41: the written-off list (what the ship has given up); 42: the anomaly draw counter, and transporter copies beyond the complement; 43: the left-standing mark; 44: the month report and its diff, the promises held, the orphaned mark, and the purge; 45: the navigation counter -- navCounterLast is the estimated years at the last entry, and the report's counter and change are that estimate, not the fuel range; 46: per-deck gravity, the plating life support holds; 47: the personal log (docs/the-record-and-the-log.md) -- the private store, distinct from the official log; 48: delegations for a shift, and the emergency override (docs/access-and-authority.md); 49: the phaser bank's setting (Tactical's standing decision, there when there is no contact); 50: the five budget systems (astrometrics, science labs, gravity plating, non-essential lighting, cargo handling) raise SYS_COUNT, and the warp core's output now scales with the dilithium crystal's ceiling
 
 std::vector<uint8_t> Pack(const Ship &s);
 // False, leaving `s` untouched, on a truncated, foreign or newer record.

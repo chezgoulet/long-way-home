@@ -312,6 +312,7 @@ substance of the brief's point and stands.
 | `RunHolodeck` | `Ship &s, HolodeckUse use, int crew` | run holodeck | console | person | — |
 | `ImproveQuarters` | `Ship &s` | Living conditions: improve the crew's quarters, at a cost in material | console | — | — |
 | `OrderRepairFirst` | `Ship &s, int system` | order repair first | play | — | — |
+| `OrderMaintain` | `Ship &s, int system` | order maintain: the preventive job for a worn system, pushed to the head of the queue (docs/crew-work.md, the seventh kind). The play path is the order class `ORDER_MAINTAIN`; this hook is the developer console's `ship order maintain` | console | post | docs/crew-work.md |
 | `OrderSecurityTo` | `Ship &s, int deck` | order security to | play | — | — |
 | `OrderEvacuate` | `Ship &s, int deck` | order evacuate | play | — | — |
 | `OrderTriage` | `Ship &s, int policy` | order triage | play | — | — |
@@ -593,6 +594,7 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `DepartmentSize` | `Department d, int complement` | the department's size for a hull's complement: the design's split scaled to it, so the nine add to the whole | play | — | docs/crew-manifest.md |
 | `RepairPartySize` | `float severity` | The hands a repair job is sent, from the fraction of the system destroyed: the standing party as it stands up to the threshold, scaling to the large party past it (the owner's ruling on C-12; docs/crew-work.md) | play | — | docs/crew-work.md |
 | `DamageControlLine` | `const Ship &s` | The damage-control party as this tick dispatched it: one clause per system being worked, every hand's department named from the roster's nine. Empty reads "no repair party is dispatched" (the console `ship party` prints it) | console | — | docs/crew-work.md |
+| `MaintenanceOdds` | `float wear` | The deferred-maintenance failure's daily hazard: the per-day chance the wear clock reaches 1 and the system fails, for a station wholly off its watch. The clock's own rate read out, not a second roll; the `work ordered` log names it (the seventh job kind; docs/crew-work.md) | play | — | docs/crew-work.md |
 
 ## The counts (Task B)
 
@@ -728,6 +730,17 @@ staff field uses; no play caller yet). By section — entry points **75**, situa
 **56**, orders (3b) **20**, the bills (3c) **20**, readers **212**, the configurator **18**; **total
 489** — and `scripts/hooks-check.sh` independently fixes the row count at **489** against
 `ship_core.h`. Evidence: `docs/evidence/the-departments-and-the-complement.md`.
+
+**Re-derived 2026-10-13, the seventh job kind (3.23).** Two hooks are added by the owner's ruling that
+maintenance is the seventh job kind: `MaintenanceOdds` (the deferred-maintenance failure's daily hazard
+-- the clock's own rate read out, not a second roll; reached in play by the `work ordered` log the queue
+writes, as `RepairPartySize` is reached in play by the party it sizes) and `OrderMaintain` (the
+developer console's `ship order maintain`; the *play* path to the seventh kind is the order class
+`ORDER_MAINTAIN`). By section -- entry points **75**, situations **88**, outcomes **57**, orders (3b)
+**20**, the bills (3c) **20**, readers **215**, the configurator **18**; **total 493** -- and
+`scripts/hooks-check.sh` independently fixes the row count at **493** against `ship_core.h`. (The other
+two rows added since the 489 note are the damage-control party's `RepairPartySize` and
+`DamageControlLine`, C-12.) Evidence: `docs/evidence/the-maintenance-kind.md`.
 
 ### 5. The configurator — the player chooses the start state
 

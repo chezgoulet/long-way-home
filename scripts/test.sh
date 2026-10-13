@@ -69,6 +69,10 @@ echo "==> scenario: the declaration contract -- fields, the two laws, and the lo
 "$ROOT/scripts/scenario-check.sh"
 
 echo
+echo "==> maintenance: the seventh job kind, its axis (wear), and the odds it moves (3.23)"
+"$ROOT/scripts/maintenance-check.sh"
+
+echo
 echo "==> manner: the crew's state is audible and visible, and degrades without audio (G14)"
 "$ROOT/scripts/manner-check.sh"
 
