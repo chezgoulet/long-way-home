@@ -8,6 +8,18 @@ The instrument is `tools/frames/frame.py`.
 
 Nothing here is asserted without the command that produced it. The command is given before its output.
 
+> **Corrected 2026-10-15 (the exterior pass, `docs/evidence/the-away-site-exterior.md`).** This evidence
+> ends with the verdict **partly**, on two named causes: the structure encloses most facings, and *"a
+> machine block the re-dress's drop rule missed blocks the stores post's outward view."* **The second
+> cause is a mis-attribution.** Casting the stores post's eye line through the built map (Task D,
+> `:159`) names not a source block but the site's **own** cargo crate, built by `_crates()` — a brush
+> the drop rule can never touch, because the rule governs only copied source brushes. The exterior pass
+> lowers that crate, closes the drop rule's real hole (the source's *other* block does survive it), and
+> the stores post now opens east onto the debris field; its outward frame is now the named dark frame
+> (its subject is the sky), and the pace `_5` reads. **The first cause — the structure encloses most
+> facings — stands.** The statements below at Task D (`:159-165`), the frame captions (`:191,194`), the
+> verdict (`:244-254`) and judgement call 4 (`:328-330`) are kept as the record of the find.
+
 ## The defect
 
 `module/ship/g_ship.cpp`'s vantage test (`g_shipTest 96`) held **the security office's anchor and its

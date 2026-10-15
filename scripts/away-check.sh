@@ -39,6 +39,10 @@ GEN="$ROOT/build/away/generated"
 OUT="$ROOT/build/away/out"
 SRC="$ROOT/build/gdk/maps/eliteforce_ctf_maps/ctf_space.map"
 MAP="lwh_away_depot"
+# The one frame allowed to read dark: the stores post's outward (east) view, whose subject is the
+# black debris field (docs/evidence/the-away-site-exterior.md). The facing rule and the dark-probe
+# both read it, so it is set once.
+ALLOWED_DARK="${MAP}_stores_2.tga"
 REPORT="$ROOT/build/away/dress.json"
 
 [ -d "$ROOT/build/baseEF" ] || { echo "no game data at build/baseEF -- run scripts/playtest-host-setup.sh" >&2; exit 1; }
@@ -139,32 +143,43 @@ for post in "${POSTS[@]}"; do
 done
 
 # A post is a position *and* a facing: the four facings at the post are the post's own claim, and
-# every one of them must read. A post that renders dark is the post problem the room-posts pass
-# named, and this fails and names the post. (The two paces are the rig's probe -- below.)
-echo "==> every post's own four facings must read"
+# every one of them must read -- **except the one whose subject is the sky**. The stores post now
+# opens east onto the debris field (docs/evidence/the-away-site-exterior.md), so its outward facing
+# is a picture of the black sky, the category the dark-room pass names and the away-site evidence
+# accepts ("a legibility threshold written for a room cannot be passed by a picture of the sky").
+# That one facing is named in ALLOWED_DARK and exempt; the post's other three facings -- where the
+# station and the structure are -- must still read, so a post with no legible stand still fails.
+echo "==> every post's own facings must read (the outward one may look at the sky)"
 for post in "${POSTS[@]}"; do
     read -r label _ <<<"$post"
-    python3 "$ROOT/tools/frames/frame.py" floor --band 0.10,0.55 --require \
-        "$HOME_DIR"/frames-"$label"/"$MAP"_"$label"_{0,1,2,3}.tga >/dev/null \
-        || fail "the $label post renders dark at one of its own four facings -- the site's own post has no legible stand"
+    required=()
+    for i in 0 1 2 3; do
+        f="$HOME_DIR/frames-$label/${MAP}_${label}_$i.tga"
+        [ "$(basename "$f")" = "$ALLOWED_DARK" ] && continue
+        required+=("$f")
+    done
+    python3 "$ROOT/tools/frames/frame.py" floor --band 0.10,0.55 --require "${required[@]}" >/dev/null \
+        || fail "the $label post renders dark at one of its own facings -- the site's own post has no legible stand"
 done
-pass "both of the site's own posts read at their own four facings -- the site stands in its light"
+pass "both of the site's own posts read at their own facings -- the site stands in its light"
 
-# The rig's probe, measured and *named*, not required: a pace east of the stores post stands 16
-# units from the unlit east face of a machine block the re-dress left on the open apron (80x80,
-# bottom exactly on the deck floor, so the drop rule for machine blocks did not take it). The frame
-# is a picture of that block, not of a dark site -- the dark-room pass's own category ("a facing can
-# be dark in a well-lit place"), and the block blocking the outward view is a finding for the next
-# pass, recorded in docs/evidence/the-away-vantages.md, not fixed here. Any *other* dark frame is a
-# regressed claim and fails, by name.
-ALLOWED_DARK="${MAP}_stores_5.tga"
+# The rig's probe: one frame reads dark, and it is *named* rather than dressed over. After the
+# exterior pass (docs/evidence/the-away-site-exterior.md) the stores post's **outward (east)** frame
+# looks out into the debris field, and the debris field is black; its own numbers show the deck under
+# it is lit (median 41, spread 82 -- a lit foreground against a black sky, not a dark room). This is
+# the same category the away-site evidence names for the console post's outward frame: **a
+# legibility threshold written for a room cannot be passed by a picture of the sky.** (Before this
+# pass the dark frame was `stores_5`, a pace against a machine block; the crate that blocked the
+# stores post's outward view has been lowered and the block dropped, so that pace now reads and the
+# dark frame moved to the outward view itself.) Any *other* dark frame is a regressed claim and
+# fails, by name.
 DARK="$(python3 "$ROOT/tools/frames/frame.py" floor --band 0.10,0.55 "$HOME_DIR"/frames-*/*.tga \
     | awk '/DARK/ { print $1 }')"
 if [ -n "$DARK" ]; then
     OTHERS="$(printf '%s\n' "$DARK" | grep -vxF "$ALLOWED_DARK" || true)"
     [ -z "$OTHERS" ] || fail "a vantage is dark and it is not the named one ($ALLOWED_DARK): $OTHERS"
 fi
-pass "the only dark vantage is the one named -- the stores post's east-west pace against the deck's own machine block"
+pass "the only dark vantage is the one named -- the stores post's outward view, whose subject is the black debris field"
 
 # The site reads as *outside*: at the site's own post, the picture looking out into the debris field
 # and the picture looking at the site's own wall must differ over the region of the subject. A HUD
@@ -175,6 +190,16 @@ python3 "$ROOT/tools/frames/frame.py" diff --band 0.10,0.55 --min-changed 0.5 --
     "$HOME_DIR/frames-console/${MAP}_console_3.tga" "$HOME_DIR/frames-console/${MAP}_console_2.tga" \
     | sed 's/^/    /' || fail "the opening into the debris field is not a picture of a world: it did not differ from the wall at the same post"
 pass "the frame that looks out shows a world: it differs from the site's own wall at the same post"
+
+# The stores post now opens onto the exterior too (docs/evidence/the-away-site-exterior.md): the
+# crate that stood in its outward sightline is low, so the frame that looks east out into the debris
+# field differs from the wall behind the post. Before the pass this view was blocked -- the crate
+# filled the frame -- so this is the region that was blocked, now showing the world.
+echo "==> the stores post's opening into the debris field, against the wall behind it"
+python3 "$ROOT/tools/frames/frame.py" diff --band 0.10,0.55 --min-changed 0.3 --min-delta 24 --require \
+    "$HOME_DIR/frames-stores/${MAP}_stores_3.tga" "$HOME_DIR/frames-stores/${MAP}_stores_2.tga" \
+    | sed 's/^/    /' || fail "the stores post's outward view is not a picture of a world: it did not differ from the wall behind it"
+pass "the stores post opens onto the world: its outward frame differs from the wall behind it"
 
 # Navigation is baked by the engine on first load, from the map's own waypoints -- no crew can work a
 # site with no nav, and the file was deleted before the run.
@@ -196,7 +221,11 @@ EMBODIED="$(grep -cE '^CREW: lwh_crew_[0-9]+ \(ent [0-9]+\) -> place_' "$HOME_DI
 ARRIVED="$(grep -cE '^CREW: lwh_crew_[0-9]+ at post ' "$HOME_DIR/crew.out" || true)"
 STUCK="$(grep -cE '^CREW: lwh_crew_[0-9]+ failed to reach ' "$HOME_DIR/crew.out" || true)"
 echo "    $EMBODIED embodied, $ARRIVED reached their place, $STUCK gave up"
-[ "$EMBODIED" -ge 10 ] || fail "fewer than ten crew embodied on the site ($EMBODIED)"
+# The ship's roster puts **9** crew on deck 1 at 08:00 -- the nine-departments pass (2026-10-12,
+# 3.3) moved it from the 13 this check was written against. The site embodies whoever the routine
+# has there, so 9 is the current figure, named rather than rounded; a site that embodies none, or
+# leaves one stuck, still fails.
+[ "$EMBODIED" -ge 9 ] || fail "fewer than nine crew embodied on the site ($EMBODIED)"
 [ "$STUCK" -eq 0 ] || fail "$STUCK crew could not reach their place on the site"
 [ "$ARRIVED" -eq "$EMBODIED" ] || fail "only $ARRIVED of $EMBODIED crew reached their place"
 pass "every crew member the ship put on the site walked to its place, and none is in solid"

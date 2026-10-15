@@ -120,9 +120,14 @@ def copy_brush(b):
     if not (b.lo[0] < X1 and b.hi[0] > X0 and b.lo[1] < Y1 and b.hi[1] > Y0):
         return None
     # A machine block standing on the deck is dropped: the source's arena packs the deck with them,
-    # and a crop that keeps them is a maze, not a place. Only blocks with a body (over 64 units
-    # square) go; the thin ribs and rails, and everything that forms the deck and its walls, stay.
-    if b.lo[2] > FLOOR + 8 and (b.hi[0] - b.lo[0]) * (b.hi[1] - b.lo[1]) > 64 * 64:
+    # and a crop that keeps them is a maze, not a place. A block is a brush with a body (over 64 units
+    # square) that is either **floating above** this deck (its bottom above the floor) or **standing on
+    # it as a body** (bottom at the floor, taller than a plate). Everything that *forms* the deck stays:
+    # the floor plates and the ribs and rails are thin, and the walls reach down past the floor.
+    # (This closes the hole the vantages pass found: a block whose bottom sits exactly on the floor
+    # survived `lo[2] > FLOOR + 8` and blocked the stores post's outward view.)
+    block = (b.hi[0] - b.lo[0]) * (b.hi[1] - b.lo[1]) > 64 * 64
+    if block and (b.lo[2] > FLOOR + 8 or (b.lo[2] >= FLOOR - 8 and (b.hi[2] - b.lo[2]) > 64)):
         return None
     return [clamp_line(ln) for ln in b.lines]
 
@@ -335,6 +340,11 @@ class Build:
     def _crates(self):
         # "one human trace": a shipped cargo rack left standing on the apron, and a crate with it.
         # The rack is scav1's own model (`models/mapobjects/cargo/rack.md3`), named in the report.
+        # The crate is placed **east** of the rack -- where a crate off a rack would fall -- but kept
+        # **low** (below the eye line), because the stores post stands at the rack and looks east out
+        # into the debris field: a crate standing tall on that side sits in the sightline and blocks
+        # the outward view (the defect the vantages pass mis-attributed to a source machine block;
+        # docs/evidence/the-away-site-exterior.md).
         spot = self._find_open(X1 - 420, Y1 - 300)
         if not spot:
             self.report["crates"] = None
@@ -343,8 +353,8 @@ class Build:
         base = self.solids.floor_at(x, y)
         self.point("misc_model", "lwh_away_rack", (x, y, base + 2),
                    {"model": CARGO_RACK, "angle": "90", "spawnflags": "0"})
-        self.w(brush(((x + 96, y - 48, base), (x + 176, y + 32, base + 80)), RIMTEX), RIMTEX)
-        self.w(brush(((x + 104, y - 40, base + 80), (x + 168, y + 24, base + 88)), TRIMTEX), TRIMTEX)
+        self.w(brush(((x + 96, y - 48, base), (x + 176, y + 32, base + 32)), RIMTEX), RIMTEX)
+        self.w(brush(((x + 104, y - 40, base + 32), (x + 168, y + 24, base + 38)), TRIMTEX), TRIMTEX)
         self.report["crates"] = [x, y]
 
     # -- placement helpers ------------------------------------------------------------------------
@@ -409,12 +419,13 @@ class Build:
             self.point("waypoint", None, (x, y, z))
         self.report["waypoints"] = len(final)
         # posts: the crew layer reads `waypoint_navgoal_*` as the places a person can work. Each is a
-        # spot this tool has already established is open on the deck -- the console, the stores, the
-        # arrival -- not a search that may wander off to the far side of the site.
+        # spot this tool has already established is open on the deck -- the console and the stores --
+        # not a search that may wander off to the far side of the site. **The arrival is not a post**:
+        # it is the player's spawn (`info_player_start`), not a place of work, and the site's contract
+        # is two posts (the vantages pass names "the site's own two posts").
         posts = []
         for label, near in (("console", self.report.get("anchor")),
-                            ("stores", self.report.get("crates")),
-                            ("arrival", (X1 - 320, (Y0 + Y1) // 2))):
+                            ("stores", self.report.get("crates"))):
             if not near:
                 continue
             spot = self._find_open(int(near[0]), int(near[1]))
