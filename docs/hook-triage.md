@@ -7,6 +7,15 @@ each whether that is right. The register is the
 index; this is the judgement the brief asked for, and the reason it is the deliverable is that the
 number is not the defect — *which* of the 164 matter is.
 
+> **Re-derived 2026-10-13 (`docs/evidence/the-retriage.md`). This page's counts are stale and the
+> re-triage is the authority.** The classifications below were made against a surface of **366** hooks;
+> `module/ship/ship_core.h` now declares **496**, and the register's own counts drifted through 398, 479
+> and 496. The current census (the register's judgement) is **299 play / 158 console / 34 nothing / 5
+> content**, and the current genuine-gap set is **61** — the 54 of the tables below still unreachable,
+> plus seven the surface grew since (the Collective's six reads and `SetAirSourceBy`). The per-hook
+> judgements below are kept as the record; where the count and the reach disagree with this page, the
+> re-triage is right.
+
 **The method, and it is a judgement.** The classification is a reading of the code, the owning document
 and the register's own call sites (`tools/hooks/reach_report.py` gives the call sites by entry surface).
 A hook is a **genuine gap** when it is an act or a decision the design names as a player's or a post's,
