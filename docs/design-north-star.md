@@ -177,7 +177,15 @@ and NPCs fill the rest, rather than raising the client ceiling to the complement
 64 requires no engine change, where roughly 150 requires raising `MAX_CLIENTS` **and** the memory pool,
 the reliable-command buffer and the snapshot limits with it — a count no shipped id Tech 3 project has
 been found at; and the deficit-filling machinery is already a first-class requirement, so the design
-does not change, only the number does. **The remaining risk moves rather than disappears** — onto many
+does not change, only the number does.
+
+> **Corrected 2026-10-13 (register row 8.52, the owner's ruling 2026-10-12): "the document is
+> corrected."** The 64 is the **multiplayer** engine's ceiling. `patches/0018` sets `MAX_CLIENTS` to
+> **64** in the multiplayer tree and **1** in the Retail single-player tree (128 is present but
+> commented), and the single-player figure of 1 is **by design, not a defect**: one played character
+> is what single player is. "Up to 64 played characters" is therefore Track D's requirement and binds
+> on the multiplayer path only. The claim above was written as if 64 were true of both modes; it is
+> true of one. No code moves — `patches/0018` is the shipped engine's own data. **The remaining risk moves rather than disappears** — onto many
 NPCs and many players on one server, which is already a named question with a spike assigned to it. A
 side effect worth having: with 64 players the majority of the complement is the ship's own AI, so
 *which posts are held by people and which by the ship's own AI* becomes the normal condition rather

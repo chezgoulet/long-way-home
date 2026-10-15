@@ -231,8 +231,17 @@ the reading moves, and the reason names it. That test exists
 
 - **effective skill** = base skill + aptitude traits, reduced by conditions, deficits and haste.
   This is `EffectiveSkill(c, skill)`: an aptitude trait (`first-contact trained`) adds; behavioural
-  traits do not; conditions, the deficit and fatigue subtract, down to zero. This is what decides
-  whether a repair is quick, slow, or dangerous.
+  traits do not; conditions, the deficit and fatigue subtract, down to zero. It is the read used by
+  `WorkReading`, `OfferRising`/`RisingOdds`, the rising transcript and the console.
+  **Corrected 2026-10-13 (register row C-23, the owner's ruling 2026-10-12): the failure roll does
+  *not* call `EffectiveSkill`.** The roll's skill term is built by `WorkFactors` from the **raw**
+  `c.skills[skill]` plus the aptitude trait, and each condition is added as its **own named factor** —
+  a parallel construction, not a call to `EffectiveSkill`. Measured
+  (`docs/evidence/the-failure-roll-measured.md`): a condition *does* reach the odds this way, worth
+  **+0.1312** (4,724 of 20,000 anomalies clean against 7,347 carrying a sharp debuff). Making the roll
+  call `EffectiveSkill` instead would cut the condition's weight **8.3×** and double-count the deficit,
+  so the document — not the code — is the stale side. The sentence below is kept as the record of the
+  find.
 - **reliability** = f(outlook, fatigue, fear, conditions) — gates compliance.
 - **capacity** = f(deficit, health, conditions) — whether they can stand a watch at all.
 - **holding** = bonds and allegiances — who they will confide in, and whose orders they will quietly

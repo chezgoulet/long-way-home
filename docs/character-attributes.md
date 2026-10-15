@@ -60,9 +60,12 @@ does not exist.
 
 Nothing yet said how the parts combine. So, explicitly:
 
-- **effective skill** = base skill + aptitude traits, then reduced by conditions, deficits and haste. This is
-  what decides whether a repair is quick, slow, or *dangerous* -- the failure risk that
-  `docs/failure-is-content.md` needs.
+- **effective skill** = base skill + aptitude traits, then reduced by conditions, deficits and haste. It is
+  the read the rising offer and the operator's own reading (`WorkReading`) use. **Corrected 2026-10-13
+  (register row C-23): the failure roll does not call `EffectiveSkill`** — `WorkFactors` builds the skill
+  term from the raw skill plus the aptitude trait and adds each condition as its own named factor, and a
+  condition reaches the odds that way (measured, `docs/evidence/the-failure-roll-measured.md`); see
+  `docs/character-derivation.md` §5 for the full correction and the price of the other fork.
 - **reliability** = f(outlook, fatigue, fear, conditions). This gates compliance: carried out, delayed, done
   badly, or refused.
 - **capacity** = f(deficit, health, conditions). Whether they can stand a watch at all.
