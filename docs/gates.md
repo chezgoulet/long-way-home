@@ -84,8 +84,8 @@ Two decisions that go with it:
 
 `docs/the-entry-point.md` Part one (the walkthrough's **G1**) is built on `feat/the-way-in`: the
 main menu carries a **"Long Way Home"** line beside the retail buttons, and a start-state selector
-containing **one entry, the canon default** (the first half of **G2**; the configurator of Part
-three is the next pass). `scripts/run-lwh.sh` is the launcher. The run's values live once, in
+containing **one entry, the canon default** (the first half of **G2**; **the configurator of Part
+three landed immediately after** — the next section — and the selector carries its four dimensions). `scripts/run-lwh.sh` is the launcher. The run's values live once, in
 `configs/lwh-start.cfg`, executed by both the launcher and the menu, so there is no second copy to
 drift; `g_shipDeckPitch` is resolved there and is `stitch.py`'s own pitch (`3072 = 3 x 1024`). The
 cvars keep their off-by-default values: with the ship map loaded and the config unset, the
@@ -156,8 +156,8 @@ no engine and no game data). Built:
   by `tools/scenario/scenario_build.py` and instantiates what can be instantiated now — the systems it
   stresses, the staff coverage, the warmth beat, and every position and line, each **resolved from its post
   to a person**. It **carries** the breeding conditions, costs, residue and decision: **the evaluator — the
-  thing that reads a scenario's breeding conditions and decides it fires — is the next pass**, named here
-  rather than half-built;
+  thing that reads a scenario's breeding conditions and decides it fires — is named here rather than half-built; it landed the next day**
+  (`feat/the-evaluator`, PR #150 — the section below, which also states what it does *not* reach);
 - **the two primitives the derivation found reached by nothing but the tests now have a call path**:
   `PostsNeeded` and `CoverWithCrew` are reached by a scenario's `staff` field (`docs/hook-register.md`'s
   reach column, `docs/hook-triage.md` §5). **What is left of the 53 entry points is named, not rounded**:
@@ -168,8 +168,8 @@ no engine and no game data). Built:
   compiled, loaded, and shown doing what it declares.
 
 Evidence: `docs/evidence/the-manifest-contract.md`; check: `scripts/scenario-check.sh`, wired into
-`scripts/test.sh`. **O15 moves to *partly*** (the contract is built; the nine scenarios are content and
-remain). **Not in this pass:** the nine, the evaluator, and any engine change beyond the loader.
+`scripts/test.sh`. **O15 moves to *partly*** (the contract is built). **Not in this pass:** the nine as played content, the
+evaluator (landed next, PR #150), and any engine change beyond the loader.
 
 ### The evaluator — the thing that recruits a scenario ✅ built 2026-10-13
 
@@ -205,9 +205,9 @@ engine is not run). Built:
   what it declares.
 
 Evidence: `docs/evidence/the-evaluator.md`; check: `scripts/evaluator-check.sh`, wired into
-`scripts/test.sh`. **O15 stays *partly*** (the contract and the evaluator are built; the nine scenarios
-are content and remain, and the in-game verb that loads a declaration in play is the playtest host's).
-**Not in this pass:** the nine scenarios, and any engine change beyond the loader.
+`scripts/test.sh`. **O15 stays *partly*** (the contract, the evaluator and the nine declarations are built; the nine as
+played content remain, and the in-game verb that loads a declaration in play is the playtest host's).
+**Not in this pass:** the nine scenarios in the world, and any engine change beyond the loader.
 
 ### The documentation contradictions, settled — and the check that keeps the mechanical ones settled ✅ 2026-10-09
 
@@ -1420,8 +1420,19 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   column). **The field contract and the two laws are built 2026-10-13** (`feat/the-manifest`): every
   declared field is a validated manifest key, the validator refuses a name and a missing delivery, and a
   loader reaches the primitives the fields call (`docs/scenario-manifest.md`,
-  `docs/evidence/the-manifest-contract.md`, `scripts/scenario-check.sh`). **The slate itself is still to
-  author**, and the evaluator that decides a scenario fires is the next pass.
+  `docs/evidence/the-manifest-contract.md`, `scripts/scenario-check.sh`). **The slate itself is now
+  authored, and the evaluator is built** — corrected **2026-10-15** against this ref: the nine
+  declarations are committed as `scenarios/*/scenario.json` manifests (`feat/the-nine-manifests`,
+  2026-10-14; `docs/evidence/the-nine-manifests.md`; `scripts/scenario-check.sh` part four validates and
+  builds every one), and the evaluator that decides a scenario fires landed as **PR #150**
+  (`feat/the-evaluator`, `docs/evidence/the-evaluator.md`). **The count, re-derived from the tree and not
+  the row: two directories predate the slate, not three.** The row named a *nine-scenario first slate*;
+  `scenarios/` holds **eleven** directories, and the eleven are the **nine** — each whose `canon_root`
+  cites `docs/scenario-atlas.md`'s slate, `deck11-gel-pack` (slate 1) through `deck06-organising`
+  (slate 9) — **plus two that predate it**: `deck04-watch` and `testroom-watch`, both added by `110fc15`
+  (2026-10-05, the G3 crew-authoring pass) and neither a slate member. `deck11-gel-pack` was written
+  earlier (the manifest pass) but it **is** slate 1 — in the slate, not before it. What remains of O15 is
+  the nine as **played content** in the world, and the in-game verb that loads a declaration in play.
 - **O18 — Track D / the multiplayer premise** (kind 2, deferred): `docs/multiplayer-premise.md`,
   `docs/design-north-star.md` §8.
 
