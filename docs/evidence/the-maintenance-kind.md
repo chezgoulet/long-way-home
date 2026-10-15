@@ -165,7 +165,7 @@ was made in `/tmp/opencode/efgame-maint`, not a shared one.
   the owner's walkthrough. The model is right; the judgement is his.
 - **The rendered console line and the job board.** `ship jobs`, `ship order maintain <system>`, the
   `UNDER MAINTENANCE` read and the `ui_lwh_jobs` row are compiled and their sources are checked
-  (`scripts/api-check.sh`, `scripts/orders.py`), but the static host runs no engine and draws no screen,
+  (`scripts/api-check.sh`, `tools/orders/orders.py`), but the static host runs no engine and draws no screen,
   so the pixels are the playtest host's. What is asserted here is the model's output.
 
 ## Judgment calls, named as calls

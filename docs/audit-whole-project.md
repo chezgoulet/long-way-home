@@ -1,5 +1,7 @@
 # The whole-project review
 
+> **Corrected 2026-10-15 (docs/evidence/the-two-way-fixes.md).** The frame measure this document names, `tools/meetings/legibility.py`, no longer exists: it was generalised into `tools/frames/frame.py` (`docs/frame-assertions.md`: *"the old `tools/meetings/legibility.py` is deleted: one file, one rule"*). The citations below are corrected to the surviving path; the figures are this pass's own and are unchanged.
+
 **A dated snapshot — 2026-10-10, `testing` at `0ea6fa5`.** It records a *state*, not a current one; the ledger
 (`docs/gates.md`) owns status. Three evidence streams, all read-only: **the project's own checks run against
 the tree** (68 scripts, each with its own log and exit code), **a code inventory** (size, surface, duplication,
@@ -87,7 +89,7 @@ that and nothing more** — among them `deck-check`, `deck06/07/12/13/14`, `dama
 
 **This is the class that cost this project a working day.** The security office rendered *pitch black* because
 the meeting's post stood inside the wall, and the check for it passed — it had a file. Two checks now measure
-the frame (`tools/meetings/legibility.py`, used by `meeting-place-check` and `room-survey-check`) and those are
+the frame (`tools/frames/frame.py`, used by `meeting-place-check` and `room-survey-check`) and those are
 the model for the rest: **a content-facing check should assert on pixels, not on paths.**
 
 > **Partly landed since — 2026-10-11 (`feat/the-frame-assertions`, `adc0e45`; counted in
