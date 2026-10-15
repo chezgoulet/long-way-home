@@ -1,0 +1,204 @@
+{
+  "name": "deck01-the-other-captain",
+  "canon_root": "the other captain -- a Starfleet crew who survived by doing monstrous things (slate 7)",
+  "breeding_conditions": [
+    {
+      "state": "system_condition",
+      "op": ">=",
+      "value": 0.5
+    }
+  ],
+  "systems": [
+    "shields",
+    "phasers",
+    "torpedo launchers",
+    "sensors"
+  ],
+  "staff": [
+    "the chair",
+    "security",
+    "medical"
+  ],
+  "cost": {
+    "answer": {
+      "text": "take them aboard and help",
+      "effects": [
+        {
+          "effect": "take_survivors",
+          "count": 30
+        }
+      ]
+    },
+    "ignore": {
+      "text": "judge them, and take what they have",
+      "effects": [
+        {
+          "effect": "shield_hit",
+          "section": "aft",
+          "amount": 0.2
+        }
+      ]
+    }
+  },
+  "residue": [
+    "the ship's own moral ledger, read out loud"
+  ],
+  "visibility": [
+    "tactical",
+    "operations",
+    "sickbay"
+  ],
+  "warmth": [
+    "funeral"
+  ],
+  "positions": [
+    {
+      "post": "the chair",
+      "information": [
+        "brief",
+        "log"
+      ],
+      "authority": [
+        "command",
+        "call_alert"
+      ],
+      "responsible_for": [
+        "command"
+      ],
+      "decision": "judge them, help them, or take what they have"
+    },
+    {
+      "post": "the security seat",
+      "information": [
+        "brief",
+        "console"
+      ],
+      "authority": [
+        "operate"
+      ],
+      "responsible_for": [
+        "security"
+      ],
+      "decision": "how many are held, and where, while the question is decided"
+    }
+  ],
+  "decision": {
+    "question": "Judge them, help them, or take what they have?",
+    "options": [
+      {
+        "label": "help them, and house who is left",
+        "cost": [
+          {
+            "effect": "take_survivors",
+            "count": 30
+          }
+        ]
+      },
+      {
+        "label": "take what they have",
+        "cost": [
+          {
+            "effect": "shield_hit",
+            "section": "aft",
+            "amount": 0.2
+          }
+        ]
+      }
+    ]
+  },
+  "lines": [
+    {
+      "to": "the chair",
+      "delivery": "report",
+      "text": "Their logs are open. What they did to live is in them."
+    },
+    {
+      "to": "the security seat",
+      "delivery": "order",
+      "text": "Hold them in the brig until I decide. No one goes aboard their ship."
+    }
+  ],
+  "maps": [],
+  "scripts": [],
+  "inhabited": [],
+  "crew": {
+    "map": "tour/deck01",
+    "max": 4,
+    "members": [
+      {
+        "name": "watch1",
+        "type": "Renner",
+        "at": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch2",
+        "type": "Showers",
+        "at": [
+          64,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch3",
+        "type": "Green",
+        "at": [
+          0,
+          64,
+          0
+        ]
+      },
+      {
+        "name": "watch4",
+        "type": "Lang",
+        "at": [
+          64,
+          64,
+          0
+        ]
+      }
+    ],
+    "posts": [
+      {
+        "name": "post1",
+        "at": [
+          0,
+          0,
+          0
+        ],
+        "holder": "watch1"
+      },
+      {
+        "name": "post2",
+        "at": [
+          64,
+          0,
+          0
+        ],
+        "holder": "watch2"
+      },
+      {
+        "name": "post3",
+        "at": [
+          0,
+          64,
+          0
+        ],
+        "holder": "watch3"
+      },
+      {
+        "name": "post4",
+        "at": [
+          64,
+          64,
+          0
+        ],
+        "holder": "watch4"
+      }
+    ]
+  }
+}

@@ -1,0 +1,231 @@
+{
+  "name": "deck12-a-fire-a-breach-a-deck",
+  "canon_root": "a fire, a breach, a deck -- decompression, and a bulkhead sealed with crew on the wrong side (slate 8)",
+  "breeding_conditions": [
+    {
+      "state": "deck_life_support",
+      "op": "<",
+      "value": 0.5
+    },
+    {
+      "state": "minutes_of_air",
+      "op": "<",
+      "value": 45
+    }
+  ],
+  "systems": [
+    {
+      "id": "life support",
+      "stress": 0.4
+    },
+    {
+      "id": "structural integrity",
+      "stress": 0.3
+    },
+    "turbolifts",
+    "gravity plating"
+  ],
+  "staff": [
+    "engineering",
+    "medical",
+    "security"
+  ],
+  "cost": {
+    "answer": {
+      "text": "seal the deck with hands on the wrong side of it",
+      "effects": [
+        {
+          "effect": "kill",
+          "post": "engineering",
+          "cause": "sealed in"
+        },
+        {
+          "effect": "breach",
+          "deck": 12,
+          "amount": 0.5
+        }
+      ]
+    },
+    "ignore": {
+      "text": "hold the hatch open and fight the fire with the air going",
+      "effects": [
+        {
+          "effect": "ignite",
+          "deck": 12,
+          "amount": 0.4
+        },
+        {
+          "effect": "damage_system",
+          "system": "life support",
+          "amount": 0.4
+        }
+      ]
+    }
+  },
+  "residue": [
+    {
+      "effect": "write_off",
+      "target": "deck 12"
+    },
+    "a sealed deck you can visit later and see what was left"
+  ],
+  "visibility": [
+    "engineering",
+    "deck:12"
+  ],
+  "warmth": [
+    "funeral"
+  ],
+  "positions": [
+    {
+      "post": "the engineering seat",
+      "information": [
+        "console",
+        "brief",
+        "minutes_of_air"
+      ],
+      "authority": [
+        "operate",
+        "call_alert"
+      ],
+      "responsible_for": [
+        "engineering",
+        "life support"
+      ],
+      "decision": "who goes through the hatch, and whether the deck is ever recovered"
+    },
+    {
+      "post": "the security seat",
+      "information": [
+        "console",
+        "deck_life_support"
+      ],
+      "authority": [
+        "operate"
+      ],
+      "responsible_for": [
+        "security"
+      ],
+      "decision": "who is sent to hold the corridor while the deck comes apart"
+    }
+  ],
+  "decision": {
+    "question": "Who goes through the hatch, and is the deck ever recovered?",
+    "options": [
+      {
+        "label": "seal it, and write the deck off",
+        "cost": [
+          {
+            "effect": "write_off",
+            "target": "deck 12"
+          }
+        ]
+      },
+      {
+        "label": "hold the hatch and fight it with the air going",
+        "cost": [
+          {
+            "effect": "ignite",
+            "deck": 12,
+            "amount": 0.4
+          }
+        ]
+      }
+    ]
+  },
+  "lines": [
+    {
+      "to": "the engineering seat",
+      "delivery": "order",
+      "text": "Seal the hatch. Count who is on the far side and tell me the number."
+    },
+    {
+      "to": "the security seat",
+      "delivery": "report",
+      "text": "The corridor is holding, but the bulkhead behind it is going. We need the word."
+    }
+  ],
+  "maps": [],
+  "scripts": [],
+  "inhabited": [],
+  "crew": {
+    "map": "tour/deck11",
+    "max": 4,
+    "members": [
+      {
+        "name": "watch1",
+        "type": "Renner",
+        "at": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch2",
+        "type": "Showers",
+        "at": [
+          64,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch3",
+        "type": "Green",
+        "at": [
+          0,
+          64,
+          0
+        ]
+      },
+      {
+        "name": "watch4",
+        "type": "Lang",
+        "at": [
+          64,
+          64,
+          0
+        ]
+      }
+    ],
+    "posts": [
+      {
+        "name": "post1",
+        "at": [
+          0,
+          0,
+          0
+        ],
+        "holder": "watch1"
+      },
+      {
+        "name": "post2",
+        "at": [
+          64,
+          0,
+          0
+        ],
+        "holder": "watch2"
+      },
+      {
+        "name": "post3",
+        "at": [
+          0,
+          64,
+          0
+        ],
+        "holder": "watch3"
+      },
+      {
+        "name": "post4",
+        "at": [
+          64,
+          64,
+          0
+        ],
+        "holder": "watch4"
+      }
+    ]
+  }
+}

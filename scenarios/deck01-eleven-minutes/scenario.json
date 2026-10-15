@@ -1,0 +1,206 @@
+{
+  "name": "deck01-eleven-minutes",
+  "canon_root": "eleven minutes -- a live link home, and command changes when Starfleet is watching (slate 6)",
+  "breeding_conditions": [
+    {
+      "state": "system_condition",
+      "op": ">=",
+      "value": 0.5
+    }
+  ],
+  "systems": [
+    "communications",
+    "sensors"
+  ],
+  "staff": [
+    "the chair",
+    "operations",
+    "command"
+  ],
+  "cost": {
+    "answer": {
+      "text": "take the link and answer for the calls made alone",
+      "effects": [
+        {
+          "effect": "promote",
+          "post": "command"
+        }
+      ]
+    },
+    "ignore": {
+      "text": "let the window pass unanswered",
+      "effects": [
+        {
+          "effect": "sicken",
+          "post": "command",
+          "condition": "grieving",
+          "magnitude": "slight"
+        }
+      ]
+    }
+  },
+  "residue": [
+    "a crew with someone else to be accountable to"
+  ],
+  "visibility": [
+    "operations",
+    "conn"
+  ],
+  "warmth": [
+    "promise",
+    "manner"
+  ],
+  "positions": [
+    {
+      "post": "the chair",
+      "information": [
+        "brief",
+        "log",
+        "console"
+      ],
+      "authority": [
+        "command",
+        "call_alert"
+      ],
+      "responsible_for": [
+        "command"
+      ],
+      "decision": "what is told home, and how much command is handed to it"
+    },
+    {
+      "post": "the operations seat",
+      "information": [
+        "console",
+        "brief"
+      ],
+      "authority": [
+        "operate"
+      ],
+      "responsible_for": [
+        "operations",
+        "communications"
+      ],
+      "decision": "what is cut to hold the link open"
+    }
+  ],
+  "decision": {
+    "question": "What do you tell Starfleet, and does command change?",
+    "options": [
+      {
+        "label": "answer for every call, all eleven minutes",
+        "cost": [
+          {
+            "effect": "promote",
+            "post": "command"
+          }
+        ]
+      },
+      {
+        "label": "let the window pass",
+        "cost": [
+          {
+            "effect": "sicken",
+            "post": "command",
+            "condition": "grieving",
+            "magnitude": "slight"
+          }
+        ]
+      }
+    ]
+  },
+  "lines": [
+    {
+      "to": "the chair",
+      "delivery": "report",
+      "text": "The link is open and the window is short. What do we tell them?"
+    },
+    {
+      "to": "the operations seat",
+      "delivery": "order",
+      "text": "Hold the link open. Whatever it costs, cut it from somewhere I can spare."
+    }
+  ],
+  "maps": [],
+  "scripts": [],
+  "inhabited": [],
+  "crew": {
+    "map": "tour/deck01",
+    "max": 4,
+    "members": [
+      {
+        "name": "watch1",
+        "type": "Renner",
+        "at": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch2",
+        "type": "Showers",
+        "at": [
+          64,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch3",
+        "type": "Green",
+        "at": [
+          0,
+          64,
+          0
+        ]
+      },
+      {
+        "name": "watch4",
+        "type": "Lang",
+        "at": [
+          64,
+          64,
+          0
+        ]
+      }
+    ],
+    "posts": [
+      {
+        "name": "post1",
+        "at": [
+          0,
+          0,
+          0
+        ],
+        "holder": "watch1"
+      },
+      {
+        "name": "post2",
+        "at": [
+          64,
+          0,
+          0
+        ],
+        "holder": "watch2"
+      },
+      {
+        "name": "post3",
+        "at": [
+          0,
+          64,
+          0
+        ],
+        "holder": "watch3"
+      },
+      {
+        "name": "post4",
+        "at": [
+          64,
+          64,
+          0
+        ],
+        "holder": "watch4"
+      }
+    ]
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "name": "deck09-the-ones-who-stay",
+  "canon_root": "the ones who stay -- a world offers a life, and a crew record leaves for good (slate 4)",
+  "breeding_conditions": [
+    {
+      "state": "deuterium",
+      "op": ">=",
+      "value": 0.2
+    }
+  ],
+  "systems": [
+    "life support",
+    "replicators",
+    "structural integrity"
+  ],
+  "staff": [
+    "command",
+    "support",
+    "medical"
+  ],
+  "cost": {
+    "answer": {
+      "text": "let them go well",
+      "effects": []
+    },
+    "ignore": {
+      "text": "argue, and keep them aboard",
+      "effects": [
+        {
+          "effect": "sicken",
+          "post": "support",
+          "condition": "grieving",
+          "magnitude": "slight"
+        }
+      ]
+    }
+  },
+  "residue": [
+    "a post permanently empty, and quarters reassigned"
+  ],
+  "visibility": [
+    "operations",
+    "deck:9"
+  ],
+  "warmth": [
+    "quarters"
+  ],
+  "positions": [
+    {
+      "post": "the chair",
+      "information": [
+        "brief",
+        "log"
+      ],
+      "authority": [
+        "command"
+      ],
+      "responsible_for": [
+        "command"
+      ],
+      "decision": "whether to argue, and whether to let them go well"
+    },
+    {
+      "post": "the medical seat",
+      "information": [
+        "brief",
+        "log"
+      ],
+      "authority": [
+        "operate"
+      ],
+      "responsible_for": [
+        "medical"
+      ],
+      "decision": "what the people left behind will need"
+    }
+  ],
+  "decision": {
+    "question": "Let them go, or argue them back aboard?",
+    "options": [
+      {
+        "label": "let them go, and say it well",
+        "cost": []
+      },
+      {
+        "label": "argue, and keep the post filled",
+        "cost": [
+          {
+            "effect": "sicken",
+            "post": "support",
+            "condition": "grieving",
+            "magnitude": "slight"
+          }
+        ]
+      }
+    ]
+  },
+  "lines": [
+    {
+      "to": "the chair",
+      "delivery": "report",
+      "text": "The request is on the board. A post would empty, and permanently."
+    },
+    {
+      "to": "the medical seat",
+      "delivery": "confession",
+      "text": "I do not know whether holding them is duty or hunger. Tell me honestly."
+    }
+  ],
+  "maps": [],
+  "scripts": [],
+  "inhabited": [],
+  "crew": {
+    "map": "tour/deck09",
+    "max": 4,
+    "members": [
+      {
+        "name": "watch1",
+        "type": "Renner",
+        "at": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch2",
+        "type": "Showers",
+        "at": [
+          64,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch3",
+        "type": "Green",
+        "at": [
+          0,
+          64,
+          0
+        ]
+      },
+      {
+        "name": "watch4",
+        "type": "Lang",
+        "at": [
+          64,
+          64,
+          0
+        ]
+      }
+    ],
+    "posts": [
+      {
+        "name": "post1",
+        "at": [
+          0,
+          0,
+          0
+        ],
+        "holder": "watch1"
+      },
+      {
+        "name": "post2",
+        "at": [
+          64,
+          0,
+          0
+        ],
+        "holder": "watch2"
+      },
+      {
+        "name": "post3",
+        "at": [
+          0,
+          64,
+          0
+        ],
+        "holder": "watch3"
+      },
+      {
+        "name": "post4",
+        "at": [
+          64,
+          64,
+          0
+        ],
+        "holder": "watch4"
+      }
+    ]
+  }
+}

@@ -1,0 +1,197 @@
+{
+  "name": "deck08-the-shortcut",
+  "canon_root": "the shortcut -- a route that cuts years off the crossing, at a structural cost (slate 5)",
+  "breeding_conditions": [
+    {
+      "state": "system_condition",
+      "op": ">=",
+      "value": 0.7
+    },
+    {
+      "state": "deuterium",
+      "op": ">=",
+      "value": 0.4
+    }
+  ],
+  "systems": [
+    "structural integrity",
+    "warp drive",
+    "navigational deflector"
+  ],
+  "staff": [
+    "the conn",
+    "engineering"
+  ],
+  "cost": {
+    "answer": {
+      "text": "take the shortcut and pay the hull for it",
+      "effects": [
+        {
+          "effect": "damage_system",
+          "system": "structural integrity",
+          "amount": 0.4
+        }
+      ]
+    },
+    "ignore": {
+      "text": "take the long way and keep the ship whole",
+      "effects": []
+    }
+  },
+  "residue": [
+    "a ship that arrives different, or a crew that does"
+  ],
+  "visibility": [
+    "conn",
+    "engineering"
+  ],
+  "warmth": [
+    "manner"
+  ],
+  "positions": [
+    {
+      "post": "the conn",
+      "information": [
+        "console",
+        "brief"
+      ],
+      "authority": [
+        "operate"
+      ],
+      "responsible_for": [
+        "flight"
+      ],
+      "decision": "whether to lay in the shortcut course"
+    },
+    {
+      "post": "the engineering seat",
+      "information": [
+        "system_condition",
+        "brief"
+      ],
+      "authority": [
+        "operate",
+        "call_alert"
+      ],
+      "responsible_for": [
+        "engineering",
+        "structural integrity"
+      ],
+      "decision": "who is told the truth about the odds the hull will not take"
+    }
+  ],
+  "decision": {
+    "question": "Take the shortcut, and who is told the truth about the odds?",
+    "options": [
+      {
+        "label": "take it, and tell the crew the odds",
+        "cost": [
+          {
+            "effect": "damage_system",
+            "system": "structural integrity",
+            "amount": 0.4
+          }
+        ]
+      },
+      {
+        "label": "take the long way",
+        "cost": []
+      }
+    ]
+  },
+  "lines": [
+    {
+      "to": "the conn",
+      "delivery": "order",
+      "text": "Lay in the shortcut. Hold the course until I say otherwise."
+    },
+    {
+      "to": "the engineering seat",
+      "delivery": "confession",
+      "text": "Tell me the number the hull will not take, and I will tell the crew the rest."
+    }
+  ],
+  "maps": [],
+  "scripts": [],
+  "inhabited": [],
+  "crew": {
+    "map": "tour/deck08",
+    "max": 4,
+    "members": [
+      {
+        "name": "watch1",
+        "type": "Renner",
+        "at": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch2",
+        "type": "Showers",
+        "at": [
+          64,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch3",
+        "type": "Green",
+        "at": [
+          0,
+          64,
+          0
+        ]
+      },
+      {
+        "name": "watch4",
+        "type": "Lang",
+        "at": [
+          64,
+          64,
+          0
+        ]
+      }
+    ],
+    "posts": [
+      {
+        "name": "post1",
+        "at": [
+          0,
+          0,
+          0
+        ],
+        "holder": "watch1"
+      },
+      {
+        "name": "post2",
+        "at": [
+          64,
+          0,
+          0
+        ],
+        "holder": "watch2"
+      },
+      {
+        "name": "post3",
+        "at": [
+          0,
+          64,
+          0
+        ],
+        "holder": "watch3"
+      },
+      {
+        "name": "post4",
+        "at": [
+          64,
+          64,
+          0
+        ],
+        "holder": "watch4"
+      }
+    ]
+  }
+}

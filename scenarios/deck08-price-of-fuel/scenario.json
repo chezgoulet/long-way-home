@@ -1,0 +1,210 @@
+{
+  "name": "deck08-price-of-fuel",
+  "canon_root": "the price of fuel -- deuterium low, and the species who owns the source wants what you should not give (slate 3)",
+  "breeding_conditions": [
+    {
+      "state": "deuterium",
+      "op": "<",
+      "value": 0.3
+    }
+  ],
+  "systems": [
+    "warp drive",
+    "impulse drive",
+    "replicators",
+    "sensors"
+  ],
+  "staff": [
+    "the chair",
+    "engineering",
+    "operations"
+  ],
+  "cost": {
+    "answer": {
+      "text": "pay the price for the deuterium",
+      "effects": [
+        {
+          "effect": "write_off",
+          "target": "the forward sensor array"
+        }
+      ]
+    },
+    "ignore": {
+      "text": "ration the replicators and limp on at impulse",
+      "effects": [
+        {
+          "effect": "damage_system",
+          "system": "warp drive",
+          "amount": 0.2
+        },
+        {
+          "effect": "damage_system",
+          "system": "replicators",
+          "amount": 0.3
+        }
+      ]
+    }
+  },
+  "residue": [
+    "a debt, and a resentment that travels ahead of the ship"
+  ],
+  "visibility": [
+    "engineering",
+    "operations"
+  ],
+  "warmth": [
+    "rations"
+  ],
+  "positions": [
+    {
+      "post": "the chair",
+      "information": [
+        "deuterium",
+        "brief",
+        "log"
+      ],
+      "authority": [
+        "command",
+        "call_alert"
+      ],
+      "responsible_for": [
+        "command"
+      ],
+      "decision": "whether to pay what the owner of the source asks"
+    },
+    {
+      "post": "the operations seat",
+      "information": [
+        "deuterium",
+        "console",
+        "brief"
+      ],
+      "authority": [
+        "operate"
+      ],
+      "responsible_for": [
+        "operations"
+      ],
+      "decision": "what is cut to stretch the fuel that is left"
+    }
+  ],
+  "decision": {
+    "question": "Pay the price the species asks for the fuel, or ration and limp?",
+    "options": [
+      {
+        "label": "pay it, and travel",
+        "cost": [
+          {
+            "effect": "write_off",
+            "target": "the forward sensor array"
+          }
+        ]
+      },
+      {
+        "label": "refuse, and ration the replicators",
+        "cost": [
+          {
+            "effect": "damage_system",
+            "system": "replicators",
+            "amount": 0.3
+          }
+        ]
+      }
+    ]
+  },
+  "lines": [
+    {
+      "to": "the chair",
+      "delivery": "report",
+      "text": "The source is theirs and the price is set. Do we pay it?"
+    },
+    {
+      "to": "the operations seat",
+      "delivery": "order",
+      "text": "If we refuse, cut the replicators first. The crew will feel it before the engines do."
+    }
+  ],
+  "maps": [],
+  "scripts": [],
+  "inhabited": [],
+  "crew": {
+    "map": "tour/deck08",
+    "max": 4,
+    "members": [
+      {
+        "name": "watch1",
+        "type": "Renner",
+        "at": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch2",
+        "type": "Showers",
+        "at": [
+          64,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch3",
+        "type": "Green",
+        "at": [
+          0,
+          64,
+          0
+        ]
+      },
+      {
+        "name": "watch4",
+        "type": "Lang",
+        "at": [
+          64,
+          64,
+          0
+        ]
+      }
+    ],
+    "posts": [
+      {
+        "name": "post1",
+        "at": [
+          0,
+          0,
+          0
+        ],
+        "holder": "watch1"
+      },
+      {
+        "name": "post2",
+        "at": [
+          64,
+          0,
+          0
+        ],
+        "holder": "watch2"
+      },
+      {
+        "name": "post3",
+        "at": [
+          0,
+          64,
+          0
+        ],
+        "holder": "watch3"
+      },
+      {
+        "name": "post4",
+        "at": [
+          64,
+          64,
+          0
+        ],
+        "holder": "watch4"
+      }
+    ]
+  }
+}

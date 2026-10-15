@@ -121,5 +121,20 @@ if diff -u "$WORK/schema-fields.txt" "$WORK/loader-broken.txt" >/dev/null; then
   fail "the falsification did not fail: a planted field went unnoticed"
 fi
 echo "PASS  the planted field fails the comparison, so the check has teeth"
+
+echo
+echo "==> scenario: every manifest under scenarios/ validates and builds (the nine, and the frame)"
+n=0
+for d in scenarios/*/; do
+  [ -f "$d/scenario.json" ] || continue
+  n=$((n + 1))
+  python3 tools/validator/validate.py "$d" --quiet >/dev/null 2>&1 \
+    || { python3 tools/validator/validate.py "$d"; fail "an authored scenario was refused: $d"; }
+  python3 tools/scenario/scenario_build.py "$d" >/dev/null \
+    || fail "an authored scenario did not build: $d"
+  echo "    ${d%/} validated and built"
+done
+[ "$n" -ge 9 ] || fail "expected at least the nine-scenario slate, found $n manifest(s)"
+echo "PASS  $n scenario manifest(s) validate against the contract and build"
 echo
 echo "all scenario checks passed"

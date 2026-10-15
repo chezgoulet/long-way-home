@@ -218,6 +218,16 @@ root, its decision, and its residue.
 9. **Organising.** The Borg aboard, unopposed, the clock running. *Decision:* the whole defensive kit --
    decompression, level-10 fields, remodulation, the vinculum -- played against a visible countdown.
 
+**Authored as declarations, 2026-10-13.** All nine are now `scenario.json` manifests under `scenarios/`
+-- `deck11-gel-pack`, `deck15-nineteen-relays`, `deck08-price-of-fuel`, `deck09-the-ones-who-stay`,
+`deck08-the-shortcut`, `deck01-eleven-minutes`, `deck01-the-other-captain`,
+`deck12-a-fire-a-breach-a-deck`, `deck06-organising` -- each validated against the declaration contract
+(`docs/scenario-manifest.md`) and built, and each guarded by `scripts/scenario-check.sh`. **The slate is
+now the specification the systems are derived from**, not prose they are guessed against: the nine read
+**16 systems, 9 posts and 11 effect kinds, all of which already exist**, so the systems Wave 3 must add
+are the enabling primitives the evaluator needs, not a row per absent register entry
+(`docs/evidence/the-nine-manifests.md`, the derivation table).
+
 ## What this needs from the systems
 
 Scenarios 1, 2, 6 and 8 are almost entirely **tier 1** -- power, doors, fields, life support, crew
