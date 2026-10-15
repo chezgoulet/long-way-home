@@ -1193,6 +1193,16 @@ the cache). <!-- register-row id=voice-plumbing state=closed marker=check:script
 
 ## Residuals (named, queued, not forgotten)
 
+- **The away site's crew floor — awaiting the owner's ruling** *(raised 2026-10-15,
+  `docs/evidence/the-two-way-fixes.md`; **the number is not changed again either way**).*
+  `scripts/away-check.sh` requires the site to embody at least **9** crew; it was written requiring
+  **≥ 10**. The nine-departments pass (2026-10-12, 3.3) moved the ship's deck-1 roster from 13 to 9, so
+  the floor was lowered to match. **Two readings, and they are opposite:** *(a)* **a stale check corrected
+  against a deliberate roster change** — the roster is the design, and 9 is the honest figure the site
+  now embodies; or *(b)* **a design requirement quietly weakened to make a check pass** — the site should
+  hold a body of crew, and if the roster gives it fewer, that is itself the finding, not a number to
+  lower. **This is the owner's to settle; it does not read as settled.**
+
 - ~~**The Game Development Kit was no longer on the playtest host**~~ **Closed 2026-10-05** — it had
   been extracted under `/tmp` and was lost. `scripts/fetch-gdk.sh` now restores it into `build/gdk`
   from the Internet Archive, checksummed, and G0 was re-run against it: validator negative tests all

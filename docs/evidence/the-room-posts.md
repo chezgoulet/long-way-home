@@ -1,5 +1,7 @@
 # The room posts — one legible post per meeting room, and the check that guards them
 
+> **Corrected 2026-10-15 (docs/evidence/the-two-way-fixes.md).** The frame measure this document names, `tools/meetings/legibility.py`, no longer exists: it was generalised into `tools/frames/frame.py` (`docs/frame-assertions.md`: *"the old `tools/meetings/legibility.py` is deleted: one file, one rule"*). The citations below are corrected to the surviving path; the figures are this pass's own and are unchanged.
+
 The owner's ruling (docs/evidence/the-meeting-place.md, 2026-10-10): *"if a room is pitch black it
 needs its own light."* The dark-room pass (docs/evidence/the-dark-room.md) found the security office's
 fault — the meeting's post stood **inside** the copied armory geometry — and fixed it. It left a
@@ -16,7 +18,7 @@ audio is rendered, and no asset is added.
 A post is a **position and a facing** — where the meeting's camera stands and what it looks at. The
 candidate tool is `g_shipTest 96` (the dark-room pass's vantage test): `g_shipTestPos "x y z"` stands
 the player at that anchor and photographs four facings there plus one each a pace west and east, so a
-post is tried **without rebuilding the map**. A frame is measured by `tools/meetings/legibility.py`:
+post is tried **without rebuilding the map**. A frame is measured by `tools/frames/frame.py`:
 the middle band of the screen, `median >= 35` and `p90 >= 80` on a pixel's brightest channel.
 
 The premise was re-measured before any post was chosen, because the previous one-frame-per-facing
@@ -34,7 +36,7 @@ The sweep of all seven rooms, `g_shipTest 96` at each room's own point (index or
 $ for room in briefing-room ready-room bridge sickbay astrometrics engineering security-office; do
     xvfb-run -a scripts/run-engine.sh --home-dir build/g3-home ... \
       +set g_shipTest 96 +set g_shipTestPos "<the room's point>" +map voyager
-    python3 tools/meetings/legibility.py build/g3-home/baseEF/screenshots/lwh_darkroom_security_*.tga
+    python3 tools/frames/frame.py build/g3-home/baseEF/screenshots/lwh_darkroom_security_*.tga
   done
 briefing-room   0 LEGIBLE 55/255   1 DARK 29/57   2 LEGIBLE 39/88   3 LEGIBLE 49/255  4 DARK 37/43  5 DARK 12/51
 ready-room      0 LEGIBLE 42/82    1 DARK 37/56   2 LEGIBLE 44/255  3 DARK 45/71      4 DARK  6/52  5 LEGIBLE 49/255

@@ -1,5 +1,7 @@
 # The dark room — the meeting's own spawn stood inside geometry
 
+> **Corrected 2026-10-15 (docs/evidence/the-two-way-fixes.md).** The frame measure this document names, `tools/meetings/legibility.py`, no longer exists: it was generalised into `tools/frames/frame.py` (`docs/frame-assertions.md`: *"the old `tools/meetings/legibility.py` is deleted: one file, one rule"*). The citations below are corrected to the surviving path; the figures are this pass's own and are unchanged.
+
 The owner's ruling (recorded at the end of `docs/evidence/the-meeting-place.md`, 2026-10-10):
 **"if a room is pitch black it needs its own light."** So a meeting room that renders black is a
 **defect**, not the look, and it was queued. This is the pass that establishes which defect.
@@ -58,7 +60,7 @@ SHIP: dark room: security west-east at (-4364 -3906 -19308) facing 0
 SHIP: dark room: security east-west at (-3980 -3906 -19308) facing 180
 SHIP: dark room: 6 vantage(s) photographed
 
-$ python3 tools/meetings/legibility.py build/g3-home/baseEF/screenshots/lwh_darkroom_security_*.tga
+$ python3 tools/frames/frame.py build/g3-home/baseEF/screenshots/lwh_darkroom_security_*.tga
 lwh_darkroom_security_0.tga                    mean  92.0 median  87.0 p90 122.0  LEGIBLE
 lwh_darkroom_security_1.tga                    mean  86.9 median 114.0 p90 139.0  LEGIBLE
 lwh_darkroom_security_2.tga                    mean 108.6 median 119.0 p90 122.0  LEGIBLE
@@ -122,7 +124,7 @@ PASS  every kind of meeting has a room; a command decision named the briefing ro
 
 `scripts/room-survey-check.sh` runs `g_shipTest 97`, which stands the player in each room the meeting
 table (`module/ship/meeting_rooms.def`) names and photographs four facings of each, then measures the
-frames with `tools/meetings/legibility.py`. (The room positions are chosen from the maps' own
+frames with `tools/frames/frame.py`. (The room positions are chosen from the maps' own
 floor-standing nav goals; they are recorded in the harness.)
 
 | room | deck | verdict | frame(s) that read |
@@ -168,7 +170,7 @@ scripts/meeting-place-check.sh  -> PASS, and the room frame measures LEGIBLE
 scripts/room-survey-check.sh    -> PASS; every room photographed; the security office reads
 ```
 
-The legibility measure is the new `tools/meetings/legibility.py`. It reads the engine's own screenshot
+The legibility measure is the new `tools/frames/frame.py`. It reads the engine's own screenshot
 (an uncompressed TGA) and calls a frame **legible** when its typical pixel is not near black
 (`median ≥ 35`) *and* it carries something clearly lit (`p90 ≥ 80`), the measure being a pixel's
 **brightest channel** so a red console or a blue lamp counts as light. It measures the middle band of

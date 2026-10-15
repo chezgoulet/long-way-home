@@ -31,7 +31,7 @@ art that already ships:
 
 | archetype | reuse | texture of the place |
 |---|---|---|
-| **derelict interior** | re-dress `dn*`, `borg*`, `scav*` | wrecked corridors, failing light, no gravity in places |
+| **derelict interior** | re-dress `dn*`, `borg*`, `scav*` (surveyed: **`scav2`** is the source — the densest single-deck interior; `docs/evidence/the-archetype-survey.md`) | wrecked corridors, failing light, no gravity in places |
 | **alien ship interior** | re-dress `scav1`-`5` | unfamiliar layout, the species' own design language |
 | **industrial surface facility** | re-dress `forge1`-`5` | the closest thing the game has to a *place on a planet* |
 | **space station / outpost** | re-dress `ctf_space`, `scav5a` | docking bays, terminals, a market |

@@ -49,14 +49,25 @@ was not the blocker.)
 ## 3. What I verified by running it — the picture, before and after
 
 The site's own gate, `scripts/away-check.sh`, exits **0**. The before/after pair is at the **stores
-post, frame 2 (east), the same vantage**:
+post, frame 2 (east), the same vantage**. **The frames are preserved outside the repository** (the repo
+carries no game media) at the absolute paths
+
+    /home/c/lwh-frames/the-away-site-exterior/before/lwh_away_depot_stores_2.tga   (the blocked view)
+    /home/c/lwh-frames/the-away-site-exterior/after/lwh_away_depot_stores_2.tga    (the opening)
+
+Each frame is **1280×1024**; the measure's band `0.10,0.55` is **y 102..563, x 0..1280 — 461 rows,
+590,080 px** (full width, the middle 45 % of the height). Both sets hold all six stores-post frames. The
+`before` set is regenerated with the pre-pass tool (`git show ce9428c^1:tools/away/dress_away_site.py`)
+and the `after` set with the tool on this branch; the diff below reproduces from the preserved files:
 
 ```
-$ python3 tools/frames/frame.py floor --band 0.10,0.55 frames-stores-{before,after}/*.tga
+$ python3 tools/frames/frame.py floor --band 0.10,0.55 \
+      /home/c/lwh-frames/the-away-site-exterior/{before,after}/lwh_away_depot_stores_2.tga
 # BEFORE  stores_2  mean 53.5 median 49 p90  85 spread  94  LEGIBLE   (the crate fills the view)
 # AFTER   stores_2  mean 41.5 median 41 p90  73 spread  82  DARK -- p90 73 < 80 (nothing lit)
 $ python3 tools/frames/frame.py diff --band 0.10,0.55 --min-changed 0.03 --min-delta 24 \
-      frames-stores-before/lwh_away_depot_stores_2.tga frames-stores-after/lwh_away_depot_stores_2.tga
+      /home/c/lwh-frames/the-away-site-exterior/before/lwh_away_depot_stores_2.tga \
+      /home/c/lwh-frames/the-away-site-exterior/after/lwh_away_depot_stores_2.tga
   lwh_away_depot_stores_2.tga   band 0.1-0.55   changed  23.2% mean|d|  18.1 of 590080 px  DIFFERS
 ```
 
@@ -70,13 +81,15 @@ used to be.
 
 The second effect is the source block's removal: the pace `stores_5` (facing west, 16 units from the
 block) went from **DARK (p90 45)** to **LEGIBLE (p90 101)**, a 63.3 % change — it now looks down the
-lit deck instead of at the block's unlit face.
+lit deck instead of at the block's unlit face. (`/home/c/lwh-frames/the-away-site-exterior/before/lwh_away_depot_stores_5.tga`
+and `…/after/lwh_away_depot_stores_5.tga`, 1280×1024, band `0.10,0.55` = y 102..563.)
 
 The "opening shows a world" property, at the stores post, **moved the right way**:
 
 ```
 $ python3 tools/frames/frame.py diff --band 0.10,0.55 --min-changed 0.3 --min-delta 24 \
-      frames-stores-after/lwh_away_depot_stores_3.tga frames-stores-after/lwh_away_depot_stores_2.tga
+      /home/c/lwh-frames/the-away-site-exterior/after/lwh_away_depot_stores_3.tga \
+      /home/c/lwh-frames/the-away-site-exterior/after/lwh_away_depot_stores_2.tga
   lwh_away_depot_stores_2.tga   band 0.1-0.55   changed  60.3% mean|d|  39.1 of 590080 px  DIFFERS
 # the same comparison BEFORE the pass: 54.0 % -- the outward view now differs *more* from the wall
 ```

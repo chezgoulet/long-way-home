@@ -1,5 +1,7 @@
 # The room reads — four posts moved to the fixture their room is named for
 
+> **Corrected 2026-10-15 (docs/evidence/the-two-way-fixes.md).** The frame measure this document names, `tools/meetings/legibility.py`, no longer exists: it was generalised into `tools/frames/frame.py` (`docs/frame-assertions.md`: *"the old `tools/meetings/legibility.py` is deleted: one file, one rule"*). The citations below are corrected to the surviving path; the figures are this pass's own and are unchanged.
+
 The premise was measured, not re-derived (the room-posts pass, `docs/evidence/the-room-posts.md`):
 legibility was **done** — all seven posts measured legible and `scripts/room-survey-check.sh` failed
 when one did not — but **the frame did not read as the room it was named for**. Three rooms read (the
@@ -26,7 +28,7 @@ it. The four candidates, by the frame:
 $ SDL_AUDIODRIVER=dummy xvfb-run -a scripts/run-engine.sh --home-dir build/g3-home \
     +set s_useOpenAL 0 +set g_ship 1 +set g_shipMode 1 +set g_shipDeckPitch 3072 \
     +set g_shipTest 96 +set g_shipTestPos "<candidate>" +map voyager
-$ python3 tools/meetings/legibility.py build/g3-home/baseEF/screenshots/lwh_darkroom_security_*.tga
+$ python3 tools/frames/frame.py build/g3-home/baseEF/screenshots/lwh_darkroom_security_*.tga
 
 briefing-room  anchor (-3082 -3320 -4013): frame 1 (post-south, yaw 270)  median 43  p90 255  LEGIBLE
 ready-room     anchor (-3970 -3360 -4013): frame 5 (east-west, yaw 180)   median 40  p90 255  LEGIBLE

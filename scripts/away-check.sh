@@ -171,15 +171,17 @@ pass "both of the site's own posts read at their own facings -- the site stands 
 # legibility threshold written for a room cannot be passed by a picture of the sky.** (Before this
 # pass the dark frame was `stores_5`, a pace against a machine block; the crate that blocked the
 # stores post's outward view has been lowered and the block dropped, so that pace now reads and the
-# dark frame moved to the outward view itself.) Any *other* dark frame is a regressed claim and
-# fails, by name.
-DARK="$(python3 "$ROOT/tools/frames/frame.py" floor --band 0.10,0.55 "$HOME_DIR"/frames-*/*.tga \
-    | awk '/DARK/ { print $1 }')"
-if [ -n "$DARK" ]; then
-    OTHERS="$(printf '%s\n' "$DARK" | grep -vxF "$ALLOWED_DARK" || true)"
-    [ -z "$OTHERS" ] || fail "a vantage is dark and it is not the named one ($ALLOWED_DARK): $OTHERS"
-fi
-pass "the only dark vantage is the one named -- the stores post's outward view, whose subject is the black debris field"
+# dark frame moved to the outward view itself.)
+# The rig's probe, made **two-way** (`tools/frames/dark_probe.py`; docs/evidence/the-two-way-fixes.md).
+# The named frame -- the stores post's outward view, whose subject is the black debris field -- *must*
+# read dark, and **no other** frame may. A one-way guard (fail only on an *unexpected* dark frame)
+# cannot report the exemption ceasing to be needed: if a later pass seals the opening, the frame becomes
+# a lit wall and a one-way guard says nothing while the outward view is gone. The probe fails on that,
+# and names it, so the assertion is the one the pass actually makes -- the opening still exists.
+echo "==> the dark probe, two ways: the named opening reads dark, and nothing else does"
+python3 "$ROOT/tools/frames/dark_probe.py" --band 0.10,0.55 --named "$ALLOWED_DARK" \
+    "$HOME_DIR"/frames-*/*.tga | sed 's/^/    /' \
+    || fail "the dark probe failed: the named opening ($ALLOWED_DARK) is not dark, or another frame is"
 
 # The site reads as *outside*: at the site's own post, the picture looking out into the debris field
 # and the picture looking at the site's own wall must differ over the region of the subject. A HUD
