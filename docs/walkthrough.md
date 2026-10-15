@@ -986,10 +986,17 @@ evidence: `docs/evidence/the-character-layer.md`, `docs/evidence/the-manner.md`.
   defect — see Section 14.
 
 ### G20 — The glance has no in-world control, and sealed quarters have no world prompt
-- **Status 2026-10-11 — OPEN.** `docs/evidence/every-screen.md` row 12: *"the glance — thin, left —
+- **Status 2026-10-11 — OPEN. Recon 2026-10-15** (`docs/evidence/the-panel-control.md`): the **use key
+  can be driven headlessly** — a console `+use` never reaches the game, but a forged `ClientThink` does,
+  once `player_locked` (a deck script) is cleared — and the stock panels are **inert** to the player's
+  use, so the module can add the affordance with **no engine patch**. **Blocked on which brush is the
+  panel:** the `func_usable` entities on the ship are doors/hatches (a door satisfies `StandAtPanel`'s
+  criteria), and the live-panel status screens on the generated decks are plain brushes remapped by
+  `target_shaderremap`, not `func_usable`. Needs a decision to **mark the screens** as the affordance.
+  `docs/evidence/every-screen.md` row 12: *"the glance — thin, left —
   in-world control, out of console scope; a readout by design"*; `docs/evidence/the-two-missing-decks.md`
   judgement call 5 carries the sealed quarters. Closure is an engine/world affordance on panel and door
-  brushes. Left unannotated: world work, no named artifact.
+  brushes.
 - **Missing:** the in-world readout is a read by design; the control it lacks is a world interaction
   (an interactive panel surface), parked as out-of-console-scope. Sealed quarters are visible only
   through the console/HUD, not by a per-door prompt.
