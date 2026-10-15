@@ -861,6 +861,51 @@ void Publish( void )
 		gi.cvar_set( "lwh_ship_chart", chart.c_str() );
 		gi.cvar_set( "lwh_ship_links", links.c_str() );
 	}
+
+	// The shuttle load screen (O9): the bay, the destinations one jump away with their chart
+	// confidence and the risk, the crew who may go, the loadout that leaves stores, and the ways a
+	// shuttle comes back. Every one is a read -- the screen shows them and decides nothing, sending the
+	// ship the same `ship` commands the console answers (docs/shuttles.md step 2).
+	{
+		std::string bay;
+		for ( const ship::Shuttle &sh : vessel.shuttles )
+			bay += Fmt( "%d|%s|%d|%s;", static_cast<int>( sh.cls ), ship::ShuttleClassName( sh.cls ),
+				static_cast<int>( sh.condition * 100.0f + 0.5f ), ship::ShuttleLocationName( sh.location ) );
+		gi.cvar_set( "lwh_ship_launch", bay.c_str() );
+
+		std::string dest;
+		for ( int l : vessel.sector[vessel.beacon].links )
+			dest += Fmt( "%d|%s;", l, ship::ChartConfidence( vessel, l ) );
+		gi.cvar_set( "lwh_ship_launch_dest", dest.c_str() );
+
+		// The risk is the ship's read, for each in-bay shuttle against each destination: a lookup for
+		// the screen, so the screen itself combines nothing.
+		std::string risk;
+		for ( const ship::Shuttle &sh : vessel.shuttles )
+		{
+			if ( sh.location != ship::SHUTTLE_IN_BAY ) continue;
+			for ( int l : vessel.sector[vessel.beacon].links )
+				risk += Fmt( "%d|%d|%s;", static_cast<int>( sh.cls ), l, ship::LaunchRisk( vessel, sh.cls, l ) );
+		}
+		gi.cvar_set( "lwh_ship_launch_risk", risk.c_str() );
+
+		std::string crew;
+		for ( int i = 0; i < static_cast<int>( vessel.crew.size() ); ++i )
+		{
+			const ship::CrewMember &c = vessel.crew[i];
+			if ( c.status != ship::CREW_FIT ) continue;
+			crew += Fmt( "%d|%s|%s|%d;", i, c.name.c_str(), ship::DepartmentName( c.dept ), c.away ? 1 : 0 );
+		}
+		gi.cvar_set( "lwh_ship_launch_crew", crew.c_str() );
+
+		gi.cvar_set( "lwh_ship_launch_loadout", Fmt( "%d material, %d rations, %d parts",
+			static_cast<int>( std::min( vessel.stores.materials, 10.0f ) ),
+			static_cast<int>( std::min( vessel.stores.rations, 10.0f ) ),
+			static_cast<int>( std::min( vessel.stores.spareParts, 10.0f ) ) ).c_str() );
+
+		gi.cvar_set( "lwh_ship_launch_return", Fmt( "0|%s;1|%s;2|%s;",
+			ship::ShuttleReturnName( 0 ), ship::ShuttleReturnName( 1 ), ship::ShuttleReturnName( 2 ) ).c_str() );
+	}
 	{
 		std::string aboard;
 		for ( int d = 0; d < ship::DECKS; ++d )
@@ -4239,6 +4284,60 @@ void RunTest( void )
 		}
 		return;
 	}
+	if ( g_shipTest->integer == 103 )
+	{//the shuttle load screen (O9; docs/shuttles.md step 2): the manifest, the loadout, the
+	 //destination with its chart confidence, and the risk -- decided on the screen and committed,
+	 //then read from what the run did. The screen's own key commands, so what the test presses is
+	 //what a hand presses; the state printed is what the ship published and what the model then holds.
+		static int step = 0;
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			// Put the ship at a beacon with more than one way on (the first beacon has one link), so
+			// the destination is a real choice and the confidences differ: beacon 0 is charted, the
+			// rest are not.
+			vessel.beacon = 1;
+			vessel.sector[1].visited = true;
+			gi.Printf( "SHIP: launch test: at beacon %d, the links are", vessel.beacon );
+			for ( int l : vessel.sector[vessel.beacon].links ) gi.Printf( " %d", l );
+			gi.Printf( "\n" );
+			gi.SendConsoleCommand( "ui_lwh_launch\n" );
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3400 )
+		{
+			gi.Printf( "SHIP: launch test: the bay reads \"%s\"\n", gi.cvar( "lwh_ship_launch", "", 0 )->string );
+			gi.Printf( "SHIP: launch test: destinations \"%s\"\n", gi.cvar( "lwh_ship_launch_dest", "", 0 )->string );
+			gi.Printf( "SHIP: launch test: the risk table \"%s\"\n", gi.cvar( "lwh_ship_launch_risk", "", 0 )->string );
+			gi.Printf( "SHIP: launch test: the loadout \"%s\"\n", gi.cvar( "lwh_ship_launch_loadout", "", 0 )->string );
+			gi.Printf( "SHIP: launch test: the ways back \"%s\"\n", gi.cvar( "lwh_ship_launch_return", "", 0 )->string );
+			gi.SendConsoleCommand( "screenshot lwh_launch\n" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 4000 ) { gi.SendConsoleCommand( "lwh_launch_key t\n" ); step = 3; }      // Type 6, not the Class 2
+		if ( step == 3 && level.time >= 4400 ) { gi.SendConsoleCommand( "lwh_launch_key right\n" ); step = 4; }  // the second destination
+		if ( step == 4 && level.time >= 4800 ) { gi.SendConsoleCommand( "lwh_launch_key a\n" ); step = 5; }      // mark the crew row
+		if ( step == 5 && level.time >= 5200 ) { gi.SendConsoleCommand( "lwh_launch_key down\n" ); step = 6; }
+		if ( step == 6 && level.time >= 5600 ) { gi.SendConsoleCommand( "lwh_launch_key a\n" ); step = 7; }      // and the next
+		if ( step == 7 && level.time >= 6000 )
+		{
+			gi.SendConsoleCommand( "lwh_launch_key c\n" );   // back by a rendezvous
+			gi.SendConsoleCommand( "screenshot lwh_launch_set\n" );
+			step = 8;
+		}
+		if ( step == 8 && level.time >= 6600 ) { gi.SendConsoleCommand( "lwh_launch_key enter\n" ); step = 9; }  // the commit
+		if ( step == 9 && level.time >= 7400 )
+		{
+			const ship::Shuttle *sh = ship::ShuttleByClass( vessel, ship::SHUTTLE_TYPE6 );
+			if ( sh ) gi.Printf( "SHIP: launch test: the screen put %s %s, beacon %d, %d aboard, back by %s\n",
+				ship::ShuttleClassName( sh->cls ), ship::ShuttleLocationName( sh->location ), sh->awayBeacon,
+				static_cast<int>( sh->manifest.size() ), ship::ShuttleReturnName( sh->returnCondition ) );
+			gi.Printf( "SHIP: launch test: the log: %s\n", vessel.log.empty() ? "(none)" : vessel.log.back().what.c_str() );
+			step = 10;
+		}
+		if ( step == 10 && level.time >= 8200 ) { gi.SendConsoleCommand( "quit\n" ); step = 11; }
+		return;
+	}
 	if ( g_shipTest->integer == 102 )
 	{//an away site's zero-g zone (docs/outside-the-ship.md: a derelict is "no gravity in places").
 	 //The base game's own mechanism: a `trigger_multiple` fires a `target_gravity_change` for the
@@ -7072,6 +7171,16 @@ void Svcmd_Ship_f( void )
 		if ( cls < 0 || cls >= ship::SHUTTLE_CLASS_COUNT || !ship::LaunchShuttle( vessel, static_cast<ship::ShuttleClass>( cls ), atoi( b ), manifest ) )
 			gi.Printf( "SHIP: cannot launch that shuttle (not in the bay, or a crew member is not fit)\n" );
 		else gi.Printf( "SHIP: %s away to beacon %s, %d aboard\n", ship::ShuttleClassName( static_cast<ship::ShuttleClass>( cls ) ), b, static_cast<int>( manifest.size() ) );
+		Publish();
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "shuttlereturn" ) && a[0] && b[0] )
+	{//the load screen's third decision: how the shuttle is to come back (docs/shuttles.md step 2)
+		const int cls = atoi( a );
+		const int cond = atoi( b );
+		if ( cls < 0 || cls >= ship::SHUTTLE_CLASS_COUNT || !ship::SetShuttleReturn( vessel, static_cast<ship::ShuttleClass>( cls ), cond ) )
+			gi.Printf( "SHIP: no such shuttle to set a return for\n" );
+		else gi.Printf( "SHIP: %s is to come back by %s\n", ship::ShuttleClassName( static_cast<ship::ShuttleClass>( cls ) ), ship::ShuttleReturnName( cond ) );
 		Publish();
 		return;
 	}

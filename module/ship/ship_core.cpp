@@ -7187,6 +7187,51 @@ Shuttle *ShuttleByClass(Ship &s, ShuttleClass c)
 	return NULL;
 }
 
+const char *ShuttleReturnName(int condition)
+{
+	static const char *const NAMES[3] = { "a transporter window", "a rendezvous", "its own power" };
+	return (condition >= 0 && condition <= 2) ? NAMES[condition] : "?";
+}
+
+// The load screen's third decision (docs/shuttles.md step 2): how the shuttle is to come back. The
+// safest is the transporter window (canon range 40,000 km standard, 10 km emergency); a rendezvous
+// and the shuttle's own power are the alternatives. Set on a shuttle that is not lost, before launch.
+bool SetShuttleReturn(Ship &s, ShuttleClass c, int condition)
+{
+	if (condition < 0 || condition > 2) return false;
+	Shuttle *sh = ShuttleByClass(s, c);
+	if (!sh || sh->location == SHUTTLE_LOST) return false;
+	sh->returnCondition = condition;
+	return true;
+}
+
+// The destination's confidence (docs/shuttles.md step 2: "the destination with its chart confidence, so
+// you can see whether you are sending people somewhere you barely scanned"). One word, from the sector
+// row's own two flags: we have been there (CHARTED), a sensor survey has said what is here (SURVEYED),
+// or neither (UNCHARTED). A read: the screen shows it and decides nothing.
+const char *ChartConfidence(const Ship &s, int beacon)
+{
+	if (beacon < 0 || beacon >= static_cast<int>(s.sector.size())) return "OFF THE CHART";
+	const Beacon &b = s.sector[beacon];
+	if (b.visited) return "CHARTED";
+	if (b.surveyed) return "SURVEYED";
+	return "UNCHARTED";
+}
+
+// The launch risk: the chart's confidence, worsened by a shuttle that is not at full condition. A
+// pre-flight check states the risk before the commit, not after (docs/shuttles.md step 2).
+const char *LaunchRisk(const Ship &s, ShuttleClass c, int beacon)
+{
+	const std::string conf = ChartConfidence(s, beacon);
+	int level = 0;                                       // 0 low .. 2 high
+	if (conf == "SURVEYED") level = 1;
+	else if (conf != "CHARTED") level = 2;
+	const Shuttle *sh = ShuttleByClass(s, c);
+	if (sh && sh->condition < 0.999f) level = std::min(2, level + 1);
+	static const char *const NAMES[3] = { "LOW", "MODERATE", "HIGH" };
+	return NAMES[level];
+}
+
 int ShuttlesInBay(const Ship &s)
 {
 	int n = 0;

@@ -144,6 +144,8 @@ def main(argv):
         ("lwh_jobs.tga", (88, 138, 180, 168), (0, 0, 0), "a TINYFONT column label", "TINYFONT", (15, 24)),
         ("lwh_survey.tga", (88, 42, 420, 80), None, "the SMALLFONT title on its band", "SMALLFONT", (28, 38)),
         ("lwh_survey.tga", (88, 206, 400, 236), (0, 0, 0), "a TINYFONT survey row", "TINYFONT", (15, 24)),
+        ("lwh_launch.tga", (88, 42, 460, 80), None, "the SMALLFONT title on its band", "SMALLFONT", (28, 38)),
+        ("lwh_launch.tga", (88, 172, 620, 198), (0, 0, 0), "a TINYFONT column label", "TINYFONT", (15, 24)),
     }
     for name, box, bg, what, font, bounds in shots:
         path = os.path.join(args.shots, name)

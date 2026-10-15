@@ -82,6 +82,14 @@ beacon it went to. Launch puts the crew away and removes their cargo from stores
 home; **strand** leaves the shuttle behind (a loss with a location); **lose** kills the crew with it
 and puts a **build job** for a replacement in the second bay (worked by engineers, `RebuildShuttle`),
 not a respawn; a hit on the bay (`ShuttleBayHit`) damages what is parked. The in-game control is the
-console (`ship shuttle|launch|shuttledock|lose|bayhit|rebuild`) and the published panels are not yet
-wired to it. Not built: the **load-screen** menu (the manifest/loadout/confidence decision at the
-moment of launch) and a shuttle as an away-mission vehicle distinct from the transporter.
+console (`ship shuttle|launch|shuttledock|shuttlereturn|lose|bayhit|rebuild`) and the published panels.
+
+**The load screen — built 2026-10-15** (`module/ui/ui_lwh_command.cpp`, `ui_lwh_launch`;
+`docs/evidence/the-load-screen.md`): step 2 above, on the screen. It shows the bay and the shuttle being
+loaded, the destinations one jump away with their **chart confidence** and the **risk**, the manifest
+(who goes, and their posts that go empty), the **loadout** that leaves stores, and the **return
+condition**; the decisions it makes — the shuttle, the destination, the manifest, the return — are
+committed through the same `ship shuttlereturn` / `ship launch` the console answers, so the screen and
+the transcript cannot disagree (`scripts/launch-check.sh`). Reached from the command console (`L`).
+**Still not built:** a shuttle as an away-mission vehicle distinct from the transporter, and the
+away-mission loop itself, which is scenario content.

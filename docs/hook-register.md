@@ -502,6 +502,10 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `BreachScore` | `const Breach &b, const std::vector<int> &picks` | `picks` are cell indices (row * size + column) | play | — | — |
 | `ShuttleClassName` | `ShuttleClass c` | Shuttles (docs/shuttles.md): supported, not pilotable | play | — | docs/shuttles.md |
 | `ShuttleLocationName` | `ShuttleLocation l` | shuttle location name | console | — | — |
+| `ShuttleReturnName` | `int condition` | the way a shuttle comes back: a transporter window, a rendezvous, its own power | console | — | docs/shuttles.md |
+| `SetShuttleReturn` | `Ship &s, ShuttleClass c, int condition` | the load screen's third decision (O9): how the shuttle is to come back | console | — | docs/shuttles.md |
+| `ChartConfidence` | `const Ship &s, int beacon` | the destination's chart confidence for the load screen: CHARTED / SURVEYED / UNCHARTED | play | — | docs/shuttles.md |
+| `LaunchRisk` | `const Ship &s, ShuttleClass c, int beacon` | the launch risk (LOW / MODERATE / HIGH), a read for the load screen | play | — | docs/shuttles.md |
 | `ShuttlesInBay` | `const Ship &s` | shuttles in bay | console | — | — |
 | `ShuttlesAway` | `const Ship &s` | shuttles away | console | — | — |
 | `WarpPossible` | `const Ship &s` | warp possible | play | — | — |
@@ -603,7 +607,7 @@ command console; evidence in `docs/evidence/the-bills.md`.
 
 ## The counts (Task B)
 
-<!-- register-counts play=300 console=159 nothing=34 content=5 total=498 -->
+<!-- register-counts play=302 console=161 nothing=34 content=5 total=502 -->
 
 **The current count, machine-checked.** The marker above is the register's own count, re-derived from its
 rows and checked against the surface of `module/ship/ship_core.h` by
