@@ -7599,10 +7599,32 @@ bool WriteOff(Ship &s, bool system, int target, uint8_t kind)
 		const bool aboard = !system && s.crew[i].deck == target;
 		Remember(s, i, MEM_LOSS, -1, aboard ? MEM_SAW : MEM_RUMOUR, aboard ? -0.6f : -0.3f);
 	}
+	// The place keeps the mark (docs/scenario-atlas.md, slate 8): a deck given up is *residue*, not only
+	// a line on the written-off list. What the world dresses the deck from is this field, and nothing in
+	// the model clears it -- the deck does not come back whole.
+	if (!system) {
+		uint8_t res = RES_WRITTEN_OFF;
+		if (kind == LOSS_SEALED) res = RES_SEALED;
+		else if (kind == LOSS_STRIPPED) res = RES_STRIPPED;
+		else if (kind == LOSS_UNINHABITABLE) res = RES_UNINHABITABLE;
+		s.decks[target - 1].residue = res;
+	}
 	return true;
 }
 
 const std::vector<LossEntry> &WriteOffs(const Ship &s) { return s.losses; }
+
+uint8_t DeckResidue(const Ship &s, int deck)
+{
+	if (deck < 1 || deck > DECKS) return RES_NONE;
+	return s.decks[deck - 1].residue;
+}
+
+const char *DeckResidueName(uint8_t r)
+{
+	static const char *const NAMES[RES_COUNT] = {"none", "sealed", "stripped", "uninhabitable", "written off"};
+	return r < RES_COUNT ? NAMES[r] : "?";
+}
 
 // ---- the scenario ledger (docs/scenario-manifest.md, the evaluator) -------------------------------
 
@@ -9462,7 +9484,9 @@ std::vector<uint8_t> Pack(const Ship &s)
 	w.F(s.holodeckReactor.health); w.U8(s.holodeckReactor.online);
 	for (const Deck &d : s.decks) { w.F(d.atmosphere); w.F(d.gravity); w.F(d.hull); w.F(d.intruders); w.U8(d.borg); w.F(d.assimilated); w.F(d.forceFieldLevel); w.F(d.fire); w.U8(d.boarderKind); w.U8(static_cast<uint8_t>(d.objective)); w.U8(d.compromised ? 1 : 0); w.F(d.dwell); w.U8(d.engaged ? 1 : 0);
 		// The independent air feed (version 56, O2): which source holds the deck, and who set it.
-		w.U8(d.airSource); w.U8(d.airBy); w.U16(static_cast<uint16_t>(d.airCrew + 1)); }
+		w.U8(d.airSource); w.U8(d.airBy); w.U16(static_cast<uint16_t>(d.airCrew + 1));
+		// The deck's residue (version 66, slate 8): what the place permanently is now.
+		w.U8(d.residue); }
 	w.F(s.stores.deuterium); w.F(s.stores.antimatter); w.F(s.stores.batteries);
 	w.U16(static_cast<uint16_t>(s.stores.torpedoes));
 	w.F(s.stores.spareParts); w.F(s.stores.medicalSupplies); w.F(s.stores.rations); w.F(s.stores.materials); w.U8(static_cast<uint8_t>(s.stores.probes)); w.U8(static_cast<uint8_t>(s.stores.tricorders)); w.U8(static_cast<uint8_t>(s.stores.phasers)); w.U8(static_cast<uint8_t>(s.stores.evSuits)); w.F(s.stores.tricorderCharge); w.F(s.stores.kitCondition); w.U8(PhaserYieldOf(s));
@@ -9864,6 +9888,9 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 		if (d.airSource >= AIR_SOURCE_COUNT || d.airSource == SRC_WARP_CORE) return false;
 		if (d.airBy >= ALLOC_BY_COUNT) return false;
 		if (d.airCrew < -1 || d.airCrew >= static_cast<int>(count)) return false;
+		// The deck's residue (version 66, slate 8): what the place permanently is now.
+		d.residue = r.U8();
+		if (d.residue >= RES_COUNT) return false;
 	}
 	s.stores.deuterium = r.Unit(); s.stores.antimatter = r.Unit(); s.stores.batteries = r.Unit();
 	s.stores.torpedoes = r.U16();

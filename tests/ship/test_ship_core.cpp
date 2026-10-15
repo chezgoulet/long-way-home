@@ -1337,6 +1337,40 @@ static void TestWrittenOffList()
 }
 
 // The tricorder gap: a scan reveals; a weak charge misreads; a dead tricorder does nothing.
+static void TestDeckResidue()
+{
+	g_test = "a deck keeps a residue -- what the place permanently is now (slate 8)";
+	Ship s = NewShip();
+	CHECK(DeckResidue(s, 8) == RES_NONE);
+	CHECK(!std::strcmp(DeckResidueName(RES_NONE), "none"));
+
+	// A deck given up keeps the *place*: the residue mirrors the loss kind, distinct from the live
+	// state beside it (hull, atmosphere), which can be restored.
+	CHECK(WriteOff(s, false, 8, LOSS_SEALED));
+	CHECK(DeckResidue(s, 8) == RES_SEALED);
+	CHECK(!std::strcmp(DeckResidueName(RES_SEALED), "sealed"));
+	CHECK(WriteOff(s, false, 6, LOSS_WRITTEN_OFF));
+	CHECK(DeckResidue(s, 6) == RES_WRITTEN_OFF);
+	CHECK(WriteOff(s, false, 7, LOSS_STRIPPED));
+	CHECK(DeckResidue(s, 7) == RES_STRIPPED);
+	CHECK(WriteOff(s, false, 5, LOSS_UNINHABITABLE));
+	CHECK(DeckResidue(s, 5) == RES_UNINHABITABLE);
+
+	// A system's write-off is not a place.
+	CHECK(WriteOff(s, true, SYS_SENSORS, LOSS_STRIPPED));
+	CHECK(DeckResidue(s, 0) == RES_NONE && DeckResidue(s, DECKS + 1) == RES_NONE);
+
+	// The residue survives a save and a load.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(DeckResidue(back, 8) == RES_SEALED);
+	CHECK(DeckResidue(back, 6) == RES_WRITTEN_OFF);
+	CHECK(DeckResidue(back, 7) == RES_STRIPPED);
+	CHECK(DeckResidue(back, 5) == RES_UNINHABITABLE);
+	CHECK(DeckResidue(back, 1) == RES_NONE);
+}
+
 static void TestAwayKit()
 {
 	g_test = "the tricorder reveals, misreads on a weak charge, and dies";
@@ -4667,6 +4701,31 @@ static int PrintLosses()
 	return restored && WriteOffs(back).size() == 4 ? 0 : 1;
 }
 
+// `test_ship_core --residue` prints a deck's residue -- what the place permanently is now (slate 8):
+// the decks the ship has given up, named, distinct from the live state beside them.
+static int PrintResidue()
+{
+	Ship s = NewShip();
+	SetRole(s, ROLE_IN_COMMAND);
+	WriteOff(s, false, 8, LOSS_SEALED);
+	WriteOff(s, false, 12, LOSS_WRITTEN_OFF);
+	WriteOff(s, false, 7, LOSS_STRIPPED);
+	for (int d = 1; d <= DECKS; ++d) {
+		const uint8_t r = DeckResidue(s, d);
+		if (r != RES_NONE)
+			std::printf("PASS  deck %d: residue '%s'\n", d, DeckResidueName(r));
+	}
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	const bool restored = Unpack(blob.data(), blob.size(), back);
+	std::printf("PASS  %s: deck 8 '%s', deck 12 '%s', deck 7 '%s'\n",
+		restored ? "reloaded" : "RELOAD FAILED",
+		DeckResidueName(DeckResidue(back, 8)), DeckResidueName(DeckResidue(back, 12)),
+		DeckResidueName(DeckResidue(back, 7)));
+	return restored && DeckResidue(back, 8) == RES_SEALED && DeckResidue(back, 12) == RES_WRITTEN_OFF
+		&& DeckResidue(back, 7) == RES_STRIPPED ? 0 : 1;
+}
+
 // The declaration contract, in one fixture: every field the design says a scenario declares, present
 // once, addressed only by post. The manifest half is `docs/scenario-manifest.md`; the loader is
 // `module/ship/scenario_core.cpp`; the two laws are enforced by `tools/validator/declarations.py`.
@@ -5301,7 +5360,7 @@ static int PrintMaintenance()
 		const bool loads = Unpack(blob.data(), blob.size(), back);
 		int mjobs = 0;
 		for (const Job &j : Jobs(back)) if (j.kind == JOB_MAINTENANCE) ++mjobs;
-		std::printf("  format %u (the wear clock was saved at 64 and the scenario ledger at 65, so an older save does not load); the blob is %zu bytes and loads %d; the maintenance job round-trips (%d), the party is re-derived\n",
+		std::printf("  format %u (the wear clock was saved at 64, the scenario ledger at 65 and the deck residue at 66, so an older save does not load); the blob is %zu bytes and loads %d; the maintenance job round-trips (%d), the party is re-derived\n",
 			SAVE_VERSION, blob.size(), loads ? 1 : 0, mjobs);
 	}
 	return 0;
@@ -10285,6 +10344,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--voice")) return PrintVoice();
 	if (argc > 1 && !std::strcmp(argv[1], "--day")) return PrintDay();
 	if (argc > 1 && !std::strcmp(argv[1], "--losses")) return PrintLosses();
+	if (argc > 1 && !std::strcmp(argv[1], "--residue")) return PrintResidue();
 	if (argc > 1 && !std::strcmp(argv[1], "--shields")) return PrintShields();
 	if (argc > 1 && !std::strcmp(argv[1], "--scenario") && argc > 2) return PrintScenario(argv[2]);
 	if (argc > 1 && !std::strcmp(argv[1], "--scenario-fields")) return PrintScenarioFields();
@@ -10339,6 +10399,7 @@ int main(int argc, char **argv)
 	TestGravity();
 	TestLog();
 	TestWrittenOffList();
+	TestDeckResidue();
 	TestAwayKit();
 	TestBoarding();
 	TestBreachPuzzle();

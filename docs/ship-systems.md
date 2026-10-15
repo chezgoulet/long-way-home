@@ -106,6 +106,13 @@ existing door and force-field interactives (66 on deck04 alone; force fields on 
 security door only on the member's own access (the record decides, not a list), and a door a script
 owns not at all; the engine's own answer, per door, is `docs/evidence/the-doors.md`.
 
+**The deck's residue — the place, not the moment** *(built 2026-10-13, slate 8)*. A deck the ship gives
+up keeps what it *is* now: `RES_SEALED`, `RES_STRIPPED`, `RES_UNINHABITABLE` or `RES_WRITTEN_OFF`
+(`DeckResidue`), set when a deck is written off and by a fired scenario whose residue names one. It is
+kept apart from the live state beside it — hull, atmosphere, fire and assimilation all come back; the
+residue does not, which is what lets a scenario leave a sealed deck "you can visit later and see what
+was left behind" (`docs/scenario-atlas.md`, slate 8). Save 66; `docs/evidence/the-deck-residue.md`.
+
 **Life support.** Environmental control is a Deck 12 node; per-deck atmosphere, gravity and temperature
 are ours to track, with gravity failures canon-precedented on Decks 8, 9 and 11. Inertial dampers gate
 atmospheric entry and warp entirely -- warp without them kills the crew.
