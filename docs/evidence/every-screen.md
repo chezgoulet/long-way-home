@@ -6,6 +6,8 @@ the list marks missing. The two outright absences it names are the **month repor
 and the **job-queue board** (row 19); the sweep also found three *thin* screens, the **beacon
 choices** (row 21), the **tricorder survey** (row 22) and the **star chart** (row 23). All five are
 addressed here; two rows (12, the glance; 18, the shuttle load-screen) are left with their reasons.
+**Since then, row 18 has been built** — 2026-10-15, `feat/the-load-screen`,
+`docs/evidence/the-load-screen.md`; row 12 stands.
 
 Order by what the game needs most: the two absences first (row 20 the report is the period beat and
 row 19 the queue is the crew economy's face), then the three thin screens a post actually works
@@ -204,7 +206,7 @@ experientially.
 | # | surface | verdict now |
 |---|---|---|
 | 12 | the glance | thin, left -- in-world control, out of console scope; a readout by design |
-| 18 | shuttle load-screen | missing, left -- a launch decision menu, not a station screen |
+| 18 | shuttle load-screen | **built 2026-10-15** (`ui_lwh_launch`, `feat/the-load-screen`) -- `docs/evidence/the-load-screen.md`; it was *missing, left* (a launch decision menu, not a station screen) |
 | 19 | job-queue board | **built** (`ui_lwh_jobs`) |
 | 20 | month report editor | **built** (`ui_lwh_report`) |
 | 21 | beacon choices | **thickened** (keys on Operations; the Conn runs) |

@@ -195,6 +195,7 @@ bool CommandAct( int key )
 	case 'a': case 'A': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_chart\n" ); return true;
 	case 'b': case 'B': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_bills\n" ); return true; // the bills
 	case 'm': case 'M': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_meeting\n" ); return true; // the staff meetings waiting
+	case 'l': case 'L': ui.Cmd_ExecuteText( EXEC_APPEND, "ui_lwh_launch\n" ); return true; // the shuttle load screen
 	case 'p': case 'P':
 	{
 		char idx[16];
@@ -539,6 +540,194 @@ sfxHandle_t ChartKey( int key )
 	return Menu_DefaultKey( &chart.menu, key );
 }
 
+// ---- the shuttle load screen: the manifest, the loadout, the destination and the risk (O9) -----
+//
+// docs/shuttles.md step 2: "the screen shows the manifest (who is going, and therefore which posts go
+// empty), the loadout (what comes out of stores), the destination with its chart confidence, the return
+// condition, and the risk. Canon-flavoured: a pre-flight check, not a menu." Every value is published
+// by the ship (lwh_ship_launch*); the commit is the same `ship shuttlereturn` / `ship launch` the
+// console answers, so the screen and the transcript cannot disagree. It is command's surface -- it is
+// reached from the command console -- and it decides nothing itself.
+
+#define LWH_LAUNCH_CREW 256   // crew indices that may be marked aboard (the roster is far smaller)
+
+struct {
+	menuframework_s menu;
+	int cls;                        // the shuttle being loaded (0..3)
+	int dest;                       // cursor in the destinations one jump away
+	int crew;                       // cursor in the crew who may go
+	int ret;                        // the return condition (0..2)
+	char going[LWH_LAUNCH_CREW];    // crew index i is marked aboard (1) or not
+} launch;
+
+// The beacon under the destination cursor, or -1. Read from what the ship published; the screen holds
+// only the cursor.
+int LaunchSelectedBeacon( void )
+{
+	char rows[4096];
+	ui.Cvar_VariableStringBuffer( "lwh_ship_launch_dest", rows, sizeof( rows ) );
+	int n = 0;
+	for ( char *tok = strtok( rows, ";" ); tok; tok = strtok( NULL, ";" ), ++n )
+	{
+		if ( n != launch.dest ) continue;
+		char *bar = strchr( tok, '|' );
+		if ( bar ) *bar = 0;
+		return atoi( tok );
+	}
+	return -1;
+}
+
+void LaunchDraw( void )
+{
+	char rows[8192], risk[2048], line[256], retName[64], retRows[512];
+	struct { int cls, beacon; const char *risk; } risks[64];
+	int nr = 0;
+
+	UI_FillRect( 0, 0, 640, 480, colorTable[CT_BLACK] );
+	UI_FillRect( 20, 16, 600, 22, colorTable[CT_LTGOLD1] );
+	UI_FillRect( 20, 42, 14, 396, colorTable[CT_DKPURPLE1] );
+	UI_FillRect( 20, 442, 600, 10, colorTable[CT_DKPURPLE1] );
+	UI_DrawProportionalString( 44, 19, "COMMAND  -  SHUTTLE LOAD", UI_SMALLFONT, colorTable[CT_BLACK] );
+	UI_DrawProportionalString( 44, 46, "A pre-flight check: the manifest, the loadout, the destination and the risk",
+		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+
+	// The shuttle being loaded: its own row in the bay. T cycles through the four classes.
+	ui.Cvar_VariableStringBuffer( "lwh_ship_launch", rows, sizeof( rows ) );
+	Q_strncpyz( line, "SHUTTLE: none in the bay", sizeof( line ) );
+	for ( char *tok = strtok( rows, ";" ); tok; tok = strtok( NULL, ";" ) )
+	{
+		char *name = strchr( tok, '|' ); if ( !name ) continue; *name++ = 0;
+		char *cond = strchr( name, '|' ); if ( !cond ) continue; *cond++ = 0;
+		char *loc = strchr( cond, '|' ); if ( !loc ) continue; *loc++ = 0;
+		if ( atoi( tok ) != launch.cls ) continue;
+		Com_sprintf( line, sizeof( line ), "SHUTTLE: %s   condition %s%%   %s", name, cond, loc );
+	}
+	UI_DrawProportionalString( 44, 64, line, UI_TINYFONT, colorTable[CT_LTGOLD1] );
+
+	// The risk is the ship's read for each in-bay shuttle against each destination: a lookup table.
+	ui.Cvar_VariableStringBuffer( "lwh_ship_launch_risk", risk, sizeof( risk ) );
+	for ( char *tok = strtok( risk, ";" ); tok && nr < 64; tok = strtok( NULL, ";" ) )
+	{
+		char *c = strchr( tok, '|' ); if ( !c ) continue; *c++ = 0;
+		char *b = strchr( c, '|' ); if ( !b ) continue; *b++ = 0;
+		risks[nr].cls = atoi( tok ); risks[nr].beacon = atoi( c ); risks[nr].risk = b; ++nr;
+	}
+
+	// The destination and its chart confidence, with the risk beside it.
+	UI_DrawProportionalString( 44, 84, "DESTINATION (one jump away)      CONFIDENCE      RISK", UI_TINYFONT, colorTable[CT_LTORANGE] );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_launch_dest", rows, sizeof( rows ) );
+	int n = 0;
+	for ( char *tok = strtok( rows, ";" ); tok; tok = strtok( NULL, ";" ), ++n )
+	{
+		char *conf = strchr( tok, '|' ); if ( !conf ) break; *conf++ = 0;
+		const int beacon = atoi( tok );
+		const bool selected = n == launch.dest;
+		const char *rk = "?";
+		for ( int i = 0; i < nr; ++i ) if ( risks[i].cls == launch.cls && risks[i].beacon == beacon ) rk = risks[i].risk;
+		const int y = 98 + n * 16;
+		if ( selected ) UI_FillRect( 38, y - 1, 582, 14, colorTable[CT_DKPURPLE2] );
+		UI_DrawProportionalString( 44, y, va( "%sBEACON %d", selected ? "> " : "  ", beacon ), UI_TINYFONT,
+			colorTable[selected ? CT_WHITE : CT_LTBLUE2] );
+		UI_DrawProportionalString( 250, y, conf, UI_TINYFONT,
+			colorTable[selected ? CT_WHITE : Q_stricmp( conf, "UNCHARTED" ) ? CT_LTBLUE2 : CT_LTORANGE] );
+		UI_DrawProportionalString( 420, y, rk, UI_TINYFONT,
+			colorTable[selected ? CT_WHITE : Q_stricmp( rk, "HIGH" ) ? CT_LTBLUE2 : CT_RED] );
+	}
+	if ( n && launch.dest >= n ) launch.dest = n - 1;
+
+	// The manifest: who may go, and whose rows are marked. The crew who go are the posts that go empty.
+	UI_DrawProportionalString( 44, 152, "MANIFEST  (who goes; their posts go empty)      A marks the row",
+		UI_TINYFONT, colorTable[CT_LTORANGE] );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_launch_crew", rows, sizeof( rows ) );
+	int m = 0, aboard = 0;
+	const int first = launch.crew > 4 ? launch.crew - 4 : 0;
+	for ( char *tok = strtok( rows, ";" ); tok; tok = strtok( NULL, ";" ), ++m )
+	{
+		char *idx = tok;
+		char *name = strchr( idx, '|' ); if ( !name ) break; *name++ = 0;
+		char *dept = strchr( name, '|' ); if ( !dept ) break; *dept++ = 0;
+		char *away = strchr( dept, '|' ); if ( !away ) break; *away++ = 0;
+		const int ci = atoi( idx );
+		const bool marked = ci >= 0 && ci < LWH_LAUNCH_CREW && launch.going[ci];
+		if ( marked ) ++aboard;
+		if ( m < first || m >= first + 8 ) continue;
+		const bool selected = m == launch.crew;
+		const int y = 166 + ( m - first ) * 16;
+		if ( selected ) UI_FillRect( 38, y - 1, 582, 14, colorTable[CT_DKPURPLE2] );
+		UI_DrawProportionalString( 44, y, va( "%s%s %s   %s%s", selected ? "> " : "  ", marked ? "+" : "-",
+			name, dept, atoi( away ) ? "  (away)" : "" ), UI_TINYFONT,
+			colorTable[selected ? CT_WHITE : marked ? CT_LTGOLD1 : CT_LTBLUE2] );
+	}
+	if ( m && launch.crew >= m ) launch.crew = m - 1;
+
+	// The loadout that leaves stores, and the way the shuttle is to come back.
+	ui.Cvar_VariableStringBuffer( "lwh_ship_launch_loadout", line, sizeof( line ) );
+	UI_DrawProportionalString( 44, 312, va( "LOADOUT OUT OF STORES: %s", line ), UI_TINYFONT, colorTable[CT_LTBLUE2] );
+	Q_strncpyz( retName, "?", sizeof( retName ) );
+	ui.Cvar_VariableStringBuffer( "lwh_ship_launch_return", retRows, sizeof( retRows ) );
+	for ( char *tok = strtok( retRows, ";" ); tok; tok = strtok( NULL, ";" ) )
+	{
+		char *nm = strchr( tok, '|' ); if ( !nm ) break; *nm++ = 0;
+		if ( atoi( tok ) == launch.ret ) Q_strncpyz( retName, nm, sizeof( retName ) );
+	}
+	UI_DrawProportionalString( 44, 330, va( "RETURN: %s   (C: a transporter window / a rendezvous / its own power)",
+		retName ), UI_TINYFONT, colorTable[CT_LTGOLD1] );
+	UI_DrawProportionalString( 44, 350, va( "%d marked aboard", aboard ), UI_TINYFONT,
+		aboard ? colorTable[CT_LTGOLD1] : colorTable[CT_RED] );
+
+	UI_DrawProportionalString( 44, 426,
+		"UP/DOWN crew   A mark/unmark   LEFT/RIGHT destination   T shuttle   C return   ENTER launch   ESC leave",
+		UI_TINYFONT, colorTable[CT_LTPURPLE1] );
+}
+
+bool LaunchAct( int key )
+{
+	switch ( key )
+	{
+	case K_UPARROW: if ( launch.crew > 0 ) --launch.crew; return true;
+	case K_DOWNARROW: ++launch.crew; return true;
+	case K_LEFTARROW: if ( launch.dest > 0 ) --launch.dest; return true;
+	case K_RIGHTARROW: ++launch.dest; return true;
+	case 't': case 'T': launch.cls = ( launch.cls + 1 ) % 4; return true;   // the four shuttle classes
+	case 'c': case 'C': launch.ret = ( launch.ret + 1 ) % 3; return true;   // window / rendezvous / own power
+	case 'a': case 'A':
+	{// mark or unmark the crew row under the cursor, by the crew index the ship published
+		char rows[8192];
+		ui.Cvar_VariableStringBuffer( "lwh_ship_launch_crew", rows, sizeof( rows ) );
+		int m = 0;
+		for ( char *tok = strtok( rows, ";" ); tok; tok = strtok( NULL, ";" ), ++m )
+		{
+			if ( m != launch.crew ) continue;
+			char *bar = strchr( tok, '|' );
+			if ( bar ) *bar = 0;
+			const int ci = atoi( tok );
+			if ( ci >= 0 && ci < LWH_LAUNCH_CREW ) launch.going[ci] = launch.going[ci] ? 0 : 1;
+			break;
+		}
+		return true;
+	}
+	case K_ENTER: case K_KP_ENTER:
+	{// the commit: the third decision, then the launch -- the same commands the console answers
+		const int beacon = LaunchSelectedBeacon();
+		if ( beacon < 0 ) return true;
+		ui.Cmd_ExecuteText( EXEC_APPEND, va( "ship shuttlereturn %d %d\n", launch.cls, launch.ret ) );
+		char cmd[1024];
+		Com_sprintf( cmd, sizeof( cmd ), "ship launch %d %d", launch.cls, beacon );
+		for ( int i = 0; i < LWH_LAUNCH_CREW; ++i )
+			if ( launch.going[i] ) Q_strcat( cmd, sizeof( cmd ), va( " %d", i ) );
+		ui.Cmd_ExecuteText( EXEC_APPEND, va( "%s\n", cmd ) );
+		return true;
+	}
+	}
+	return false;
+}
+
+sfxHandle_t LaunchKey( int key )
+{
+	if ( LaunchAct( key ) ) return menu_null_sound;
+	return Menu_DefaultKey( &launch.menu, key );
+}
+
 // ---- the bills: who does what when it goes wrong (docs/crew-manifest.md) ------------------------
 //
 // The watch bill, battle stations, the emergency bills and the officer of the deck on one screen.
@@ -696,6 +885,22 @@ qboolean LWH_UI_CommandScreens( const char *cmd )
 	{
 		ui.Argv( 1, arg, sizeof( arg ) );
 		ChartAct( KeyByName( arg ) );
+		return qtrue;
+	}
+	// The shuttle load screen (O9): the manifest, the loadout, the destination and the risk at the
+	// moment of launch. Opened from the command console (L) and driven by name, so what a test presses
+	// is what a hand presses.
+	if ( !Q_stricmp( cmd, "ui_lwh_launch" ) )
+	{
+		launch.cls = 0; launch.dest = 0; launch.crew = 0; launch.ret = 0;
+		memset( launch.going, 0, sizeof( launch.going ) );
+		Push( &launch.menu, LaunchDraw, LaunchKey );
+		return qtrue;
+	}
+	if ( !Q_stricmp( cmd, "lwh_launch_key" ) )
+	{
+		ui.Argv( 1, arg, sizeof( arg ) );
+		LaunchAct( KeyByName( arg ) );
 		return qtrue;
 	}
 	if ( !Q_stricmp( cmd, "lwh_bills_key" ) )

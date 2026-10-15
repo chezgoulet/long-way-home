@@ -2621,6 +2621,12 @@ bool RaidVinculum(Ship &s);
 // is in the bay; losing one is permanent and becomes a build job.
 const char *ShuttleClassName(ShuttleClass c);
 const char *ShuttleLocationName(ShuttleLocation l);
+const char *ShuttleReturnName(int condition); // a transporter window, a rendezvous, or its own power
+bool SetShuttleReturn(Ship &s, ShuttleClass c, int condition); // the load screen's third decision
+// The destination's chart confidence and the launch risk, reads for the load screen (docs/shuttles.md
+// step 2: "the destination with its chart confidence ... and the risk"). Neither decides anything.
+const char *ChartConfidence(const Ship &s, int beacon);          // CHARTED / SURVEYED / UNCHARTED
+const char *LaunchRisk(const Ship &s, ShuttleClass c, int beacon); // LOW / MODERATE / HIGH
 int ShuttlesInBay(const Ship &s);            // the lifeboat arithmetic
 int ShuttlesAway(const Ship &s);
 Shuttle *ShuttleByClass(Ship &s, ShuttleClass c);
