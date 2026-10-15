@@ -9,8 +9,8 @@
 # the axis (a system's **wear**, the deferred-maintenance clock) and the threshold (MAINTENANCE_DUE)
 # as numbers; the rule that connects the crew-hours to the odds; the same system maintained and not,
 # over fifteen days, with the wear and the failure odds moving; the order and who may give it; and
-# the save's cost (the wear clock is saved, so the format moved at 64, and the scenario ledger at 65;
-# an older save does not load). The lines asserted here are the acceptance, so a silent regression
+# the save's cost (the wear clock is saved, so the format moved at 64, the scenario ledger at 65 and the
+# deck residue at 66; an older save does not load). The lines asserted here are the acceptance, so a silent regression
 # fails the check.
 #
 # Part two -- the falsification, the shape the brief names: a maintenance that runs but changes
@@ -65,9 +65,9 @@ grep -qE '^  dispatched: given 1, job [0-9]+, the job.s place in the queue -1 \(
   || fail "the order did not push the maintenance job to the head of the queue"
 grep -qE '^  the officer of the deck \(.*\) may give it to a senior \(.*, rank [0-9]+\): 1$' "$WORK/maint.txt" \
   || fail "the officer of the deck may not give the maintenance order"
-# The save: the wear clock is saved (the format moved at 64, and the scenario ledger later at 65),
-# the job round-trips, the older save does not load -- the cost named.
-grep -qE '^  format 65 \(the wear clock was saved at 64 and the scenario ledger at 65, so an older save does not load\); the blob is [0-9]+ bytes and loads 1; the maintenance job round-trips \(1\), the party is re-derived$' "$WORK/maint.txt" \
+# The save: the wear clock is saved (the format moved at 64, the scenario ledger at 65 and the deck
+# residue at 66), the job round-trips, the older save does not load -- the cost named.
+grep -qE '^  format 66 \(the wear clock was saved at 64, the scenario ledger at 65 and the deck residue at 66, so an older save does not load\); the blob is [0-9]+ bytes and loads 1; the maintenance job round-trips \(1\), the party is re-derived$' "$WORK/maint.txt" \
   || fail "the wear clock or the maintenance job did not round-trip, or the format did not move"
 
 echo

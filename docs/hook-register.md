@@ -485,6 +485,8 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `MinutesToDark` | `const Ship &s` | minutes to dark | play | — | — |
 | `EnduranceOf` | `const Ship &s, SourceId id` | The endurance of one source at its current draw, in minutes: the batteries' charge, or a reactor's fuel | play | — | — |
 | `DeckLifeSupport` | `const Ship &s, int deck` | The support (0..1) a deck's own air feed is delivering: the pooled main grid, or an independent source holding the deck alone | play | — | docs/budget-squaring.md |
+| `DeckResidue` | `const Ship &s, int deck` | What the place permanently is now: RES_SEALED / RES_STRIPPED / RES_UNINHABITABLE / RES_WRITTEN_OFF, set when a deck is given up and by a fired scenario's residue; distinct from the live state, which comes back (docs/scenario-atlas.md, slate 8) | play | — | docs/scenario-atlas.md |
+| `DeckResidueName` | `uint8_t r` | The residue's own name: none, sealed, stripped, uninhabitable, written off | console | — | docs/scenario-atlas.md |
 | `AirSourceOf` | `const Ship &s, int deck` | Which source holds a deck's air: AIR_GRID, or one of the sources that survive the core | play | — | docs/budget-squaring.md |
 | `AirSourceName` | `uint8_t source` | The air feed's source name | console | — | docs/budget-squaring.md |
 | `AirCommitted` | `const Ship &s` | The decks held on their own source, as EPS (one life-support plant per deck) | play | — | docs/budget-squaring.md |
@@ -601,14 +603,14 @@ command console; evidence in `docs/evidence/the-bills.md`.
 
 ## The counts (Task B)
 
-<!-- register-counts play=299 console=158 nothing=34 content=5 total=496 -->
+<!-- register-counts play=300 console=159 nothing=34 content=5 total=498 -->
 
 **The current count, machine-checked.** The marker above is the register's own count, re-derived from its
 rows and checked against the surface of `module/ship/ship_core.h` by
 `tools/docs/check_register_counts.py` (class 4 of `scripts/docs-check.sh`), which fails if it drifts from
 either. The dated paragraphs further down are the record of each pass's count at its date; this marker is
 what the register actually is now, so a reader sizes work on it and not on the prose above or below.
-**By reach:** play **299**, console **158**, nothing **34**, content **5**; **total 496**. (The counts in
+**By reach:** play **300**, console **159**, nothing **34**, content **5**; **total 498**. (The counts in
 the "By group" table and the dated re-derivations below are kept as history and are not the current count.)
 
 **By group.**
