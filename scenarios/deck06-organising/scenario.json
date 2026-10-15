@@ -1,0 +1,220 @@
+{
+  "name": "deck06-organising",
+  "canon_root": "organising -- the Borg aboard and unopposed, the clock running (slate 9)",
+  "breeding_conditions": [
+    {
+      "state": "intruders",
+      "op": ">=",
+      "value": 1
+    },
+    {
+      "state": "borg_awareness",
+      "op": ">=",
+      "value": 1
+    }
+  ],
+  "systems": [
+    "shields",
+    "phasers",
+    "life support",
+    "computer core"
+  ],
+  "staff": [
+    "security",
+    "engineering"
+  ],
+  "cost": {
+    "answer": {
+      "text": "the whole defensive kit -- decompression, a level-10 field, remodulation, the vinculum",
+      "effects": [
+        {
+          "effect": "air_source",
+          "deck": 6,
+          "source": "auxiliary fusion"
+        },
+        {
+          "effect": "sicken",
+          "post": "security",
+          "condition": "wounded",
+          "magnitude": "sharp"
+        }
+      ]
+    },
+    "ignore": {
+      "text": "let them organise while the rest of the ship still works",
+      "effects": [
+        {
+          "effect": "kill",
+          "post": "security",
+          "cause": "assimilated"
+        }
+      ]
+    }
+  },
+  "residue": [
+    "a bulkhead cut open and plated over"
+  ],
+  "visibility": [
+    "tactical",
+    "deck:6",
+    "sickbay"
+  ],
+  "warmth": [
+    "wall"
+  ],
+  "positions": [
+    {
+      "post": "the security seat",
+      "information": [
+        "intruders",
+        "console",
+        "brief"
+      ],
+      "authority": [
+        "operate",
+        "call_alert"
+      ],
+      "responsible_for": [
+        "security"
+      ],
+      "decision": "whether to fight for the deck or give it and seal it"
+    },
+    {
+      "post": "the chair",
+      "information": [
+        "brief",
+        "log",
+        "borg_awareness"
+      ],
+      "authority": [
+        "command",
+        "override"
+      ],
+      "responsible_for": [
+        "command"
+      ],
+      "decision": "how much of the defensive kit is spent before the clock runs out"
+    }
+  ],
+  "decision": {
+    "question": "The whole defensive kit, or give the deck and seal it?",
+    "options": [
+      {
+        "label": "fight for the deck with everything",
+        "cost": [
+          {
+            "effect": "sicken",
+            "post": "security",
+            "condition": "wounded",
+            "magnitude": "sharp"
+          }
+        ]
+      },
+      {
+        "label": "give it, decompress it, and seal it",
+        "cost": [
+          {
+            "effect": "air_source",
+            "deck": 6,
+            "source": "auxiliary fusion"
+          }
+        ]
+      }
+    ]
+  },
+  "lines": [
+    {
+      "to": "the security seat",
+      "delivery": "report",
+      "text": "They are on deck 6 and organising. Two hands are down and the field is rated ten."
+    },
+    {
+      "to": "the chair",
+      "delivery": "order",
+      "text": "Hold the junction. If you cannot, tell me, and I will decompress the deck myself."
+    }
+  ],
+  "maps": [],
+  "scripts": [],
+  "inhabited": [],
+  "crew": {
+    "map": "tour/deck09",
+    "max": 4,
+    "members": [
+      {
+        "name": "watch1",
+        "type": "Renner",
+        "at": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch2",
+        "type": "Showers",
+        "at": [
+          64,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch3",
+        "type": "Green",
+        "at": [
+          0,
+          64,
+          0
+        ]
+      },
+      {
+        "name": "watch4",
+        "type": "Lang",
+        "at": [
+          64,
+          64,
+          0
+        ]
+      }
+    ],
+    "posts": [
+      {
+        "name": "post1",
+        "at": [
+          0,
+          0,
+          0
+        ],
+        "holder": "watch1"
+      },
+      {
+        "name": "post2",
+        "at": [
+          64,
+          0,
+          0
+        ],
+        "holder": "watch2"
+      },
+      {
+        "name": "post3",
+        "at": [
+          0,
+          64,
+          0
+        ],
+        "holder": "watch3"
+      },
+      {
+        "name": "post4",
+        "at": [
+          64,
+          64,
+          0
+        ],
+        "holder": "watch4"
+      }
+    ]
+  }
+}

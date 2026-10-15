@@ -1,0 +1,222 @@
+{
+  "name": "deck15-nineteen-relays",
+  "canon_root": "nineteen relays -- battle severs the EPS runs feeding the turbolift network (slate 2, docs/scenario-atlas.md)",
+  "breeding_conditions": [
+    {
+      "state": "power_shortfall",
+      "op": ">",
+      "value": 0
+    },
+    {
+      "state": "patients",
+      "op": ">=",
+      "value": 1
+    }
+  ],
+  "systems": [
+    {
+      "id": "turbolifts",
+      "off": true
+    },
+    {
+      "id": "shields",
+      "stress": 0.3
+    },
+    "life support",
+    "sickbay"
+  ],
+  "staff": [
+    "engineering",
+    "operations",
+    "medical"
+  ],
+  "cost": {
+    "answer": {
+      "text": "route power to the lifts and take it from the shields",
+      "effects": [
+        {
+          "effect": "damage_system",
+          "system": "shields",
+          "amount": 0.2
+        }
+      ]
+    },
+    "ignore": {
+      "text": "leave the lifts down and move the wounded by tube",
+      "effects": [
+        {
+          "effect": "sicken",
+          "post": "medical",
+          "condition": "wounded",
+          "magnitude": "sharp"
+        }
+      ]
+    }
+  },
+  "residue": [
+    "a rerouted grid, and a limp that lasts"
+  ],
+  "visibility": [
+    "engineering",
+    "deck:15"
+  ],
+  "warmth": [
+    "manner"
+  ],
+  "positions": [
+    {
+      "post": "the engineering seat",
+      "information": [
+        "system_condition",
+        "console",
+        "brief"
+      ],
+      "authority": [
+        "operate",
+        "call_alert"
+      ],
+      "responsible_for": [
+        "engineering",
+        "life support"
+      ],
+      "decision": "whether to take power from the shields to run the lifts"
+    },
+    {
+      "post": "the medical seat",
+      "information": [
+        "patients",
+        "log",
+        "brief"
+      ],
+      "authority": [
+        "operate"
+      ],
+      "responsible_for": [
+        "medical",
+        "sickbay"
+      ],
+      "decision": "which casualty reaches sickbay first when the lifts are down"
+    }
+  ],
+  "decision": {
+    "question": "Take power from the shields to run the lifts, or move by tube?",
+    "options": [
+      {
+        "label": "the shields, so the lifts run and the wounded move",
+        "cost": [
+          {
+            "effect": "shield_hit",
+            "section": "forward",
+            "amount": 0.15
+          }
+        ]
+      },
+      {
+        "label": "keep the shields, and carry the wounded by hand",
+        "cost": [
+          {
+            "effect": "sicken",
+            "post": "medical",
+            "condition": "wounded",
+            "magnitude": "clear"
+          }
+        ]
+      }
+    ]
+  },
+  "lines": [
+    {
+      "to": "the engineering seat",
+      "delivery": "order",
+      "text": "Reroute power to the lifts. Take it from the forward shields and say so."
+    },
+    {
+      "to": "the medical seat",
+      "delivery": "report",
+      "text": "The wounded cannot reach you by lift. Send hands, or say which one waits."
+    }
+  ],
+  "maps": [],
+  "scripts": [],
+  "inhabited": [],
+  "crew": {
+    "map": "tour/deck15",
+    "max": 4,
+    "members": [
+      {
+        "name": "watch1",
+        "type": "Renner",
+        "at": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch2",
+        "type": "Showers",
+        "at": [
+          64,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "watch3",
+        "type": "Green",
+        "at": [
+          0,
+          64,
+          0
+        ]
+      },
+      {
+        "name": "watch4",
+        "type": "Lang",
+        "at": [
+          64,
+          64,
+          0
+        ]
+      }
+    ],
+    "posts": [
+      {
+        "name": "post1",
+        "at": [
+          0,
+          0,
+          0
+        ],
+        "holder": "watch1"
+      },
+      {
+        "name": "post2",
+        "at": [
+          64,
+          0,
+          0
+        ],
+        "holder": "watch2"
+      },
+      {
+        "name": "post3",
+        "at": [
+          0,
+          64,
+          0
+        ],
+        "holder": "watch3"
+      },
+      {
+        "name": "post4",
+        "at": [
+          64,
+          64,
+          0
+        ],
+        "holder": "watch4"
+      }
+    ]
+  }
+}
