@@ -1030,22 +1030,27 @@ exterior dressing are designed and unbuilt. Built on `feat/the-away-site` (cut f
 - **it reads as outside — partly** — at the console post, the frame that looks out into the debris
   field differs from the frame that looks at the site's own wall by **61.2 %** of the mid band
   (`tools/frames/frame.py diff`); the frame was looked at before it was captioned. The site's own
-  structure encloses most facings and a machine block the re-dress's drop rule missed blocks the
-  stores post's outward view, so the site reads as a sheltered outpost with a window onto space rather
-  than an apron standing open on it — the frame that decided it is `lwh_away_depot_console_2.tga`, and
-  the opening is the next pass ✅/partly
+  structure encloses most facings, so the site reads as a sheltered outpost with a window onto space
+  rather than an apron standing open on it — the frame that decided it is `lwh_away_depot_console_2.tga`.
+  **Corrected 2026-10-15** (`docs/evidence/the-away-site-exterior.md`): the *stores* post's outward view
+  is now open — the blocker was the site's **own** cargo crate (mis-attributed to a source machine block
+  the drop rule missed; the rule governs copied source brushes only), lowered below the eye line, and the
+  drop rule's real hole is closed; the stores post looks east into the debris field. **The structure's
+  first cause — most facings enclosed — stands** ✅/partly
 - **the light, measured per viewpoint** — both of the site's own posts read at their own four facings
-  (`frame.py floor`, mid band, 11 of 12 vantages LEGIBLE); the one dark frame is named: the rig's own
-  pace east of the stores post stands 16 units from the unlit face of a machine block on the apron,
-  and the block is the next pass's ✅
+  (`frame.py floor`, mid band); the one dark frame is named: after 2026-10-15 it is the **stores post's
+  outward (east)** frame, whose subject is the black debris field (`lwh_away_depot_stores_2.tga` — the
+  crate that blocked it is lowered and the source block the rule missed is dropped, so the pace
+  `stores_5` now reads) ✅
 - **the frames are the site's own** — the vantage test (`g_shipTest 96`) takes *where to stand* and
   *what to call the frames* from its caller (`g_shipVantagePost`, `g_shipVantage`), so the depot's
   frames are `lwh_away_depot_console_*` / `lwh_away_depot_stores_*` from its own two posts, and the
   dark room's own command still yields `lwh_darkroom_security_*` unchanged
   (`docs/evidence/the-away-vantages.md`; falsified by planting a post the map does not carry) ✅
 - **reachability, by the project's own instruments** — the crew layer embodies the ship's roster on
-  the site (`g_crew`, the `scripts/s5-check.sh` shape): **13 embodied, 13 reached their place, 0 gave
-  up, none in solid** ✅
+  the site (`g_crew`, the `scripts/s5-check.sh` shape): **9 embodied, 9 reached their place, 0 gave
+  up, none in solid** (the ship's roster puts 9 on deck 1 at 08:00 since the nine-departments pass,
+  3.3, moved it from the 13 this line was written against) ✅
 - **the regression** — `scripts/away-check.sh` runs the whole chain and fails if the map goes dark, if
   the opening stops showing a world, if the nav does not bake, or if a body does not arrive ✅
 
@@ -1401,10 +1406,13 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   **One of the six archetypes is built** — the **space station / outpost**, map `lwh_away_depot`,
   re-dressed from the design's own source `ctf_space`, with the source's lit debris sky doing the
   exterior dressing (see *The away site* above; `docs/evidence/the-away-site.md`,
-  `docs/evidence/the-away-vantages.md`, `scripts/away-check.sh`). **What remains:** opening the site
-  onto the exterior (its structure encloses most of the posts' facings, and a machine block the
-  re-dress's drop rule missed blocks the stores post's outward view), the other five archetypes
-  (derelict interior first), the wider sky pass, and the away-mission loop, which is scenario content.
+  `docs/evidence/the-away-vantages.md`, `scripts/away-check.sh`). **The stores post's outward view was
+  opened 2026-10-15** (`feat/away-site-exterior`, `docs/evidence/the-away-site-exterior.md`): the
+  blocker was the site's own cargo crate, not a source block (the vantages pass's mis-attribution), now
+  lowered; the drop rule's real hole is closed; and the stores post looks east into the debris field.
+  **What remains:** opening the *remaining* enclosed facings (the structure's first cause), the other
+  five archetypes (derelict interior first), the wider sky pass, and the away-mission loop, which is
+  scenario content.
 - **O12 — the phenomenon's two canon story models** (`docs/exploration-and-science.md`).
 - **O13 — the Borg security squad embodied as bodies moving deck by deck** (`docs/borg-incursion.md`,
   *Still to come*).

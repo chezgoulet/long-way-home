@@ -187,7 +187,11 @@ same assertion is now made at **the console post** — the frame that looks out 
 looks at the site's own wall, at the same post — and it measures **61.2 %**, not 71.3 %. **The site's
 verdict is downgraded there to *partly*: the open half reads as a world, but the structure encloses
 most facings, and a machine block the re-dress's drop rule missed blocks the stores post's outward
-view. The frame that decided it is `lwh_away_depot_console_2.tga`.** See
+view. The frame that decided it is `lwh_away_depot_console_2.tga`.** **Corrected 2026-10-15
+(`docs/evidence/the-away-site-exterior.md`): the second cause is fixed and was mis-attributed — the
+blocker was the site's **own** cargo crate (which the drop rule can never touch), not a source block;
+the stores post now opens east onto the debris field, and the first cause (the structure encloses most
+facings) stands.** See
 `docs/evidence/the-away-vantages.md`, Tasks E and the verdict; the stale quote is kept below as the
 record of what this pass delivered.
 
@@ -283,6 +287,10 @@ PASS  the 2 unresolved references are exactly the recorded boundary   # exit 0
    rule has a hole**: a block whose bottom is *exactly* on the deck floor (`lo[2] > FLOOR + 8` is
    false) survives, and one 80×80×80 block survives on the open apron and blocks the outward view from
    the stores post (`docs/evidence/the-away-vantages.md`, Task D). Reported, not fixed here.
+   **Fixed 2026-10-15** (`docs/evidence/the-away-site-exterior.md`): the rule now drops a body standing
+   on the deck as well as a floating one, and the one source block it left goes. **The blocker itself
+   was a different brush** — the site's own cargo crate, which the drop rule never governed; it is
+   lowered below the eye line, and the stores post now opens onto the debris field.
 4. **The shell (walls, roof, sky wall, parapet) and the console are new construction from the source's
    own materials** — the same move as deck 12's plant and shell (`docs/evidence/deck12-redress.md`).
 5. **The lighting is added and is ours.** The source's deck is dark by its own design (an arena); a
