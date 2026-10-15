@@ -449,8 +449,8 @@ Two things that table will not say by itself, and should:
 | 57 | "four thousand teradynes per second" (`ship-systems.md:34`) | unverified | power is an invented EPS scale (`ship_core.h:10`) | the canon figure cannot appear |
 | 58 | "343 m, 700,000 t, 257 rooms" (`ship-systems.md:38`) | unverified | not in `ship_core`; no check | |
 | 59 | "47 million data channels … 47 spares" (`ship-systems.md:46`) | unverified | no code witness | |
-| 60 | "astrometrics … as a data-quality modifier with a real cost when offline" (`ship-systems.md:117`) | unverified | `SYS_ASTROMETRICS` is a demand/band only (`ship_core.cpp:59,88`) | nothing reads it as a modifier |
-| 61 | "the 256-byte target in the crew spec is a budget for exactly this record" (`ship-model.md:36`) | unverified | bounded by `MEMORY_MAX=8`, `CONDITION_MAX=3` | no 256-byte cap enforced |
+| 60 | "astrometrics … as a data-quality modifier with a real cost when offline" (`ship-systems.md:117`) | absent | `SYS_ASTROMETRICS` is a demand/band only (`ship_core.cpp:59,88`) | nothing reads it as a modifier. **Disposition 2026-10-13:** closed `absent` — the modifier is unbuilt; a Wave 3 primitive (the disposition sheet below). |
+| 61 | "the 256-byte target in the crew spec is a budget for exactly this record" (`ship-model.md:36`) | partial | bounded by `MEMORY_MAX=8`, `CONDITION_MAX=3` | "exactly this record" is not literal: the budget is `saveBytesPerNpc = 256` (`crew_core.h:144`), the blob is 20 B + 16 header. **Disposition 2026-10-13:** closed `partial` (the disposition sheet below). |
 
 ### 2. Power, damage and the two budgets
 
@@ -519,7 +519,7 @@ Two things that table will not say by itself, and should:
 | 7 | emergency bills fire/decompression/abandon/intruder (`crew-manifest.md:113-114`) | implemented | `module/ship/ship_core.h:485-492`; `CallEmergency:6198` | |
 | 8 | damage control "reports to the engineer of the watch, not the senior officer present" (`crew-manifest.md:115-116`) | partial | `EngineerOfTheWatch:6111` | computable; no reporting rule wired |
 | 9 | "the holes are the game" (`crew-manifest.md:118-121`) | implemented | `BillHoles:6278`; `scripts/bills-check.sh` | |
-| 10 | ~80 stand watches (27/watch) / 61 day (`crew-manifest.md:126-134`) | unverified | no code asserts these counts | design projection |
+| 10 | ~80 stand watches (27/watch) / 61 day (`crew-manifest.md:126-134`) | partial | no code asserts these counts | the rota and the three watches are built; the ~80/27/61 split is a projection. **Disposition 2026-10-13:** closed `partial` (the disposition sheet below). |
 | 11 | the Hazard Team is a standing unit, fourteen names, two squads (`crew-manifest.md:160-218`) | partial | `NAMED[]` `ship_core.cpp:1086-1106` | no unit construct; 9 of 14 present |
 | 12 | admin chain CO→XO→heads; boarding chain (`crew-manifest.md:221-254`) | partial | `MayOrder:9930` (rank/command only) | no XO/head/boarding chain |
 | 13 | OOD authority "against senior officers, with the exception of the captain" (`crew-manifest.md:225-228`) | contradicted | `OodMayOrder:6167` not used by `DispatchOrder` | **C-11** |
@@ -544,7 +544,7 @@ Two things that table will not say by itself, and should:
 | 32 | capability is two-sided (Betazoid) (`character-attributes.md:86,108-109`) | implemented | `module/ship/ship_core.cpp:5615-5622` | |
 | 33 | species are capabilities/needs/susceptibilities, never bonuses (`character-attributes.md:127-137`) | implemented | `module/ship/ship_core.h:359-368`; `TestSpeciesAreCapabilitiesNotBonuses` | |
 | 34 | species susceptibility conditions (pon farr, emitter charge) (`character-attributes.md:141-159`) | partial | `SpeciesProne` used only for `COND_MEDITATION_DUE` | others are vocabulary only |
-| 35 | "≈400 B/head ≈ 60 KB, ~16× the G3 budget" (`character-attributes.md:211-214`) | unverified | no measurement | rests on the stale 25 B figure |
+| 35 | "≈400 B/head ≈ 60 KB, ~16× the G3 budget" (`character-attributes.md:211-214`) | superseded | no measurement | rested on the stale 25 B figure. **Disposition 2026-10-13:** closed `superseded` — replaced by the measured figures (blob 20+16, layer 25, save ≈9 KB/member; `docs/evidence/g3-reactive-crew-measured.md`). |
 | 36 | `DeriveCharacter` pure, called from `BuildRoster` and again on load (`character-attributes.md:243-245`) | implemented | `module/ship/ship_core.cpp:1188,1210,9216` | static half not saved |
 | 37 | holdings is a fold, not a field (`character-derivation.md:30-35`) | implemented | `Holdings:759`; `scripts/holdings-check.sh` | falsified independently below |
 | 38 | skills = 1 + rank lift + dept lead + seed%3, capped 5 (`character-derivation.md:47-52`) | implemented | `module/ship/ship_core.cpp:455-459` | |
@@ -593,7 +593,7 @@ Two things that table will not say by itself, and should:
 | 17 | assimilation gains "the personal log … and their access levels" (`the-record-and-the-log.md:150`) | implemented | `CollectiveLog:7015`; `CollectiveOperates:7033`; `TestTheAssimilation` | |
 | 18 | "the log is taken from the mind, not from the disk" (`the-record-and-the-log.md:157`) | implemented | `CollectiveLog:7018-7019`; purge cannot end it | |
 | 19 | "speak in their voice, using their own words" (`the-record-and-the-log.md:173`) | partial | `CollectiveVoice:8654`; `LineVoice:8733` | no code builds a line from `CollectiveLog` |
-| 20 | the fiction-level memory store "must never be implemented as a real memory-store read" (`the-record-and-the-log.md:198-205`) | unverified | no operator-store/vault code exists | true by absence, which is not evidence |
+| 20 | the fiction-level memory store "must never be implemented as a real memory-store read" (`the-record-and-the-log.md:198-205`) | implemented | no operator-store/vault code exists | true by absence. **Disposition 2026-10-13:** closed `implemented` — kept true by the guard test `docs/memory-boundaries.md` #31 names (still absent, carried). |
 | 21 | mark = event id · source · time · valence · salience (`memory-and-consequence.md:44`) | implemented | `Memory:385-393` | |
 | 22 | sources "saw it myself / told / rumour / read it in the log" (`memory-and-consequence.md:47`) | partial | `MemorySource:381` | `MEM_RUMOUR` declared, never produced |
 | 23 | "rumours arrive distorted, and the distortion is attributable" (`memory-and-consequence.md:55`) | absent | no `MEM_RUMOUR` writer | **C-13** |
@@ -685,7 +685,7 @@ Two things that table will not say by itself, and should:
 | 36 | "no labs, no astrometrics, no lighting and no cargo loads in the power model" (`walkthrough.md:264-270`) | contradicted | `SPECS[]` `ship_core.cpp:36-64`; `SetAirSource:2027` | **C-9** |
 | 37 | "the shuttle load-screen is not built" (`walkthrough.md:253-255`) | implemented | no launch menu; `docs/omissions.md` O9 | accurate |
 | 38 | "ends … none of it is implemented" (`walkthrough.md:596-602`) | partial | `won`/`lost` exist; no arrival | |
-| 39 | `tools/mastermap.py` diagram labels decks 6/7/12/13/14 "gone / no map" (`tools/mastermap.py:17-25`) | unverified | the doc's table frames itself as "the retail game" | regenerated diagram and prose will disagree |
+| 39 | `tools/mastermap.py` diagram labels decks 6/7/12/13/14 "gone / no map" (`tools/mastermap.py:17-25`) | implemented | the doc's table frames itself as "the retail game" | **Disposition 2026-10-13:** closed — a new `lwh` status reads "built (LWH)" for the five decks built here, the legend updated, and the hard-coded output path replaced by an argument. |
 
 ### 7. Encounters and the outside
 
@@ -1009,3 +1009,37 @@ Each was also reached by the unit tests (`tests/ship/test_ship_core.cpp`:
 
 
  **RULED 2026-10-12 (owner): the DOCUMENT is the stale side.** Conditions already reach the roll -- same person, same task, 4,724 anomalies in 20,000 clean against 7,347 carrying a sharp debuff, worth +0.1312 in odds (+55.6%), with a sentinel condition asserting *no* difference so the effect is the condition and not the instrument (`docs/evidence/the-failure-roll-measured.md`). Making the roll call `EffectiveSkill` was run for real to price it: the condition's own weight falls **8.3x** and the deficit is **counted twice**, once inside the skill and again through the morale factor. So the document is corrected to name `WorkFactors`.
+
+---
+
+## The unverified claims, closed or carried (2026-10-13)
+
+Wave 0's exit: **every `unverified` row is closed with a witness, or explicitly carried with the reason
+and what would close it.** These are the claims whose only witness was another document; a manifest field
+built on one is a field built on nothing. This is the disposition sheet for the **17**. Six are closed by
+a code or document read; eleven are carried, each with the thing that closes it.
+
+| # | claim | disposition |
+|---|---|---|
+| 1.57 | "four thousand teradynes per second" | **carried** — the canon engineering figure is replaced by an invented EPS scale (`ship_core.h:10`); the canon number cannot appear, and `docs/lore-ledger.md` records the scale as invented. Closes when a canon-fidelity pass maps the scale to the figure. |
+| 1.58 | "343 m, 700,000 t, 257 rooms" | **carried** — hull dimensions are not a ship-state field; `docs/lore-ledger.md` owns them. Closes with any system that reads a dimension. |
+| 1.59 | "47 million data channels … 47 spares" | **carried** — bio-neural gel packs are canon-named-to-model and unbuilt (**O3**). Closes when O3's gel-pack system lands. |
+| 1.60 | "astrometrics … as a data-quality modifier with a real cost when offline" | **closed → `absent`** — `SYS_ASTROMETRICS` is an enum value and a demand/band only (`ship_core.cpp:89` is a switch group, not a modifier); nothing reads it as a sensor-quality gate. The modifier is a Wave 3 primitive the derivation's inventory already names. |
+| 1.61 | "the 256-byte target in the crew spec is a budget for exactly this record" | **closed → `partial`** — the budget is `saveBytesPerNpc = 256` (`module/crew/crew_core.h:144`), enforced by construction; the record's blob is 20 bytes + a 16-byte header, so "exactly this record" is not literal. The budget is owned in `tools/docs/owned_claims.json` (`crew-save-budget-bytes`). |
+| 2.42 | "nothing completes while paused; repair orders … execute on resume" | **carried** — the pause clock is host/engine, outside `module/ship`; no static witness exists. Closes on the playtest host (`scripts/run-lwh.sh`). |
+| 3.10 | "~80 stand watches (27/watch) / 61 day" | **closed → `partial`** — the roster and the three 8-hour watches are built and tested (`TestRoster`, `ScheduledActivity`); the ~80/27/61 split is a projection from the 141 roster, not an asserted count. Closes if a watch-roster read is wanted as a checked number. |
+| 3.26 | "measure backlog-by-age, crew-hours/kind/watch, post-vacancy hours" | **carried** — this asks for a *measurement*, not a mechanism (`UpdateJobs` exists). It is a Wave 3 measurement; closes when the queue is measured across a soak. |
+| 3.35 | "≈400 B/head ≈ 60 KB, ~16× the G3 budget" | **closed → `superseded`** — it rested on the stale 25-byte figure. The measured figures replace it: the blob 20 B + 16-byte header, the layer 25 B, and the save as a whole ≈9 KB per member (`docs/evidence/g3-reactive-crew-measured.md`; carried labelled in `docs/crew-roster.md`, register row **3.20**). |
+| 4.20 | the fiction-level memory store "must never be implemented as a real memory-store read" | **closed → `implemented` (true by absence)** — no operator-store/vault code exists in `module/`. It stays true only while nothing builds one, so the guard is a test no game-side path writes an operator store (`docs/memory-boundaries.md` #31, still absent, carried as the way to keep this closed). |
+| 6.25 | "139 edges"; "`deck04` reaches all eight holodeck programmes" | **carried** — needs the shipped `.map` sources, which are not in the repository (read-only on `sasquatch`, held on the playtest host). Closes with `scripts/s3-check.sh` on a host with the game data. |
+| 6.39 | `tools/mastermap.py` labels decks 6/7/12/13/14 "gone / no map" | **closed → `implemented`** — the generator's stale labels are fixed: a new `lwh` status reads **"built (LWH)"** for the five decks built here (re-dressed or composed), with the legend updated, and the hard-coded `/home/robot/...` output path replaced by an argument (default relative). Verified: the tool runs and writes the image. |
+| 8.15 | "the ship loads from the menu, with no console and no cvars typed" | **carried** — evidence-only; the rendered menu is not decidable on a static host. Closes in the owner's sitting (`docs/walkthrough.md`). |
+| 8.36 | "'full original' means compatibility … not a byte-identical binary" | **carried** — a policy statement, not a mechanism; `docs/client-modes.md` owns it. Closes with a mode-1 compatibility run on the playtest host. |
+| 9.13 | "147 map sources … four retail paks … eight holodeck programmes" | **carried, with the conflict named** — the shipped data is absent here, and the counts conflict across the corpus (147 here vs 106 in `docs/gates.md` vs asset-doctrine's six holodecks). Closes on the playtest host's install, which is the one owner of the true count. |
+| 9.16 | "`tour/deck04` is the model to copy" | **carried** — map sources absent. Closes on the playtest host. |
+| 9.38 | "do not begin a stage until … verified; one stage, one branch, one PR" | **carried** — a process rule, not a mechanism; `docs/path-to-playtest.md` owns it. No mechanism closes it, and none should. |
+
+**The count: 6 closed, 11 carried.** No row is left saying only "unverified"; each now says which it is
+and why. The six closings are the two corrections above and the four reads recorded here; the eleven
+carried rows are the ones whose truth lives on the playtest host, in a system not yet built, or in a
+policy or process — each named with its closer.
