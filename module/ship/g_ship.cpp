@@ -4239,6 +4239,59 @@ void RunTest( void )
 		}
 		return;
 	}
+	if ( g_shipTest->integer == 102 )
+	{//an away site's zero-g zone (docs/outside-the-ship.md: a derelict is "no gravity in places").
+	 //The base game's own mechanism: a `trigger_multiple` fires a `target_gravity_change` for the
+	 //player who activates it. A teleport does not reliably *touch* a brush trigger headlessly, so the
+	 //harness activates the zone's own trigger (`lwh_zerog_trigger`) through the engine's own
+	 //`G_UseTargets` -- the map's trigger->target chain, driven, not asserted, and read from
+	 //`ps.gravity` (Item 1; docs/evidence/derelict-interior.md).
+		static int step = 0;
+		auto useNamed = []( const char *n ) -> const char *
+		{
+			for ( int i = 1; i < globals.num_entities; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->targetname && !Q_stricmp( e->targetname, n ) )
+				{
+					G_UseTargets( e, &g_entities[0] );
+					return n;
+				}
+			}
+			return NULL;
+		};
+		if ( level.time < 1000 ) step = 0;
+		if ( step == 0 && level.time >= 2500 )
+		{
+			TeleportPlayerTo( "lwh_zerog_hall", "zero-g: the hall" );
+			useNamed( "lwh_zerog_restore" );      // standing in the hall: gravity is normal
+			step = 1;
+		}
+		if ( step == 1 && level.time >= 3600 )
+		{
+			gentity_t *p = &g_entities[0];
+			gi.Printf( "SHIP: zero-g: hall  ps.gravity %d custom %d\n",
+				p->client->ps.gravity, ( p->svFlags & SVF_CUSTOM_GRAVITY ) ? 1 : 0 );
+			TeleportPlayerTo( "lwh_zerog_zone", "zero-g: the zone" );
+			const char *fired = useNamed( "lwh_zerog_trigger" );
+			gi.Printf( "SHIP: zero-g: zone trigger %s\n", fired ? fired : "NOT FOUND" );
+			step = 2;
+		}
+		if ( step == 2 && level.time >= 4800 )
+		{
+			gentity_t *p = &g_entities[0];
+			gi.Printf( "SHIP: zero-g: zone  ps.gravity %d custom %d\n",
+				p->client->ps.gravity, ( p->svFlags & SVF_CUSTOM_GRAVITY ) ? 1 : 0 );
+			step = 3;
+		}
+		if ( step == 3 && level.time >= 6200 )
+		{
+			gi.Printf( "SHIP: zero-g test done\n" );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 4;
+		}
+		return;
+	}
 	if ( g_shipTest->integer == 100 )
 	{//assimilation takes the log and the access (docs/the-record-and-the-log.md): a mind is taken,
 	 //the Collective reads the private words, reports the authority it holds and the station it still

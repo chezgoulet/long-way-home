@@ -1420,9 +1420,12 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   opened 2026-10-15** (`feat/away-site-exterior`, `docs/evidence/the-away-site-exterior.md`): the
   blocker was the site's own cargo crate, not a source block (the vantages pass's mis-attribution), now
   lowered; the drop rule's real hole is closed; and the stores post looks east into the debris field.
-  **What remains:** opening the *remaining* enclosed facings (the structure's first cause), the other
-  five archetypes (derelict interior first), the wider sky pass, and the away-mission loop, which is
-  scenario content.
+  **The second archetype — the derelict interior, the design's own first row — is built 2026-10-15**
+  (`feat/derelict-interior`, `docs/evidence/derelict-interior.md`): re-dressed from `scav2`, with **its
+  own frame measure** (`frame.py derelict`; **no per-frame dark exemption allowed**) and a **zero-g zone
+  shown by a run**. **What remains:** opening the *remaining* enclosed facings (the structure's first
+  cause), the other four archetypes, the wider sky pass, and the away-mission loop, which is scenario
+  content.
 - **O12 — the phenomenon's two canon story models** (`docs/exploration-and-science.md`).
 - **O13 — the Borg security squad embodied as bodies moving deck by deck** (`docs/borg-incursion.md`,
   *Still to come*).

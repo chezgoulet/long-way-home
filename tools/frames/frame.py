@@ -17,12 +17,18 @@ Three assertions, and a way to name where each is asked:
          "when X happens, Y appears" can be asserted from the picture: sparks where the system is
          worked, smoke on a burning deck, a screen that is now open, a lamp that is now red.  It
          needs a *before* frame, captured at the same vantage.
+  derelict  the region reads as a **derelict interior** -- dark by design, but **structured** (a
+         brightness-edge fraction, for the read of wreckage) and **marked** (a lit pixel, for failing
+         light rather than absent light), and **not** a lit room (a median ceiling).  For an
+         archetype whose whole claim is failing light, where `floor` cannot be used and no per-frame
+         dark exemption is allowed (`docs/evidence/derelict-interior.md`).
   region where the claim is about part of the screen (a panel, a footer, a console, a title bar)
          the region is named and measured, not the whole frame.  `--region NAME:x0,y0,x1,y1` or
          `--band TOP,BOTTOM` (fractions of the height, full width).  The whole frame is the default.
 
   tools/frames/frame.py floor [OPTIONS] FRAME.tga [FRAME.tga ...]
   tools/frames/frame.py diff  [OPTIONS] REFERENCE.tga FRAME.tga [FRAME.tga ...]
+  tools/frames/frame.py derelict [OPTIONS] FRAME.tga [FRAME.tga ...]
 
   python3 tools/frames/frame.py floor --min-p90 150 --min-spread 40 FRAME.tga
   python3 tools/frames/frame.py diff --region band=0,0,1280,120 --min-changed 0.05 BEFORE.tga AFTER.tga
@@ -244,6 +250,84 @@ def do_diff(a):
     return 0
 
 
+def edge_fraction(rows, region, thresh):
+    """The fraction of region pixels that sit on a horizontal brightness edge (> thresh).
+
+    A wrecked corridor is **structure**: bulkheads, broken ribs, a floor to walk on, all picked out
+    against the dark. A flat field -- a black void, or a uniform grey fill -- has almost no edges. The
+    gradient is the brightest-channel difference between a pixel and the one to its left, so the measure
+    reads the *picture's* structure and not a colour.
+    """
+    _, x0, y0, x1, y1 = region
+    edges = 0
+    n = 0
+    for row in rows[y0:y1]:
+        prev = None
+        for x in range(x0, x1):
+            v = value(row[x])
+            if prev is not None:
+                n += 1
+                if abs(v - prev) > thresh:
+                    edges += 1
+            prev = v
+    return (edges / n) if n else 0.0
+
+
+def derelict_reason(m, edge_frac, a):
+    """Why a region does or does not read as a derelict. The archetype's own stance, written here.
+
+    A derelict interior (`docs/outside-the-ship.md`) is *"wrecked corridors, failing light, no gravity
+    in places"*. The room measure (`floor`) cannot carry that claim: a derelict's defining property is
+    failing light, so the region is **dark by design** and a luminance floor would fail it while passing
+    a lit wall. This measure asserts what the archetype *means* instead:
+
+      * **failing light, not a lit room** -- the typical pixel is dark (median at or below `max_median`).
+        A bright room fails: that is the outpost, not the derelict;
+      * **failing light, not absent light** -- something is clearly lit (p99 at or above `min_p99`): a
+        marker, a failing strip. A black frame fails: the light is gone, not failing;
+      * **structure, the read of wreckage** -- enough pixels sit on a brightness edge (`edge_frac`):
+        bulkheads, ribs, a floor. A flat field -- black or uniform grey -- fails.
+
+    **No per-frame dark exemption is allowed for this archetype.** A derelict is dark *everywhere*; the
+    exemption the outpost needed (one facing onto the black sky) is exactly the failure mode this measure
+    exists to avoid, so any frame that does not carry the claim fails, named.
+    """
+    if m["median"] < a.min_median:
+        return "median %g < %g (pitch black: the light is absent, not failing)" % (m["median"], a.min_median)
+    if m["median"] > a.max_median:
+        return "median %g > %g (too bright: the room is lit, not failing)" % (m["median"], a.max_median)
+    if m["p99"] < a.min_p99:
+        return "p99 %g < %g (no lit marker: the light is absent, not failing)" % (m["p99"], a.min_p99)
+    if edge_frac < a.min_edge:
+        return "edge %.3f < %g (no structure: a flat field, not wreckage)" % (edge_frac, a.min_edge)
+    return None
+
+
+def do_derelict(a):
+    rc = 0
+    for path in a.frames:
+        try:
+            w, h, rows = read_tga(path)
+            region = region_of(a, w, h)
+        except (ValueError, OSError) as e:
+            print("%-46s %s" % (name(path), e))
+            rc = 1
+            continue
+        pixels = region_pixels(rows, region)
+        m = summarize(pixels)
+        ef = edge_fraction(rows, region, a.edge)
+        why = derelict_reason(m, ef, a)
+        print("%-46s %-15s median %5.1f p99 %5.1f edge %5.3f  %s"
+              % (name(path), region[0], m["median"], m["p99"], ef,
+                 "DERELICT" if why is None else "NOT-WRECKED -- " + why))
+        if why is not None:
+            rc = 1
+    if rc and a.require:
+        print("a frame does not carry the derelict's claim")
+        return 1
+    return 0
+
+
 def build_parser():
     ap = argparse.ArgumentParser(
         prog="frame.py", description=__doc__,
@@ -281,12 +365,27 @@ def build_parser():
     df.add_argument("--min-delta", type=int, default=16,
                     help="a pixel counts as changed above this max-channel difference (default 16)")
 
+    dr = sub.add_parser("derelict",
+                        help="the region reads as a derelict: failing light, structured, not a lit room")
+    common(dr)
+    dr.add_argument("--min-median", type=float, default=8.0,
+                    help="the typical pixel must be at least this: pitch black is the light absent, "
+                         "not failing (default 8)")
+    dr.add_argument("--max-median", type=float, default=90.0,
+                    help="the typical pixel must be at most this (default 90: failing, not a lit room)")
+    dr.add_argument("--min-p99", type=float, default=80.0,
+                    help="something must be at least this bright -- a lit marker (default 80)")
+    dr.add_argument("--min-edge", type=float, default=0.004,
+                    help="the fraction of pixels on a brightness edge, for structure (default 0.004)")
+    dr.add_argument("--edge", type=int, default=16,
+                    help="the gradient above which a pixel counts as an edge (default 16)")
+
     return ap
 
 
 def main(argv=None):
     a = build_parser().parse_args(argv)
-    return do_floor(a) if a.mode == "floor" else do_diff(a)
+    return {"floor": do_floor, "diff": do_diff, "derelict": do_derelict}[a.mode](a)
 
 
 if __name__ == "__main__":
