@@ -171,6 +171,44 @@ Evidence: `docs/evidence/the-manifest-contract.md`; check: `scripts/scenario-che
 `scripts/test.sh`. **O15 moves to *partly*** (the contract is built; the nine scenarios are content and
 remain). **Not in this pass:** the nine, the evaluator, and any engine change beyond the loader.
 
+### The evaluator — the thing that recruits a scenario ✅ built 2026-10-13
+
+`docs/walkthrough.md`, **G4**, named two halves and this is the second: *"There is no scenario content
+at all, and nothing recruits one… To close: the scenario manifest and a breeding-condition evaluator,
+plus at least one scenario end to end."* The manifest landed on `feat/the-manifest`; the evaluator lands
+on `feat/the-evaluator` (cut from `testing`; a static host — the module is built and checked, the
+engine is not run). Built:
+
+- **the breeding conditions are read against the ship's actual state** — all 18 the contract names —
+  and a scenario **fires** when every one holds, naming the condition that fired it; when one does not,
+  it names the **nearest miss**, quoted with the ship's own number (`scenario::Evaluate`);
+- **a firing scenario is recruited and instantiated** (`scenario::Recruit` → the loader's `Apply`): the
+  systems it stresses, the staff it needs, the warmth beat, and every line **resolved from its post to
+  a person** — the post-not-name law at runtime, across a canon and an all-fictitious roster;
+- **its decision is taken and its cost applied** (`scenario::Resolve` → `ApplyEffect`), the 13 effect
+  kinds mapped onto the primitives the design names, and its **residue** written: the seam the brief
+  asks for — the evaluator **consumes** the conditions and the decision, the simulation **applies** the
+  premise, the cost and the residue — is named in `scenario_core.h`;
+- **a fired scenario is recorded** in a bounded, saved ledger (`FiredScenarios` / `RecordScenario`;
+  save format **65**), so it fires **once** across ticks and a load, and an **in-flight** one survives a
+  save. Deliberate cost, named: an older save (64) does not load;
+- **a tautology and a contradiction are named, not swallowed** (`COND_ALWAYS` / `COND_NEVER`): a
+  scenario recruited by a condition true for every value recruits nothing, and one recruited by a
+  condition true for no value can never fire. `scripts/evaluator-check.sh` falsifies the check by
+  planting an evaluator that drops the distinction and showing it fail;
+- **what no state carries is named**: the three **scoped** states the condition shape cannot pin
+  (`system_condition`, `deck_life_support`, `minutes_of_air`) and the design facts no manifest key
+  reaches at all (`contact`, `in_battle`, `beacon`, `breach`, `structural_integrity`, `clock`) — the
+  next pass's vocabulary;
+- **one worked example, recruited end to end**: `scenarios/deck11-gel-pack/` — a fresh ship does not
+  fire (nearest miss named), the state its own conditions ask for fires it, and the simulation does
+  what it declares.
+
+Evidence: `docs/evidence/the-evaluator.md`; check: `scripts/evaluator-check.sh`, wired into
+`scripts/test.sh`. **O15 stays *partly*** (the contract and the evaluator are built; the nine scenarios
+are content and remain, and the in-game verb that loads a declaration in play is the playtest host's).
+**Not in this pass:** the nine scenarios, and any engine change beyond the loader.
+
 ### The documentation contradictions, settled — and the check that keeps the mechanical ones settled ✅ 2026-10-09
 
 The walkthrough's **G13** named ten contradictions, each a false claim if quoted and several sitting at

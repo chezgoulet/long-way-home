@@ -9,8 +9,9 @@
 # the axis (a system's **wear**, the deferred-maintenance clock) and the threshold (MAINTENANCE_DUE)
 # as numbers; the rule that connects the crew-hours to the odds; the same system maintained and not,
 # over fifteen days, with the wear and the failure odds moving; the order and who may give it; and
-# the save's cost (the wear clock is saved, so the format moved 63 -> 64 and an older save does not
-# load). The lines asserted here are the acceptance, so a silent regression fails the check.
+# the save's cost (the wear clock is saved, so the format moved at 64, and the scenario ledger at 65;
+# an older save does not load). The lines asserted here are the acceptance, so a silent regression
+# fails the check.
 #
 # Part two -- the falsification, the shape the brief names: a maintenance that runs but changes
 # nothing. The work loop's wear reduction is planted out (`gain = 0.0f`), so the job is raised and
@@ -64,9 +65,9 @@ grep -qE '^  dispatched: given 1, job [0-9]+, the job.s place in the queue -1 \(
   || fail "the order did not push the maintenance job to the head of the queue"
 grep -qE '^  the officer of the deck \(.*\) may give it to a senior \(.*, rank [0-9]+\): 1$' "$WORK/maint.txt" \
   || fail "the officer of the deck may not give the maintenance order"
-# The save: the wear clock is saved (the format moved 63 -> 64), the job round-trips, the older save
-# does not load -- the cost named.
-grep -qE '^  format 64 \(63 -> 64 this pass: the wear clock is saved, so an older save does not load\); the blob is [0-9]+ bytes and loads 1; the maintenance job round-trips \(1\), the party is re-derived$' "$WORK/maint.txt" \
+# The save: the wear clock is saved (the format moved at 64, and the scenario ledger later at 65),
+# the job round-trips, the older save does not load -- the cost named.
+grep -qE '^  format 65 \(the wear clock was saved at 64 and the scenario ledger at 65, so an older save does not load\); the blob is [0-9]+ bytes and loads 1; the maintenance job round-trips \(1\), the party is re-derived$' "$WORK/maint.txt" \
   || fail "the wear clock or the maintenance job did not round-trip, or the format did not move"
 
 echo
@@ -91,5 +92,5 @@ echo
 echo "PASS  the seventh kind is in the enum and the queue; the axis is wear and the threshold is 0.20;"
 echo "      a maintained system stays whole with the clock bounded while an unmaintained one fails for"
 echo "      want of maintenance; the order is offered per recipient, pushed to the head, and giveable"
-echo "      from the deck; the wear clock is saved (63 -> 64) and the job round-trips; and the guard"
+echo "      from the deck; the wear clock is saved and the job round-trips; and the guard"
 echo "      fails on a maintenance that changes nothing"

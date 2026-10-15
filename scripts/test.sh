@@ -69,6 +69,10 @@ echo "==> scenario: the declaration contract -- fields, the two laws, and the lo
 "$ROOT/scripts/scenario-check.sh"
 
 echo
+echo "==> evaluator: the breeding conditions decide, both ways, and it recruits (G4)"
+"$ROOT/scripts/evaluator-check.sh"
+
+echo
 echo "==> maintenance: the seventh job kind, its axis (wear), and the odds it moves (3.23)"
 "$ROOT/scripts/maintenance-check.sh"
 

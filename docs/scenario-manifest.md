@@ -196,13 +196,31 @@ is decided here, once, so it can be overruled:
 4. **A cost or residue is a list of effect objects** over the vocabulary above, rather than prose.
 5. **`visibility` is a station, a system id or `deck:<n>`** — the three places a person can be standing.
 
-### What the fields reach — the loader, and the evaluator that is not here
+### What the fields reach — the loader, and the evaluator
 
-`module/ship/scenario_core.cpp` parses the compiled declaration and **instantiates what can be instantiated
-now**: the systems it stresses (off, or under load), the staff coverage (the two primitives the derivation
-found reached by nothing but the tests), the warmth beat, and every position and line, each **resolved from
-its post to a person**. It **carries** the breeding conditions, the costs, the residue and the decision,
-because reading those and deciding a scenario fires is the **evaluator** — and the evaluator is the next
-pass, named here rather than half-built. The worked example is `scenarios/deck11-gel-pack/`; the evidence is
-`docs/evidence/the-manifest-contract.md`.
+`module/ship/scenario_core.cpp` parses the compiled declaration and **instantiates what can be
+instantiated now**: the systems it stresses (off, or under load), the staff coverage (the two
+primitives the derivation found reached by nothing but the tests), the warmth beat, and every position
+and line, each **resolved from its post to a person**. It also **reads the breeding conditions and
+decides the scenario fires** — the evaluator, `scenario::Evaluate` / `Recruit` / `Resolve` in the same
+file. The worked example is `scenarios/deck11-gel-pack/`; the evidence is
+`docs/evidence/the-manifest-contract.md` (the loader) and `docs/evidence/the-evaluator.md` (the
+evaluator).
+
+The evaluator reads **all 18** readable states. Fifteen are single numbers; three — `system_condition`,
+`deck_life_support`, `minutes_of_air` — are **scoped** (each names a system or a deck) and the
+`{state, op, value}` tuple carries no subject, so they are read as the ship's worst: the most-damaged
+system (its **health**, because the power-capped `SystemCondition` reads 0 for every standby weapon),
+the least-supported deck, the deck soonest out of air. That default is ours, recorded here so it can be
+overruled: the shape should grow a subject. The design's own breeding facts that no key reaches at all
+— a contact, a battle, a beacon, a breach, structural integrity, the clock — are named in the evidence
+as the next pass's vocabulary.
+
+### The two authoring laws, at runtime
+
+The validator enforces the post-not-name law and the delivery direction at load (`E010`, `E011`). The
+evaluator holds them **at runtime** too: `Recruit` resolves every line's post to whoever holds it (a
+canon officer or a fictitious ensign, the content unchanged), and `Resolve` maps each cost and residue
+effect onto a primitive, resolving a `post` inside an effect the same way. The scenario's own ledger
+entry names the scenario, never a person.
 

@@ -456,6 +456,9 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `MeetingLineSeconds` | `const VoiceRender &vr, const Ship &s, const MeetingBrief &brief, const MeetingLine &line` | The seconds a line runs: its rendered clip's duration when there is one, else a text-length fallback | play | post | docs/staff-meetings.md |
 | `LossKindName` | `uint8_t k` | loss kind name | play | — | — |
 | `WriteOffs` | `const Ship &s` | write offs | play | — | — |
+| `FiredScenarios` | `const Ship &s` | The scenario ledger: the scenarios that have fired and the branch each was resolved to | content | — | docs/scenario-manifest.md |
+| `ScenarioFired` | `const Ship &s, const std::string &name` | Whether a named scenario has fired | content | — | docs/scenario-manifest.md |
+| `RecordScenario` | `Ship &s, const std::string &name, int branch` | Record a scenario as fired, or resolved to a branch | content | — | docs/scenario-manifest.md |
 | `JobKindName` | `uint8_t k` | job kind name | play | — | — |
 | `Jobs` | `const Ship &s` | The queue as it stands after this tick (rebuilt from the ship's state, plus the player's build jobs, order preserved for the jobs that persist) | play | — | — |
 | `BandName` | `uint8_t band` | band name | play | — | — |
@@ -741,6 +744,16 @@ developer console's `ship order maintain`; the *play* path to the seventh kind i
 `scripts/hooks-check.sh` independently fixes the row count at **493** against `ship_core.h`. (The other
 two rows added since the 489 note are the damage-control party's `RepairPartySize` and
 `DamageControlLine`, C-12.) Evidence: `docs/evidence/the-maintenance-kind.md`.
+
+**Re-derived 2026-10-13, the evaluator (G4).** Three hooks are added by the breeding-condition
+evaluator's ledger: `FiredScenarios` (the scenarios that have fired and the branch each was resolved
+to), `ScenarioFired` (whether a named one has fired) and `RecordScenario` (fire it, or resolve it to a
+branch and record it). All three are reached by **content** — the evaluator's `Recruit` and `Resolve`
+call them, and a declaration is what fires a scenario — and owned by `docs/scenario-manifest.md`. By
+section -- entry points **75**, situations **88**, outcomes **57**, orders (3b) **20**, the bills (3c)
+**20**, readers **218**, the configurator **18**; **total 496** -- and `scripts/hooks-check.sh`
+independently fixes the row count at **496** against `ship_core.h`. Evidence:
+`docs/evidence/the-evaluator.md`.
 
 ### 5. The configurator — the player chooses the start state
 
