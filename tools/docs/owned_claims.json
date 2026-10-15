@@ -141,6 +141,23 @@
           "pattern": "com_hunkMegs (\\d+)"
         }
       ]
+    },
+    {
+      "id": "standing-distance",
+      "description": "the standing distance at which post navigation furniture is placed, in the design's readable range form (C-21); the tool's pair of floats and the documents must name the same range",
+      "owner": "tools/posts/gen-posts.py",
+      "value": "24-96",
+      "owner_pattern": "STANDING_DISTANCE = \"(\\d+-\\d+)\"",
+      "sources": [
+        {
+          "file": "docs/authoring-a-location.md",
+          "pattern": "\\*\\*(\\d+-\\d+) units\\*\\*"
+        },
+        {
+          "file": "docs/location-brief-template.md",
+          "pattern": "\\*\\*(\\d+-\\d+) units\\*\\*"
+        }
+      ]
     }
   ]
 }

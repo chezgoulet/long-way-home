@@ -601,6 +601,16 @@ command console; evidence in `docs/evidence/the-bills.md`.
 
 ## The counts (Task B)
 
+<!-- register-counts play=299 console=158 nothing=34 content=5 total=496 -->
+
+**The current count, machine-checked.** The marker above is the register's own count, re-derived from its
+rows and checked against the surface of `module/ship/ship_core.h` by
+`tools/docs/check_register_counts.py` (class 4 of `scripts/docs-check.sh`), which fails if it drifts from
+either. The dated paragraphs further down are the record of each pass's count at its date; this marker is
+what the register actually is now, so a reader sizes work on it and not on the prose above or below.
+**By reach:** play **299**, console **158**, nothing **34**, content **5**; **total 496**. (The counts in
+the "By group" table and the dated re-derivations below are kept as history and are not the current count.)
+
 **By group.**
 
 | group | hooks |

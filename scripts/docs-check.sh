@@ -4,6 +4,7 @@
 #   class 1  a cited `docs/...` path that does not resolve          (tools/docs/check_paths.py)
 #   class 2  a registered owned number contradicted by its owner    (tools/docs/check_claims.py)
 #   class 3  a register row still claiming unbuilt, with proof      (tools/docs/check_register.py)
+#   class 4  the hook register's stated counts vs its rows/surface  (tools/docs/check_register_counts.py)
 #
 # What it cannot catch is a *description* that has gone stale -- a section that says a thing is
 # unbuilt when it was built last week.  That is a person's read; the classes here are the ones a
@@ -33,3 +34,7 @@ python3 tools/docs/check_register.py \
     --register docs/gates.md \
     --register docs/hook-triage.md \
     --register docs/designs-against-code.md
+
+echo
+echo "==> docs: the hook register's stated counts agree with its rows and the surface"
+python3 tools/docs/check_register_counts.py

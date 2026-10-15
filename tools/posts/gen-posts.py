@@ -35,6 +35,9 @@ import re
 WORK_CLASSES = ("func_usable", "func_static", "misc_model")
 WORK_PREFIXES = ("func_usable", "func_static", "misc_model")
 STANDING_MIN, STANDING_MAX = 24.0, 96.0
+# The readable form of the pair above: the one owner the documents must agree with (C-21,
+# the owner's ruling 2026-10-12, executed 2026-10-13; guarded by tools/docs/owned_claims.json).
+STANDING_DISTANCE = "24-96"
 
 
 def entities(text):
