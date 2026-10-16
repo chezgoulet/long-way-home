@@ -520,7 +520,11 @@ class Build:
 
     def _wiring(self):
         px = RX0 + 704
-        self.w(brush(((px, CY - 64, FLOOR + 40), (px + WALL, CY + 64, FLOOR + 168)), "lwh/panel"))
+        # The deck's status screen, the ship's own readout: marked as the panel the in-world use acts
+        # on (O10) -- a named brush entity, placed here where the deck is authored, not in the built
+        # map (docs/evidence/the-panel-control.md).
+        self.named_brush("func_static", "lwh_panel_12", "lwh/panel",
+                         ((px, CY - 64, FLOOR + 40), (px + WALL, CY + 64, FLOOR + 168)))
         (ax, ay), aang = self._arrival()
         self.point("info_player_start", None, (ax, ay, self.solids.floor_at(ax, ay) + 24), {"angle": str(aang)})
         self.point("target_level_change", "lwh_lift_d12", (RX1 + 96, DOOR_Y, FLOOR + 24), {"mapname": "tour/deck04"})

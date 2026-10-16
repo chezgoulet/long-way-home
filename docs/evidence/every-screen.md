@@ -7,7 +7,9 @@ and the **job-queue board** (row 19); the sweep also found three *thin* screens,
 choices** (row 21), the **tricorder survey** (row 22) and the **star chart** (row 23). All five are
 addressed here; two rows (12, the glance; 18, the shuttle load-screen) are left with their reasons.
 **Since then, row 18 has been built** — 2026-10-15, `feat/the-load-screen`,
-`docs/evidence/the-load-screen.md`; row 12 stands.
+`docs/evidence/the-load-screen.md` — **and row 12's in-world control has been built** — 2026-10-15,
+`feat/the-panel-control`, `docs/evidence/the-panel-control-built.md` (the panel half; the sealed
+quarters' door prompt is O21).
 
 Order by what the game needs most: the two absences first (row 20 the report is the period beat and
 row 19 the queue is the crew economy's face), then the three thin screens a post actually works

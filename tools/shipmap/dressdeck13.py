@@ -442,8 +442,10 @@ class Build:
         self.point("info_notnull", "lwh_plant_post", (px, py, base + 24))
         self.w(brush(((px - 64, py - 40, base), (px + 64, py + 40, base + 48)), "engineering/console1"))
         self.w(brush(((px - 56, py - 32, base + 48), (px + 56, py + 32, base + 80)), "voyager/basic"))
-        # the live surface: kept under the ceiling (TOP = FLOOR + 224)
-        self.w(brush(((px - 48, py - 40, base + 80), (px + 48, py - 32, base + 120)), "lwh/panel"))
+        # the live surface: kept under the ceiling (TOP = FLOOR + 224). The ship's own readout, marked
+        # as the panel the in-world use acts on (O10) -- a named brush entity (the module's tag).
+        self.named_brush("func_static", "lwh_panel_13_station", "lwh/panel",
+                         ((px - 48, py - 40, base + 80), (px + 48, py - 32, base + 120)))
         self.w(brush(((px - 72, py - 48, base), (px - 56, py + 48, base + 56)), "engineering/supportedge"))
         self.w(brush(((px + 56, py - 48, base), (px + 72, py + 48, base + 56)), "engineering/supportedge"))
         # a post the crew can hold, on the catwalk beside the panel
@@ -472,7 +474,9 @@ class Build:
 
     def _wiring(self):
         px = RX1 - 320
-        self.w(brush(((px, RY0 + WALL, FLOOR + 40), (px + WALL, RY0 + WALL + 128, FLOOR + 168)), "lwh/panel"))
+        # The deck's status screen, marked as the panel the in-world use acts on (O10).
+        self.named_brush("func_static", "lwh_panel_13", "lwh/panel",
+                         ((px, RY0 + WALL, FLOOR + 40), (px + WALL, RY0 + WALL + 128, FLOOR + 168)))
         (ax, ay), aang = self._arrival()
         self.point("info_player_start", None, (ax, ay, self.solids.floor_at(ax, ay) + 24), {"angle": str(aang)})
         self.point("target_level_change", "lwh_lift_d13", (RX1 + 96, DOOR_Y, FLOOR + 24), {"mapname": "tour/deck04"})

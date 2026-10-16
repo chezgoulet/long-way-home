@@ -1415,7 +1415,20 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   `ship launch` (`scripts/launch-check.sh`; no save-version bump — the return condition was already a
   serialised field).
 - **O10 — the in-world control at the panel** (the "glance"), out of console scope and into world work
-  (`docs/evidence/every-screen.md` row 12).
+  (`docs/evidence/every-screen.md` row 12). **The panel half is CLOSED 2026-10-15**
+  (`feat/the-panel-control`, `docs/evidence/the-panel-control-built.md`, `scripts/panel-control-check.sh`):
+  the decision is *mark the screens as the affordance*, where a panel is the brush whose surface
+  carries the ship's own readout (`textures/lwh/panel`; the module's list in
+  `module/ship/lwh_panel.cpp`, enumerated by `tools/shipmap/markpanels.py`). The deck tooling marks
+  the screens at source as `lwh_panel*` brush entities; the module reads the use button's own edge and
+  traces as the engine's `TryUse` does, and calls `ship::SetAlert` under `ship::MayCallAlert`
+  authority — no engine patch. Demonstrated: the forged use at a screen changes the condition the
+  panel draws (photographed before/after), a person who may not call it is refused, and the same
+  forge at a brush with no panel shader changes nothing (the planted break fails the check). **The
+  console-shader brushes the remap paints are the read, not the affordance — marking them leaks the
+  map (measured).** **What remains is G20's second half**, the sealed-quarters world prompt on the
+  `func_usable` doors and hatches, a different list (**O21**).
+  <!-- register-row id=O10-gate state=partly marker=check:scripts/panel-control-check.sh -->
 - **O11 — the outside's site archetypes and exterior dressing** *(PARTLY BUILT 2026-10-11,
   `feat/the-away-site`)*, then the away-mission loop (`docs/outside-the-ship.md`, *Order of work* 2–4).
   **One of the six archetypes is built** — the **space station / outpost**, map `lwh_away_depot`,

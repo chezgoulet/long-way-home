@@ -105,6 +105,14 @@ python3 "$ROOT/tools/shipmap/lightdeck08.py" --deck "$DECKS/deck08.map" --out "$
 
 python3 "$ROOT/tools/shipmap/stitch.py" --decks "$DECKS" --decks "$ROOT/build/ship/generated" --out "$ROOT/build/ship/voyager.map" \
   --report "$ROOT/build/ship/stitch-report.json"
+# The in-world panel control (O10): enumerate the ship's panels from the module's own shader list
+# (markpanels reads module/ship/lwh_panel.cpp), and mark any readout brush the deck sources left in
+# worldspawn as a `lwh_panel*` brush entity, on the ship map's own source. The re-dress tools already
+# mark theirs at the source, so this is normally a no-op; it exists so the ship map is authoritative.
+# The console-shader brushes are the *read* and are never converted -- they are structural, and
+# converting them leaks the map (tools/shipmap/markpanels.py, docs/evidence/the-panel-control.md).
+python3 "$ROOT/tools/shipmap/markpanels.py" --map "$ROOT/build/ship/voyager.map" --mark \
+  --report "$ROOT/build/ship/panels.json"
 # Visibility and lighting take about three minutes for the whole ship; --fast skips them.
 "$ROOT/scripts/build-map.sh" "$ROOT/build/ship/voyager.map" --name voyager --out "$OUT" --allow-missing-shaders \
   --entities "$ROOT/build/ship/voyager.ents" --files "$ROOT/build/ship/files" --q3game lwhshaders "${PASSES[@]}"

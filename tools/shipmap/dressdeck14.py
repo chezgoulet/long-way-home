@@ -521,7 +521,10 @@ class Build:
         base = FLOOR
         self.w(brush(((px - 64, py - 48, base), (px + 64, py + 48, base + 48)), "engineering/console1"))
         self.w(brush(((px - 56, py - 40, base + 48), (px + 56, py + 40, base + 80)), "voyager/basic"))
-        self.w(brush(((px - 48, py - 40, base + 80), (px + 48, py - 32, base + 120)), "lwh/panel"))
+        # the live surface on the control panel: the ship's own readout, marked as the panel the
+        # in-world use acts on (O10) -- a named brush entity, not world geometry.
+        self.named_brush("func_static", "lwh_panel_14_station", "lwh/panel",
+                         ((px - 48, py - 40, base + 80), (px + 48, py - 32, base + 120)))
         # The maintenance post in front of the arch, facing it. The numbered SYS_HOLODECKS station
         # marker (`lwh_station_17`) is NOT here: ship_core's SystemSpec puts the holodecks system on
         # deck 6, so the station marker moved to deck 6's re-dress (dressdeck06.py) when it was built
@@ -582,7 +585,9 @@ class Build:
 
     def _wiring(self):
         px = RX1 - 320
-        self.w(brush(((px, RY0 + WALL, FLOOR + 40), (px + WALL, RY0 + WALL + 128, FLOOR + 168)), "lwh/panel"))
+        # The deck's status screen, marked as the panel the in-world use acts on (O10).
+        self.named_brush("func_static", "lwh_panel_14", "lwh/panel",
+                         ((px, RY0 + WALL, FLOOR + 40), (px + WALL, RY0 + WALL + 128, FLOOR + 168)))
         (ax, ay), aang = self._arrival()
         self.point("info_player_start", None, (ax, ay, self.solids.floor_at(ax, ay) + 24), {"angle": str(aang)})
         self.point("target_level_change", "lwh_lift_d14", (RX1 + 96, DOOR_Y, FLOOR + 24), {"mapname": "tour/deck04"})
