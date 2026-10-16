@@ -577,7 +577,10 @@ class Build:
         base = self.solids.floor_at(cx, cy)
         self.w(brush(((cx - 64, cy - 48, base), (cx + 64, cy + 48, base + 48)), "engineering/console1"), detail=True)
         self.w(brush(((cx - 56, cy - 40, base + 48), (cx + 56, cy + 40, base + 80)), "voyager/basic"), detail=True)
-        self.w(brush(((cx - 48, cy - 40, base + 80), (cx + 48, cy - 32, base + 120)), "lwh/panel"), detail=True)
+        # The screen is the ship's own readout; marked as the panel the in-world use acts on (O10),
+        # a named brush entity rather than world geometry (docs/evidence/the-panel-control.md).
+        self.named_brush("func_static", "lwh_panel_07_station", "lwh/panel",
+                         ((cx - 48, cy - 40, base + 80), (cx + 48, cy - 32, base + 120)))
         self.point("info_notnull", "lwh_station_3", (cx + 48, cy + 80, self.solids.floor_at(cx + 48, cy + 80) + 24))
         # The watch post, a pace off the panel and measured clear, so the crew (and the check) stand
         # on the floor, not in a wall: the copied room is dense here.
@@ -633,7 +636,9 @@ class Build:
 
     def _wiring(self):
         px = RX1 - 320
-        self.w(brush(((px, RY0 + WALL, FLOOR + 40), (px + WALL, RY0 + WALL + 128, FLOOR + 168)), "lwh/panel"), detail=True)
+        # The deck's status screen, marked as the panel the in-world use acts on (O10).
+        self.named_brush("func_static", "lwh_panel_07", "lwh/panel",
+                         ((px, RY0 + WALL, FLOOR + 40), (px + WALL, RY0 + WALL + 128, FLOOR + 168)))
         (ax, ay), aang = self._arrival()
         self.point("info_player_start", None, (ax, ay, self.solids.floor_at(ax, ay) + 24), {"angle": str(aang)})
         self.point("target_level_change", "lwh_lift_d07", (RX1 + 96, DOOR_Y, FLOOR + 24), {"mapname": "tour/deck04"})

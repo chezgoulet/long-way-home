@@ -986,23 +986,30 @@ evidence: `docs/evidence/the-character-layer.md`, `docs/evidence/the-manner.md`.
   defect — see Section 14.
 
 ### G20 — The glance has no in-world control, and sealed quarters have no world prompt
-- **Status 2026-10-11 — OPEN. Recon 2026-10-15** (`docs/evidence/the-panel-control.md`): the **use key
-  can be driven headlessly** — a console `+use` never reaches the game, but a forged `ClientThink` does,
-  once `player_locked` (a deck script) is cleared — and the stock panels are **inert** to the player's
-  use, so the module can add the affordance with **no engine patch**. **Blocked on which brush is the
-  panel:** the `func_usable` entities on the ship are doors/hatches (a door satisfies `StandAtPanel`'s
-  criteria), and the live-panel status screens on the generated decks are plain brushes remapped by
-  `target_shaderremap`, not `func_usable`. Needs a decision to **mark the screens** as the affordance.
-  `docs/evidence/every-screen.md` row 12: *"the glance — thin, left —
-  in-world control, out of console scope; a readout by design"*; `docs/evidence/the-two-missing-decks.md`
-  judgement call 5 carries the sealed quarters. Closure is an engine/world affordance on panel and door
-  brushes.
-- **Missing:** the in-world readout is a read by design; the control it lacks is a world interaction
-  (an interactive panel surface), parked as out-of-console-scope. Sealed quarters are visible only
-  through the console/HUD, not by a per-door prompt.
-- **Says so:** `docs/evidence/every-screen.md` (row 12); `docs/evidence/the-two-missing-decks.md`
-  (judgement call 5).
-- **To close:** engine/world affordances on panel and door brushes.
+- **Status 2026-10-15 — the panel half is BUILT; the door half is its own item (O21).** The decision
+  is recorded and no longer waits on it: **mark the screens as the affordance**, where *a panel is
+  the brush whose surface carries the ship's own readout* (`textures/lwh/panel`) — **not** a size
+  rule, and **not** a `func_usable` (those are the doors, and that is this entry's *other* half). The
+  list is the module's own (`module/ship/lwh_panel.cpp`, `PANEL_REMAPPED[]` + `PANEL_READOUT`), the
+  deck tooling marks the screens at source and `tools/shipmap/markpanels.py` enumerates them from the
+  module (`docs/evidence/the-panel-control-built.md`). The recon (`docs/evidence/the-panel-control.md`)
+  proved the use key can be driven headlessly with a forged `ClientThink` once `player_locked` is
+  cleared, and that the stock panels are inert to the player's use, so the module adds the control
+  with **no engine patch**. Demonstrated in the world (`scripts/panel-control-check.sh`): the forged
+  use at a status screen changes the condition the panel draws; a person who may not call it is
+  refused and the panel is unchanged; and the same forge at a brush that carries **no** panel shader
+  changes nothing (the planted break, `LWH_PANEL_BREAK=1`, fails the check as it must). **What the
+  literal reading -- marking the console-shader brushes too -- would do is measured: it leaks the
+  map**, so those 90 brushes are the *read*, reported every build by `markpanels.py`.
+  `docs/evidence/every-screen.md` row 12: *"the glance — thin, left — in-world control, out of console
+  scope; a readout by design"*.
+- **Missing:** **sealed quarters still have no per-door world prompt** (the `func_usable` doors and
+  hatches on the ship map — a different list from the panels, registered as **O21**); and S4's own
+  exit criterion, *"a logged-in session walking to each station"*, which no headless run substitutes
+  for.
+- **Says so:** `docs/evidence/the-panel-control-built.md` and `docs/evidence/the-panel-control.md`;
+  `docs/evidence/every-screen.md` (row 12); `docs/evidence/the-two-missing-decks.md` (judgement call 5).
+- **To close:** the doors, at the door/hatch brushes (O21). <!-- register-row id=G20 state=partly marker=check:scripts/panel-control-check.sh -->
 
 ### G21 — The airponics bay and living quarters are not mapped places
 - **Status 2026-10-11 — OPEN.** `docs/gates.md` (*Still to do*): *"the airponics bay and the galley as

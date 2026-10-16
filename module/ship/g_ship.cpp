@@ -28,6 +28,10 @@ extern qboolean g_qbLoadTransition;
 // The engine's cgame is linked into this same module (efgame = game + cgame + icarus), so the
 // reminder that re-registers an entity's models from its renderInfo is reachable from here.
 extern void CG_RegisterClientModels( int entityNum );
+// The scripted movement lock (SET_PLAYER_LOCKED, defined in the engine's Q3_Interface.cpp): while it
+// is set, ClientThink_real zeroes ucmd->buttons, so a use never reaches the game. The panel harness
+// clears it because a *hand at a panel is not locked*; see docs/evidence/the-panel-control.md.
+extern qboolean player_locked;
 
 // The one free-text path (M6, voice in): defined below, and reached by both `ship meeting say` and
 // `ship dictate say`. Declared at file scope so the harness can measure the same function a console
@@ -35,6 +39,10 @@ extern void CG_RegisterClientModels( int entityNum );
 void SubmitRoomInput( const std::string &text );
 
 namespace {
+
+// The panel-control harness case (RunTest). Named so the one place that logs the trace does not
+// look like a second handler for the same case number (tools/harness/check_cases.py).
+const int SHIP_PANEL_TEST = 104;
 
 const unsigned long SAVE_CHUNK = 0x53484950; // 'SHIP'
 const char *const CARRY_FILE = "ship/carry.ship";
@@ -64,9 +72,12 @@ cvar_t *g_shipTest;     // harness: 1 = act, report, save, quit; 2 = report what
                         //          96 = the vantage test: stand at a post and photograph the vantages
                         //               (screenshots/<g_shipVantage>_<n>.tga). The dark room is one caller
                         //               of it; the post and the frame names come from the caller;
-                        //          97 = the room survey: every meeting room from four facings (screenshots/lwh_room_*)
+                        //          97 = the room survey: every meeting room from four facings (screenshots/lwh_room_*);
+                        //         104 = the panel control: forge the use at a status screen and read the condition
 cvar_t *g_shipTestPos;
 cvar_t *g_shipTestPitch;
+cvar_t *g_shipPanelBreak; // harness: 1 = the panel test forges at a brush carrying no panel shader
+                          // (the check's planted break; scripts/panel-control-check.sh)
 cvar_t *g_shipTestWatch; // "x y z": report whether the trigger centred there has fired
 // The vantage test's (96) two inputs, so no room's anchor and no room's frame names are baked into
 // this file (the away-site pass, 2026-10-11). g_shipVantagePost names the point entity *where to
@@ -1588,6 +1599,92 @@ static std::string SeamLogFor( const ship::Ship &s, const std::string &text )
 			|| e.what == std::string( "an answer matched the branch: " ) + text )
 			return e.what;
 	return "";
+}
+
+// ---- the in-world control at the panel (O10) ------------------------------------------------------
+// A panel's surface carries the ship's own readout (module/ship/lwh_panel.cpp's list). The deck
+// tooling marks the panel brush as a named brush entity (`lwh_panel*`, tools/shipmap/markpanels.py),
+// so the world's use can find it. The engine's own use is inert on it -- a brush entity is
+// player-usable only with SVF_PLAYER_USABLE, which nothing sets on a func_static -- so the module
+// reads the use button's own edge (`ps.useTime` rising from zero, what PM_Use sets) and traces ahead
+// exactly as the engine's TryUse does. The act is the stations' own: the condition is called by a
+// department head at Engineering or Tactical, or by command. docs/evidence/the-panel-control.md.
+
+// The panel entity directly ahead of the player, traced the way TryUse traces (g_utils.cpp), or -1.
+int PanelEntityAt( gentity_t *from, trace_t *tr )
+{
+	vec3_t src, dest, vf;
+	VectorCopy( from->client->renderInfo.eyePoint, src );
+	AngleVectors( from->client->renderInfo.eyeAngles, vf, NULL, NULL );
+	VectorMA( src, 64.0f, vf, dest );   // USE_DISTANCE, g_utils.cpp
+	gi.trace( tr, src, vec3_origin, vec3_origin, dest, from->s.number,
+		MASK_OPAQUE | CONTENTS_BODY | CONTENTS_ITEM | CONTENTS_CORPSE );
+	if ( tr->fraction == 1.0f || tr->entityNum < 1 ) return -1;
+	gentity_t *e = &g_entities[tr->entityNum];
+	const int taglen = static_cast<int>( strlen( LWH_PanelTag() ) );
+	if ( !e->inuse || !e->targetname || Q_stricmpn( e->targetname, LWH_PanelTag(), taglen ) )
+		return -1;
+	return tr->entityNum;
+}
+
+// The names of every panel the map carries, comma-separated, for the acceptance check (bound to the
+// same markers the tooling places). Empty when the map carries none.
+std::string PanelList( int *count )
+{
+	std::string out;
+	int n = 0;
+	const int taglen = static_cast<int>( strlen( LWH_PanelTag() ) );
+	for ( int i = 1; i < globals.num_entities; ++i )
+	{
+		gentity_t *e = &g_entities[i];
+		if ( !e->inuse || !e->targetname || Q_stricmpn( e->targetname, LWH_PanelTag(), taglen ) ) continue;
+		if ( !out.empty() ) out += ",";
+		out += e->targetname;
+		++n;
+	}
+	if ( count ) *count = n;
+	return out;
+}
+
+// A use at a panel: the stations' own authority calls the condition, one step at a time (green ->
+// yellow -> red -> green, a stand-down). Anyone else gets the refusal and the panel is unchanged.
+void PanelUse( gentity_t *panel )
+{
+	const bool cleared = ship::PlayerMayCommand( vessel )
+		|| ship::MayCallAlert( vessel, vessel.player, ship::STN_ENGINEERING )
+		|| ship::MayCallAlert( vessel, vessel.player, ship::STN_TACTICAL );
+	if ( !cleared )
+	{
+		const char *why = "the condition is not yours to call: a department head at Engineering or Tactical, or command, calls it";
+		gi.cvar_set( "lwh_panel_refusal", why );
+		gi.Printf( "SHIP: panel %s: refused: %s\n", panel->targetname, why );
+		return;
+	}
+	static const char *const WORDS[] = { "green", "yellow", "red" };
+	gi.cvar_set( "lwh_panel_refusal", "" );
+	const int next = ( static_cast<int>( vessel.alert ) + 1 ) % 3;
+	ship::SetAlert( vessel, static_cast<ship::Alert>( next ) );
+	gi.Printf( "SHIP: panel %s: the condition is now %s\n", panel->targetname, WORDS[next] );
+	Publish();
+}
+
+// The panel control's frame: the use button's edge, the panel ahead, the act. Called from Ship_Frame.
+void PanelUseFrame( void )
+{
+	gentity_t *player = &g_entities[0];
+	if ( !player->inuse || !player->client ) return;
+	static int lastUseTime = 0;
+	const int ut = player->client->ps.useTime;
+	if ( ut > 0 && lastUseTime <= 0 )
+	{
+		trace_t tr;
+		const int hit = PanelEntityAt( player, &tr );
+		if ( g_shipTest->integer == SHIP_PANEL_TEST )
+			gi.Printf( "SHIP: panel probe: ut %d last %d hit %d traceEnt %d frac %.2f eye %s\n",
+				ut, lastUseTime, hit, tr.entityNum, tr.fraction, vtos( player->client->renderInfo.eyePoint ) );
+		if ( hit >= 0 ) PanelUse( &g_entities[hit] );
+	}
+	lastUseTime = ut;
 }
 
 // The harness (scripts/s2-check.sh): do to the ship what a console would, then prove the result
@@ -4426,6 +4523,219 @@ void RunTest( void )
 		}
 		return;
 	}
+	if ( g_shipTest->integer == 104 )
+	{//the in-world control at the panel (O10, docs/evidence/the-panel-control-built.md): the use key,
+	 //forged the way the engine's own use runs (ClientThink -> PM_Use -> TryUse), at a status
+	 //screen. The condition changes where the control is; a person who may not call it gets the
+	 //refusal and the panel is unchanged; and the same forge at a brush that carries no panel
+	 //shader changes nothing. With g_shipPanelBreak 1 the *primary* forge is aimed at that plain
+	 //brush, so the check's "the condition changed" assertion fails -- the planted break.
+	 //The player_locked clearing is the harness's, not the game's: a hand at a panel is not locked.
+	 //
+	 // The standpoint matters: the world's use reaches 64 units (g_utils.cpp USE_DISTANCE), and a
+	 // status screen is 128 tall, so standing a facing-pace out and aiming at the *face* low --
+	 // near the eye -- puts the panel inside the reach. Standing at the centre would aim over it.
+		static int step = 0, before = -1, savedPlayer = -1, panelIdx = 0;
+		static char target[64] = { 0 };
+		if ( level.time < 1000 ) { step = 0; before = -1; savedPlayer = -1; panelIdx = 0; target[0] = 0; }
+		gentity_t *hero = &g_entities[0];
+		player_locked = qfalse;
+		auto forge = [hero]()
+		{
+			usercmd_t ucmd = hero->client->pers.lastCommand;
+			hero->client->ps.commandTime = level.time - 100;
+			ucmd.serverTime = level.time;
+			ucmd.buttons |= BUTTON_USE;
+			ClientThink( 0, &ucmd );
+		};
+		// The full-size readout screen: the panel whose face the whole image lands on (the deck
+		// tooling's status screen is 128x128; a station console's is a smaller slice of it). Picked
+		// by the span, so the photograph shows the condition the control changed.
+		auto findPanel = [&]() -> gentity_t *
+		{
+			gentity_t *best = NULL;
+			float bestSpan = -1.0f, bestDist = -1.0f;
+			const int tl = static_cast<int>( strlen( LWH_PanelTag() ) );
+			for ( int i = 1; i < globals.num_entities; ++i )
+			{
+				gentity_t *e = &g_entities[i];
+				if ( !e->inuse || !e->targetname || Q_stricmpn( e->targetname, LWH_PanelTag(), tl ) ) continue;
+				if ( !e->model || e->model[0] != '*' ) continue;
+				const float sz = e->absmax[2] - e->absmin[2];
+				vec3_t c;
+				EntityCentre( e, c );
+				const float d = Distance( c, hero->currentOrigin );
+				if ( sz > bestSpan || ( sz == bestSpan && ( bestDist < 0.0f || d < bestDist ) ) )
+				{ best = e; bestSpan = sz; bestDist = d; }
+			}
+			return best;
+		};
+		// Stand a facing-pace out from a screen's own face, on the floor, aiming at the face low.
+		auto stand = [&]( gentity_t *t, const char *label ) -> bool
+		{
+			if ( !t || !t->model || t->model[0] != '*' ) return false;
+			vec3_t span;
+			for ( int a = 0; a < 3; ++a ) span[a] = t->absmax[a] - t->absmin[a];
+			if ( span[0] <= 0.0f || span[1] <= 0.0f || span[2] <= 0.0f ) return false;
+			int axis = span[0] <= span[1] ? 0 : 1;
+			if ( span[2] < span[axis] ) axis = 2;
+			if ( axis == 2 ) return false;
+			vec3_t centre;
+			for ( int a = 0; a < 3; ++a ) centre[a] = ( t->absmin[a] + t->absmax[a] ) * 0.5f;
+			// Aim near the eye: the lowest few units of the face, not the tall centre.
+			vec3_t aim = { centre[0], centre[1], t->absmin[2] + 8.0f };
+			const int idx = t - g_entities;
+			for ( int sign = 1; sign >= -1; sign -= 2 )
+			{
+				vec3_t at = { centre[0], centre[1], centre[2] };
+				at[axis] = centre[axis] + sign * ( span[axis] * 0.5f + 40.0f );
+				trace_t tr;
+				vec3_t from = { at[0], at[1], t->absmax[2] + 64.0f }, to = { at[0], at[1], t->absmin[2] - 128.0f };
+				gi.trace( &tr, from, vec3_origin, vec3_origin, to, 0, MASK_PLAYERSOLID );
+				if ( tr.fraction == 1.0f ) continue;   // no floor to stand on
+				at[2] = tr.endpos[2] + 1.0f;
+				vec3_t eye = { at[0], at[1], at[2] + 28.0f }, dir;
+				VectorSubtract( aim, eye, dir );
+				vectoangles( dir, glanceAngles );
+				VectorCopy( glanceAngles, hero->client->ps.viewangles );
+				SetClientViewAngle( hero, glanceAngles );
+				haveGlanceAim = true;
+				TeleportPlayer( hero, at, glanceAngles, 0 );
+				SetClientViewAngle( hero, glanceAngles );
+				// The same trace the engine's use and the module make: the screen must be what is hit.
+				gi.trace( &tr, eye, vec3_origin, vec3_origin, aim, 0, MASK_OPAQUE | CONTENTS_BODY | CONTENTS_ITEM | CONTENTS_CORPSE );
+				if ( tr.entityNum != idx ) continue;
+				if ( label ) gi.Printf( "SHIP: panel test: standing at %s (%s)\n", t->targetname, label );
+				return true;
+			}
+			return false;
+		};
+		// Stand at the deck-12 environmental readout -- a brush that carries no panel shader -- and
+		// aim at it. The falsification's standpoint, and the planted break's.
+		auto standPlain = [&]() -> bool
+		{
+			vec3_t post = { 0, 0, 0 }, screen = { 0, 0, 0 };
+			if ( !TargetOrigin( "lwh_env_post", post ) || !TargetOrigin( "lwh_env_screen", screen ) ) return false;
+			vec3_t dir, flat, at, d2, ang;
+			VectorSubtract( screen, post, dir );
+			VectorCopy( dir, flat );
+			flat[2] = 0.0f;
+			const float d = VectorLength( flat );
+			VectorNormalize( dir );
+			VectorMA( post, d > 40.0f ? d - 36.0f : d * 0.5f, dir, at );   // 36 from the face, inside the 64-unit reach
+			at[2] = post[2];
+			VectorSubtract( screen, at, d2 );
+			vectoangles( d2, ang );
+			TeleportPlayer( hero, at, ang, 0 );
+			SetClientViewAngle( hero, ang );
+			haveGlanceAim = false;   // no re-aim: this standpoint is the readout's own
+			gi.Printf( "SHIP: panel test: standing at the plain brush (lwh/env) at %s\n", vtos( at ) );
+			return true;
+		};
+		const bool breaking = g_shipPanelBreak && g_shipPanelBreak->integer;
+		const char *primary = breaking ? "lwh_env_screen" : "lwh_panel";
+		const char *kind = breaking ? "plain, no panel shader" : "panel";
+		if ( step == 0 && level.time >= 2500 )
+		{
+			gentity_t *panel = breaking ? NULL : findPanel();
+			const bool stood = breaking ? standPlain() : stand( panel, "panel" );
+			if ( !stood )
+			{
+				gi.Printf( "SHIP: panel test: no %s entity to stand at\n", primary );
+				gi.SendConsoleCommand( "quit\n" );
+				step = 99;
+			}
+			else
+			{
+				panelIdx = panel ? static_cast<int>( panel - g_entities ) : 0;
+				Com_sprintf( target, sizeof( target ), "%s", panel && panel->targetname ? panel->targetname : primary );
+				// The primary forge is made by someone the station's own authority clears: a
+				// department head at Engineering or Tactical, or command (ship::MayCallAlert).
+				vessel.cfg.role = ship::ROLE_ANY_POST;
+				vessel.player = -1;
+				for ( int i = 0; i < static_cast<int>( vessel.crew.size() ); ++i )
+					if ( ship::MayCallAlert( vessel, i, ship::STN_ENGINEERING )
+						|| ship::MayCallAlert( vessel, i, ship::STN_TACTICAL ) ) { vessel.player = i; break; }
+				if ( vessel.player < 0 ) vessel.cfg.role = ship::ROLE_IN_COMMAND;   // command calls it
+				gi.Printf( "SHIP: panel test: the use is made by %s\n",
+					vessel.player >= 0 ? vessel.crew[vessel.player].name.c_str() : "command" );
+				step = 1;
+			}
+		}
+		else if ( step == 1 && level.time >= 3700 )
+		{//photograph the panel's own readout before the control acts
+			gi.SendConsoleCommand( "screenshot lwh_panel_before\n" );
+			step = 11;
+		}
+		else if ( step == 11 && level.time >= 4200 )
+		{
+			before = vessel.alert;
+			forge();
+			step = 2;
+		}
+		else if ( step == 2 && level.time >= 4700 )
+		{//and after: the readout changes exactly where the control is
+			gi.SendConsoleCommand( "screenshot lwh_panel_after\n" );
+			gi.Printf( "SHIP: panel test: forged at %s (%s); condition %d -> %d\n",
+				target, kind, before, static_cast<int>( vessel.alert ) );
+			step = breaking ? 90 : 3;
+		}
+		else if ( step == 90 && level.time >= 5600 )
+		{//the planted break stops here: no panel was forged, so the check cannot see a change
+			const std::string panels = PanelList( NULL );
+			gi.Printf( "SHIP: panel test: the planted break forged at a brush with no panel shader only\n" );
+			gi.Printf( "SHIP: panel test: the map carries %s\n", panels.empty() ? "no panel screen" : panels.c_str() );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 91;
+		}
+		else if ( step == 3 && level.time >= 5700 )
+		{//the refusal: stand at the panel and hand the ship to someone who may not call the condition
+			savedPlayer = vessel.player;
+			vessel.cfg.role = ship::ROLE_ANY_POST;
+			vessel.player = -1;
+			for ( int i = 0; i < static_cast<int>( vessel.crew.size() ); ++i )
+				if ( vessel.crew[i].rank < 3 && vessel.crew[i].status == ship::CREW_FIT ) { vessel.player = i; break; }
+			stand( panelIdx > 0 ? &g_entities[panelIdx] : NULL, "the refusal" );
+			gi.Printf( "SHIP: panel test: the refusal is tried by %s\n",
+				vessel.player >= 0 ? vessel.crew[vessel.player].name.c_str() : "(nobody)" );
+			step = 31;
+		}
+		else if ( step == 31 && level.time >= 6900 )
+		{
+			before = vessel.alert;
+			forge();
+			step = 4;
+		}
+		else if ( step == 4 && level.time >= 7800 )
+		{
+			gi.Printf( "SHIP: panel test: refusal \"%s\"; condition %d -> %d\n",
+				gi.cvar( "lwh_panel_refusal", "", 0 )->string, before, static_cast<int>( vessel.alert ) );
+			vessel.player = savedPlayer;
+			step = 5;
+		}
+		else if ( step == 5 && level.time >= 8200 )
+		{//the falsification, always run: the same forge at a surface that carries no panel shader.
+		 //The deck-12 environmental readout (`lwh/env`) is a brush that is not on the panel list.
+			if ( !standPlain() ) gi.Printf( "SHIP: panel test: no plain brush to stand at\n" );
+			step = 51;
+		}
+		else if ( step == 51 && level.time >= 9200 )
+		{
+			before = vessel.alert;
+			forge();
+			step = 6;
+		}
+		else if ( step == 6 && level.time >= 10000 )
+		{
+			const std::string panels = PanelList( NULL );
+			gi.Printf( "SHIP: panel test: the plain brush left the condition at %d (before %d)\n",
+				static_cast<int>( vessel.alert ), before );
+			gi.Printf( "SHIP: panel test: the map carries %s\n", panels.empty() ? "no panel screen" : panels.c_str() );
+			gi.SendConsoleCommand( "quit\n" );
+			step = 7;
+		}
+		return;
+	}
 	if ( g_shipTest->integer == 12 )
 	{//the turbolift's own menu: report the deck list it reads, then open it exactly as a panel does
 		// Opening the menu pauses the game, which stops Ship_Frame, so the screenshot and the quit
@@ -5599,6 +5909,7 @@ void Ship_RegisterCvars( void )
 	g_shipTestPos = gi.cvar( "g_shipTestPos", "0 0 0", 0 );
 	g_shipTestPitch = gi.cvar( "g_shipDeckPitch", "0", 0 );
 	g_shipTestWatch = gi.cvar( "g_shipTestWatch", "", 0 );
+	g_shipPanelBreak = gi.cvar( "g_shipPanelBreak", "0", 0 );
 	// The vantage test's (96) two caller inputs. Their defaults are the dark-room pass's own command,
 	// which sets neither, so that caller's frames and frames' names are unchanged.
 	g_shipVantage = gi.cvar( "g_shipVantage", "lwh_darkroom_security", 0 );
@@ -5735,6 +6046,7 @@ void Ship_Frame( void )
 		gi.SendConsoleCommand( "save ironman\n" );
 	}
 	if ( g_shipTest->integer ) RunTest();
+	PanelUseFrame(); // the in-world control at the panel (O10), after the harness has had its frame
 }
 
 void Ship_Shutdown( void )

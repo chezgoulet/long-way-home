@@ -513,7 +513,11 @@ class Build:
         px, py = ax + 240, ay
         self.w(brush(((px - 64, py - 48, FLOOR), (px + 64, py + 48, FLOOR + 48)), "engineering/console1"), detail=True)
         self.w(brush(((px - 56, py - 40, FLOOR + 48), (px + 56, py + 40, FLOOR + 80)), "voyager/basic"), detail=True)
-        self.w(brush(((px - 48, py - 40, FLOOR + 80), (px + 48, py - 32, FLOOR + 120)), "lwh/panel"), detail=True)
+        # The screen is the ship's own readout (lwh/panel, the module's list), so it is marked as the
+        # panel the in-world use acts on: a named brush entity, not world geometry (O10,
+        # docs/evidence/the-panel-control.md; the name carries the module's LWH_PanelTag prefix).
+        self.named_brush("func_static", "lwh_panel_06_station", "lwh/panel",
+                         ((px - 48, py - 40, FLOOR + 80), (px + 48, py - 32, FLOOR + 120)))
         self.point("info_notnull", "lwh_station_17", (px, py + 96, FLOOR + 24))
         hx, hy = ax, -3968
         self.point("info_notnull", "lwh_holo_post", (hx, hy, FLOOR + 24))
@@ -581,7 +585,10 @@ class Build:
 
     def _wiring(self):
         px = RX1 - 320
-        self.w(brush(((px, RY0 + WALL, FLOOR + 40), (px + WALL, RY0 + WALL + 128, FLOOR + 168)), "lwh/panel"), detail=True)
+        # The deck's status screen: the ship's own readout, marked as the panel the in-world use acts
+        # on (O10). A named brush entity, never world geometry -- see _holodeck_console.
+        self.named_brush("func_static", "lwh_panel_06", "lwh/panel",
+                         ((px, RY0 + WALL, FLOOR + 40), (px + WALL, RY0 + WALL + 128, FLOOR + 168)))
         (ax, ay), aang = self._arrival()
         self.point("info_player_start", None, (ax, ay, self.solids.floor_at(ax, ay) + 24), {"angle": str(aang)})
         self.point("target_level_change", "lwh_lift_d06", (RX1 + 96, DOOR_Y, FLOOR + 24), {"mapname": "tour/deck04"})

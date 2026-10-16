@@ -28,6 +28,52 @@ int nextDraw = 0;
 unsigned char *g_target = panel;
 int g_target_w = PANEL_W, g_target_h = PANEL_H;
 
+// ---- the panel list (O10) -------------------------------------------------------------------------
+// A panel is the brush whose surface carries the ship's own readout. The list is the shaders the
+// module remaps to the readout, plus the readout shader itself: the surfaces that carry the readout
+// once the remap has run. This is the *one* list: LWH_PanelShader() is what the remap below walks,
+// the deck tooling that marks the panel brushes reads it from this file
+// (tools/shipmap/markpanels.py), and the acceptance check is bound to the same names. Add a shader
+// here and the remap, the tooling and the check move together.
+//
+// `textures/lwh/panel` is both the remap target and the shader the generated decks' status screens
+// name directly (tools/shipmap/gendeck.py, dressdeck*), so the screens are on the list without a
+// remap. The three console shaders are the published decks' station consoles; the module paints the
+// readout onto them. docs/evidence/the-panel-control-built.md.
+const char *const PANEL_REMAPPED[] = {
+	"textures/transporter/panel",
+	"textures/sickbay/panel12",
+	"textures/engineering/conpanel",
+};
+const char *const PANEL_READOUT = "textures/lwh/panel";
+
+} // namespace
+
+int LWH_PanelShaderCount( void )
+{
+	return static_cast<int>( sizeof( PANEL_REMAPPED ) / sizeof( PANEL_REMAPPED[0] ) ) + 1;
+}
+
+const char *LWH_PanelShader( int i )
+{
+	const int n = static_cast<int>( sizeof( PANEL_REMAPPED ) / sizeof( PANEL_REMAPPED[0] ) );
+	if ( i < 0 ) return "";
+	if ( i < n ) return PANEL_REMAPPED[i];
+	return i == n ? PANEL_READOUT : "";
+}
+
+const char *LWH_PanelReadoutShader( void )
+{
+	return PANEL_READOUT;
+}
+
+const char *LWH_PanelTag( void )
+{
+	return "lwh_panel";
+}
+
+namespace {
+
 // ---- a 5x7 font, column-major, bit 0 at the top. Only the characters a status line needs. ----
 struct Glyph5 { unsigned char c; unsigned char b[5]; };
 const Glyph5 FONT[] = {
@@ -271,17 +317,21 @@ void LWH_Panel_Frame( const ship::Ship *s )
 
 	if ( !remapped )
 	{// point the ship's console panels at the live shader once. Names that are not present are
-	  // harmlessly ignored by the renderer.
-		static const char *const CONSOLES[] = { "textures/transporter/panel", "textures/sickbay/panel12", "textures/engineering/conpanel" };
-		for ( size_t i = 0; i < sizeof( CONSOLES ) / sizeof( CONSOLES[0] ); ++i )
-			gi.RemapShader( CONSOLES[i], "textures/lwh/panel", "0" );
+	  // harmlessly ignored by the renderer. The list is LWH_PanelShader() (the O10 list): the
+	  // remap target itself is skipped -- it is already the readout.
+		for ( int i = 0; i < LWH_PanelShaderCount(); ++i )
+		{
+			const char *const s = LWH_PanelShader( i );
+			if ( s[0] && Q_stricmp( s, LWH_PanelReadoutShader() ) )
+				gi.RemapShader( s, LWH_PanelReadoutShader(), "0" );
+		}
 		remapped = true;
 	}
 
 	if ( level.time < nextDraw ) return;
 	nextDraw = level.time + LINE_MS;
 	Render( s );
-	gi.UpdatePanelImage( "textures/lwh/panel", panel, PANEL_W, PANEL_H );
+	gi.UpdatePanelImage( PANEL_READOUT, panel, PANEL_W, PANEL_H );
 
 	// The deck-12 environmental readout, on its own surface (G18). `g_shipEnvStatic` cuts the
 	// wiring from the deck's air to this surface -- the check's planted break.

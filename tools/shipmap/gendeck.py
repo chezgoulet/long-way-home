@@ -56,9 +56,11 @@ def deck_map(n):
     ]:
         parts.append(brush(bounds, tex))
     # A status screen a few paces in front of the arrival point: a surface the ship's live state is
-    # drawn on (Long Way Home). It is ours, and the shader it names is shipped beside the map.
+    # drawn on (Long Way Home). It is ours, and the shader it names is shipped beside the map. It is
+    # marked as the panel the in-world use acts on (O10): a named brush entity, not world geometry,
+    # named with the module's LWH_PanelTag prefix so the module and the check find it
+    # (docs/evidence/the-panel-control.md). Emitted as an entity below, after the worldspawn closes.
     sx, cy = X0 + 384, Y0 + D // 2
-    parts.append(brush(((sx, cy - 64, FLOOR + 40), (sx + 8, cy + 64, FLOOR + 168)), "lwh/panel"))
 
     # Deck 12's blockout (docs/locations/deck12-environmental-control.brief.md): a working half-deck in
     # two chambers, the plant on a raised deck behind a rail. Coarse massing only -- the detail waits on
@@ -109,6 +111,10 @@ def deck_map(n):
         parts.append(brush(((x1 - 512, y1 - 512, z0), (x1 - 256, y1 - 256, z0 + 96)), wall))
     parts.append("}")
     out = ["\n".join(parts)]
+    # The status screen, marked as the panel the in-world use acts on (O10): a named brush entity,
+    # the module's LWH_PanelTag prefix on a brush carrying the readout shader.
+    out.append("{\n" + '"classname" "func_static"\n' + '"targetname" "lwh_panel_%02d"\n' % n
+               + brush(((sx, cy - 64, FLOOR + 40), (sx + 8, cy + 64, FLOOR + 168)), "lwh/panel") + "\n}")
     out.append(entity([("classname", "info_player_start"), ("origin", "%d %d %d" % (X0 + 96, Y0 + D // 2, z0 + 24)), ("angle", "0")]))
     # A runtime shader remap a designer can place (RPG-X target_shaderremap, adopted by patches/0015):
     # falsename is the shader in game; truename replaces it, and a second use swaps back.

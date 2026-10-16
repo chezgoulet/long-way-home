@@ -1,8 +1,9 @@
 # Evidence: the in-world control at the panel (O10) — the premise, the probe, and what it needs
 
-**Status: NOT BUILT.** This is the recon the item stopped on, landed so the next pass does not
-re-derive it. The **mechanism is proven**; the **panel's identity is the blocker**, and it is a design
-decision rather than an engineering one.
+**Status: the reconnaissance below is unchanged and still the mechanism; the item is now BUILT**
+(`docs/evidence/the-panel-control-built.md`, 2026-10-15). The owner's decision was *mark the screens
+as the affordance*; the screens are the `textures/lwh/panel` brushes, and the console-shader brushes
+below are the read (marking them leaks the map — see the built record).
 
 O10 (`docs/omissions.md`): *"The in-world control at the panel (the 'glance') is not built. The panel
 carries the ship's live state as a **read**; the missing half is an interactive surface on the panel
