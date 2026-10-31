@@ -389,12 +389,44 @@ std::string BriefJson( const ship::MeetingBrief &b, bool stale )
 	std::string out = Fmt( "{\"kind\":%d,\"kindName\":\"%s\",\"time\":%.1f,\"stateDigest\":%u,\"stale\":%d,\"decision\":\"%s\",\"trigger\":\"%s\"",
 		b.kind, ship::MeetingKindName( b.kind ), b.time, b.stateDigest, stale ? 1 : 0,
 		JsonEsc( b.decision ).c_str(), JsonEsc( b.trigger ).c_str() );
-	out += ",\"present\":[";
+	// Stage D: the agenda is the record the room is meeting about, not a summary. Each item names
+	// its source, so the worker can keep a line inside what the room actually has in front of it.
+	out += ",\"agenda\":[";
+	for ( int i = 0; i < b.agendaCount; ++i )
+	{
+		const ship::BriefAgenda &a = b.agenda[i];
+		const std::string who = ( a.crew >= 0 && a.crew < static_cast<int>( vessel.crew.size() ) )
+			? vessel.crew[a.crew].name : std::string();
+		out += Fmt( "%s{\"source\":\"%s\",\"crew\":\"%s\",\"text\":\"%s\"}", i ? "," : "",
+			ship::BriefAgendaSourceName( a.source ), JsonEsc( who ).c_str(), JsonEsc( a.text ).c_str() );
+	}
+	out += "],\"present\":[";
 	for ( int i = 0; i < b.presentCount; ++i )
 	{
 		const ship::BriefParticipant &p = b.present[i];
-		out += Fmt( "%s{\"name\":\"%s\",\"post\":%d,\"watch\":%d,\"mood\":%.2f}", i ? "," : "",
-			JsonEsc( p.name ).c_str(), p.post, p.watch, p.mood );
+		out += Fmt( "%s{\"name\":\"%s\",\"post\":%d,\"watch\":%d,\"mood\":%.2f",
+			i ? "," : "", JsonEsc( p.name ).c_str(), p.post, p.watch, p.mood );
+		// The declared prior, and the two reads the meeting lane consumes. They are a view of the
+		// record, not a new store; a save rebuilds them (EnrichBrief) and the save format does not move.
+		out += Fmt( ",\"allegiance\":{\"to\":\"%s\",\"strength\":%.2f,\"authored\":%d}",
+			JsonEsc( ship::AllegianceName( p.allegianceTo ) ).c_str(), p.allegianceStrength,
+			p.allegianceAuthored ? 1 : 0 );
+		out += ",\"likes\":[";
+		for ( int k = 0; k < p.likeCount; ++k )
+			out += Fmt( "%s{\"topic\":\"%s\",\"thing\":\"%s\",\"strength\":%.2f,\"authored\":%d}", k ? "," : "",
+				ship::AffinityTopicName( p.likes[k].topic ), JsonEsc( p.likes[k].thing ).c_str(),
+				p.likes[k].strength, p.likes[k].authored ? 1 : 0 );
+		out += "],\"dislikes\":[";
+		for ( int k = 0; k < p.dislikeCount; ++k )
+			out += Fmt( "%s{\"topic\":\"%s\",\"thing\":\"%s\",\"strength\":%.2f,\"authored\":%d}", k ? "," : "",
+				ship::AffinityTopicName( p.dislikes[k].topic ), JsonEsc( p.dislikes[k].thing ).c_str(),
+				p.dislikes[k].strength, p.dislikes[k].authored ? 1 : 0 );
+		out += Fmt( "],\"wants\":\"%s\",\"willNotSay\":\"%s\",\"stances\":[",
+			JsonEsc( p.wants ).c_str(), JsonEsc( p.wontSay ).c_str() );
+		for ( int k = 0; k < b.optionCount; ++k )
+			out += Fmt( "%s{\"option\":%d,\"stance\":%d,\"reason\":\"%s\"}", k ? "," : "", k + 1,
+				static_cast<int>( p.stance[k] ), JsonEsc( p.stanceReason[k] ).c_str() );
+		out += "]}";
 	}
 	out += "],\"options\":[";
 	for ( int i = 0; i < b.optionCount; ++i )
@@ -637,16 +669,24 @@ void PublishMeeting( void )
 				ship::MeetingEffectName( b.options[i].effect ), b.options[i].intent ).c_str() );
 
 	// The room: each participant with the scope their own brief was built from. A post reads its own
-	// scope; command reads all (docs/the-record-and-the-log.md).
+	// scope; command reads all (docs/the-record-and-the-log.md). Stage D adds each person's declared
+	// want and silence after the scope, so the surface can reach the brief the worker was given
+	// without rebuilding it; the current room draws the five fields it already drew.
 	gi.cvar_set( "lwh_ship_meeting_parts", Fmt( "%d", b.presentCount ).c_str() );
 	for ( int i = 0; i < b.presentCount && i < ship::MEETING_PARTICIPANT_MAX; ++i )
 	{
 		const ship::BriefParticipant &p = b.present[i];
 		gi.cvar_set( Fmt( "lwh_ship_meeting_part%d", i ).c_str(),
-			Fmt( "%s|%s|%s|%s|%s", p.name.c_str(), postName( p.post ).c_str(),
+			Fmt( "%s|%s|%s|%s|%s|%s|%s", p.name.c_str(), postName( p.post ).c_str(),
 				WATCH[p.watch < 3 ? p.watch : 0], ship::MoraleBandName( p.mood ),
-				ship::LogScopeForCrew( vessel, p.crew ) ).c_str() );
+				ship::LogScopeForCrew( vessel, p.crew ), p.wants.c_str(), p.wontSay.c_str() ).c_str() );
 	}
+	// The agenda: what the room is meeting about, grounded in the record. Published as its own
+	// count and rows so the screen can name it; the generated script consumes the same list.
+	gi.cvar_set( "lwh_ship_meeting_agenda", Fmt( "%d", b.agendaCount ).c_str() );
+	for ( int i = 0; i < b.agendaCount && i < ship::MEETING_AGENDA_MAX; ++i )
+		gi.cvar_set( Fmt( "lwh_ship_meeting_agenda%d", i ).c_str(),
+			Fmt( "%s|%s", ship::BriefAgendaSourceName( b.agenda[i].source ), b.agenda[i].text.c_str() ).c_str() );
 
 	// The script the room plays: the generated one when it is fresh, otherwise the authored skeleton.
 	// Every outcome's lines carry their resolved speaker and their delivery direction.

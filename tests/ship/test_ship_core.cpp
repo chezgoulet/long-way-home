@@ -6280,6 +6280,124 @@ static void TestMeetingBriefPerParticipant()
 	CHECK(found);
 }
 
+// Stage D slice 2: the brief is built per participant from marks, the log and the declared
+// affinities. The same meeting gives two people different wants, different silences, and opposite
+// stances on a declared option -- and the reason is a row in their own record, not a roster average.
+static void TestMeetingBriefAffinity()
+{
+	g_test = "a brief is built per participant from marks, the log and a declared affinity";
+	Ship s = NewShip();
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+
+	int maquis = -1, starfleet = -1;
+	for (int i = 0; i < b.presentCount; ++i) {
+		if (b.present[i].allegianceTo == ALLEG_MAQUIS && maquis < 0) maquis = i;
+		if (b.present[i].allegianceTo == ALLEG_STARFLEET && starfleet < 0) starfleet = i;
+	}
+	CHECK(maquis >= 0);
+	CHECK(starfleet >= 0);
+	if (maquis < 0 || starfleet < 0) return;
+
+	const BriefParticipant &m = b.present[maquis];
+	const BriefParticipant &f = b.present[starfleet];
+	CHECK(m.likeCount > 0);
+	CHECK(m.dislikeCount > 0);
+	CHECK(f.likeCount > 0);
+	CHECK(!m.wants.empty());
+	CHECK(!f.wants.empty());
+	CHECK(!m.wontSay.empty());
+	CHECK(!f.wontSay.empty());
+	// Their own record, not a summary: the two wants differ.
+	CHECK(m.wants != f.wants || m.wontSay != f.wontSay);
+
+	// An option the skeleton declares as Starfleet procedure, and one it declares as Maquis
+	// pragmatism. The two participants read them in opposite directions, and each reason names the
+	// allegiance that produced it.
+	int starOpt = -1, maqOpt = -1;
+	for (int i = 0; i < b.optionCount; ++i) {
+		if (b.options[i].flavour == FLAVOUR_STARFLEET && starOpt < 0) starOpt = i;
+		if (b.options[i].flavour == FLAVOUR_MAQUIS && maqOpt < 0) maqOpt = i;
+	}
+	CHECK(starOpt >= 0);
+	CHECK(maqOpt >= 0);
+	if (starOpt >= 0 && maqOpt >= 0) {
+		CHECK(f.stance[starOpt] == STANCE_SUPPORTS);
+		CHECK(m.stance[starOpt] == STANCE_OPPOSED);
+		CHECK(f.stance[maqOpt] == STANCE_OPPOSED);
+		CHECK(m.stance[maqOpt] == STANCE_SUPPORTS);
+		CHECK(f.stanceReason[starOpt].find("Starfleet") != std::string::npos);
+		CHECK(m.stanceReason[starOpt].find("Maquis") != std::string::npos);
+		CHECK(m.stanceReason[starOpt].find("Starfleet procedure") != std::string::npos);
+	}
+
+	// The agenda is grounded in the record and the instruments, not in a model's summary.
+	bool trigger = false, system = false;
+	for (int i = 0; i < b.agendaCount; ++i) {
+		if (b.agenda[i].source == AGENDA_TRIGGER && !b.agenda[i].text.empty()) trigger = true;
+		if (b.agenda[i].source == AGENDA_SYSTEM && b.agenda[i].text.find("plant") != std::string::npos) system = true;
+	}
+	CHECK(b.agendaCount > 0);
+	CHECK(trigger);
+	CHECK(system);
+
+	// Determinism from the record and the seed: the same state builds the same brief.
+	const MeetingBrief again = BuildBrief(s, MEET_ALLOCATION);
+	CHECK(again.agendaCount == b.agendaCount);
+	for (int i = 0; i < b.agendaCount; ++i) CHECK(again.agenda[i].text == b.agenda[i].text);
+	for (int i = 0; i < b.presentCount; ++i) {
+		CHECK(again.present[i].wants == b.present[i].wants);
+		CHECK(again.present[i].wontSay == b.present[i].wontSay);
+		for (int k = 0; k < b.optionCount; ++k) CHECK(again.present[i].stance[k] == b.present[i].stance[k]);
+	}
+}
+
+// The meeting can be read afterwards: the report is published to the official log, addresses every
+// agenda item, and names the dissent a declared affinity explains.
+static void TestMeetingReportAddressesAgenda()
+{
+	g_test = "the published report addresses the agenda and names the dissent";
+	Ship s = NewShip();
+	LogEvent(s, "engineering", "engineering", "a coolant line was replaced");
+	MakePromise(s, DepartmentHead(s, DEPT_ENGINEERING), 20, PROMISE_REPAIR, "the coolant line",
+		s.clock + SECONDS_PER_DAY);
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+	CHECK(b.agendaCount > 0);
+
+	// Choose the Starfleet-flavoured option: the Maquis-weighted participant opposes it, so the
+	// report must carry both the agenda and the dissent.
+	int outcome = 0;
+	for (int i = 0; i < b.optionCount; ++i)
+		if (b.options[i].flavour == FLAVOUR_STARFLEET) { outcome = i; break; }
+	const int before = static_cast<int>(s.log.size());
+	ApplyMeetingOutcome(s, b, outcome, s.player, false);
+
+	int reports = 0, agendaLines = 0, dissent = 0;
+	for (int i = before; i < static_cast<int>(s.log.size()); ++i) {
+		const LogEntry &e = s.log[i];
+		if (e.what.find("meeting report") != std::string::npos) ++reports;
+		if (e.what.find("meeting agenda ") != std::string::npos) ++agendaLines;
+		if (e.what.find("meeting dissent:") != std::string::npos
+			&& e.what.find("Maquis") != std::string::npos) ++dissent;
+	}
+	CHECK(reports == 1);
+	CHECK(agendaLines == b.agendaCount);
+	CHECK(dissent > 0);
+
+	// Every agenda item is quoted in the report: "addresses the agenda" means every item, not a
+	// summary that happens to mention one.
+	for (int i = 0; i < b.agendaCount; ++i) {
+		bool found = false;
+		for (int k = before; k < static_cast<int>(s.log.size()); ++k)
+			if (s.log[k].what.find(b.agenda[i].text) != std::string::npos) found = true;
+		CHECK(found);
+	}
+	// The report is a read by the log's own scope: command sees it.
+	bool published = false;
+	for (const LogEntry &e : ReadOfficialLog(s, 64, "command"))
+		if (e.what.find("meeting report") != std::string::npos) published = true;
+	CHECK(published);
+}
+
 // M3: the surface's semantics, without a screen. The queue is what TakeBrief drains; a pill resolves
 // to exactly one enumerated outcome the simulation applies with the person's provenance; and typed
 // text goes to the novelty seam, which -- with the embedding classifier absent (M4) -- never returns
@@ -6391,6 +6509,20 @@ static void TestMeetingSaveRoundTrip()
 	CHECK(PendingMeetings(back).size() == PendingMeetings(s).size());
 // The load is a zero-length tick: it must not emit a second watch-change brief.
 	CHECK(PendingMeetings(back).size() == PendingMeetings(s).size());
+	// Stage D: the per-participant view and the agenda are a read of the saved brief and the record,
+	// so a load rebuilds them identically without a save-format move.
+	if (!PendingMeetings(s).empty() && !PendingMeetings(back).empty()) {
+		const MeetingBrief &a = PendingMeetings(s).front();
+		const MeetingBrief &c = PendingMeetings(back).front();
+		CHECK(a.agendaCount == c.agendaCount);
+		CHECK(a.presentCount == c.presentCount);
+		for (int i = 0; i < a.agendaCount; ++i) CHECK(a.agenda[i].text == c.agenda[i].text);
+		for (int i = 0; i < a.presentCount; ++i) {
+			CHECK(a.present[i].wants == c.present[i].wants);
+			CHECK(a.present[i].wontSay == c.present[i].wontSay);
+			for (int k = 0; k < a.optionCount; ++k) CHECK(a.present[i].stance[k] == c.present[i].stance[k]);
+		}
+	}
 }
 
 // The meeting's place (docs/staff-meetings.md, the owner's ruling 2026-10-09): the room belongs to the
@@ -6690,6 +6822,114 @@ static int PrintMeeting()
 		const bool same = Pack(s) == before;
 		std::printf("  %d briefs built; the ship's blob is %s\n", static_cast<int>(MEET_KIND_COUNT),
 			same ? "unchanged" : "CHANGED (a defect)");
+		bad(same);
+	}
+
+	// Stage D slice 2: the brief per participant, the agenda, the model-free floor, and the report.
+	std::printf("== the brief, per participant: what each attendee knows, wants and will not say\n");
+	{
+		Ship s = NewShip();
+		s.player = 0;
+		LogEvent(s, "engineering", "engineering", "a coolant line was replaced");
+		MakePromise(s, DepartmentHead(s, DEPT_ENGINEERING), 20, PROMISE_REPAIR, "the coolant line",
+			s.clock + SECONDS_PER_DAY);
+		const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+		std::printf("  BRIEF: %s in %s; %d present; %d agenda item(s)\n", MeetingKindName(b.kind),
+			MeetingRoomAt(static_cast<int>(b.room)).name, b.presentCount, b.agendaCount);
+		bad(b.agendaCount > 0);
+		for (int i = 0; i < b.presentCount; ++i) {
+			const BriefParticipant &p = b.present[i];
+			std::printf("  PARTICIPANT: %s -- %s (%+.2f)%s\n", p.name.c_str(),
+				AllegianceName(p.allegianceTo), p.allegianceStrength, p.allegianceAuthored ? " [authored]" : "");
+			if (p.likeCount > 0) {
+				std::printf("    likes:");
+				for (int k = 0; k < p.likeCount; ++k)
+					std::printf(" \"%s\" (%+.2f)%s", p.likes[k].thing.c_str(), p.likes[k].strength,
+						p.likes[k].authored ? "[authored]" : "");
+				std::printf("\n");
+			}
+			if (p.dislikeCount > 0) {
+				std::printf("    dislikes:");
+				for (int k = 0; k < p.dislikeCount; ++k)
+					std::printf(" \"%s\" (-%.2f)%s", p.dislikes[k].thing.c_str(), p.dislikes[k].strength,
+						p.dislikes[k].authored ? "[authored]" : "");
+				std::printf("\n");
+			}
+			std::printf("    knows: %d mark(s), %d promise(s), %d log line(s)\n",
+				p.markCount, p.promiseCount, p.logCount);
+			std::printf("    wants: %s\n", p.wants.c_str());
+			std::printf("    will not say: %s\n", p.wontSay.c_str());
+			for (int k = 0; k < b.optionCount; ++k) {
+				const char *stance = p.stance[k] == STANCE_SUPPORTS ? "SUPPORTS"
+					: p.stance[k] == STANCE_OPPOSED ? "OPPOSES" : "neutral";
+				std::printf("    option %d \"%s\" (%s): %s", k + 1, b.options[k].label.c_str(),
+					MeetingFlavourName(b.options[k].flavour), stance);
+				if (!p.stanceReason[k].empty()) std::printf(" -- %s", p.stanceReason[k].c_str());
+				std::printf("\n");
+			}
+			bad(!p.wants.empty() && !p.wontSay.empty());
+		}
+		for (int i = 0; i < b.agendaCount; ++i)
+			std::printf("  AGENDA %d [%s]%s: %s\n", i + 1, BriefAgendaSourceName(b.agenda[i].source),
+				b.agenda[i].crew >= 0 ? " raised by a participant" : "", b.agenda[i].text.c_str());
+	}
+
+	std::printf("== a meeting plays with the model absent: the authored skeleton is the floor\n");
+	{
+		Ship s = NewShip();
+		s.player = 0;
+		const MeetingSkeleton &sk = AuthoredSkeleton(MEET_WATCH_CHANGE);
+		const std::vector<uint8_t> blob = Pack(s);
+		const bool resolved = sk.outcomeCount > 0 && ApplyMeetingOutcome(s, BuildBrief(s, MEET_WATCH_CHANGE), 0, s.player, false);
+		std::printf("  no generated script is loaded; the skeleton has %d outcome(s); outcome 1 resolved=%d\n",
+			sk.outcomeCount, resolved ? 1 : 0);
+		std::printf("  the meeting changed state only through the simulation's own apply; the brief is a read\n");
+		bad(sk.outcomeCount > 0 && resolved);
+		(void)blob;
+	}
+
+	std::printf("== the published report addresses the agenda\n");
+	{
+		Ship s = NewShip();
+		s.player = 0;
+		LogEvent(s, "engineering", "engineering", "a coolant line was replaced");
+		MakePromise(s, DepartmentHead(s, DEPT_ENGINEERING), 20, PROMISE_REPAIR, "the coolant line",
+			s.clock + SECONDS_PER_DAY);
+		const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+		int outcome = 0;
+		for (int i = 0; i < b.optionCount; ++i)
+			if (b.options[i].flavour == FLAVOUR_STARFLEET) { outcome = i; break; }
+		const int before = static_cast<int>(s.log.size());
+		ApplyMeetingOutcome(s, b, outcome, s.player, false);
+		int reports = 0, agendaLines = 0, dissent = 0;
+		for (int i = before; i < static_cast<int>(s.log.size()); ++i) {
+			const LogEntry &e = s.log[i];
+			if (e.what.find("meeting report") != std::string::npos) ++reports;
+			if (e.what.find("meeting agenda ") != std::string::npos) ++agendaLines;
+			if (e.what.find("meeting dissent:") != std::string::npos) ++dissent;
+			if (e.what.find("meeting report") != std::string::npos
+				|| e.what.find("meeting agenda ") != std::string::npos
+				|| e.what.find("meeting dissent:") != std::string::npos)
+				std::printf("  LOG: %s\n", e.what.c_str());
+		}
+		std::printf("  report(s) %d; agenda line(s) %d of %d; dissent line(s) %d\n",
+			reports, agendaLines, b.agendaCount, dissent);
+		bad(reports == 1 && agendaLines == b.agendaCount && dissent > 0);
+	}
+
+	std::printf("== the same state builds the same brief (determinism from the seed)\n");
+	{
+		Ship s = NewShip();
+		const MeetingBrief a = BuildBrief(s, MEET_ALLOCATION);
+		const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+		bool same = a.agendaCount == b.agendaCount && a.presentCount == b.presentCount;
+		for (int i = 0; i < a.agendaCount && same; ++i) same = a.agenda[i].text == b.agenda[i].text;
+		for (int i = 0; i < a.presentCount && same; ++i) {
+			same = a.present[i].wants == b.present[i].wants && a.present[i].wontSay == b.present[i].wontSay;
+			for (int k = 0; k < a.optionCount && same; ++k) same = a.present[i].stance[k] == b.present[i].stance[k];
+		}
+		std::printf("  two builds: agenda %d/%d, same text and stances %s\n",
+			a.agendaCount, b.agendaCount, same ? "yes" : "NO (a defect)");
 		bad(same);
 	}
 
@@ -10783,6 +11023,8 @@ int main(int argc, char **argv)
 	TestSkeletonPlaysWithoutAModel();
 	TestMeetingAllocationSeam();
 	TestMeetingBriefPerParticipant();
+	TestMeetingBriefAffinity();
+	TestMeetingReportAddressesAgenda();
 	TestMeetingOverlaySeam();
 	TestNoveltyIndex();
 	TestMeetingSaveRoundTrip();

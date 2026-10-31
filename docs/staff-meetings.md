@@ -118,6 +118,22 @@ enumerated options with their costs, a branch tree of dialogue keyed by speaker 
 descriptors, interruption hooks, and the authored skeleton as fallback. The log records the playthrough — what
 was said as well as what was decided — so the meeting can be read afterwards.
 
+**The brief is per participant, and so is the meeting's argument.** `docs/the-record-and-the-log.md`
+makes this a law: a brief built from the record would be a room where everyone already knows the truth,
+so each attendee's view is built from *their* marks, *their* log and *their* declared affinities. Stage D
+slice 2 (2026-10-31) carries that into the brief: each participant brings their `likes`, `dislikes` and
+`allegiance`, a derived **want** and **will-not-say** with the row each comes from, and a **stance** on
+every enumerated option with the affinity that explains it. The authored skeleton declares how an option
+reads (`FLAVOUR_STARFLEET`, `FLAVOUR_MAQUIS`, or a taste topic); the person's own record answers. The
+**agenda** is grounded in the call, an instrument, a mark, an open promise and a readable log line — never
+in a global summary. The model speaks the disagreement; it does not invent it, and it never writes state.
+
+**After the decision, a report is published.** The simulation — not the model — writes the report into
+the official log: what was decided, every agenda item and whether the decision addressed it, and the
+dissent a declared affinity explains. The meeting can therefore be read afterwards even if its generated
+script is gone. The model remains an enhancement on a floor that always exists: the authored skeleton
+plays with no model, and the worker writes no script when the model is absent.
+
 ## Acceptance
 
 - A meeting is scheduled by the clock or by a threshold, and its script is generated **before** the player

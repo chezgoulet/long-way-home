@@ -8780,6 +8780,20 @@ const char *MeetingEffectName(uint8_t e)
 	return e < EFFECT_COUNT ? NAMES[e] : "?";
 }
 
+const char *MeetingFlavourName(uint8_t f)
+{
+	static const char *const NAMES[3] = { "neutral", "Starfleet procedure", "Maquis pragmatism" };
+	return f < 3 ? NAMES[f] : "?";
+}
+
+const char *BriefAgendaSourceName(uint8_t source)
+{
+	static const char *const NAMES[AGENDA_SOURCE_COUNT] = {
+		"the call", "an instrument", "a mark", "a promise", "the log"
+	};
+	return source < AGENDA_SOURCE_COUNT ? NAMES[source] : "?";
+}
+
 const char *DeliveryName(uint8_t d)
 {
 	static const char *const NAMES[DELIVERY_COUNT] = {
@@ -8844,7 +8858,7 @@ int ResolveSpeaker(const Ship &s, const MeetingBrief &brief, int speaker)
 // against the room at play time.
 
 static MeetingOption Opt(uint8_t intent, const char *label, const char *cost, uint8_t effect = EFFECT_RECORD,
-	int amount = 0, bool on = true)
+	int amount = 0, bool on = true, uint8_t flavour = FLAVOUR_NEUTRAL, uint8_t stake = 0xFF)
 {
 	MeetingOption o;
 	o.intent = intent;
@@ -8853,6 +8867,8 @@ static MeetingOption Opt(uint8_t intent, const char *label, const char *cost, ui
 	o.effect = effect;
 	o.amount = amount;
 	o.on = on;
+	o.flavour = flavour;
+	o.stake = stake;
 	return o;
 }
 
@@ -8925,18 +8941,19 @@ static void BuildSkeletons(MeetingSkeleton (&sk)[MEET_KIND_COUNT])
 		MeetingSkeleton &m = sk[MEET_ALLOCATION];
 		m.kind = MEET_ALLOCATION;
 		m.decision = "where the ship's power goes";
-		AddOutcome(m, Opt(1, "The chief's plan", "adopted as set", EFFECT_ACCEPT_RECOMMENDATION));
+		AddOutcome(m, Opt(1, "The chief's plan", "adopted as set", EFFECT_ACCEPT_RECOMMENDATION,
+			0, true, FLAVOUR_STARFLEET));
 		AddLine(m, SPEAK_ENGINEERING, "The plan holds every system the plant can feed.", DELIVERY_REPORT);
 		AddLine(m, SPEAK_COMMAND, "Adopted. Set it.", DELIVERY_ORDER);
 		AddOutcome(m, Opt(2, "Refuse the chief", "he notes who refused, and the argument stands",
-			EFFECT_REFUSE_RECOMMENDATION));
+			EFFECT_REFUSE_RECOMMENDATION, 0, true, FLAVOUR_MAQUIS));
 		AddLine(m, SPEAK_ENGINEERING, "Then the plant is short, and it is on the record who chose it.", DELIVERY_REPORT);
 		AddLine(m, SPEAK_COMMAND, "Noted.", DELIVERY_FLAT);
 		AddOutcome(m, Opt(3, "Run the ship's own ladder", "automatic mode: the ship decides the unset systems",
 			EFFECT_SET_POWER_AUTO, 0, true));
 		AddLine(m, SPEAK_ENGINEERING, "The computer will keep the cheapest and give up the rest.", DELIVERY_REPORT);
 		AddOutcome(m, Opt(4, "The holodecks full, the shields dark", "no shields while the holodecks run",
-			EFFECT_SET_ALLOCATION));
+			EFFECT_SET_ALLOCATION, 0, true, FLAVOUR_NEUTRAL, AFFT_PROGRAM));
 		{
 			MeetingOption &o = LastOutcome(m).option;
 			SetAlloc(o, 0, SYS_HOLODECKS, 100);
@@ -8971,20 +8988,24 @@ static void BuildSkeletons(MeetingSkeleton (&sk)[MEET_KIND_COUNT])
 		MeetingSkeleton &m = sk[MEET_BORG];
 		m.kind = MEET_BORG;
 		m.decision = "how to meet the Borg pressure";
-		AddOutcome(m, Opt(1, "Send security", "the squad is committed", EFFECT_SECURITY_TO_DECK, 0));
+		AddOutcome(m, Opt(1, "Send security", "the squad is committed", EFFECT_SECURITY_TO_DECK,
+			0, true, FLAVOUR_STARFLEET));
 		AddLine(m, SPEAK_SECURITY, "We will hold the deck. Nobody gets behind us.", DELIVERY_ORDER);
 		AddOutcome(m, Opt(2, "Evacuate the deck", "the deck's work stops", EFFECT_EVACUATE_DECK, 0));
 		AddLine(m, SPEAK_SECURITY, "Evacuate. Nobody stays on that deck.", DELIVERY_ORDER);
-		AddOutcome(m, Opt(3, "Withdraw and seal it", "the deck is given up"));
+		AddOutcome(m, Opt(3, "Withdraw and seal it", "the deck is given up",
+			0, 0, true, FLAVOUR_MAQUIS));
 		AddLine(m, SPEAK_COMMAND, "Seal it. We will take it back when we can.", DELIVERY_ORDER);
 	}
 	{ // a promise has come due: a decision the player has been deferring
 		MeetingSkeleton &m = sk[MEET_DEFERRED];
 		m.kind = MEET_DEFERRED;
 		m.decision = "the promise that has come due";
-		AddOutcome(m, Opt(1, "Make it good now", "what it takes, now", EFFECT_PROMISE_KEPT));
+		AddOutcome(m, Opt(1, "Make it good now", "what it takes, now", EFFECT_PROMISE_KEPT,
+			0, true, FLAVOUR_STARFLEET));
 		AddLine(m, SPEAK_COMMAND, "It is owed. Do it.", DELIVERY_ORDER);
-		AddOutcome(m, Opt(2, "Let it stand", "the promise is broken, and remembered"));
+		AddOutcome(m, Opt(2, "Let it stand", "the promise is broken, and remembered",
+			0, 0, true, FLAVOUR_MAQUIS));
 		AddLine(m, SPEAK_COMMAND, "I cannot do it. Note it, and let it stand.", DELIVERY_CONFESSION);
 		AddOutcome(m, Opt(3, "Attend to it later", "a deferred decision, and a mark that waits"));
 		AddLine(m, SPEAK_COMMAND, "Not yet. It waits.", DELIVERY_FLAT);
@@ -9188,7 +9209,7 @@ static std::string TriggerFor(const Ship &s, uint8_t kind)
 			std::snprintf(buf, sizeof(buf), "the day's departmental meeting (day %d)", s.Day());
 			return buf;
 		case MEET_ALLOCATION:
-			std::snprintf(buf, sizeof(buf), "the commitments exceed the plant by %d EPS", PowerShortfall(s));
+			std::snprintf(buf, sizeof(buf), "the allocation is argued: %d EPS committed of %d available", PowerCommitted(s), s.PowerAvailable());
 			return buf;
 		case MEET_DILITHIUM:
 			std::snprintf(buf, sizeof(buf), "the crystal is at %d%%", static_cast<int>(s.dilithium * 100.0f + 0.5f));
@@ -9210,6 +9231,271 @@ static std::string TriggerFor(const Ship &s, uint8_t kind)
 		}
 		default:
 			return "a meeting is due";
+	}
+}
+
+static std::string EventPhrase(const Ship &s, uint16_t event, int person)
+{
+	std::string what;
+	switch (event) {
+		case MEM_DEATH: what = "a death"; break;
+		case MEM_ORDER: what = "an order"; break;
+		case MEM_PROMISE: what = "a promise"; break;
+		case MEM_LIE: what = "a lie"; break;
+		case MEM_RESCUE: what = "a rescue"; break;
+		case MEM_VIOLATION: what = "a violation"; break;
+		case MEM_FUNERAL: what = "a funeral"; break;
+		case MEM_LOCKOUT: what = "a lockout"; break;
+		case MEM_OVERRULED: what = "being overruled"; break;
+		case MEM_LOSS: what = "a loss"; break;
+		default: what = "an event"; break;
+	}
+	if (person >= 0) what += " involving " + NameAt(s, person);
+	return what;
+}
+
+static void CopyAffinity(const Affinity &from, BriefAffinity &to)
+{
+	to.topic = from.topic;
+	to.thing = from.thing;
+	to.strength = from.strength;
+	to.authored = from.authored;
+}
+
+// The one stance rule. An option declares how it reads (its flavour) and, optionally, the taste it
+// is about (a topic). The participant's own record answers: an allegiance weights the first, a
+// declared like or dislike weights the second. The reason is built from the same rows, so a stance
+// can always be pointed at a line in the person's own record.
+int8_t BriefStance(const BriefParticipant &p, const MeetingOption &o, std::string *reason)
+{
+	float score = 0.0f;
+	std::string why;
+	char buf[192];
+	if (o.flavour == FLAVOUR_STARFLEET || o.flavour == FLAVOUR_MAQUIS) {
+		const bool starfleetOption = o.flavour == FLAVOUR_STARFLEET;
+		if (p.allegianceTo == ALLEG_STARFLEET) {
+			score += starfleetOption ? p.allegianceStrength : -p.allegianceStrength;
+			std::snprintf(buf, sizeof(buf), "Starfleet (%+.2f) reads it as %s",
+				p.allegianceStrength, MeetingFlavourName(o.flavour));
+			why = buf;
+		} else if (p.allegianceTo == ALLEG_MAQUIS) {
+			score += starfleetOption ? -p.allegianceStrength : p.allegianceStrength;
+			std::snprintf(buf, sizeof(buf), "the Maquis (%+.2f) reads it as %s",
+				p.allegianceStrength, MeetingFlavourName(o.flavour));
+			why = buf;
+		}
+	}
+	if (o.stake < AFFT_TOPIC_COUNT) {
+		float bestLike = 0.0f, bestDislike = 0.0f;
+		std::string likeThing, dislikeThing;
+		for (int i = 0; i < p.likeCount; ++i)
+			if (p.likes[i].topic == o.stake && p.likes[i].strength > bestLike) {
+				bestLike = p.likes[i].strength; likeThing = p.likes[i].thing;
+			}
+		for (int i = 0; i < p.dislikeCount; ++i)
+			if (p.dislikes[i].topic == o.stake && p.dislikes[i].strength > bestDislike) {
+				bestDislike = p.dislikes[i].strength; dislikeThing = p.dislikes[i].thing;
+			}
+		if (bestLike >= bestDislike && bestLike > 0.0f) {
+			score += bestLike;
+			std::snprintf(buf, sizeof(buf), "likes \"%s\" (%+.2f)", likeThing.c_str(), bestLike);
+			why += why.empty() ? buf : std::string("; ") + buf;
+		} else if (bestDislike > 0.0f) {
+			score -= bestDislike;
+			std::snprintf(buf, sizeof(buf), "dislikes \"%s\" (-%.2f)", dislikeThing.c_str(), bestDislike);
+			why += why.empty() ? buf : std::string("; ") + buf;
+		}
+	}
+	if (reason) *reason = why;
+	if (score >= 0.15f) return STANCE_SUPPORTS;
+	if (score <= -0.15f) return STANCE_OPPOSED;
+	return STANCE_NEUTRAL;
+}
+
+// The strongest row in a list: the record sorts authored first, but the strongest is what the
+// person is actually led by, so the read is by strength rather than by list position.
+static const BriefAffinity *Strongest(const BriefAffinity *v, int n)
+{
+	const BriefAffinity *best = nullptr;
+	for (int i = 0; i < n; ++i) if (!best || v[i].strength > best->strength) best = &v[i];
+	return best;
+}
+
+void EnrichBrief(const Ship &s, MeetingBrief &b)
+{
+	// The declared prior each participant brings, and the two reads the record doc asks for: what
+	// they want from the meeting, and what they will not say.
+	for (int i = 0; i < b.presentCount && i < MEETING_PARTICIPANT_MAX; ++i) {
+		BriefParticipant &p = b.present[i];
+		p.likeCount = p.dislikeCount = 0;
+		p.wants.clear();
+		p.wontSay.clear();
+		for (int k = 0; k < b.optionCount && k < MEETING_OPTION_MAX; ++k) {
+			p.stance[k] = STANCE_NEUTRAL;
+			p.stanceReason[k].clear();
+		}
+		if (p.crew < 0 || p.crew >= static_cast<int>(s.crew.size())) continue;
+		const CrewMember &c = s.crew[p.crew];
+		for (const Affinity &a : c.likes) {
+			if (p.likeCount >= MEETING_AFFINITY_MAX) break;
+			CopyAffinity(a, p.likes[p.likeCount++]);
+		}
+		for (const Affinity &a : c.dislikes) {
+			if (p.dislikeCount >= MEETING_AFFINITY_MAX) break;
+			CopyAffinity(a, p.dislikes[p.dislikeCount++]);
+		}
+		p.allegianceTo = c.allegiance.to;
+		p.allegianceStrength = c.allegiance.strength;
+		p.allegianceAuthored = c.allegiance.authored;
+		char buf[256];
+		if (const BriefAffinity *like = Strongest(p.likes, p.likeCount)) {
+			std::snprintf(buf, sizeof(buf), "wants \"%s\" kept (%s like %+.2f)",
+				like->thing.c_str(), like->authored ? "authored" : "declared", like->strength);
+			p.wants = buf;
+		} else if (!c.pursuits.empty()) {
+			std::snprintf(buf, sizeof(buf), "wants to make %s (pursuit %.2f)",
+				c.pursuits[0].thing.c_str(), c.pursuits[0].strength);
+			p.wants = buf;
+		}
+		if (const BriefAffinity *dislike = Strongest(p.dislikes, p.dislikeCount)) {
+			std::snprintf(buf, sizeof(buf), "will not say what they think of \"%s\" (%s dislike -%.2f)",
+				dislike->thing.c_str(), dislike->authored ? "authored" : "declared", dislike->strength);
+			p.wontSay = buf;
+		} else if (p.allegianceStrength >= 0.60f) {
+			std::snprintf(buf, sizeof(buf), "will not say how far their %s allegiance goes (%+.2f)",
+				AllegianceName(p.allegianceTo), p.allegianceStrength);
+			p.wontSay = buf;
+		} else {
+			for (int m = 0; m < p.markCount; ++m) {
+				if (p.marks[m].valence >= -0.10f) continue;
+				std::snprintf(buf, sizeof(buf), "will not say what %s still costs them",
+					EventPhrase(s, p.marks[m].event, p.marks[m].person).c_str());
+				p.wontSay = buf;
+				break;
+			}
+		}
+		if (p.wontSay.empty()) p.wontSay = "will not say what they are carrying";
+		for (int k = 0; k < b.optionCount && k < MEETING_OPTION_MAX; ++k)
+			p.stance[k] = BriefStance(p, b.options[k], &p.stanceReason[k]);
+	}
+
+	// The agenda: the call first, then the instrument the room argues over, then one round of each
+	// participant's own saved view. Deduplicated, because command reads all scopes and two people
+	// often hold the same log line.
+	b.agendaCount = 0;
+	auto addAgenda = [&b](uint8_t source, int crew, uint16_t event, int person, const std::string &text) {
+		if (text.empty() || b.agendaCount >= MEETING_AGENDA_MAX) return;
+		for (int i = 0; i < b.agendaCount; ++i) if (b.agenda[i].text == text) return;
+		BriefAgenda &a = b.agenda[b.agendaCount++];
+		a.source = source; a.crew = crew; a.event = event; a.person = person; a.text = text;
+	};
+	addAgenda(AGENDA_TRIGGER, -1, 0, -1, b.trigger);
+	char buf[256];
+	switch (b.kind) {
+		case MEET_ALLOCATION:
+			std::snprintf(buf, sizeof(buf), "the plant: %d committed of %d available (%d short)",
+				b.powerCommitted, b.powerAvailable, b.powerShortfall);
+			addAgenda(AGENDA_SYSTEM, -1, 0, -1, buf);
+			break;
+		case MEET_DILITHIUM:
+			std::snprintf(buf, sizeof(buf), "the crystal is at %d%%", static_cast<int>(b.dilithium * 100.0f + 0.5f));
+			addAgenda(AGENDA_SYSTEM, -1, 0, -1, buf);
+			break;
+		case MEET_CASUALTIES:
+			std::snprintf(buf, sizeof(buf), "%d casualties for %d beds", b.casualties, b.beds);
+			addAgenda(AGENDA_SYSTEM, -1, 0, -1, buf);
+			break;
+		case MEET_BORG:
+			std::snprintf(buf, sizeof(buf), "Borg pressure: intruders aboard %s", b.borgPressure ? "yes" : "no");
+			addAgenda(AGENDA_SYSTEM, -1, 0, -1, buf);
+			break;
+		default:
+			break;
+	}
+	for (int pass = 0; pass < 3; ++pass) {
+		for (int i = 0; i < b.presentCount && i < MEETING_PARTICIPANT_MAX; ++i) {
+			const BriefParticipant &p = b.present[i];
+			if (pass == 0) {
+				for (int m = 0; m < p.markCount; ++m) {
+					const BriefMark &mk = p.marks[m];
+					std::snprintf(buf, sizeof(buf), "a mark %s carries: %s, valence %+.2f",
+						p.name.c_str(), EventPhrase(s, mk.event, mk.person).c_str(), mk.valence);
+					addAgenda(AGENDA_MARK, p.crew, mk.event, mk.person, buf);
+					break;
+				}
+			} else if (pass == 1) {
+				for (int m = 0; m < p.promiseCount; ++m) {
+					const BriefPromise &pr = p.promises[m];
+					const std::string promiser = (pr.promiser >= 0 && pr.promiser < static_cast<int>(s.crew.size()))
+						? s.crew[pr.promiser].name : p.name;
+					const std::string beneficiary = (pr.beneficiary >= 0 && pr.beneficiary < static_cast<int>(s.crew.size()))
+						? s.crew[pr.beneficiary].name : "the crew";
+					std::snprintf(buf, sizeof(buf), "a promise %s made to %s: %s",
+						promiser.c_str(), beneficiary.c_str(), pr.what.c_str());
+					addAgenda(AGENDA_PROMISE, p.crew, 0, pr.beneficiary, buf);
+					break;
+				}
+			} else {
+				for (int m = 0; m < p.logCount; ++m) {
+					std::snprintf(buf, sizeof(buf), "the log %s can read: %s",
+						p.name.c_str(), p.log[m].what.c_str());
+					addAgenda(AGENDA_LOG, p.crew, 0, -1, buf);
+					break;
+				}
+			}
+		}
+	}
+	// Still room: more marks, because a person's strongest marks are what they will speak to.
+	for (int i = 0; i < b.presentCount && i < MEETING_PARTICIPANT_MAX; ++i) {
+		const BriefParticipant &p = b.present[i];
+		for (int m = 1; m < p.markCount; ++m) {
+			const BriefMark &mk = p.marks[m];
+			std::snprintf(buf, sizeof(buf), "a mark %s carries: %s, valence %+.2f",
+				p.name.c_str(), EventPhrase(s, mk.event, mk.person).c_str(), mk.valence);
+			addAgenda(AGENDA_MARK, p.crew, mk.event, mk.person, buf);
+		}
+	}
+}
+
+// Publish the report into the official log. One summary, one line per agenda item, and one line per
+// participant whose declared affinity opposes the chosen outcome. Written by the simulation; a
+// generated script has no route into this function.
+void PublishMeetingReport(Ship &s, const MeetingBrief &b, int outcome, int decidedBy, bool automatic, bool applied)
+{
+	const MeetingSkeleton &sk = AuthoredSkeleton(b.kind);
+	const std::string who = (decidedBy >= 0 && decidedBy < static_cast<int>(s.crew.size()))
+		? s.crew[decidedBy].name : CommandingOfficer(s);
+	const std::string label = (outcome >= 0 && outcome < sk.outcomeCount) ? sk.outcomes[outcome].option.label : "nothing";
+	const MeetingRoom room = MeetingRoomAt(static_cast<int>(b.room));
+	char head[320];
+	std::snprintf(head, sizeof(head), "meeting report (%s in %s): %s decided \"%s\"%s; %d agenda item(s)",
+		MeetingKindName(b.kind), room.name, who.c_str(), label.c_str(),
+		automatic ? " as the ship" : "", b.agendaCount);
+	LogEvent(s, who, "command", applied ? head : std::string(head) + "; the simulation did not apply it");
+	for (int i = 0; i < b.agendaCount && i < MEETING_AGENDA_MAX; ++i) {
+		const BriefAgenda &a = b.agenda[i];
+		std::string addressed;
+		switch (a.source) {
+			case AGENDA_TRIGGER: addressed = "addressed by the decision"; break;
+			case AGENDA_PROMISE:
+				addressed = (outcome >= 0 && outcome < sk.outcomeCount
+					&& sk.outcomes[outcome].option.effect == EFFECT_PROMISE_KEPT)
+					? "the promise is kept" : "recorded; the promise still stands";
+				break;
+			case AGENDA_SYSTEM: addressed = "the decision answers it"; break;
+			default: addressed = "heard, and recorded for the next watch"; break;
+		}
+		LogEvent(s, who, "command", "meeting agenda " + std::to_string(i + 1) + " ("
+			+ BriefAgendaSourceName(a.source) + "): " + a.text + " -- " + addressed);
+	}
+	if (outcome >= 0 && outcome < sk.outcomeCount) {
+		const MeetingOption &o = sk.outcomes[outcome].option;
+		for (int i = 0; i < b.presentCount && i < MEETING_PARTICIPANT_MAX; ++i) {
+			const BriefParticipant &p = b.present[i];
+			if (p.stance[outcome] != STANCE_OPPOSED) continue;
+			LogEvent(s, who, "command", "meeting dissent: " + p.name + " opposed \""
+				+ o.label + "\" -- " + p.stanceReason[outcome]);
+		}
 	}
 }
 
@@ -9247,6 +9533,7 @@ MeetingBrief BuildBrief(const Ship &s, uint8_t kind)
 	}
 	b.trigger = TriggerFor(s, kind);
 	b.stateDigest = StateDigest(s);
+	EnrichBrief(s, b);
 	return b;
 }
 
@@ -9395,6 +9682,7 @@ bool ApplyMeetingOutcome(Ship &s, const MeetingBrief &brief, int outcome, int de
 			break;
 	}
 	LogEvent(s, who, "command", std::string("the meeting decided: ") + o.label);
+	PublishMeetingReport(s, brief, outcome, decidedBy, automatic, ok);
 	Tick(s, 0.0f); // the console reads the result immediately
 	return ok;
 }
@@ -10791,6 +11079,13 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 			o.amount = static_cast<int>(r.U16()) - 0x8000;
 			o.on = r.U8() != 0;
 			if (o.effect >= EFFECT_COUNT) return false;
+			// The disagreement seam is authored content, not saved state: rebuild it from the
+			// skeleton by index, then EnrichBrief derives the stances from the record.
+			const MeetingSkeleton &sk = AuthoredSkeleton(b.kind);
+			if (k < sk.outcomeCount) {
+				o.flavour = sk.outcomes[k].option.flavour;
+				o.stake = sk.outcomes[k].option.stake;
+			}
 		}
 		b.powerCommitted = static_cast<int>(r.U32());
 		b.powerAvailable = static_cast<int>(r.U32());
@@ -10808,6 +11103,7 @@ bool Unpack(const uint8_t *data, size_t len, Ship &out)
 			if (b.systems[k].allocBy >= ALLOC_BY_COUNT) return false;
 		}
 		if (b.kind >= MEET_KIND_COUNT || b.alert >= 3) return false;
+		EnrichBrief(s, b); // the per-participant view is a read of the saved brief and the record
 		s.pendingMeetings.push_back(b);
 	}
 	// The character layer (version 53, O8): the two stored morale reads (deficit, outlook) and the
