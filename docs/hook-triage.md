@@ -7,14 +7,15 @@ each whether that is right. The register is the
 index; this is the judgement the brief asked for, and the reason it is the deliverable is that the
 number is not the defect — *which* of the 164 matter is.
 
-> **Re-derived 2026-10-13 (`docs/evidence/the-retriage.md`). This page's counts are stale and the
-> re-triage is the authority.** The classifications below were made against a surface of **366** hooks;
-> `module/ship/ship_core.h` now declares **496**, and the register's own counts drifted through 398, 479
-> and 496. The current census (the register's judgement) is **299 play / 158 console / 34 nothing / 5
-> content**, and the current genuine-gap set is **61** — the 54 of the tables below still unreachable,
-> plus seven the surface grew since (the Collective's six reads and `SetAirSourceBy`). The per-hook
-> judgements below are kept as the record; where the count and the reach disagree with this page, the
-> re-triage is right.
+> **Re-derived 2026-10-13 (`docs/evidence/the-retriage.md`); census refreshed 2026-10-31.** This
+> page's counts are stale and the re-triage is the authority. The classifications below were made
+> against a surface of **366** hooks; `module/ship/ship_core.h` now declares **517**, and the
+> register's own counts drifted through 398, 479, 496 and 517. The current census (the register's
+> judgement) is **312 play / 163 console / 37 nothing / 5 content**, and the current genuine-gap set
+> is **61** — the 54 of the tables below still unreachable, plus seven the surface grew since (the
+> Collective's six reads and `SetAirSourceBy`). The two console readers added by Stage D slice 3
+> (`IsMeetingReport`, `MarkProvenance`) are diagnostic, not gaps. The per-hook judgements below are
+> kept as the record; where the count and the reach disagree with this page, the re-triage is right.
 
 **The method, and it is a judgement.** The classification is a reading of the code, the owning document
 and the register's own call sites (`tools/hooks/reach_report.py` gives the call sites by entry surface).
@@ -199,7 +200,9 @@ here.
 | `PlayerDead` | diagnostic | Whether the player is dead; harness 56 and `TestPlayerInTheWorld`. |
 | `Recall` | diagnostic | What a crew member recalls, its provenance, and how many marks; the console and the memory tests. |
 | `RecallSource` | diagnostic | What a crew member recalls, its provenance, and how many marks; the console and the memory tests. |
+| `MarkProvenance` | diagnostic | What a mark's provenance says now: the console's `ship recall`, and the purge tests. An orphaned `MEM_LOG` mark says its report was purged rather than inventing a citation. |
 | `MemoryCount` | diagnostic | What a crew member recalls, its provenance, and how many marks; the console and the memory tests. |
+| `IsMeetingReport` | diagnostic | The published meeting report's kind, read by `ship log` and the purge tests. Not a second store: a line that opens `meeting report (` is the report. |
 | `Promises` | **genuine gap** | The promises held, so they can mature — a read the officer who made them should have; only `ship promises`. |
 | `PlayerMayOperate` | diagnostic | Access-and-authority reads the gate and the consoles use; `TestAccessAndAuthority` and the rank tests read them. |
 | `CaptainLog` | **genuine gap** | The captain's log as an authored artifact (`docs/the-record-and-the-log.md`) is written and read at the command console, but the console has no key for it; only `ship captain`. |

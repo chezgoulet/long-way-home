@@ -455,9 +455,11 @@ const char *SpeciesSusceptibility(uint8_t sp, int i);
 enum MemorySource : uint8_t { MEM_SAW = 0, MEM_TOLD, MEM_RUMOUR, MEM_LOG, MEM_SOURCE_COUNT };
 enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, MEM_RESCUE, MEM_VIOLATION, MEM_FUNERAL, MEM_LOCKOUT,
 	MEM_OVERRULED = 9, // an officer's recommendation was refused: he remembers it (docs/power-assignment.md, Task C)
-	MEM_LOSS = 10 };   // something the ship has given up: those aboard saw it, everyone else hears it as a rumour
+	MEM_LOSS = 10,     // something the ship has given up: those aboard saw it, everyone else hears it as a rumour
 	                   // (docs/memory-and-consequence.md, "a deck written off is a mark in everyone who was aboard,
 	                   // and a rumour in everyone who was not") -- the event that makes MEM_RUMOUR a mark the crew carry
+	MEM_MEETING = 11 }; // a meeting was held and its report published: those not in the room read it, and the mark
+	                    // outlives the report when a purge removes it (docs/staff-meetings.md, docs/the-record-and-the-log.md)
 const int MEMORY_MAX = 8;
 struct Memory {
 	uint16_t event = 0;
@@ -1166,6 +1168,10 @@ const int LOG_MAX = 128;
 // (docs/start-states.md). The stored cap is 63 for who and scope, LOG_TEXT_MAX for the fact.
 const int LOG_TEXT_MAX = 600;
 void LogEvent(Ship &s, const std::string &who, const std::string &scope, const std::string &what);
+// The published meeting report is an ordinary log entry, but it is its own kind: every line
+// PublishMeetingReport writes opens with "meeting report (", so a reader can tell it from an
+// ordinary line without a second store. This is the one place that decides the kind.
+bool IsMeetingReport(const LogEntry &e);
 
 // ---- the two logs (docs/the-record-and-the-log.md) ----------------------------------------------
 //
@@ -3162,6 +3168,10 @@ void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source
 void Brief(Ship &s, uint16_t event, float valence, const std::string &touched = std::string());
 bool Recall(const CrewMember &who, uint16_t event);
 int RecallSource(const CrewMember &who, uint16_t event);
+// What a mark's provenance says now, as a reader must say it. A mark sourced read-it-in-the-log is
+// not erased or silently reattributed when a purge removes its report: it says plainly that the
+// report it came from is gone (docs/the-record-and-the-log.md).
+const char *MarkProvenance(const Memory &m);
 int MemoryCount(const CrewMember &who);
 float Bond(const Ship &s, int a, int b);
 // The unprocessed weight a character carries: their negative marks, still salient. It drags on their

@@ -110,6 +110,17 @@ publishes a report into the official log that addresses every agenda item and na
 save change (66). Evidence: `docs/evidence/staff-meetings.md`, `TestMeetingBriefAffinity`,
 `TestMeetingReportAddressesAgenda`, `tests/tools/test_meeting_worker.py`, `scripts/meeting-check.sh`.
 
+**Slice 3 built 2026-10-31 — the two logs, and what a purge leaves behind.** The two stores were
+already separate: the published report is a document in the official log, and a person's marks are in
+their own `memories`. What was missing was the meeting-facing writer and the reader. A meeting now
+writes a `MEM_LOG` mark (`MEM_MEETING`) into everyone who could read the report and was **not** in
+the room; those in the room were there and are not given a read mark they did not earn. A purge
+removes the report and orphans those marks — held, not erased, and not reattributed; `ship recall`
+says the report they came from has been purged. No save change (66): `event` already carries the new
+id and `orphaned` already existed.
+Evidence: `docs/evidence/two-logs.md`, `TestPurgeLeavesMeetingMarksOrphaned`,
+`scripts/two-log-check.sh`.
+
 **Exit criteria, observable:**
 - ✅ **The same event lands differently on two crew members, traceably to a declared affinity.** Built and
   demonstrated: the evidence prints one event, the liker and the disliker, their declared rows, the two
@@ -123,18 +134,21 @@ save change (66). Evidence: `docs/evidence/staff-meetings.md`, `TestMeetingBrief
   Evidence: `docs/evidence/staff-meetings.md`, `TestMeetingBriefAffinity`,
   `TestMeetingReportAddressesAgenda`, `tests/tools/test_meeting_worker.py`,
   `scripts/meeting-check.sh`.
-- ⬜ **A purge removes the published report and leaves the `MEM_LOG`-sourced marks orphaned, not erased.**
-  The purge/orphan mechanism was built and demonstrated in the memory work, not by this slice
-  (`TestPurgeMovesRegard`; `docs/gates.md`, the C2 entry); the Stage D criterion stays open until the
-  meeting-facing half it belongs to is built.
+- ✅ **A purge removes the published report and leaves the `MEM_LOG`-sourced marks orphaned, not erased.**
+  Built in slice 3, 2026-10-31: a meeting publishes its report into the official log, the people
+  outside the room carry it as a `MEM_LOG` mark (`MEM_MEETING`), and a purge removes the report while
+  leaving those marks held, orphaned and not reattributed. The reader is explicit: `ship recall` says
+  the report it came from has been purged, and the brief still builds. The purge/orphan mechanism itself
+  was already demonstrated in the memory work (`TestPurgeMovesRegard`); this slice supplies the
+  meeting-facing half. Evidence: `docs/evidence/two-logs.md`,
+  `TestPurgeLeavesMeetingMarksOrphaned`, `scripts/two-log-check.sh`.
 
 **Still deferred inside Stage D:** allegiance is recorded and now weights a meeting's **stance**, but
 not the valence of an event or an order's compliance, so the document's Maquis/Starfleet morale
 consequence is not built; a pursuit does not yet produce an artifact or an event the log can point
 at; and the liked program observed on the deck in the running game (as opposed to the model's choice)
-needs a session. The Collective's voice is the remaining slice; the meeting overlay and the two-log
-split were built in the meeting lane before this slice, and the overlay's own in-engine run was not
-repeated here.
+needs a session. The Collective's voice is the remaining slice; the meeting overlay was built in the
+meeting lane before this slice, and its own in-engine run was not repeated here.
 
 **Blocks.** Stage C only in the sense of budget, not dependency.
 

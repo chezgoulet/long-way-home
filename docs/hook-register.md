@@ -91,6 +91,7 @@ substance of the brief's point and stands.
 | `NextRisingRoll` | `Ship &s` | The deterministic draw the engine passes to AttemptRising, from the same saved counter UseSystem draws on (s.riskRolls), so the act's roll replays identically across... | console | — | — |
 | `RetellRising` | `Ship &s, int hero` | The crew retell it: the mark is reinforced, so a heroism the crew keep telling persists, and one nobody retells fades (a mark's salience decays unless reinforced) | nothing | person | — |
 | `LogEvent` | `Ship &s, const std::string &who, const std::string &scope, const std::string &what` | log event | play | — | — |
+| `IsMeetingReport` | `const LogEntry &e` | The published meeting report's kind: an ordinary log entry that opens "meeting report (", so a reader can tell it from an ordinary line without a second store (docs/staff-meetings.md) | console | — | docs/staff-meetings.md |
 | `WritePersonalLog` | `Ship &s, int owner, const std::string &what` | Write a private entry | console | person | — |
 | `TakeMind` | `Ship &s, int crew` | The Collective takes a mind: the Borg tick's take site calls it the moment it begins taking a person, and a scenario may call it directly | console | person | docs/the-record-and-the-log.md |
 | `VoiceWrite` | `VoiceMixer &m, uint8_t producer, uint8_t track, const std::string &asset, int cue = -1` | Start a reply on `track` as `producer` | console | — | — |
@@ -578,6 +579,7 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `PlayerBodyHealth` | `const Ship &s, int bodyHealth` | player body health | play | — | — |
 | `Recall` | `const CrewMember &who, uint16_t event` | recall | console | — | — |
 | `RecallSource` | `const CrewMember &who, uint16_t event` | recall source | console | — | — |
+| `MarkProvenance` | `const Memory &m` | what a mark's provenance says now; an orphaned `MEM_LOG` mark says its report was purged, rather than inventing a citation (docs/the-record-and-the-log.md) | console | — | docs/the-record-and-the-log.md |
 | `MemoryCount` | `const CrewMember &who` | memory count | console | — | — |
 | `Bond` | `const Ship &s, int a, int b` | bond | play | — | — |
 | `Promises` | `const Ship &s` | promises | console | — | — |
@@ -620,15 +622,22 @@ command console; evidence in `docs/evidence/the-bills.md`.
 
 ## The counts (Task B)
 
-<!-- register-counts play=312 console=161 nothing=37 content=5 total=515 -->
+<!-- register-counts play=312 console=163 nothing=37 content=5 total=517 -->
 
 **The current count, machine-checked.** The marker above is the register's own count, re-derived from its
 rows and checked against the surface of `module/ship/ship_core.h` by
 `tools/docs/check_register_counts.py` (class 4 of `scripts/docs-check.sh`), which fails if it drifts from
 either. The dated paragraphs further down are the record of each pass's count at its date; this marker is
 what the register actually is now, so a reader sizes work on it and not on the prose above or below.
-**By reach:** play **312**, console **161**, nothing **37**, content **5**; **total 515**. (The counts in
+**By reach:** play **312**, console **163**, nothing **37**, content **5**; **total 517**. (The counts in
 the "By group" table and the dated re-derivations below are kept as history and are not the current count.)
+
+**Re-derived 2026-10-31, the two logs and the purge (Stage D slice 3).** Two readers are added.
+`IsMeetingReport` names the published report's kind in one place, used by `ship log` to mark a report
+line and by the tests; `MarkProvenance` is reached from the developer console's `ship recall`, which
+now says that an orphaned `MEM_LOG` mark was read in a published report that has since been purged.
+The marker above is the rows counted: 312 play, 161 + 2 console, 37 nothing, 5 content; total
+515 + 2 = 517. Evidence: `docs/evidence/two-logs.md`.
 
 **Re-derived 2026-10-31, the meeting brief per participant (Stage D slice 2).** Five hooks are added,
 all reached in play: `EnrichBrief` through `BuildBrief` and after a load; `BriefStance` inside it;

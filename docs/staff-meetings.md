@@ -134,6 +134,14 @@ dissent a declared affinity explains. The meeting can therefore be read afterwar
 script is gone. The model remains an enhancement on a floor that always exists: the authored skeleton
 plays with no model, and the worker writes no script when the model is absent.
 
+**And the report is a document, while the marks are the person.** The people who were not in the room
+and could read the report's scope read the published report and remember it as read (`MEM_LOG`, event
+`MEM_MEETING`); the people in the room were there and are not given a read mark they did not earn,
+and nobody is given knowledge they could not have read. The two lifetimes are the point: a
+purge removes the report from the official log, and the readers are left holding a citation that no
+longer exists. It orphans those marks, it does not erase them, and it does not silently reattribute
+them to a witness (`docs/the-record-and-the-log.md`, `docs/evidence/two-logs.md`).
+
 ## Acceptance
 
 - A meeting is scheduled by the clock or by a threshold, and its script is generated **before** the player
