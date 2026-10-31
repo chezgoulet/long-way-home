@@ -326,8 +326,47 @@ picked in a recreation hour; a loved task is asked for from the queue. `TestAffi
 **What remains (deferred, not claimed):** the allegiance is recorded but does not yet weight valence
 or compliance — the document's Maquis/Starfleet morale consequence is not built here; a pursuit does
 not yet produce an artifact or an event the log can point at; and the in-engine observation of a
-program on the deck (as opposed to the model's choice) needs a session. The meeting overlay, the
-per-participant brief, the two-log split and the Collective's voice are later Stage D slices.
+program on the deck (as opposed to the model's choice) needs a session. *(Corrected 2026-10-31: the
+meeting overlay and the two-log split were already built in the meeting lane; the per-participant
+brief now carries this record into the meeting — see the next entry. The Collective's voice remains
+a later Stage D slice.)*
+
+### The meeting brief per participant — Stage D slice 2 *(built 2026-10-31; `docs/evidence/staff-meetings.md`)*
+
+`docs/staff-meetings.md` and `docs/the-record-and-the-log.md` require a meeting brief built **per
+participant**, from that person's marks and log, and never from a roster summary. This slice makes
+the brief carry the prior the affinities record added: each participant's `likes[]`, `dislikes[]`
+and `allegiance`; a derived **want** and **will-not-say** with the row each comes from; and a
+**stance** on every enumerated option, with the affinity row that explains it. The authored skeleton
+declares how an option reads (`FLAVOUR_STARFLEET`, `FLAVOUR_MAQUIS`, or a taste topic), and the
+participant's own allegiance or taste answers it — so a Maquis-weighted engineer opposes the option
+the room reads as Starfleet procedure while a Starfleet-weighted officer supports it, and the reason
+names the row.
+
+The brief also carries an **agenda** grounded in the record: the call itself, the instrument the
+room argues over, and each participant's strongest mark, open promise and log line. The async worker
+(`tools/meetings/worker.py`) reads the agenda and each person's brief, and its prompt now requires
+the disagreement to be written and forbids giving one person another's knowledge or making anyone
+say what their brief withholds. **The model is still not a dependency**: the authored skeleton is
+the floor, and the worker writes no script when the model is absent.
+
+After the room decides, `PublishMeetingReport` writes the **published report** into the official log:
+one summary, one line for every agenda item (with whether the decision addressed it), and one line
+per participant whose declared affinity opposes the chosen outcome. The model has no route into that
+function; the simulation writes it. Nothing new is saved — the view is rebuilt by `EnrichBrief` from
+the saved brief and the static record — so **the save format remains 66**.
+
+**Demonstrated:** `TestMeetingBriefAffinity`, `TestMeetingReportAddressesAgenda`, the extended
+round-trip test, `tests/tools/test_meeting_worker.py` (prompt carries the agenda; generator is
+deterministic; absent model writes no script), and `scripts/meeting-check.sh`, whose output and two
+falsifications are in `docs/evidence/staff-meetings.md`.
+
+**What remains (deferred, not claimed):** the Collective speaking in an assimilated person's voice;
+voice input beyond the existing typed pill; the computer-as-a-place; and the owner's judgement of
+whether the room reads as a room. The in-engine overlay run was not repeated in this slice — the
+overlay and the no-model arrival were demonstrated in the meeting lane's own evidence
+(`docs/evidence/meeting-overlay.md`, `docs/evidence/model-call.md`) and the static criterion is what
+this slice adds.
 
 ## G4 and G5 — replaced by the ship programme (2026-10-05)
 

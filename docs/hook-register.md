@@ -220,6 +220,11 @@ substance of the brief's point and stands.
 | `WorkFactorLine` | `const WorkFactor *f, int n` | The factors as one line, for the log and the console: "condition afraid (slight) +0.15; drive afraid of decompression (sealing the hull) +0.25" | play | — | — |
 | `WorkReading` | `const Ship &s, int crew, SystemId id` | The whole picture for one person at one system -- who, what they can do, and every factor that moved the odds -- for the personnel console | console | post+person | — |
 | `BuildBrief` | `const Ship &s, uint8_t kind` | build brief | play | — | — |
+| `MeetingFlavourName` | `uint8_t f` | how an option reads politically (neutral, Starfleet procedure, Maquis pragmatism), the declaration a participant's stance is read against | play | — | docs/affinities-and-allegiance.md |
+| `BriefAgendaSourceName` | `uint8_t source` | the source of one agenda item (the call, an instrument, a mark, a promise, the log), as the report names it | play | — | docs/staff-meetings.md |
+| `EnrichBrief` | `const Ship &s, MeetingBrief &b` | Fill the per-participant view the meeting lane consumes: declared affinities, want and will-not-say, stances on every option, and the agenda grounded in the record | play | person | docs/staff-meetings.md |
+| `BriefStance` | `const BriefParticipant &p, const MeetingOption &o, std::string *reason` | The stance one participant takes on one option, and the declared like, dislike or allegiance that explains it | play | person | docs/staff-meetings.md |
+| `PublishMeetingReport` | `Ship &s, const MeetingBrief &b, int outcome, int decidedBy, bool automatic, bool applied` | Publish the decision into the official log with every agenda item addressed and the dissent a declared affinity explains | play | — | docs/staff-meetings.md |
 | `MeetingDue` | `const Ship &s, uint8_t kind` | Is a meeting of this kind due right now? The watch change and the daily departmental meeting are the normal-case triggers; the rest are thresholds, latched so one... | play | — | — |
 | `EmitDueMeetings` | `Ship &s` | THE EMIT SITE | play | — | docs/programme-meetings-and-voice.md |
 | `PendingMeetings` | `const Ship &s` | pending meetings | play | — | — |
@@ -615,15 +620,21 @@ command console; evidence in `docs/evidence/the-bills.md`.
 
 ## The counts (Task B)
 
-<!-- register-counts play=307 console=161 nothing=37 content=5 total=510 -->
+<!-- register-counts play=312 console=161 nothing=37 content=5 total=515 -->
 
 **The current count, machine-checked.** The marker above is the register's own count, re-derived from its
 rows and checked against the surface of `module/ship/ship_core.h` by
 `tools/docs/check_register_counts.py` (class 4 of `scripts/docs-check.sh`), which fails if it drifts from
 either. The dated paragraphs further down are the record of each pass's count at its date; this marker is
 what the register actually is now, so a reader sizes work on it and not on the prose above or below.
-**By reach:** play **307**, console **161**, nothing **37**, content **5**; **total 510**. (The counts in
+**By reach:** play **312**, console **161**, nothing **37**, content **5**; **total 515**. (The counts in
 the "By group" table and the dated re-derivations below are kept as history and are not the current count.)
+
+**Re-derived 2026-10-31, the meeting brief per participant (Stage D slice 2).** Five hooks are added,
+all reached in play: `EnrichBrief` through `BuildBrief` and after a load; `BriefStance` inside it;
+`PublishMeetingReport` through `ApplyMeetingOutcome`; and the two name lookups those use,
+`MeetingFlavourName` and `BriefAgendaSourceName`. The marker above is the rows counted: 307 + 5 play,
+total 510 + 5 = 515. Evidence: `docs/evidence/staff-meetings.md`.
 
 **Re-derived 2026-10-31, the affinities record (Stage D slice 1).** Eight hooks are added:
 `DeriveAffinities`, `EffectiveValence`, `PreferredProgram`, `PreferredTask` and `VolunteerJob` are

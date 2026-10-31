@@ -100,22 +100,41 @@ untouched and the record is static content, so the save format does not move (66
 `docs/evidence/affinities.md`, `TestAffinityRecord`, `TestAffinityValence`,
 `TestBondFoldUnchangedWithoutAffinity`, `TestAffinityChoice`, `scripts/affinity-check.sh`.
 
+**Slice 2 built 2026-10-31 — the brief, the agenda and the report.** The meeting overlay and the async
+generator were already built in the meeting lane (M3/M4); this slice makes the brief they consume
+**per participant**: the declared affinities, a derived want and will-not-say with the row each comes
+from, a stance on every enumerated option with the affinity that explains it, and an agenda grounded
+in the call, an instrument, a mark, a promise and a log line. The worker reads that brief and writes
+the disagreement; the model absent leaves the authored skeleton. After the decision the simulation
+publishes a report into the official log that addresses every agenda item and names the dissent. No
+save change (66). Evidence: `docs/evidence/staff-meetings.md`, `TestMeetingBriefAffinity`,
+`TestMeetingReportAddressesAgenda`, `tests/tools/test_meeting_worker.py`, `scripts/meeting-check.sh`.
+
 **Exit criteria, observable:**
 - ✅ **The same event lands differently on two crew members, traceably to a declared affinity.** Built and
   demonstrated: the evidence prints one event, the liker and the disliker, their declared rows, the two
   marks and the bond each fold reads (`scripts/affinity-check.sh`, `test_ship_core --affinities`).
-- ⬜ **A meeting plays with the model absent, and its brief is built per participant from marks and the
-  log.** Not built; the meeting overlay and the per-participant brief are later slices.
+- ✅ **A meeting plays with the model absent, and its brief is built per participant from marks, the
+  log and affinity.** Built in slice 2, 2026-10-31: the brief carries each participant's declared
+  likes, dislikes and allegiance; a derived want and will-not-say with the row each comes from; a
+  stance on every enumerated option with the affinity that explains it; and an agenda grounded in
+  the call, an instrument, a mark, a promise and a log line. The authored skeleton is the floor when
+  the model is absent, and the published report addresses every agenda item and names the dissent.
+  Evidence: `docs/evidence/staff-meetings.md`, `TestMeetingBriefAffinity`,
+  `TestMeetingReportAddressesAgenda`, `tests/tools/test_meeting_worker.py`,
+  `scripts/meeting-check.sh`.
 - ⬜ **A purge removes the published report and leaves the `MEM_LOG`-sourced marks orphaned, not erased.**
   The purge/orphan mechanism was built and demonstrated in the memory work, not by this slice
   (`TestPurgeMovesRegard`; `docs/gates.md`, the C2 entry); the Stage D criterion stays open until the
   meeting-facing half it belongs to is built.
 
-**Still deferred inside Stage D:** allegiance is recorded but does not yet weight valence or compliance,
-so the document's Maquis/Starfleet morale consequence is not built; a pursuit does not yet produce an
-artifact or an event the log can point at; and the liked program observed on the deck in the running game
-(as opposed to the model's choice) needs a session. The meeting overlay, the two-log split and the
-Collective's voice are the remaining slices.
+**Still deferred inside Stage D:** allegiance is recorded and now weights a meeting's **stance**, but
+not the valence of an event or an order's compliance, so the document's Maquis/Starfleet morale
+consequence is not built; a pursuit does not yet produce an artifact or an event the log can point
+at; and the liked program observed on the deck in the running game (as opposed to the model's choice)
+needs a session. The Collective's voice is the remaining slice; the meeting overlay and the two-log
+split were built in the meeting lane before this slice, and the overlay's own in-engine run was not
+repeated here.
 
 **Blocks.** Stage C only in the sense of budget, not dependency.
 

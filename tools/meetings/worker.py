@@ -188,8 +188,43 @@ def build_prompt(brief):
         "DECISION: " + str(brief.get("decision", "")),
         "TRIGGER: " + str(brief.get("trigger", "")),
     ]
+    agenda = brief.get("agenda", [])
+    if agenda:
+        lines.append("")
+        lines.append("AGENDA -- grounded in the record; the dialogue must answer it:")
+        for i, a in enumerate(agenda, 1):
+            who = (" raised by " + a["crew"]) if a.get("crew") else ""
+            lines.append("  %d. [%s]%s %s" % (i, a.get("source", "?"), who, a.get("text", "")))
     present = ", ".join("%s (%s)" % (p.get("name", "?"), p.get("post", "?")) for p in brief.get("present", []))
+    lines.append("")
     lines.append("PRESENT: " + (present or "the room"))
+    lines.append("")
+    lines.append("THE ROOM, PER PERSON -- each has only their own brief. What a person wants, and what")
+    lines.append("their brief says they will not say, is theirs; do not give one person another's knowledge,")
+    lines.append("and do not make anyone say what their brief withholds.")
+    for p in brief.get("present", []):
+        lines.append("  " + str(p.get("name", "?")) + " (" + str(p.get("post", "?")) + ")")
+        prior = p.get("allegiance") or {}
+        if prior:
+            lines.append("    allegiance: %s (%+.2f)%s" % (
+                prior.get("to", "?"), float(prior.get("strength", 0.0)),
+                " authored" if prior.get("authored") else ""))
+        likes = [x.get("thing", "") for x in p.get("likes", [])]
+        dislikes = [x.get("thing", "") for x in p.get("dislikes", [])]
+        if likes:
+            lines.append("    likes: " + ", ".join(likes))
+        if dislikes:
+            lines.append("    dislikes: " + ", ".join(dislikes))
+        if p.get("wants"):
+            lines.append("    wants: " + str(p["wants"]))
+        if p.get("willNotSay"):
+            lines.append("    will not say: " + str(p["willNotSay"]))
+        for s in p.get("stances", []):
+            stance = {1: "supports", -1: "opposes", 0: "neutral on"}.get(s.get("stance", 0), "neutral on")
+            lines.append("    option %s: %s -- %s" % (s.get("option", "?"), stance, s.get("reason", "")))
+    lines.append("")
+    lines.append("Where two people's stances point opposite ways, write the disagreement before the room")
+    lines.append("decides; the decision is still one of the enumerated outcomes below.")
     lines.append("")
     lines.append("ENUMERATED OUTCOMES (write dialogue for each; invent nothing new):")
     for o in options:

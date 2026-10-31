@@ -1474,6 +1474,17 @@ const char *MeetingEffectName(uint8_t e);
 const int MEETING_ALLOC_MAX = 2;
 struct MeetingAlloc { uint8_t system = 0xFF; int percent = 100; };
 
+// What an option reads as, for the room's disagreement (docs/affinities-and-allegiance.md):
+// "a decision that reads as Starfleet procedure lands negative on Maquis-weighted crew and positive
+// on Starfleet-weighted crew; a decision that reads as pragmatic and Maquis-flavoured, the reverse."
+// The authored skeleton declares it; the brief derives each participant's stance from their own
+// allegiance. NEUTRAL options carry no declared political reading.
+enum MeetingFlavour : uint8_t { FLAVOUR_NEUTRAL = 0, FLAVOUR_STARFLEET, FLAVOUR_MAQUIS };
+const char *MeetingFlavourName(uint8_t f);
+
+// A stance is a read of the brief, never a stored opinion: -1 opposed, 0 neutral, +1 supports.
+enum MeetingStance : int8_t { STANCE_OPPOSED = -1, STANCE_NEUTRAL = 0, STANCE_SUPPORTS = 1 };
+
 struct MeetingOption {
 	uint8_t intent = 0;                    // the intent descriptor: novelty matching and the pill share it
 	std::string label;                     // the pill's short description
@@ -1482,6 +1493,10 @@ struct MeetingOption {
 	MeetingAlloc alloc[MEETING_ALLOC_MAX]; // EFFECT_SET_ALLOCATION
 	int amount = 0;                        // kind-specific magnitude (triage policy, a deck, an alert)
 	bool on = true;                        // EFFECT_SET_POWER_AUTO
+	// The disagreement seam (Stage D). Not saved: it is content on the authored skeleton, copied
+	// from the skeleton on load, and the stances it produces are derived from the record.
+	uint8_t flavour = FLAVOUR_NEUTRAL;     // how the option reads politically
+	uint8_t stake = 0xFF;                  // an AffinityTopic it is about (e.g. AFFT_PROGRAM), or 0xFF
 };
 
 const int MEETING_LINE_MAX = 4;
@@ -1509,6 +1524,36 @@ const MeetingSkeleton &AuthoredSkeleton(uint8_t kind);
 const int MEETING_VIEW_MAX = 6;
 struct BriefMark { uint16_t event = 0; int person = -1; uint8_t source = 0; float valence = 0.0f; float salience = 0.0f; };
 struct BriefPromise { uint8_t kind = 0; int promiser = -1; int beneficiary = -1; std::string what; double deadline = -1.0; };
+
+// The declared priors the person brings into the room, read from the record and carried on their
+// own view of the brief. A few strong rows, exactly as the record holds them (docs/affinities-and-
+// allegiance.md): the brief shows what makes this room heterogeneous, not a roster average.
+const int MEETING_AFFINITY_MAX = 4;
+struct BriefAffinity { uint8_t topic = 0; std::string thing; float strength = 0.0f; bool authored = false; };
+
+// One item the room is meeting about, grounded in the record. The trigger is the call itself; a
+// system fact is an instrument; a mark, a promise and a log entry are the saved per-participant
+// view. The report addresses every one of them (PublishMeetingReport).
+enum BriefAgendaSource : uint8_t {
+	AGENDA_TRIGGER = 0, // why the meeting was called (the clock, a threshold, a due promise)
+	AGENDA_SYSTEM,      // an instrument the room argues over (the plant, the crystal, the beds)
+	AGENDA_MARK,        // a mark a participant carries
+	AGENDA_PROMISE,     // an open claim a participant carries
+	AGENDA_LOG,         // a log line a participant can read
+	AGENDA_SOURCE_COUNT
+};
+const char *BriefAgendaSourceName(uint8_t source);
+struct BriefAgenda {
+	uint8_t source = AGENDA_TRIGGER;
+	int crew = -1;       // who raised it, or -1 for the meeting's own call / an instrument
+	uint16_t event = 0;  // the mark's event, when source is AGENDA_MARK
+	int person = -1;     // the person the mark names, when source is AGENDA_MARK
+	std::string text;    // the item, as the room says it
+};
+const int MEETING_AGENDA_MAX = 8;
+const int MEETING_PARTICIPANT_MAX = 6;
+const int MEETING_OPTION_MAX = 6;
+
 struct BriefParticipant {
 	int crew = -1;
 	std::string name;
@@ -1518,10 +1563,21 @@ struct BriefParticipant {
 	BriefMark marks[MEETING_VIEW_MAX]; int markCount = 0;
 	BriefPromise promises[MEETING_VIEW_MAX]; int promiseCount = 0;
 	LogEntry log[MEETING_VIEW_MAX]; int logCount = 0;
+	// The person's own prior: what they like, dislike and are to. Not saved: the record is static
+	// content, and EnrichBrief rebuilds this view after a load. What they know is `marks` and `log`
+	// above; what they want and will not say is derived here from those rows and their allegiance.
+	BriefAffinity likes[MEETING_AFFINITY_MAX]; int likeCount = 0;
+	BriefAffinity dislikes[MEETING_AFFINITY_MAX]; int dislikeCount = 0;
+	uint8_t allegianceTo = ALLEG_STARFLEET;
+	float allegianceStrength = 0.0f;
+	bool allegianceAuthored = false;
+	std::string wants;    // what this person seeks from the meeting, with its declared source
+	std::string wontSay;  // what this person will not say, with its declared source
+	// Their read of each enumerated option, and the row it comes from. Derived, not stored.
+	int8_t stance[MEETING_OPTION_MAX] = { 0, 0, 0, 0, 0, 0 };
+	std::string stanceReason[MEETING_OPTION_MAX];
 };
 
-const int MEETING_PARTICIPANT_MAX = 6;
-const int MEETING_OPTION_MAX = 6;
 const int MEETING_QUEUE_MAX = 2;
 // One system as it is right now: the commitments the room argues over (docs/power-assignment.md).
 struct BriefSystem {
@@ -1539,6 +1595,10 @@ struct MeetingBrief {
 	std::string decision;    // what is being decided
 	BriefParticipant present[MEETING_PARTICIPANT_MAX]; int presentCount = 0;
 	MeetingOption options[MEETING_OPTION_MAX]; int optionCount = 0; // the enumerated options and their costs
+	// What the room is meeting about, grounded in the record. Derived from the trigger, the saved
+	// per-participant views above, and the instruments; bounded, deduplicated, and never a summary
+	// that pretends the room knows more than its members do.
+	BriefAgenda agenda[MEETING_AGENDA_MAX]; int agendaCount = 0;
 	// The ship and the people as they are right now: instruments (reads that never lie).
 	int powerCommitted = 0, powerAvailable = 0, powerShortfall = 0;
 	uint8_t alert = 0;
@@ -1559,6 +1619,24 @@ int ResolveSpeaker(const Ship &s, const MeetingBrief &brief, int speaker);
 // The brief generator. A pure read: it writes nothing, and generating a brief leaves the ship's state
 // byte-identical (Task A; the acceptance that matters). `kind` is a MeetingKind.
 MeetingBrief BuildBrief(const Ship &s, uint8_t kind);
+
+// Enrich a brief with the per-participant view the meeting lane consumes (Stage D): each person's
+// declared likes, dislikes and allegiance; what they want and will not say; their stance on every
+// enumerated option and the affinity row it comes from; and the agenda the room is meeting about.
+// It reads only the brief's own saved contents (marks, promises, log, instruments) and the record's
+// static affinities, so it is a read, it is deterministic, and a loaded brief is rebuilt identically
+// without moving the save format. Called by BuildBrief and after a load.
+void EnrichBrief(const Ship &s, MeetingBrief &b);
+
+// The stance one participant takes on one option, and the declared row that explains it. Pure; the
+// reason names a like, a dislike or an allegiance, never a roster average.
+int8_t BriefStance(const BriefParticipant &p, const MeetingOption &o, std::string *reason = nullptr);
+
+// Publish the meeting's report into the official log: what was decided, every agenda item addressed,
+// and the dissent that a declared affinity explains. This is the artifact the meeting can be read
+// from afterwards (docs/staff-meetings.md, "The artifact"); the simulation writes it, the model does
+// not. Called by ApplyMeetingOutcome.
+void PublishMeetingReport(Ship &s, const MeetingBrief &b, int outcome, int decidedBy, bool automatic, bool applied);
 
 // Is a meeting of this kind due right now? The watch change and the daily departmental meeting are the
 // normal-case triggers; the rest are thresholds, latched so one episode produces one meeting.
