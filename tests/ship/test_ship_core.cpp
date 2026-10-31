@@ -5931,6 +5931,85 @@ static int PrintPersonal()
 	return failures ? 1 : 0;
 }
 
+// Stage D slice 3: the two logs, and what a purge leaves behind (docs/staff-meetings.md,
+// docs/the-record-and-the-log.md). The published report is a document in the official log; the marks
+// a meeting writes into its readers are in the person's memory store. A purge removes the report and
+// orphans those marks -- it does not erase them and does not reattribute them.
+static int PrintTwoLogs()
+{
+	int failures = 0;
+	Ship s = NewShip();
+	s.player = 0;
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+	int reader = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		if (s.crew[i].status != CREW_FIT) continue;
+		if (!MayCommand(s.crew[i]) && s.crew[i].dept != DEPT_COMMAND) continue;
+		bool present = false;
+		for (int p = 0; p < b.presentCount; ++p) if (b.present[p].crew == i) present = true;
+		if (!present) { reader = i; break; }
+	}
+	if (reader < 0) { std::printf("FAIL  no crew member outside the room to read the report\n"); return 1; }
+
+	const int outcome = 0;
+	const bool applied = ApplyMeetingOutcome(s, b, outcome, s.player, false);
+	int reports = 0;
+	for (const LogEntry &e : s.log) if (IsMeetingReport(e)) ++reports;
+
+	const Memory *mark = nullptr;
+	for (const Memory &m : s.crew[reader].memories) if (m.event == MEM_MEETING) { mark = &m; break; }
+
+	std::printf("== before the purge: the meeting's report is published\n");
+	std::printf("  the meeting: %s in %s; decided \"%s\" (applied %d)\n", MeetingKindName(b.kind),
+		MeetingRoomAt(static_cast<int>(b.room)).name,
+		AuthoredSkeleton(b.kind).outcomes[outcome].option.label.c_str(), applied ? 1 : 0);
+	std::printf("  report(s) in the official log: %d\n", reports);
+	std::printf("  reader: %s (crew %d, not in the room)\n", s.crew[reader].name.c_str(), reader);
+	std::printf("  reader's mark before: event %d (%s); provenance %s; orphaned %d\n",
+		mark ? static_cast<int>(mark->event) : -1,
+		mark ? (mark->event == MEM_MEETING ? "a meeting" : "an event") : "none",
+		mark ? MarkProvenance(*mark) : "no mark", mark && mark->orphaned ? 1 : 0);
+	if (!mark || reports != 1 || mark->source != MEM_LOG || mark->orphaned) ++failures;
+
+	const bool purged = PurgeLogs(s);
+	reports = 0;
+	for (const LogEntry &e : s.log) if (IsMeetingReport(e)) ++reports;
+	mark = nullptr;
+	for (const Memory &m : s.crew[reader].memories) if (m.event == MEM_MEETING) { mark = &m; break; }
+
+	std::printf("== after the purge: the report is gone, the mark remains\n");
+	std::printf("  purge ran: %d; official log entries: %d\n", purged ? 1 : 0, static_cast<int>(s.log.size()));
+	std::printf("  meeting report(s) remaining: %d\n", reports);
+	std::printf("  reader's mark after: held %d; event %d (%s); provenance %s; orphaned %d\n",
+		mark ? 1 : 0, mark ? static_cast<int>(mark->event) : -1,
+		mark ? (mark->event == MEM_MEETING ? "a meeting" : "an event") : "none",
+		mark ? MarkProvenance(*mark) : "no mark", mark && mark->orphaned ? 1 : 0);
+	std::printf("  not reattributed: source %s, not saw-it and not told\n",
+		mark && mark->source == MEM_LOG ? "read-it-in-the-log" : "something else");
+	const MeetingBrief after = BuildBrief(s, MEET_ALLOCATION);
+	std::printf("  a brief still builds after the purge: %d present, %d agenda item(s)\n",
+		after.presentCount, after.agendaCount);
+
+	if (!purged || !s.log.empty() || reports != 0 || !mark) ++failures;
+	if (mark && (mark->source != MEM_LOG || !mark->orphaned)) ++failures;
+	if (mark && std::strcmp(MarkProvenance(*mark), "read it in a published report that has since been purged") != 0) ++failures;
+	if (after.presentCount <= 0) ++failures;
+
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	const bool roundTrip = Unpack(blob.data(), blob.size(), back) && Pack(back) == blob;
+	bool backOrphan = false;
+	for (const Memory &m : back.crew[reader].memories)
+		if (m.event == MEM_MEETING && m.source == MEM_LOG && m.orphaned) backOrphan = true;
+	std::printf("  save and reload carry the orphaned mark and no report: log %d, orphan %d, identical %d\n",
+		static_cast<int>(back.log.size()), backOrphan ? 1 : 0, roundTrip ? 1 : 0);
+	if (!roundTrip || !backOrphan || !back.log.empty()) ++failures;
+
+	if (failures) std::printf("%d demonstration(s) failed\n", failures);
+	else std::printf("all demonstrations passed\n");
+	return failures ? 1 : 0;
+}
+
 // The phaser bank's setting (Task C) and reading-vs-operating (owner ruling, 2026-10-07). Plain model
 // checks, no game header: the setting's ladder, its round-trip, and that a read is not a control.
 static void TestPhaserYieldAndReading()
@@ -7595,6 +7674,85 @@ static void TestPurgeMovesRegard()
 	CHECK(std::fabs(after - (HOLDINGS_BASE + HOLDINGS_SLOPE * 0.5f)) < 1e-5f); // only the saw mark counts
 	std::printf("  regard before the purge %.3f, after %.3f (the MEM_LOG mark is held but orphaned)\n",
 		before, after);
+}
+
+// Stage D slice 3: a meeting publishes its report into the official log; the people who were not in
+// the room and could read its scope carry a MEM_LOG mark (MEM_MEETING). A purge removes the report
+// and orphans those marks -- it does not erase them, and it does not silently reattribute them.
+static void TestPurgeLeavesMeetingMarksOrphaned()
+{
+	g_test = "a purge removes the meeting's report and leaves its MEM_LOG marks orphaned";
+	Ship s = NewShip();
+	s.player = 0;
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+
+	int reader = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		if (s.crew[i].status != CREW_FIT) continue;
+		if (!MayCommand(s.crew[i]) && s.crew[i].dept != DEPT_COMMAND) continue;
+		bool present = false;
+		for (int p = 0; p < b.presentCount; ++p) if (b.present[p].crew == i) present = true;
+		if (!present) { reader = i; break; }
+	}
+	CHECK(reader >= 0);
+
+	const int beforeMarks = MemoryCount(s.crew[reader]);
+	CHECK(ApplyMeetingOutcome(s, b, 0, s.player, false));
+
+	int reports = 0;
+	for (const LogEntry &e : s.log) if (IsMeetingReport(e)) ++reports;
+	CHECK(reports == 1);                                  // the published report is in the official log
+
+	const Memory *mark = nullptr;
+	for (const Memory &m : s.crew[reader].memories) if (m.event == MEM_MEETING) { mark = &m; break; }
+	CHECK(mark != nullptr);                               // the reader remembers reading it
+	CHECK(mark && mark->source == MEM_LOG);               // as read, not as seen
+	CHECK(mark && !mark->orphaned);                       // its citation is still there
+	CHECK(mark && std::strcmp(MarkProvenance(*mark), "read it in the published report") == 0);
+	CHECK(MemoryCount(s.crew[reader]) == beforeMarks + 1);
+
+	// The people in the room did not read it: they were there. No MEM_LOG meeting mark is invented
+	// for them, so nothing is silently reattributed.
+	for (int p = 0; p < b.presentCount; ++p) {
+		bool readMark = false;
+		for (const Memory &m : s.crew[b.present[p].crew].memories)
+			if (m.event == MEM_MEETING && m.source == MEM_LOG) readMark = true;
+		CHECK(!readMark);
+	}
+
+	CHECK(PurgeLogs(s));
+	CHECK(s.log.empty());                                 // the hole where the report was
+	reports = 0;
+	for (const LogEntry &e : s.log) if (IsMeetingReport(e)) ++reports;
+	CHECK(reports == 0);                                  // the published report is gone
+
+	mark = nullptr;
+	for (const Memory &m : s.crew[reader].memories) if (m.event == MEM_MEETING) { mark = &m; break; }
+	CHECK(mark != nullptr);                               // the mark is still held
+	CHECK(MemoryCount(s.crew[reader]) == beforeMarks + 1);// and nothing was erased
+	CHECK(mark && mark->source == MEM_LOG);               // not reattributed to saw-it or told
+	CHECK(mark && mark->orphaned);                        // its citation is gone
+	CHECK(mark && std::strcmp(MarkProvenance(*mark),
+		"read it in a published report that has since been purged") == 0);
+	CHECK(mark && std::strcmp(MarkProvenance(*mark), "saw it") != 0);
+	CHECK(mark && std::strcmp(MarkProvenance(*mark), "was told") != 0);
+
+	// A reader of the record tolerates the missing report: the brief still builds, and the purge
+	// invented no replacement report.
+	const MeetingBrief after = BuildBrief(s, MEET_ALLOCATION);
+	CHECK(after.presentCount > 0 && after.agendaCount > 0);
+	CHECK(s.log.empty());
+
+	// The orphaned state is in the save, and a reload does not recreate the report.
+	std::vector<uint8_t> blob = Pack(s);
+	Ship back;
+	CHECK(Unpack(blob.data(), blob.size(), back));
+	CHECK(back.log.empty());
+	bool backOrphan = false;
+	for (const Memory &m : back.crew[reader].memories)
+		if (m.event == MEM_MEETING && m.source == MEM_LOG && m.orphaned) backOrphan = true;
+	CHECK(backOrphan);
+	CHECK(Pack(back) == blob);
 }
 
 // Species are capabilities, needs and susceptibilities -- never bonuses. The record carries words
@@ -10914,6 +11072,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--month")) return PrintMonth();
 	if (argc > 1 && !std::strcmp(argv[1], "--nav")) return PrintNav();
 	if (argc > 1 && !std::strcmp(argv[1], "--personal")) return PrintPersonal();
+	if (argc > 1 && !std::strcmp(argv[1], "--two-logs")) return PrintTwoLogs();
 	if (argc > 1 && !std::strcmp(argv[1], "--assimilation")) return PrintAssimilation();
 	if (argc > 1 && !std::strcmp(argv[1], "--starts")) return PrintStarts();
 	if (argc > 1 && !std::strcmp(argv[1], "--appearance")) return PrintAppearance();
@@ -11045,6 +11204,7 @@ int main(int argc, char **argv)
 	TestMoraleIsReadFromThree();
 	TestHoldingsIsAFold();
 	TestPurgeMovesRegard();
+	TestPurgeLeavesMeetingMarksOrphaned();
 	TestSpeciesAreCapabilitiesNotBonuses();
 	TestManner();
 	TestMannerSelection();

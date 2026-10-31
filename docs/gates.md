@@ -368,6 +368,38 @@ overlay and the no-model arrival were demonstrated in the meeting lane's own evi
 (`docs/evidence/meeting-overlay.md`, `docs/evidence/model-call.md`) and the static criterion is what
 this slice adds.
 
+### The two logs, and what a purge leaves behind — Stage D slice 3 *(built 2026-10-31; `docs/evidence/two-logs.md`)*
+
+`docs/staff-meetings.md` and `docs/the-record-and-the-log.md` require two lifetimes for a meeting's
+output: the **published report** is a document a purge can remove, and the **marks** its readers
+carry are the person's experience and survive it. This slice establishes what already existed and
+builds only the missing half.
+
+**The stores were already separate.** The published report is a `LogEntry` in the official `log`;
+a person's marks are the `Memory` vector in their own `CrewMember`. There is no second store to
+build and no save change. What was missing was the **meeting-facing writer**: `PublishMeetingReport`
+published the report but wrote no `MEM_LOG` mark, so a purge after a meeting orphaned nothing.
+It now writes `MEM_MEETING` as `MEM_LOG` into everyone who could read the report and was **not** in
+the room; those present were there and are not given a read mark they did not earn, and nobody is
+given knowledge they could not have read. `PurgeLogs` already removed the report
+and set `orphaned` on every `MEM_LOG` mark, so the two lifetimes now meet.
+
+**The reader says so.** `MarkProvenance` is the one place that turns a mark's source into words;
+`ship recall` reads it. A `MEM_LOG` mark whose report still exists reads "read it in the published
+report"; after a purge it reads "read it in a published report that has since been purged". It is
+not erased, its source is not rewritten to `MEM_SAW` or `MEM_TOLD`, and no replacement report is
+invented. The meeting brief still builds from a record with the report gone.
+
+**Demonstrated:** `TestPurgeLeavesMeetingMarksOrphaned`, `test_ship_core --two-logs`, and
+`scripts/two-log-check.sh`, whose output and two falsifications are in `docs/evidence/two-logs.md`.
+The save format remains **66**: `Memory::event` already carried the new id and `Memory::orphaned`
+already existed, so the record does not change shape.
+
+**What remains (deferred, not claimed):** the Collective speaking in an assimilated person's voice;
+voice input beyond the existing typed pill; the computer-as-a-place; and the owner's judgement of
+whether the room reads as a room. This slice does not touch the overlay, the brief, the generator or
+the Collective's voice, and it does not repeat the overlay's in-engine run.
+
 ## G4 and G5 — replaced by the ship programme (2026-10-05)
 
 The owner redirected the programme: the ship must work as a system before a crew can be given lives

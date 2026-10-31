@@ -5669,6 +5669,22 @@ int RecallSource(const CrewMember &who, uint16_t event)
 
 int MemoryCount(const CrewMember &who) { return static_cast<int>(who.memories.size()); }
 
+// What a mark's provenance says now. The orphaned state is the point: a purge removes the published
+// report, not the person's experience, and a reader must not invent a replacement citation.
+const char *MarkProvenance(const Memory &m)
+{
+	switch (m.source) {
+		case MEM_SAW: return "saw it";
+		case MEM_TOLD: return "was told";
+		case MEM_RUMOUR: return "heard it as rumour";
+		case MEM_LOG:
+			return m.orphaned
+				? "read it in a published report that has since been purged"
+				: "read it in the published report";
+		default: return "unknown provenance";
+	}
+}
+
 // A bond is remembered valence toward a person, summed: repeated good becomes friendship, repeated
 // bad a grudge, and one extreme event can do either in a stroke.
 float Bond(const Ship &s, int a, int b)
@@ -7907,6 +7923,12 @@ void LogEvent(Ship &s, const std::string &who, const std::string &scope, const s
 	if (static_cast<int>(s.log.size()) > LOG_MAX) s.log.erase(s.log.begin());
 }
 
+// The meeting report's kind, in one place. It is a document in the official log, not a second store.
+bool IsMeetingReport(const LogEntry &e)
+{
+	return e.what.rfind("meeting report (", 0) == 0;
+}
+
 // ---- the two logs (docs/the-record-and-the-log.md) ----------------------------------------------
 //
 // The official log is above; this is the personal one, and the law over both: the simulation writes
@@ -9248,6 +9270,7 @@ static std::string EventPhrase(const Ship &s, uint16_t event, int person)
 		case MEM_LOCKOUT: what = "a lockout"; break;
 		case MEM_OVERRULED: what = "being overruled"; break;
 		case MEM_LOSS: what = "a loss"; break;
+		case MEM_MEETING: what = "a meeting"; break;
 		default: what = "an event"; break;
 	}
 	if (person >= 0) what += " involving " + NameAt(s, person);
@@ -9496,6 +9519,21 @@ void PublishMeetingReport(Ship &s, const MeetingBrief &b, int outcome, int decid
 			LogEvent(s, who, "command", "meeting dissent: " + p.name + " opposed \""
 				+ o.label + "\" -- " + p.stanceReason[outcome]);
 		}
+	}
+
+	// The report is a published document, so those who were not in the room read it and remember it
+	// as read (MEM_LOG). This is the meeting-facing half of the two logs: the report can be purged,
+	// the marks cannot, and a purge orphans them rather than erasing or reattributing them.
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		// Only a reader of the report's own scope gets the mark: command reads all, the command
+		// department reads its scope. Nobody is given knowledge they could not have read.
+		const CrewMember &c = s.crew[i];
+		if (!MayCommand(c) && c.dept != DEPT_COMMAND) continue;
+		bool present = false;
+		for (int p = 0; p < b.presentCount && p < MEETING_PARTICIPANT_MAX; ++p)
+			if (b.present[p].crew == i) { present = true; break; }
+		if (present) continue;
+		Remember(s, i, MEM_MEETING, -1, MEM_LOG, EventValence(MEM_MEETING));
 	}
 }
 

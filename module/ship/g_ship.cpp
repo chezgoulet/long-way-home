@@ -7179,10 +7179,11 @@ void Svcmd_Ship_f( void )
 			gi.Printf( "SHIP: no crew member %d to recall a memory from\n", who );
 			return;
 		}
-		const int src = ship::RecallSource( vessel.crew[who], ev );
-		static const char *const SRC[] = { "saw it", "was told", "heard it as rumour", "read it in the log" };
+		const ship::Memory *mem = nullptr;
+		for ( const ship::Memory &m : vessel.crew[who].memories )
+			if ( m.event == ev ) { mem = &m; break; }
 		gi.Printf( "SHIP: crew %d %s event %d%s\n", who, ship::Recall( vessel.crew[who], ev ) ? "knows" : "does not know", ev,
-			src >= 0 ? Fmt( " (%s)", SRC[src] ).c_str() : "" );
+			mem ? Fmt( " (%s)", ship::MarkProvenance( *mem ) ).c_str() : "" );
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "bond" ) && a[0] && b[0] )
@@ -7733,7 +7734,8 @@ void Svcmd_Ship_f( void )
 		{
 			const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
 			const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
-			gi.Printf( "SHIP: day %d %02d:%02d  [%s] %s: %s\n", day, sod / 3600, sod % 3600 / 60, e.scope.c_str(), e.who.c_str(), e.what.c_str() );
+			gi.Printf( "SHIP: day %d %02d:%02d  [%s]%s %s: %s\n", day, sod / 3600, sod % 3600 / 60,
+				e.scope.c_str(), ship::IsMeetingReport( e ) ? " meeting" : "", e.who.c_str(), e.what.c_str() );
 		}
 		if ( entries.empty() ) gi.Printf( "SHIP: the log is empty\n" );
 		return;
