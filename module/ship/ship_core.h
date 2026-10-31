@@ -570,6 +570,73 @@ enum EmergencyKind : uint8_t {
 const char *EmergencyKindName(uint8_t k);
 const char *EmergencyDeckPhrase(uint8_t k);  // "fire on deck", "the deck without air", ...
 
+// ---- affinities: taste as the prior (docs/affinities-and-allegiance.md) -------------------------
+//
+// Two crew members at the same event come away with the same feeling unless something differs
+// before the event. This is that difference: a few strong, named preferences. It is **not** a
+// second relationship store -- the bond fold is untouched -- and it enters at two points only:
+//
+//   1. valence, through EffectiveValence() at the one writer that already sets a mark's valence
+//      (Remember); an event that touches a named thing lands differently on a person who likes or
+//      dislikes it;
+//   2. choice, through PreferredProgram() in the schedule and PreferredTask()/VolunteerJob() in
+//      the job queue -- the liked program is the one downtime picks, the loved task is the one they
+//      ask for.
+//
+// The record is static content: generated from the roster seed (DeriveAffinities) and derived again
+// on load, never saved, exactly as the character layer is. Authored rows override the generated
+// ones for the named few where canon speaks; `authored` says which is which. A few strong
+// preferences beat many weak ones, so each list is bounded.
+enum AffinityTopic : uint8_t {
+	AFFT_FOOD = 0,   // a dish or a drink
+	AFFT_PROGRAM,    // a holodeck program
+	AFFT_MUSIC,
+	AFFT_GAME,
+	AFFT_CRAFT,      // a thing made, or a hand at a craft
+	AFFT_PERSON,     // a kind of person
+	AFFT_TASK,       // a kind of work, named as a JobKind ("repair", "build", ...)
+	AFFT_TOPIC_COUNT
+};
+const char *AffinityTopicName(uint8_t t);
+const int AFFINITY_MAX = 4;             // four at most: three tastes and the work they love [inv]
+
+struct Affinity {
+	uint8_t topic = AFFT_FOOD;
+	std::string thing;                  // the named thing: "coffee", "Captain Proton", "Klingon opera"
+	float strength = 0.5f;              // 0..1; two strong ones beat many weak ones
+	bool authored = false;              // canon row (true) or generated from the seed (false)
+};
+
+// What they make: a holonovel, a meal, a model, a poem, a piece of music. Pursuits matter because
+// they generate artifacts and events, which is the fuel the memory system runs on.
+enum PursuitKind : uint8_t {
+	PURSUIT_HOLONOVEL = 0, PURSUIT_MEAL, PURSUIT_MODEL, PURSUIT_POEM, PURSUIT_MUSIC,
+	PURSUIT_COUNT
+};
+const char *PursuitKindName(uint8_t p);
+const int PURSUIT_MAX = 2;              // [inv]
+
+struct Pursuit {
+	uint8_t kind = PURSUIT_HOLONOVEL;
+	std::string thing;                  // "a holonovel", "a meal", "a model ship"
+	float strength = 0.5f;
+	bool authored = false;
+};
+
+// An allegiance is not a team: it is what a person is to, and how strongly. It is recorded here;
+// the document's weighting of how an event lands and how an order is carried is a later slice.
+enum AllegianceTo : uint8_t {
+	ALLEG_STARFLEET = 0, ALLEG_MAQUIS, ALLEG_DELTA_NATIVE, ALLEG_CIVILIAN, ALLEG_BORG_RECOVERED,
+	ALLEG_COUNT
+};
+const char *AllegianceName(uint8_t a);
+
+struct Allegiance {
+	uint8_t to = ALLEG_STARFLEET;
+	float strength = 0.5f;
+	bool authored = false;
+};
+
 struct CrewMember {
 	std::string name;
 	std::string type;        // the game's NPC type used to embody them (an existing character)
@@ -624,9 +691,21 @@ struct CrewMember {
 	Condition conditions[CONDITION_MAX];
 	uint8_t conditionCount = 0;
 
+	// Affinities (docs/affinities-and-allegiance.md): the priors that make the same event land
+	// differently. Static content, generated from the roster seed and derived again on load, never
+	// saved -- exactly as species, skills and the face are. Not a second relationship store.
+	std::vector<Affinity> likes;
+	std::vector<Affinity> dislikes;
+	std::vector<Pursuit> pursuits;
+	Allegiance allegiance;
+
 	// derived each tick
 	uint8_t activity = ACT_SLEEP;
 	uint8_t deck = 0;        // where they are now
+	// Taste at the schedule (derived each tick, never saved): the program they seek when the
+	// routine gives them a recreation hour on the holodeck, and the job they ask for from the queue.
+	std::string program;
+	int16_t volunteerJob = -1;
 	// Damage control (derived each tick, never saved): the system this hand is working, or -1, and
 	// the station they left to do it -- SYS_COUNT for the standing party, who held no station. The
 	// party is re-derived every tick from the queue and the watch, so it costs the save nothing and
@@ -650,6 +729,25 @@ bool HasTrait(const CrewMember &c, uint8_t trait);
 void DeriveCharacter(CrewMember &c, uint32_t &rng);
 // Species for a record: named crew carry theirs; a generated member draws one from the seed.
 uint8_t DeriveSpecies(uint8_t dept, uint32_t &rng);
+
+// ---- affinities: the record and its two entry points (docs/affinities-and-allegiance.md) --------
+//
+// DeriveAffinities fills a record's likes, dislikes, pursuits and allegiance from the roster seed.
+// Pure and deterministic, called from BuildRoster for every record (named and generated) and again
+// on load; the authored rows are applied over the generated ones by the record's `type`. A record
+// that a transporter doubles keeps its taste; a save without the static half re-derives it exactly.
+void DeriveAffinities(CrewMember &c, uint32_t seed);
+
+// Entry one: the valence fold. The base valence is left exactly as it was when nothing the person
+// likes or dislikes is named, so the bond store is unchanged by this mechanism. A matching like
+// raises the mark, a matching dislike lowers it; the result is clamped to the mark's -1..+1.
+// `thing` is whatever the event touched, named as the record names it ("Klingon opera", "coffee",
+// "repair"). Matching is case-insensitive and whole-name.
+float EffectiveValence(const CrewMember &c, float base, const std::string &thing);
+
+// Entry two: choice. The strongest liked program, or empty; the strongest liked task, or empty.
+std::string PreferredProgram(const CrewMember &c);
+std::string PreferredTask(const CrewMember &c);
 
 // ---- the appearance derivation: the face comes from the same seed --------------------------------
 // docs/character-attributes.md, "Appearance: the face is part of the person, so it comes from the
@@ -1867,6 +1965,10 @@ struct Job {
 // The queue as it stands after this tick (rebuilt from the ship's state, plus the player's build jobs,
 // order preserved for the jobs that persist).
 const std::vector<Job> &Jobs(const Ship &s);
+// The job this person asks for: the first entry in the queue whose kind is the task they like best,
+// or -1 when they love none of the work outstanding. A read, not a second queue; the crew layer and
+// the console can show who volunteered for what (docs/affinities-and-allegiance.md, entry two).
+int VolunteerJob(const Ship &s, int crew);
 // Command orders a net-new thing built: the crew fabricate spare parts over crew-hours. Given by
 // whoever commands; false if it does not apply.
 bool OrderBuild(Ship &s, int parts);
@@ -2974,8 +3076,12 @@ int SeniorFitOfficer(const Ship &s);
 // Memory and consequence. A mark is written where it happens (Remember); command can tell the whole
 // crew a thing (Brief); a query asks whether a character holds an event and how they came to (Recall,
 // RecallSource), how many marks they hold (MemoryCount), and how they feel about a person (Bond).
-void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence);
-void Brief(Ship &s, uint16_t event, float valence);
+// `touched` is the thing the event was about, when it has one: the affinity fold reads it and raises
+// or lowers the mark accordingly. Empty (the default) leaves the base valence exactly as given, so
+// every existing writer is unchanged and the bond store stays the bond store.
+void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence,
+              const std::string &touched = std::string());
+void Brief(Ship &s, uint16_t event, float valence, const std::string &touched = std::string());
 bool Recall(const CrewMember &who, uint16_t event);
 int RecallSource(const CrewMember &who, uint16_t event);
 int MemoryCount(const CrewMember &who);

@@ -89,10 +89,33 @@ on him, and his body is subject to it.
 meeting brief the record's rules require; the two logs as separate stores; the meeting overlay and its async
 generator (`docs/staff-meetings.md`, M2–M4); the Collective speaking in an assimilated person's voice.
 
+**Slice 1 built 2026-10-31 — the priors.** Every crew member now carries `likes[]`, `dislikes[]`,
+`pursuits[]` and an `allegiance` with a strength and what it is to. The record is generated for the whole
+roster from the roster seed and authored over for the named few where canon speaks; every row says which
+it is, and the two items the design document could not verify (Seven's music studies, Chakotay's boxing)
+are deliberately not authored. Taste enters at the two points the document names and no others:
+`EffectiveValence` at the single mark writer, so the same event lands differently on two people; and
+`PreferredProgram`/`PreferredTask`/`VolunteerJob` at the schedule and the job queue. The bond store is
+untouched and the record is static content, so the save format does not move (66). Evidence:
+`docs/evidence/affinities.md`, `TestAffinityRecord`, `TestAffinityValence`,
+`TestBondFoldUnchangedWithoutAffinity`, `TestAffinityChoice`, `scripts/affinity-check.sh`.
+
 **Exit criteria, observable:**
-- The same event lands differently on two crew members, traceably to a declared affinity.
-- A meeting plays with the model absent, and its brief is built per participant from marks and the log.
-- A purge removes the published report and leaves the `MEM_LOG`-sourced marks orphaned, not erased.
+- ✅ **The same event lands differently on two crew members, traceably to a declared affinity.** Built and
+  demonstrated: the evidence prints one event, the liker and the disliker, their declared rows, the two
+  marks and the bond each fold reads (`scripts/affinity-check.sh`, `test_ship_core --affinities`).
+- ⬜ **A meeting plays with the model absent, and its brief is built per participant from marks and the
+  log.** Not built; the meeting overlay and the per-participant brief are later slices.
+- ⬜ **A purge removes the published report and leaves the `MEM_LOG`-sourced marks orphaned, not erased.**
+  The purge/orphan mechanism was built and demonstrated in the memory work, not by this slice
+  (`TestPurgeMovesRegard`; `docs/gates.md`, the C2 entry); the Stage D criterion stays open until the
+  meeting-facing half it belongs to is built.
+
+**Still deferred inside Stage D:** allegiance is recorded but does not yet weight valence or compliance,
+so the document's Maquis/Starfleet morale consequence is not built; a pursuit does not yet produce an
+artifact or an event the log can point at; and the liked program observed on the deck in the running game
+(as opposed to the model's choice) needs a session. The meeting overlay, the two-log split and the
+Collective's voice are the remaining slices.
 
 **Blocks.** Stage C only in the sense of budget, not dependency.
 

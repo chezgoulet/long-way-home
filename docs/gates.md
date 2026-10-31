@@ -296,6 +296,39 @@ section. It is off by default (`g_crew 0`), and with it off the module behaves a
 before. Arbitration precedence — scripted sequence > direct combat/reaction > director override >
 duty/routine > idle/social — was written before the code, as required, and is unit-tested.
 
+### The affinities record — Stage D slice 1 *(built 2026-10-31; `docs/evidence/affinities.md`)*
+
+`docs/affinities-and-allegiance.md` names the missing prior: two crew at the same event come away
+with the same feeling because nothing distinguishes them before the event. The record now exists on
+every crew member — `likes[]`, `dislikes[]`, `pursuits[]`, and an `allegiance` with a strength and
+what it is to. It is **static content**: generated for the whole roster from the roster seed
+(`DeriveAffinities`), authored over the generated rows for the named few where canon speaks (Janeway's
+coffee and two holodeck lives, Kim's clarinet, Paris's Captain Proton, Tuvok's kal-toh and candles,
+Neelix's cooking, the Doctor's holonovels, Torres's Maquis allegiance), and derived again on load.
+Every row says whether it was authored or generated. The two items the design document could not
+verify — Seven's music studies and Chakotay's boxing — are **not authored**, and the check prints
+that they are absent.
+
+Taste enters at the two points the document names and no others. **Valence**: `EffectiveValence` sits
+at the single existing mark writer (`Remember`), so an event that touches a named thing raises the
+mark of the person who likes it and lowers the mark of the person who dislikes it; with no match the
+base valence and the bond fold are exactly what they were. **Choice**: `PreferredProgram` is the
+program a recreation hour picks, and `PreferredTask`/`VolunteerJob` is the job a person asks for from
+the queue. Nothing is stored, so the save format is unchanged at 66; the mechanism is not a second
+relationship store.
+
+**Demonstrated:** the same event lands positively on one crew member and negatively on another,
+traceably to a declared affinity, and the bond fold reads the resulting mark; the liked program is
+picked in a recreation hour; a loved task is asked for from the queue. `TestAffinityRecord`,
+`TestAffinityValence`, `TestBondFoldUnchangedWithoutAffinity`, `TestAffinityChoice`,
+`scripts/affinity-check.sh`, `test_ship_core --affinities`.
+
+**What remains (deferred, not claimed):** the allegiance is recorded but does not yet weight valence
+or compliance — the document's Maquis/Starfleet morale consequence is not built here; a pursuit does
+not yet produce an artifact or an event the log can point at; and the in-engine observation of a
+program on the deck (as opposed to the model's choice) needs a session. The meeting overlay, the
+per-participant brief, the two-log split and the Collective's voice are later Stage D slices.
+
 ## G4 and G5 — replaced by the ship programme (2026-10-05)
 
 The owner redirected the programme: the ship must work as a system before a crew can be given lives

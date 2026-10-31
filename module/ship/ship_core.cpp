@@ -549,6 +549,415 @@ void DeriveCharacter(CrewMember &c, uint32_t &rng)
 	c.conditionCount = 0;
 }
 
+// ---- affinities: taste as the prior (docs/affinities-and-allegiance.md) --------------------------
+//
+// Static content, derived from the roster seed and never saved, exactly as the character layer is.
+// It is deliberately a separate seed stream, mixed from the roster seed and the record's own name,
+// so adding this pass cannot move the skills, traits, drives, species or face the existing stream
+// produced: a save written before this change still derives the same person, with taste added.
+//
+// A few strong preferences, not twenty faint ones. Each list is bounded (AFFINITY_MAX) and the
+// generated rows are drawn from small pools so that two people can love and hate the same thing --
+// which is the whole point: the same event, two different marks.
+
+const char *AffinityTopicName(uint8_t t)
+{
+	static const char *const N[AFFT_TOPIC_COUNT] = {
+		"food", "program", "music", "game", "craft", "person", "task"
+	};
+	return t < AFFT_TOPIC_COUNT ? N[t] : "thing";
+}
+
+const char *PursuitKindName(uint8_t p)
+{
+	static const char *const N[PURSUIT_COUNT] = {
+		"a holonovel", "a meal", "a model", "a poem", "a piece of music"
+	};
+	return p < PURSUIT_COUNT ? N[p] : "a made thing";
+}
+
+const char *AllegianceName(uint8_t a)
+{
+	static const char *const N[ALLEG_COUNT] = {
+		"Starfleet", "the Maquis", "a Delta native", "a civilian", "Borg-recovered"
+	};
+	return a < ALLEG_COUNT ? N[a] : "unstated";
+}
+
+// Whole-name, case-insensitive. A thing is named the same way in the record and at the event; the
+// fold does not guess at near matches, because a preference nobody declared is not a preference.
+static bool SameAffinityThing(const std::string &a, const std::string &b)
+{
+	if (a.empty() || a.size() != b.size()) return false;
+	for (size_t i = 0; i < a.size(); ++i)
+		if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i])))
+			return false;
+	return true;
+}
+
+static uint32_t AffinitySeed(uint32_t seed, const std::string &name)
+{
+	// FNV-1a over the record's own name, mixed with the roster seed. The seed alone would make the
+	// nth record's taste depend on roster order; the name makes it the person's.
+	uint32_t h = 2166136261u;
+	for (char ch : name)
+	{
+		h ^= static_cast<unsigned char>(ch);
+		h *= 16777619u;
+	}
+	h ^= seed + 0x9e3779b9u + (h << 6) + (h >> 2);
+	h ^= h >> 16; h *= 0x7feb352du;
+	h ^= h >> 15; h *= 0x846ca68bu;
+	h ^= h >> 16;
+	return h ? h : 1u;
+}
+
+static const char *const FOODS[] = {
+	"coffee", "plomeek soup", "gagh", "leola root stew", "cheesecake", "a hot meal",
+	"spicy noodles", "fresh fruit"
+};
+static const char *const PROGRAMS[] = {
+	"the Gothic holonovel", "Captain Proton", "a da Vinci workshop", "the orbital skydiving program",
+	"a jazz club", "a Klingon opera program", "a quiet beach"
+};
+static const char *const MUSICS[] = {
+	"Klingon opera", "clarinet quartets", "Vulcan lute music", "20th-century jazz",
+	"Bajoran opera", "classical piano", "Andorian blues"
+};
+static const char *const GAMES[] = {
+	"kal-toh", "three-dimensional chess", "dom-jot", "the shooting range", "hoverball", "a card game"
+};
+static const char *const CRAFTS[] = {
+	"woodworking", "model shipbuilding", "cooking", "poetry", "painting", "programming", "astrometrics"
+};
+static const char *const PERSONS[] = {
+	"engineers who get their hands dirty", "by-the-book officers", "civilians", "the Maquis",
+	"Vulcans", "holograms", "young ensigns"
+};
+
+struct AffinityPool { const char *const *things; int count; };
+
+static AffinityPool PoolForTopic(uint8_t topic)
+{
+	switch (topic)
+	{
+	case AFFT_FOOD:    return { FOODS,    static_cast<int>(sizeof(FOODS) / sizeof(FOODS[0])) };
+	case AFFT_PROGRAM: return { PROGRAMS, static_cast<int>(sizeof(PROGRAMS) / sizeof(PROGRAMS[0])) };
+	case AFFT_MUSIC:   return { MUSICS,   static_cast<int>(sizeof(MUSICS) / sizeof(MUSICS[0])) };
+	case AFFT_GAME:    return { GAMES,    static_cast<int>(sizeof(GAMES) / sizeof(GAMES[0])) };
+	case AFFT_CRAFT:   return { CRAFTS,   static_cast<int>(sizeof(CRAFTS) / sizeof(CRAFTS[0])) };
+	case AFFT_PERSON:  return { PERSONS,  static_cast<int>(sizeof(PERSONS) / sizeof(PERSONS[0])) };
+	default:           return { FOODS,    static_cast<int>(sizeof(FOODS) / sizeof(FOODS[0])) };
+	}
+}
+
+static uint8_t SocialTopic(uint32_t &r)
+{
+	static const uint8_t T[] = { AFFT_FOOD, AFFT_PROGRAM, AFFT_MUSIC, AFFT_GAME, AFFT_CRAFT, AFFT_PERSON };
+	return T[NextRandom(r) % (sizeof(T) / sizeof(T[0]))];
+}
+
+static bool NamesThing(const std::vector<Affinity> &v, const std::string &thing)
+{
+	for (const Affinity &a : v) if (SameAffinityThing(a.thing, thing)) return true;
+	return false;
+}
+
+static void AddAffinity(std::vector<Affinity> &v, uint8_t topic, const std::string &thing,
+                        float strength, bool authored)
+{
+	Affinity a;
+	a.topic = topic;
+	a.thing = thing;
+	a.strength = std::max(0.0f, std::min(1.0f, strength));
+	a.authored = authored;
+	v.push_back(a);
+}
+
+// The work a department asks for first, then the seed's own choice among the three. The queue's
+// kinds are the vocabulary, so a loved task is named exactly as JobKindName names it.
+static uint8_t TaskKindFor(const CrewMember &c, uint32_t &r)
+{
+	static const uint8_t BIAS[DEPT_COUNT][3] = {
+		{ JOB_SEAL,        JOB_SECURE,      JOB_MAINTENANCE }, // Command
+		{ JOB_MAINTENANCE, JOB_BUILD,       JOB_REPAIR      }, // Operations
+		{ JOB_REPAIR,      JOB_MAINTENANCE, JOB_SEAL        }, // Engineering
+		{ JOB_SECURE,      JOB_EVACUATE,    JOB_SEAL        }, // Security and tactical
+		{ JOB_RECLAIM,     JOB_MAINTENANCE, JOB_REPAIR      }, // Science
+		{ JOB_BUILD,       JOB_MAINTENANCE, JOB_SEAL        }, // Medical
+		{ JOB_SEAL,        JOB_BUILD,       JOB_EVACUATE    }, // Flight and shuttlebay
+		{ JOB_BUILD,       JOB_MAINTENANCE, JOB_REPAIR      }, // Support and logistics
+		{ JOB_BUILD,       JOB_MAINTENANCE, JOB_REPAIR      }, // Civilians and attached
+	};
+	const uint8_t d = c.dept < DEPT_COUNT ? c.dept : 0;
+	return BIAS[d][NextRandom(r) % 3u];
+}
+
+// The named few, where canon gives them. Nothing here is invented canon: the two items the design
+// document could not verify -- Seven's music studies and Chakotay's boxing -- are deliberately absent.
+struct AuthoredAffinityRow { const char *type; bool like; uint8_t topic; const char *thing; float strength; };
+static const AuthoredAffinityRow AUTHORED_AFFINITIES[] = {
+	// Kathryn Janeway -- coffee, and the two holodeck lives canon names.
+	{ "janeway", true,  AFFT_FOOD,    "coffee",                          0.90f },
+	{ "janeway", true,  AFFT_PROGRAM, "the Gothic holonovel",             0.70f },
+	{ "janeway", true,  AFFT_PROGRAM, "Leonardo da Vinci's workshop",     0.70f },
+	// Harry Kim -- the Juilliard Youth Symphony and the clarinet he replicated aboard.
+	{ "kim",     true,  AFFT_MUSIC,   "clarinet quartets",                0.90f },
+	{ "kim",     true,  AFFT_MUSIC,   "the clarinet",                     0.80f },
+	// Tom Paris -- Captain Proton, explicitly one of his favourite programs.
+	{ "paris",   true,  AFFT_PROGRAM, "Captain Proton",                   0.90f },
+	// Tuvok -- kal-toh, lessons from a master from the age of five, and meditation candles.
+	{ "tuvok",   true,  AFFT_GAME,    "kal-toh",                          0.90f },
+	{ "tuvok",   true,  AFFT_CRAFT,   "meditation candles",               0.60f },
+	// Neelix -- an enthusiastic cook who ran the mess hall.
+	{ "neelix",  true,  AFFT_CRAFT,   "cooking",                          0.90f },
+	{ "neelix",  true,  AFFT_FOOD,    "leola root stew",                  0.60f },
+	// The Doctor -- an author: Photons Be Free and Love in the Time of Holograms.
+	{ "doctor",  true,  AFFT_PROGRAM, "Photons Be Free",                   0.90f },
+	{ "doctor",  true,  AFFT_PROGRAM, "Love in the Time of Holograms",    0.80f },
+	// B'Elanna Torres -- the engineer's love of the work, and the Maquis side of the split.
+	{ "torres",  true,  AFFT_TASK,    "repair",                           0.85f },
+	{ "torres",  false, AFFT_PERSON,  "by-the-book officers",             0.60f },
+	// Seven of Nine -- astrometrics, the work she made her own. No music studies are authored.
+	{ "seven",   true,  AFFT_CRAFT,   "astrometrics",                     0.80f },
+	// Chakotay -- the stories and the ritual. No boxing is authored.
+	{ "chakotay",true,  AFFT_CRAFT,   "a quiet ritual",                   0.60f },
+};
+
+struct AuthoredPursuitRow { const char *type; uint8_t kind; const char *thing; float strength; };
+static const AuthoredPursuitRow AUTHORED_PURSUITS[] = {
+	{ "kim",    PURSUIT_MUSIC,     "a piece for the clarinet", 0.80f },
+	{ "neelix", PURSUIT_MEAL,      "a meal for the mess hall", 0.90f },
+	{ "doctor", PURSUIT_HOLONOVEL, "a holonovel",              0.90f },
+};
+
+struct AuthoredAllegianceRow { const char *type; uint8_t to; float strength; };
+static const AuthoredAllegianceRow AUTHORED_ALLEGIANCE[] = {
+	{ "janeway",  ALLEG_STARFLEET,     0.85f },
+	{ "chakotay", ALLEG_MAQUIS,        0.75f },
+	{ "torres",   ALLEG_MAQUIS,        0.85f },
+	{ "tuvok",    ALLEG_STARFLEET,     0.90f },
+	{ "paris",    ALLEG_STARFLEET,     0.60f },
+	{ "kim",      ALLEG_STARFLEET,     0.70f },
+	{ "doctor",   ALLEG_CIVILIAN,      0.65f },
+	{ "seven",    ALLEG_BORG_RECOVERED,0.65f },
+	{ "neelix",   ALLEG_DELTA_NATIVE,  0.75f },
+	{ "vorik",    ALLEG_STARFLEET,     0.75f },
+};
+
+// Keep the bound without letting a generated taste crowd out either canon or the loved task: an
+// authored row is dropped only when there is nothing generated left to drop, and a task is kept
+// while any non-task generated row remains. With the authored few at three tastes, the bound
+// leaves room for the task in every case the roster actually has.
+static void TrimAffinityLikes(std::vector<Affinity> &v)
+{
+	while (static_cast<int>(v.size()) > AFFINITY_MAX)
+	{
+		int weakest = -1;
+		for (int i = 0; i < static_cast<int>(v.size()); ++i)
+		{
+			if (v[i].authored || v[i].topic == AFFT_TASK) continue;
+			if (weakest < 0 || v[i].strength < v[weakest].strength) weakest = i;
+		}
+		if (weakest < 0)
+			for (int i = 0; i < static_cast<int>(v.size()); ++i)
+			{
+				if (v[i].topic == AFFT_TASK) continue;
+				if (weakest < 0 || v[i].strength < v[weakest].strength) weakest = i;
+			}
+		if (weakest < 0) weakest = static_cast<int>(v.size()) - 1;
+		v.erase(v.begin() + weakest);
+	}
+}
+
+// Authored rows replace a generated row naming the same thing and are kept in strength order under
+// the bound. Generated rows the canon does not speak to stay, marked `authored = false`.
+static void ApplyAuthoredAffinities(CrewMember &c)
+{
+	std::vector<Affinity> likes, dislikes;
+	for (const AuthoredAffinityRow &row : AUTHORED_AFFINITIES)
+	{
+		if (c.type != row.type) continue;
+		AddAffinity(row.like ? likes : dislikes, row.topic, row.thing, row.strength, true);
+	}
+	auto merge = [&](std::vector<Affinity> &into, const std::vector<Affinity> &authored) {
+		if (authored.empty()) return;
+		for (const Affinity &a : authored)
+		{
+			into.erase(std::remove_if(into.begin(), into.end(),
+				[&](const Affinity &old) { return SameAffinityThing(old.thing, a.thing); }), into.end());
+		}
+		into.insert(into.begin(), authored.begin(), authored.end());
+		// Authored canon is not outranked by a stronger generated taste: it sorts first, so the
+		// bound trims generated rows before it trims an authored one.
+		std::stable_sort(into.begin(), into.end(),
+			[](const Affinity &a, const Affinity &b) {
+				if (a.authored != b.authored) return a.authored;
+				return a.strength > b.strength;
+			});
+		TrimAffinityLikes(into);
+	};
+	merge(c.likes, likes);
+	merge(c.dislikes, dislikes);
+	// A thing canon says a person loves is not also a generated dislike of it, and the reverse.
+	auto drop = [](std::vector<Affinity> &into, const std::vector<Affinity> &authored) {
+		for (const Affinity &a : authored)
+			into.erase(std::remove_if(into.begin(), into.end(),
+				[&](const Affinity &old) { return SameAffinityThing(old.thing, a.thing); }), into.end());
+	};
+	drop(c.dislikes, likes);
+	drop(c.likes, dislikes);
+
+	std::vector<Pursuit> pursuits;
+	for (const AuthoredPursuitRow &row : AUTHORED_PURSUITS)
+	{
+		if (c.type != row.type) continue;
+		Pursuit p;
+		p.kind = row.kind;
+		p.thing = row.thing;
+		p.strength = row.strength;
+		p.authored = true;
+		pursuits.push_back(p);
+	}
+	if (!pursuits.empty())
+	{
+		c.pursuits = pursuits;
+		if (static_cast<int>(c.pursuits.size()) > PURSUIT_MAX) c.pursuits.resize(PURSUIT_MAX);
+	}
+
+	for (const AuthoredAllegianceRow &row : AUTHORED_ALLEGIANCE)
+	{
+		if (c.type != row.type) continue;
+		c.allegiance.to = row.to;
+		c.allegiance.strength = row.strength;
+		c.allegiance.authored = true;
+		break;
+	}
+}
+
+void DeriveAffinities(CrewMember &c, uint32_t seed)
+{
+	c.likes.clear();
+	c.dislikes.clear();
+	c.pursuits.clear();
+	uint32_t r = AffinitySeed(seed, c.name + "|" + c.type + "|" + std::to_string(static_cast<int>(c.dept)));
+
+	// The loved task first: every generated record has one, so the queue always has something they
+	// would ask for. It is flavoured by the department, then chosen from the three the seed picks.
+	{
+		const uint8_t kind = TaskKindFor(c, r);
+		AddAffinity(c.likes, AFFT_TASK, JobKindName(kind),
+			0.50f + (NextRandom(r) % 5u) * 0.08f, false);
+	}
+	// Two more: a food, a program, a music, a game, a craft or a kind of person.
+	for (int i = 0; i < 2; ++i)
+	{
+		for (int tries = 0; tries < 8; ++tries)
+		{
+			const uint8_t topic = SocialTopic(r);
+			const AffinityPool pool = PoolForTopic(topic);
+			const std::string thing = pool.things[NextRandom(r) % static_cast<uint32_t>(pool.count)];
+			if (NamesThing(c.likes, thing)) continue;
+			AddAffinity(c.likes, topic, thing, 0.45f + (NextRandom(r) % 5u) * 0.10f, false);
+			break;
+		}
+	}
+	// One or two dislikes, never a thing already loved.
+	const int nd = 1 + static_cast<int>(NextRandom(r) % 2u);
+	for (int i = 0; i < nd; ++i)
+	{
+		for (int tries = 0; tries < 10; ++tries)
+		{
+			uint8_t topic = (NextRandom(r) % 3u == 0u) ? static_cast<uint8_t>(AFFT_TASK) : SocialTopic(r);
+			std::string thing;
+			if (topic == AFFT_TASK)
+				thing = JobKindName(static_cast<uint8_t>(NextRandom(r) % JOB_KIND_COUNT));
+			else
+			{
+				const AffinityPool pool = PoolForTopic(topic);
+				thing = pool.things[NextRandom(r) % static_cast<uint32_t>(pool.count)];
+			}
+			if (NamesThing(c.likes, thing) || NamesThing(c.dislikes, thing)) continue;
+			AddAffinity(c.dislikes, topic, thing, 0.40f + (NextRandom(r) % 5u) * 0.10f, false);
+			break;
+		}
+	}
+
+	// What they make. One or two, from the seed; a second pursuit is a different craft.
+	const int np = 1 + static_cast<int>(NextRandom(r) % 2u);
+	for (int i = 0; i < np; ++i)
+	{
+		for (int tries = 0; tries < 5; ++tries)
+		{
+			Pursuit p;
+			p.kind = static_cast<uint8_t>(NextRandom(r) % PURSUIT_COUNT);
+			bool duplicate = false;
+			for (const Pursuit &old : c.pursuits) if (old.kind == p.kind) { duplicate = true; break; }
+			if (duplicate) continue;
+			p.thing = PursuitKindName(p.kind);
+			p.strength = 0.45f + (NextRandom(r) % 5u) * 0.10f;
+			p.authored = false;
+			c.pursuits.push_back(p);
+			break;
+		}
+	}
+
+	// Allegiance: the side a person is on, from the record's own facts, with the seed's strength.
+	uint8_t to = ALLEG_STARFLEET;
+	if (c.faction == 1) to = ALLEG_MAQUIS;
+	else if (c.species == SPECIES_BORG_RECOVERED) to = ALLEG_BORG_RECOVERED;
+	else if (c.species == SPECIES_TALAXIAN || c.species == SPECIES_OCAMPA) to = ALLEG_DELTA_NATIVE;
+	else if (c.dept == DEPT_CIVILIANS) to = ALLEG_CIVILIAN;
+	c.allegiance.to = to;
+	c.allegiance.strength = 0.45f + (NextRandom(r) % 4u) * 0.10f;
+	c.allegiance.authored = false;
+
+	ApplyAuthoredAffinities(c);
+
+	// Every record keeps a loved task, even where authored taste filled the list: choice at the queue
+	// is a property of the person, not only of the generated crew. If the bound is reached, the
+	// weakest non-task preference makes room -- the work they love is not crowded out by a taste.
+	auto hasTask = [&] {
+		for (const Affinity &a : c.likes) if (a.topic == AFFT_TASK) return true;
+		return false;
+	};
+	if (!hasTask())
+		AddAffinity(c.likes, AFFT_TASK, JobKindName(TaskKindFor(c, r)),
+			0.45f + (NextRandom(r) % 5u) * 0.08f, false);
+	TrimAffinityLikes(c.likes);
+}
+
+float EffectiveValence(const CrewMember &c, float base, const std::string &thing)
+{
+	float v = base;
+	if (!thing.empty())
+	{
+		for (const Affinity &a : c.likes)
+			if (SameAffinityThing(a.thing, thing)) v += a.strength;
+		for (const Affinity &a : c.dislikes)
+			if (SameAffinityThing(a.thing, thing)) v -= a.strength;
+	}
+	return std::max(-1.0f, std::min(1.0f, v));
+}
+
+static std::string BestAffinity(const std::vector<Affinity> &v, uint8_t topic)
+{
+	const Affinity *best = nullptr;
+	for (const Affinity &a : v)
+		if (a.topic == topic && (!best || a.strength > best->strength)) best = &a;
+	return best ? best->thing : std::string();
+}
+
+std::string PreferredProgram(const CrewMember &c)
+{
+	return BestAffinity(c.likes, AFFT_PROGRAM);
+}
+
+std::string PreferredTask(const CrewMember &c)
+{
+	return BestAffinity(c.likes, AFFT_TASK);
+}
+
 // ---- the appearance derivation -------------------------------------------------------------------
 //
 // The pool, enumerated from the shipped data and recorded in docs/evidence/the-appearance.md. It is
@@ -1262,6 +1671,7 @@ static void BuildRoster(Ship &s)
 		c.quartersDeck = 3; // senior officers' quarters [lore]
 		c.quartersQuality = 0.7f; // senior quarters are the better ones [inv]
 		DeriveCharacter(c, r); // skills, traits, drives and starting state, from the record and the seed
+		DeriveAffinities(c, s.cfg.seed ? s.cfg.seed : 1); // taste, from its own seed stream
 		s.crew.push_back(c);
 		const int seat = SeatForType(c.type);
 		if (seat >= 0) s.seatHolder[seat] = static_cast<int16_t>(s.crew.size() - 1);
@@ -1293,6 +1703,7 @@ static void BuildRoster(Ship &s)
 			// The face is part of the person (docs/character-attributes.md, "Appearance"): the same
 			// stream, the same seed, recomputed on load -- and never stored.
 			DeriveAppearance(c, r);
+			DeriveAffinities(c, s.cfg.seed ? s.cfg.seed : 1);
 			s.crew.push_back(c);
 		}
 	}
@@ -1680,6 +2091,10 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 	int buildingHands = 0; // engineers with nothing to mend, seal or fight, building a part
 
 	for (CrewMember &c : s.crew) {
+		// Derived each tick, never saved: the program they seek and the job they ask for. Cleared
+		// here so a person who is dead, away or confined carries neither from the last tick.
+		c.program.clear();
+		c.volunteerJob = -1;
 		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) {
 			c.activity = ACT_SLEEP; // lost to the ship: nowhere aboard, doing nothing
 			c.deck = 0;
@@ -1698,6 +2113,7 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		if (c.holoCompulsion >= 1.0f) {
 			c.activity = ACT_RECREATION; // lost in the program: no watch, no post, and it wears on them
 			c.deck = HOLODECK_RECREATION_DECK;
+			c.program = PreferredProgram(c); // the program that will not end is still the one they chose
 			c.fatigue = std::min(1.0f, c.fatigue + shipSeconds / (16.0f * 3600.0f));
 			continue;
 		}
@@ -1717,11 +2133,16 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 		case ACT_RECREATION: c.deck = s.systems[SYS_HOLODECKS].output > 0.0f ? HOLODECK_RECREATION_DECK : MESS_DECK; break;
 		default: c.deck = c.quartersDeck; break;
 		}
+		// Taste at the schedule (docs/affinities-and-allegiance.md, entry two): a recreation hour on
+		// the holodeck is spent on the program they like best. A read, derived every tick and never
+		// saved, so it costs the format nothing.
+		c.program = (a == ACT_RECREATION && c.deck == HOLODECK_RECREATION_DECK) ? PreferredProgram(c) : std::string();
 
 		// An evacuated deck is left: whoever the routine would put there goes to the mess hall instead,
 		// station or not. (Security ordered to that same deck is the exception: that is what a guard is.)
 		if (s.orderEvacuate >= 1 && c.deck == s.orderEvacuate && !(c.dept == DEPT_SECURITY && s.orderSecurityTo == s.orderEvacuate)) {
 			c.deck = static_cast<uint8_t>(s.orderEvacuate == MESS_DECK ? HOLODECK_RECREATION_DECK : MESS_DECK);
+			c.program.clear(); // the holodeck they were going to is not the room they end up in
 			if (a == ACT_ON_DUTY && c.post < SYS_COUNT && SPECS[c.post].deck == s.orderEvacuate) {
 				c.activity = ACT_PERSONAL; // off their station, by order
 				a = ACT_PERSONAL;
@@ -2147,8 +2568,11 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 	// Sickbay last, so it sees the injuries the fight and the air have just caused.
 	TreatCasualties(s, shipSeconds);
 
-	// And the queue of outstanding work, one entry per thing that needs doing.
+	// And the queue of outstanding work, one entry per thing that needs doing. The volunteer read
+	// follows it, so a job that appeared this tick is one a person can already ask for.
 	UpdateJobs(s);
+	for (size_t i = 0; i < s.crew.size(); ++i)
+		s.crew[i].volunteerJob = static_cast<int16_t>(VolunteerJob(s, static_cast<int>(i)));
 }
 
 // ---- power ------------------------------------------------------------------------------------
@@ -5195,7 +5619,8 @@ void ApplyStartState(Ship &s, const StartState &st)
 
 // ---- memory and consequence -------------------------------------------------------------------
 
-void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence)
+void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence,
+              const std::string &touched)
 {
 	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return;
 	CrewMember &c = s.crew[crew];
@@ -5205,7 +5630,7 @@ void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source
 	m.person = static_cast<int16_t>(person);
 	m.source = source;
 	m.time = static_cast<float>(s.clock);
-	m.valence = std::max(-1.0f, std::min(1.0f, valence));
+	m.valence = std::max(-1.0f, std::min(1.0f, EffectiveValence(c, valence, touched)));
 	m.salience = 1.0f;
 	// Reinforce: hearing the same thing again sharpens the mark, it does not duplicate it.
 	for (Memory &old : c.memories)
@@ -5221,10 +5646,10 @@ void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source
 	c.memories.push_back(m);
 }
 
-void Brief(Ship &s, uint16_t event, float valence)
+void Brief(Ship &s, uint16_t event, float valence, const std::string &touched)
 {
 	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
-		Remember(s, i, event, -1, MEM_TOLD, valence);
+		Remember(s, i, event, -1, MEM_TOLD, valence, touched);
 	LogEvent(s, CommandingOfficer(s), "crew", "the crew are told what happened");
 }
 
@@ -7704,6 +8129,16 @@ const char *JobKindName(uint8_t k)
 }
 
 const std::vector<Job> &Jobs(const Ship &s) { return s.jobs; }
+
+int VolunteerJob(const Ship &s, int crew)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return -1;
+	const std::string task = PreferredTask(s.crew[crew]);
+	if (task.empty()) return -1;
+	for (size_t i = 0; i < s.jobs.size(); ++i)
+		if (task == JobKindName(s.jobs[i].kind)) return static_cast<int>(i);
+	return -1;
+}
 
 // Rebuild the queue from the ship's state each tick: one job per damaged system, breached hull and
 // assimilated deck, in the order it is worked. A job that persists keeps any priority command set on
