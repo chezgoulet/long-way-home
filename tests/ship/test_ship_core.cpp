@@ -512,8 +512,203 @@ static void TestComplementIsHullData()
 	}
 }
 
-static void TestSchedule()
+// The affinities record (docs/affinities-and-allegiance.md): a few strong, named preferences,
+// generated from the roster seed for the whole crew, and authored over the generated rows for the
+// named few where canon speaks. Static content, never saved; the same seed is the same taste.
+static void TestAffinityRecord()
 {
+	g_test = "affinities are seeded, bounded, and authored where canon speaks";
+	Ship a = NewShip();
+	Ship b = NewShip();
+	Config other;
+	other.seed = 99;
+	Ship c = NewShip(other);
+	CHECK(a.crew.size() == b.crew.size() && a.crew.size() == c.crew.size());
+	bool differs = false;
+	int authoredLikes = 0, generatedLikes = 0;
+	for (size_t i = 0; i < a.crew.size(); ++i) {
+		const CrewMember &x = a.crew[i];
+		CHECK(!x.likes.empty() && static_cast<int>(x.likes.size()) <= AFFINITY_MAX);
+		CHECK(static_cast<int>(x.dislikes.size()) <= AFFINITY_MAX);
+		CHECK(!x.pursuits.empty() && static_cast<int>(x.pursuits.size()) <= PURSUIT_MAX);
+		CHECK(x.allegiance.to < ALLEG_COUNT && x.allegiance.strength >= 0.0f && x.allegiance.strength <= 1.0f);
+		CHECK(!PreferredTask(x).empty()); // every generated record has work it would ask for
+		// The same seed is the same person, taste included.
+		CHECK(b.crew[i].likes.size() == x.likes.size());
+		for (size_t k = 0; k < x.likes.size() && k < b.crew[i].likes.size(); ++k) {
+			CHECK(b.crew[i].likes[k].thing == x.likes[k].thing);
+			CHECK(b.crew[i].likes[k].strength == x.likes[k].strength);
+		}
+		CHECK(b.crew[i].allegiance.to == x.allegiance.to);
+		// Another seed is another crew, somewhere.
+		if (c.crew[i].likes.size() != x.likes.size()
+			|| (!x.likes.empty() && c.crew[i].likes[0].thing != x.likes[0].thing))
+			differs = true;
+		for (const Affinity &l : x.likes) { if (l.authored) ++authoredLikes; else ++generatedLikes; }
+	}
+	CHECK(differs);
+	CHECK(authoredLikes > 0);   // the named few are authored
+	CHECK(generatedLikes > 0);  // the rest are generated
+
+	auto byType = [](const Ship &s, const char *type) {
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+			if (s.crew[i].type == type) return i;
+		return -1;
+	};
+	auto hasAuthored = [](const CrewMember &c, const std::string &thing) {
+		for (const Affinity &l : c.likes) if (l.authored && l.thing == thing) return true;
+		return false;
+	};
+
+	const int janeway = byType(a, "janeway");
+	const int kim = byType(a, "kim");
+	const int paris = byType(a, "paris");
+	const int tuvok = byType(a, "tuvok");
+	const int neelix = byType(a, "neelix");
+	const int doctor = byType(a, "doctor");
+	const int torres = byType(a, "torres");
+	const int seven = byType(a, "seven");
+	const int chakotay = byType(a, "chakotay");
+	CHECK(janeway >= 0 && kim >= 0 && paris >= 0 && tuvok >= 0 && neelix >= 0
+		&& doctor >= 0 && torres >= 0 && seven >= 0 && chakotay >= 0);
+	CHECK(hasAuthored(a.crew[janeway], "coffee"));
+	CHECK(hasAuthored(a.crew[kim], "clarinet quartets"));
+	CHECK(hasAuthored(a.crew[paris], "Captain Proton"));
+	CHECK(hasAuthored(a.crew[tuvok], "kal-toh"));
+	CHECK(hasAuthored(a.crew[neelix], "cooking"));
+	CHECK(hasAuthored(a.crew[doctor], "Photons Be Free"));
+	CHECK(a.crew[torres].allegiance.to == ALLEG_MAQUIS && a.crew[torres].allegiance.authored);
+	CHECK(a.crew[janeway].allegiance.to == ALLEG_STARFLEET);
+	// The two the design document could not verify are not authored: Seven's music studies and
+	// Chakotay's boxing.
+	for (const Affinity &l : a.crew[seven].likes)
+		CHECK(!(l.authored && l.thing.find("music") != std::string::npos));
+	for (const Affinity &l : a.crew[chakotay].likes)
+		CHECK(!(l.authored && l.thing.find("boxing") != std::string::npos));
+
+	// At least one thing is loved by one person and disliked by another, which is what makes the
+	// same event land differently -- the evidence script prints the pair it finds.
+	bool shared = false;
+	for (size_t i = 0; i < a.crew.size() && !shared; ++i)
+		for (const Affinity &l : a.crew[i].likes)
+			for (size_t j = 0; j < a.crew.size() && !shared; ++j) {
+				if (i == j) continue;
+				for (const Affinity &d : a.crew[j].dislikes) if (l.thing == d.thing) { shared = true; break; }
+			}
+	CHECK(shared);
+	std::printf("  affinities: %d likes (%d authored), %d dislikes, %d pursuits across %d crew\n",
+		static_cast<int>(authoredLikes + generatedLikes), authoredLikes,
+		[&] { int n = 0; for (const CrewMember &x : a.crew) n += static_cast<int>(x.dislikes.size()); return n; }(),
+		[&] { int n = 0; for (const CrewMember &x : a.crew) n += static_cast<int>(x.pursuits.size()); return n; }(),
+		static_cast<int>(a.crew.size()));
+}
+
+// Entry one: the same event lands differently on two crew, traceably to a declared affinity. A like
+// raises the mark and a dislike lowers it; the bond fold reads the mark, unchanged in mechanism.
+static void TestAffinityValence()
+{
+	g_test = "a like raises and a dislike lowers the same event's valence for two crew";
+	Ship s = NewShip();
+	const int liker = 20, disliker = 21, subject = 5;
+	for (CrewMember *c : { &s.crew[liker], &s.crew[disliker] }) {
+		c->memories.clear();
+		c->likes.clear();
+		c->dislikes.clear();
+	}
+	Affinity like{AFFT_MUSIC, "Klingon opera", 0.60f, false};
+	Affinity dislike{AFFT_MUSIC, "Klingon opera", 0.50f, false};
+	s.crew[liker].likes.push_back(like);
+	s.crew[disliker].dislikes.push_back(dislike);
+	const float base = 0.10f;
+	Remember(s, liker, MEM_ORDER, subject, MEM_SAW, base, "Klingon opera");
+	Remember(s, disliker, MEM_ORDER, subject, MEM_SAW, base, "Klingon opera");
+	CHECK(s.crew[liker].memories.size() == 1 && s.crew[disliker].memories.size() == 1);
+	const float raised = s.crew[liker].memories.back().valence;
+	const float lowered = s.crew[disliker].memories.back().valence;
+	CHECK(raised > base);
+	CHECK(lowered < base);
+	CHECK(std::fabs(raised - (base + like.strength)) < 1e-5f);
+	CHECK(std::fabs(lowered - (base - dislike.strength)) < 1e-5f);
+	// The declaration is the explanation, and the bond fold carries the mark exactly.
+	CHECK(std::fabs(EffectiveValence(s.crew[liker], base, "Klingon opera") - raised) < 1e-5f);
+	CHECK(std::fabs(EffectiveValence(s.crew[disliker], base, "klingon opera") - lowered) < 1e-5f); // case-insensitive
+	CHECK(std::fabs(Bond(s, liker, subject) - raised) < 1e-5f);
+	CHECK(std::fabs(Bond(s, disliker, subject) - lowered) < 1e-5f);
+	std::printf("  event \"Klingon opera\" at base %+.2f: %s likes it (%+.2f) -> mark %+.2f; "
+		"%s dislikes it (%+.2f) -> mark %+.2f\n", base,
+		s.crew[liker].name.c_str(), like.strength, raised,
+		s.crew[disliker].name.c_str(), dislike.strength, lowered);
+}
+
+// The design rule's other half: when nothing the person likes or dislikes is named, the mark and the
+// bond are exactly what the old writer produced. This is the "no second relationship store" test.
+static void TestBondFoldUnchangedWithoutAffinity()
+{
+	g_test = "the bond fold is unchanged when no affinity matches";
+	Ship s = NewShip();
+	const int who = 30, subject = 6;
+	s.crew[who].memories.clear();
+	s.crew[who].likes.clear();
+	s.crew[who].dislikes.clear();
+	Affinity unrelated{AFFT_FOOD, "cheesecake", 0.80f, false};
+	s.crew[who].likes.push_back(unrelated);
+	const float base = 0.42f;
+	Remember(s, who, MEM_RESCUE, subject, MEM_SAW, base, "a hull breach on deck 9");
+	CHECK(s.crew[who].memories.size() == 1);
+	CHECK(s.crew[who].memories.back().valence == base);
+	CHECK(Bond(s, who, subject) == base);
+	// And with no thing named at all, as every existing writer does: the same mark is reinforced.
+	Remember(s, who, MEM_RESCUE, subject, MEM_SAW, base);
+	CHECK(s.crew[who].memories.size() == 1); // reinforced, not duplicated
+	CHECK(s.crew[who].memories.back().valence == base);
+}
+
+// Entry two: choice. The liked program is what the schedule picks in a recreation hour, and the
+// loved task is what the person asks for from the queue.
+static void TestAffinityChoice()
+{
+	g_test = "choice: the liked program and the loved task are selected";
+	Ship s = NewShip();
+	const int who = 0; // alpha watch: recreation is 17:00-20:00
+	s.crew[who].memories.clear();
+	s.crew[who].likes.clear();
+	s.crew[who].dislikes.clear();
+	Affinity program{AFFT_PROGRAM, "Captain Proton", 0.90f, false};
+	s.crew[who].likes.push_back(program);
+	CHECK(PreferredProgram(s.crew[who]) == "Captain Proton");
+	Tick(s, Hours(s, 9.5f)); // 17:30, the alpha watch's recreation
+	CHECK(s.crew[who].activity == ACT_RECREATION);
+	CHECK(s.crew[who].deck == 6); // the holodeck deck
+	CHECK(s.crew[who].program == "Captain Proton");
+
+	// The loved task: a repair is outstanding, and the person who loves repair asks for it.
+	Ship q = NewShip();
+	const int hand = 1;
+	q.crew[hand].likes.clear();
+	q.crew[hand].dislikes.clear();
+	Affinity repair{AFFT_TASK, "repair", 0.85f, false};
+	q.crew[hand].likes.push_back(repair);
+	DamageSystem(q, SYS_SENSORS, 0.5f);
+	Tick(q, 1.0f);
+	CHECK(!q.jobs.empty());
+	const int asked = VolunteerJob(q, hand);
+	CHECK(asked >= 0);
+	if (asked >= 0) {
+		CHECK(q.jobs[asked].kind == JOB_REPAIR);
+		CHECK(q.crew[hand].volunteerJob == asked);
+		std::printf("  choice: %s spends the recreation hour on \"%s\"; %s asks for job %d (%s)\n",
+			s.crew[who].name.c_str(), s.crew[who].program.c_str(), q.crew[hand].name.c_str(),
+			asked, JobKindName(q.jobs[asked].kind));
+	}
+	// A person who loves none of the outstanding work asks for nothing.
+	q.crew[hand].likes.clear();
+	Tick(q, 1.0f);
+	CHECK(VolunteerJob(q, hand) == -1);
+	CHECK(q.crew[hand].volunteerJob == -1);
+}
+
+static void TestSchedule(){
+
 	g_test = "the daily routine";
 	// Each watch: eight hours' duty, eight hours' sleep, and the rest lived; exactly one watch on duty at any hour.
 	for (int w = 0; w < WATCHES; ++w) {
@@ -10323,6 +10518,129 @@ static int PrintBills()
 	return 0;
 }
 
+// `test_ship_core --affinities`: the observable criterion, printed. One event, two crew, the
+// declared affinity that explains each delta; then choice at the schedule and at the queue.
+static int PrintAffinities()
+{
+	Ship s = NewShip();
+	int likes = 0, dislikes = 0, pursuits = 0, authored = 0;
+	for (const CrewMember &c : s.crew) {
+		likes += static_cast<int>(c.likes.size());
+		dislikes += static_cast<int>(c.dislikes.size());
+		pursuits += static_cast<int>(c.pursuits.size());
+		for (const Affinity &a : c.likes) if (a.authored) ++authored;
+		for (const Affinity &a : c.dislikes) if (a.authored) ++authored;
+	}
+	std::printf("  the record: %d crew, %d likes, %d dislikes, %d pursuits, %d authored rows\n",
+		static_cast<int>(s.crew.size()), likes, dislikes, pursuits, authored);
+
+	auto byType = [&](const char *type) {
+		for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+			if (s.crew[i].type == type) return i;
+		return -1;
+	};
+	const int janeway = byType("janeway"), kim = byType("kim"), torres = byType("torres");
+	const int doctor = byType("doctor"), seven = byType("seven"), chakotay = byType("chakotay");
+	auto firstAuthored = [&](int who, const char *topic) {
+		for (const Affinity &a : s.crew[who].likes)
+			if (a.authored && std::strcmp(AffinityTopicName(a.topic), topic) == 0) return a;
+		return Affinity{};
+	};
+	if (janeway >= 0) {
+		const Affinity a = firstAuthored(janeway, "food");
+		std::printf("  AUTHORED: %s -- likes \"%s\" (%s, %+.2f); allegiance %s (%+.2f)\n",
+			s.crew[janeway].name.c_str(), a.thing.c_str(), AffinityTopicName(a.topic), a.strength,
+			AllegianceName(s.crew[janeway].allegiance.to), s.crew[janeway].allegiance.strength);
+	}
+	if (kim >= 0) {
+		const Affinity a = firstAuthored(kim, "music");
+		std::printf("  AUTHORED: %s -- likes \"%s\" (%s, %+.2f)\n",
+			s.crew[kim].name.c_str(), a.thing.c_str(), AffinityTopicName(a.topic), a.strength);
+	}
+	if (doctor >= 0) {
+		const Affinity a = firstAuthored(doctor, "program");
+		std::printf("  AUTHORED: %s -- likes \"%s\" (%s, %+.2f)\n",
+			s.crew[doctor].name.c_str(), a.thing.c_str(), AffinityTopicName(a.topic), a.strength);
+	}
+	if (torres >= 0)
+		std::printf("  AUTHORED: %s -- allegiance %s (%+.2f)\n", s.crew[torres].name.c_str(),
+			AllegianceName(s.crew[torres].allegiance.to), s.crew[torres].allegiance.strength);
+	bool sevenMusic = false, chakotayBoxing = false;
+	if (seven >= 0) for (const Affinity &a : s.crew[seven].likes)
+		if (a.authored && a.thing.find("music") != std::string::npos) sevenMusic = true;
+	if (chakotay >= 0) for (const Affinity &a : s.crew[chakotay].likes)
+		if (a.authored && a.thing.find("boxing") != std::string::npos) chakotayBoxing = true;
+	std::printf("  NOT AUTHORED: Seven's music studies (%s), Chakotay's boxing (%s) -- the two the document could not verify\n",
+		sevenMusic ? "AUTHORED, WRONG" : "absent, as required",
+		chakotayBoxing ? "AUTHORED, WRONG" : "absent, as required");
+
+	// One event, two crew: the first thing one person loves and another dislikes.
+	std::string thing;
+	int liker = -1, disliker = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()) && liker < 0; ++i)
+		for (const Affinity &l : s.crew[i].likes) {
+			for (int j = 0; j < static_cast<int>(s.crew.size()) && liker < 0; ++j) {
+				if (i == j) continue;
+				for (const Affinity &d : s.crew[j].dislikes)
+					if (l.thing == d.thing) { thing = l.thing; liker = i; disliker = j; break; }
+			}
+			if (liker >= 0) break;
+		}
+	if (liker >= 0 && disliker >= 0) {
+		s.crew[liker].memories.clear();
+		s.crew[disliker].memories.clear();
+		const int subject = (liker == 5 || disliker == 5) ? 6 : 5;
+		const float base = 0.10f;
+		Remember(s, liker, MEM_ORDER, subject, MEM_SAW, base, thing);
+		Remember(s, disliker, MEM_ORDER, subject, MEM_SAW, base, thing);
+		const float up = s.crew[liker].memories.back().valence;
+		const float down = s.crew[disliker].memories.back().valence;
+		std::printf("  EVENT: \"%s\", base valence %+.2f, the same order to both\n", thing.c_str(), base);
+		std::printf("  CREW A: %s -- likes \"%s\" (%+.2f): effective %+.2f, mark %+.2f, bond %+.2f\n",
+			s.crew[liker].name.c_str(), thing.c_str(),
+			EffectiveValence(s.crew[liker], base, thing) - base, EffectiveValence(s.crew[liker], base, thing),
+			up, Bond(s, liker, subject));
+		std::printf("  CREW B: %s -- dislikes \"%s\" (%+.2f): effective %+.2f, mark %+.2f, bond %+.2f\n",
+			s.crew[disliker].name.c_str(), thing.c_str(),
+			EffectiveValence(s.crew[disliker], base, thing) - base, EffectiveValence(s.crew[disliker], base, thing),
+			down, Bond(s, disliker, subject));
+	} else {
+		std::printf("  EVENT: no loved-and-disliked thing in this roster -- the criterion is NOT shown\n");
+	}
+
+	// Choice one: the schedule picks the program they like. After 9.5 hours the alpha watch is in
+	// its recreation block, and a person with a liked program is on the holodeck with it.
+	Ship p = NewShip();
+	Tick(p, Hours(p, 9.5f));
+	bool shown = false;
+	for (const CrewMember &c : p.crew) {
+		if (c.program.empty()) continue;
+		std::printf("  PROGRAM: %s -- recreation on deck %d, program \"%s\" (liked %+.2f)\n",
+			c.name.c_str(), static_cast<int>(c.deck), c.program.c_str(),
+			EffectiveValence(c, 0.0f, c.program));
+		shown = true;
+		break;
+	}
+	if (!shown) std::printf("  PROGRAM: none observed -- the criterion is NOT shown\n");
+
+	// Choice two: the loved task is the job they ask for from the queue.
+	Ship q = NewShip();
+	DamageSystem(q, SYS_SENSORS, 0.5f);
+	Tick(q, 1.0f);
+	shown = false;
+	for (int i = 0; i < static_cast<int>(q.crew.size()); ++i) {
+		const int j = VolunteerJob(q, i);
+		if (j < 0) continue;
+		std::printf("  TASK: %s asks for job %d (%s); the queue's first repair is job %d\n",
+			q.crew[i].name.c_str(), j, JobKindName(q.jobs[j].kind),
+			[&] { for (int k = 0; k < static_cast<int>(q.jobs.size()); ++k) if (q.jobs[k].kind == JOB_REPAIR) return k; return -1; }());
+		shown = true;
+		break;
+	}
+	if (!shown) std::printf("  TASK: none observed -- the criterion is NOT shown\n");
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--bills")) return PrintBills();
@@ -10359,6 +10677,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--assimilation")) return PrintAssimilation();
 	if (argc > 1 && !std::strcmp(argv[1], "--starts")) return PrintStarts();
 	if (argc > 1 && !std::strcmp(argv[1], "--appearance")) return PrintAppearance();
+	if (argc > 1 && !std::strcmp(argv[1], "--affinities")) return PrintAffinities();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -10375,6 +10694,10 @@ int main(int argc, char **argv)
 	TestFuel();
 	TestRoster();
 	TestNineDepartments();
+	TestAffinityRecord();
+	TestAffinityValence();
+	TestBondFoldUnchangedWithoutAffinity();
+	TestAffinityChoice();
 	TestComplementIsHullData();
 	TestSchedule();
 	TestADayAboard();

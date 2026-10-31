@@ -174,6 +174,13 @@ substance of the brief's point and stands.
 | `HasTrait` | `const CrewMember &c, uint8_t trait` | has trait | play | — | — |
 | `DeriveCharacter` | `CrewMember &c, uint32_t &rng` | The derivation: given the record (its identity, department, rank and species) and a seed stream, fills the four kinds and the drives | play | — | — |
 | `DeriveSpecies` | `uint8_t dept, uint32_t &rng` | Species for a record: named crew carry theirs; a generated member draws one from the seed | play | — | — |
+| `DeriveAffinities` | `CrewMember &c, uint32_t seed` | The affinity record -- likes, dislikes, pursuits and allegiance -- generated from the roster seed and authored over for the named few (docs/affinities-and-allegiance.md) | play | — | docs/affinities-and-allegiance.md |
+| `EffectiveValence` | `const CrewMember &c, float base, const std::string &thing` | Entry one: the valence fold. A matching like raises and a matching dislike lowers the mark; no match leaves the base exactly as it was, so the bond store is unchanged | play | person | docs/affinities-and-allegiance.md |
+| `PreferredProgram` | `const CrewMember &c` | Entry two: the program the schedule picks in a recreation hour, or empty | play | person | docs/affinities-and-allegiance.md |
+| `PreferredTask` | `const CrewMember &c` | Entry two: the kind of work the person asks for from the queue, or empty | play | person | docs/affinities-and-allegiance.md |
+| `AffinityTopicName` | `uint8_t t` | the name of an affinity topic: food, program, music, game, craft, person, task | nothing | — | docs/affinities-and-allegiance.md |
+| `PursuitKindName` | `uint8_t p` | the name of a pursuit: a holonovel, a meal, a model, a poem, a piece of music | nothing | — | docs/affinities-and-allegiance.md |
+| `AllegianceName` | `uint8_t a` | what a person is to: Starfleet, the Maquis, a Delta native, a civilian, Borg-recovered | nothing | — | docs/affinities-and-allegiance.md |
 | `DeriveAppearance` | `CrewMember &c, uint32_t &rng` | The appearance derivation: the face is part of the person, so it comes from the same seed as the traits and is never stored | play | — | docs/character-attributes.md |
 | `AppearanceHeadModel` | `const Appearance &a` | The head model ("dir/skin") a derived appearance resolves to, or null for a named record | play | — | docs/character-attributes.md |
 | `AppearanceBuildName` | `uint8_t build` | The body build name: crewthin or crewfemale | play | — | — |
@@ -303,8 +310,8 @@ substance of the brief's point and stands.
 | `HoldFuneral` | `Ship &s` | Grief: a funeral, when there is time to hold one, lifts the crew who have been lost and are missed | console | — | — |
 | `KillCrew` | `Ship &s, int crew, const std::string &cause` | A death, by name and cause: the record is closed, command is notified, the quarters are sealed and whoever is on the deck remembers it | play | person | — |
 | `Promote` | `Ship &s, int crew` | The player's career: a promotion within the complement, given the trust and the rank | play | person | — |
-| `Remember` | `Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence` | remember | play | person | — |
-| `Brief` | `Ship &s, uint16_t event, float valence` | brief | console | — | — |
+| `Remember` | `Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence, const std::string &touched = std::string()` | remember; `touched` is the thing the event was about, and the affinity fold reads it | play | person | docs/affinities-and-allegiance.md |
+| `Brief` | `Ship &s, uint16_t event, float valence, const std::string &touched = std::string()` | brief, with the thing the event touched passed to each mark | console | — | docs/affinities-and-allegiance.md |
 | `MakePromise` | `Ship &s, int officer, int crew, PromiseKind kind, const std::string &what, double deadline = -1.0` | A promise: an officer commits in front of a crew member; the mark is written naming the promiser, and the claim is held | console | person | — |
 | `ResolvePromise` | `Ship &s, int index, bool kept` | resolve promise | play | — | — |
 | `SignReport` | `Ship &s, int signer, uint8_t audience` | sign report | play | person | — |
@@ -461,6 +468,7 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `RecordScenario` | `Ship &s, const std::string &name, int branch` | Record a scenario as fired, or resolved to a branch | content | — | docs/scenario-manifest.md |
 | `JobKindName` | `uint8_t k` | job kind name | play | — | — |
 | `Jobs` | `const Ship &s` | The queue as it stands after this tick (rebuilt from the ship's state, plus the player's build jobs, order preserved for the jobs that persist) | play | — | — |
+| `VolunteerJob` | `const Ship &s, int crew` | Entry two: the job this person asks for -- the first queue entry whose kind is the task they like best, or -1 | play | person | docs/affinities-and-allegiance.md |
 | `BandName` | `uint8_t band` | band name | play | — | — |
 | `BandOf` | `SystemId id` | band of | play | post | — |
 | `Day` | `` | day | play | — | — |
@@ -607,15 +615,22 @@ command console; evidence in `docs/evidence/the-bills.md`.
 
 ## The counts (Task B)
 
-<!-- register-counts play=302 console=161 nothing=34 content=5 total=502 -->
+<!-- register-counts play=307 console=161 nothing=37 content=5 total=510 -->
 
 **The current count, machine-checked.** The marker above is the register's own count, re-derived from its
 rows and checked against the surface of `module/ship/ship_core.h` by
 `tools/docs/check_register_counts.py` (class 4 of `scripts/docs-check.sh`), which fails if it drifts from
 either. The dated paragraphs further down are the record of each pass's count at its date; this marker is
 what the register actually is now, so a reader sizes work on it and not on the prose above or below.
-**By reach:** play **300**, console **159**, nothing **34**, content **5**; **total 498**. (The counts in
+**By reach:** play **307**, console **161**, nothing **37**, content **5**; **total 510**. (The counts in
 the "By group" table and the dated re-derivations below are kept as history and are not the current count.)
+
+**Re-derived 2026-10-31, the affinities record (Stage D slice 1).** Eight hooks are added:
+`DeriveAffinities`, `EffectiveValence`, `PreferredProgram`, `PreferredTask` and `VolunteerJob` are
+reached in play; `AffinityTopicName`, `PursuitKindName` and `AllegianceName` are reached only by the
+tests' evidence print for now. `Remember` and `Brief` gain the optional `touched` argument the fold
+reads. The marker above is the rows counted: 302 + 5 play, 34 + 3 nothing, total 502 + 8 = 510.
+Evidence: `docs/evidence/affinities.md`.
 
 **By group.**
 
@@ -863,8 +878,8 @@ has and the game does not yet offer.
 `docs/the-entry-point.md`, part three: **content addresses a post; the simulation resolves the
 post to a person.** The `law` column marks every hook the rule binds.
 
-- **Takes a person** (`39`): the hook accepts a resolved crew index, so content must resolve a
-  post to that person and must never write a name into a scenario. They are: `Sicken`, `Cure`, `WorkReading`, `OfferRisingTo`, `AttemptRising`, `RetellRising`, `CoverWithCrew`, `WritePersonalLog`, `PersonalLog`, `TakeMind`, `HeldByCollective`, `CollectiveVoice`, `SetAllocationBy`, `GrantBand`, `RevokeBand`, `RecoverCaptive`, `Hearing`, `Loyalty`, `EndHolodeckProgram`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`, `Brig`, `Brigged`, `KillCrew`, `Promote`, `Remember`, `MakePromise`, `SignReport`, `RunHolodeck`, `CastVoice`, `CastIsCanon`.
+- **Takes a person** (`40`): the hook accepts a resolved crew index, so content must resolve a
+  post to that person and must never write a name into a scenario. They are: `Sicken`, `Cure`, `WorkReading`, `OfferRisingTo`, `AttemptRising`, `RetellRising`, `CoverWithCrew`, `WritePersonalLog`, `PersonalLog`, `TakeMind`, `HeldByCollective`, `CollectiveVoice`, `SetAllocationBy`, `GrantBand`, `RevokeBand`, `RecoverCaptive`, `Hearing`, `Loyalty`, `EndHolodeckProgram`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`, `Brig`, `Brigged`, `KillCrew`, `Promote`, `Remember`, `VolunteerJob`, `MakePromise`, `SignReport`, `RunHolodeck`, `CastVoice`, `CastIsCanon`.
 - **Addressed by a post** (`49`), the compliant form: `Spec`, `StationOf`, `StationName`, `OperatedFrom`, `StationReads`, `WorkContextOf`, `OfferRising`, `BandOf`, `UseSystem`, `UseSystemBy`, `SetEnabled`, `SetPriority`, `SetAllocation`, `AllocationPercent`, `AllocationSource`, `AllocationProvenance`, `DamageSystem`, `Repair`, `CounterHack`, `Hijacked`, `EffectiveDemand`, `MayOperate`, `MayCallAlert`, `BeginOverride`, `ConfirmOverride`, `OverrideActive`, `AccessRefusal`, `OperatedFromRefusal`, `CollectiveOperates`, `CollectiveRefusal`, `Qualified`, `PlayerMayOperate`, `MeetingLineKey`, `MeetingLineSeconds`, `SystemIdByName`.
 - **Both forms exist** (`14`; content must use the post): `WorkReading`, `OfferRisingTo`, `AttemptRising`, `SetAllocationBy`, `Delegate`, `RevokeDelegation`, `DelegatedTo`, `RevokeCredential`, `LockOut`, `ClearLockout`, `LockedOut`, `LockoutNotice`, `MayCallUp`, `Train`.
 
