@@ -769,14 +769,14 @@ Two things that table will not say by itself, and should:
 | 22 | "Starfleet junior, lower decks, Maquis …, and the chair" (`the-entry-point.md:166`) | implemented | `CareerPath:1798-1804`; `ship_core.cpp:1140-1154` | |
 | 23 | "every authored line … must address people by post and role — never by name" (`the-entry-point.md:174`) | partial | `OfferRisingTo:775-778` | resolution exists; no scenario content; validator does not enforce |
 | 24 | "three proving cases … canon default, the captain, an all-fictitious crew" (`the-entry-point.md:214`) | implemented | `ship_core.cpp:4581-4610`; `scripts/configurator-check.sh` | |
-| 25 | "the game can end in arrival at Earth, and it will be a joke ending" (`endings.md:9`) | absent | `won` only logs "the ship is home" `ship_core.cpp:3535-3536` | no arrival clip |
-| 26 | "the game hands back the run: the whole record, searchable" (`endings.md:34`) | absent | no end-of-run handback | |
-| 27 | "same clip … three seconds … whether seventy years or seventy seconds" (`endings.md:45`) | absent | no clip exists | |
-| 28 | "a destination declares which part of the record it reads" (`endings.md:58`) | absent | no destination table | |
-| 29 | "the set is accrued, not selected" (reputation) (`endings.md:63`) | absent | no reputation in `module/` | |
+| 25 | "the game can end in arrival at Earth, and it will be a joke ending" (`endings.md:9`) | implemented | `ReadEnding`/`DEST_EARTH`; `StartArrival`; `TestEndingReaders` | arrival timer and reading; picture is a stand-in |
+| 26 | "the game hands back the run: the whole record, searchable" (`endings.md:34`) | implemented | `EndingLog`; `FinishArrival` in `g_ship.cpp`; `TestEndingArrival` | the official log is the last printed frame |
+| 27 | "same clip … three seconds … whether seventy years or seventy seconds" (`endings.md:45`) | implemented | `ARRIVAL_MS = 3000`; `scripts/ending-check.sh` | engine camera + fade, same timer for every route; visual stand-in |
+| 28 | "a destination declares which part of the record it reads" (`endings.md:58`) | implemented | `DESTINATIONS`; `ReadEnding`; `TestEndingReaders` | six readers |
+| 29 | "the set is accrued, not selected" (reputation) (`endings.md:63`) | partial | `DestinationAvailable`, `DestinationsFor` | accrued from promises, funerals, minds, traders and a purge; no separate reputation field |
 | 30 | "exactly one unwinnable end state, the core breach" (`endings.md:73`) | implemented | `lost` `ship_core.h:1979`; `ship_core.cpp:6513-6522` | |
-| 31 | "Earth: always reachable; not always welcoming" (`endings.md:80`) | absent | Earth not modelled | |
-| 32 | "the crew get a vote … the veto fires once, at the destination" (`endings.md:187`) | absent | no vote/destination code | |
+| 31 | "Earth: always reachable; not always welcoming" (`endings.md:80`) | implemented | `DestinationAvailable(DEST_EARTH)`; `TestEndingAvailability` | always open; the reading may be a trial |
+| 32 | "the crew get a vote … the veto fires once, at the destination" (`endings.md:187`) | absent | no vote/destination code | still not built |
 | 33 | "mode 1 … the SP path runs the campaign, saves and reloads" (`client-modes.md:9`) | partial | `scripts/exits-check.sh:42` retail quit proven | full campaign/save not automated here |
 | 34 | "mode 2 … retail Holomatch, over a LAN or a VPN" (`client-modes.md:10`) | partial | `scripts/run-cmod.sh:23` | launcher staged; no match test |
 | 35 | "mode 2 is cMod as shipped — zero delta from us" (`client-modes.md:73`) | implemented | `scripts/run-cmod.sh:4-5` | |

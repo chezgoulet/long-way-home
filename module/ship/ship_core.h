@@ -2967,11 +2967,72 @@ bool Pursued(const Ship &s);
 int PursuitJumps(const Ship &s);
 
 // More sectors, and an end to reach (S9): reaching the last beacon marks the end; crossing it opens
-// the next sector, and the third crossed is home. Returns true if a sector was crossed.
+// the next sector, and the third crossed is the run's end. Returns true if a sector was crossed.
 bool AtEnd(const Ship &s);
 bool Won(const Ship &s);
 int SectorNumber(const Ship &s);
 bool AdvanceSector(Ship &s);
+
+// ---- destinations, the ending, and the log as the last frame (docs/endings.md) -------------------
+//
+// A destination is **a reader plus a place**. It declares which part of the record it reads, and the
+// reading of one run differs by reader -- the ending is the reading, not a score screen. The set is
+// **accrued** from the record, not selected: Earth is always open, and every other destination is
+// open only when the run has given it a reason to be. No destination is ranked: the array's order is
+// the order the design names them, and there is no score, quality or rank field anywhere in it.
+enum DestinationId : uint8_t {
+	DEST_EARTH = 0,
+	DEST_KLINGON_EMPIRE,
+	DEST_DELTA_SETTLEMENT,
+	DEST_COLLECTIVE,
+	DEST_SALE,
+	DEST_NO_READER,
+	DEST_COUNT
+};
+
+struct Destination {
+	DestinationId id;
+	const char *name;    // the shipped name, neutral: a place, not a verdict
+	const char *reader;  // who reads the record
+	const char *lens;    // what part of the record they read
+	const char *offer;   // what makes it part of the accrued set
+};
+const Destination &DestinationSpec(DestinationId d);
+const Destination *Destinations();  // DEST_COUNT entries, in the design's order (not a ranking)
+DestinationId DestinationByName(const std::string &name); // DEST_COUNT when no destination matches
+
+// The set this run has earned. Earth is always in it; nothing else is guaranteed.
+std::vector<DestinationId> DestinationsFor(const Ship &s);
+bool DestinationAvailable(const Ship &s, DestinationId d);
+
+// One reader's reading of the record. Pure: the same ship and the same destination always read the
+// same. `filed` is Earth's one last question -- arriving at Earth and reporting to Starfleet are
+// separable, and declining to file still cuts to the log, unread.
+struct EndingReading {
+	DestinationId destination = DEST_EARTH;
+	std::string reader;
+	std::string lens;
+	bool filed = true;     // Earth: was the record filed?
+	bool read = true;      // false when the player declined to file at Earth
+	std::vector<std::string> lines; // the evidence the reader reads, in the reader's own terms
+	std::string conclusion;
+};
+EndingReading ReadEnding(const Ship &s, DestinationId d, bool filed = true);
+bool MayFileAt(DestinationId d);   // Earth only
+
+// The tone words an ending may not use: they rank destinations or smuggle a verdict. The assertion
+// is over the shipped strings (the destination table and the readings), not over a pull-request body.
+std::vector<std::string> EndingToneFindings(const std::vector<std::string> &strings);
+std::vector<std::string> EndingToneFindings();
+
+// The arrival is three seconds on the engine's own camera, with no decisions, the same for every
+// destination and every route (including a conduit). The log follows it and is the last frame.
+const int ARRIVAL_MS = 3000;
+const int ARRIVAL_SECONDS = ARRIVAL_MS / 1000;
+
+// The log as the last frame: the whole official record, oldest first. The destination does not edit
+// it; a purge leaves it empty, and the reading says so.
+std::vector<LogEntry> EndingLog(const Ship &s);
 
 // ---- the stations' purposes (S4) ------------------------------------------------------------------
 //

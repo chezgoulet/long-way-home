@@ -4356,7 +4356,7 @@ bool Disengage(Ship &s)
 	return Jump(s, best);
 }
 
-// Cross into the next sector when this one's end is reached; the third crossed is home.
+// Cross into the next sector when this one's end is reached; the third crossed is the run's end.
 bool AdvanceSector(Ship &s)
 {
 	if (!s.reachedEnd) return false;
@@ -4364,7 +4364,7 @@ bool AdvanceSector(Ship &s)
 	++s.sectorNumber;
 	if (s.sectorNumber >= SECTORS_TO_CROSS) {
 		s.won = true;
-		LogEvent(s, CommandingOfficer(s), "outside", "the ship is home");
+		LogEvent(s, CommandingOfficer(s), "outside", "the run is at its end");
 		return true;
 	}
 	BuildSector(s, s.sectorNumber);
@@ -4376,6 +4376,369 @@ bool AdvanceSector(Ship &s)
 	LogEvent(s, CommandingOfficer(s), "outside", "crossing into sector " + std::to_string(s.sectorNumber + 1));
 	return true;
 }
+
+// ---- destinations and the ending (docs/endings.md) ----------------------------------------------
+//
+// The design's law is the shape of this table: a destination is a reader plus a place, never a
+// verdict. The array is in the order the design names the destinations, and that order is the only
+// order there is -- there is no rank, score or quality field to sort by, and no reading says that
+// one destination is better than another. The names depart from the document in two places, both
+// recorded in the evidence: "A Delta Quadrant settlement" for the document's "A Delta Quadrant
+// home", because "home" is a tone word; and "A sale of the ship" for "The cynical one", because
+// "cynical" is a judgement. "The Collective" names the reader the document calls "A half-assimilated
+// arrival"; and "No reader" is the document's "No reader at all".
+static const Destination DESTINATIONS[DEST_COUNT] = {
+	{ DEST_EARTH,             "Earth",                       "Starfleet",   "the month reports and the regulations",                 "always open" },
+	{ DEST_KLINGON_EMPIRE,    "The Klingon Empire",          "the Klingon Empire", "the deaths, the funerals and the promises kept", "a funeral held, or a promise kept" },
+	{ DEST_DELTA_SETTLEMENT,  "A Delta Quadrant settlement",  "a settlement in this quadrant", "the promises made here and the people who would stay", "a promise kept here, and a crew that would stay" },
+	{ DEST_COLLECTIVE,        "The Collective",               "the Collective", "the minds it holds and the private log inside them", "a mind taken" },
+	{ DEST_SALE,              "A sale of the ship",           "a buyer",     "the hull, the decks and the crew as a lot",            "a trader met and a hull to sell" },
+	{ DEST_NO_READER,         "No reader",                    "nobody",      "nothing: the record went quiet",                       "the published log purged, or no crew left" },
+};
+
+const Destination &DestinationSpec(DestinationId d)
+{
+	return d < DEST_COUNT ? DESTINATIONS[d] : DESTINATIONS[0];
+}
+
+const Destination *Destinations() { return DESTINATIONS; }
+
+static bool EndingSameNoCase(const std::string &a, const std::string &b)
+{
+	if (a.size() != b.size()) return false;
+	for (size_t i = 0; i < a.size(); ++i)
+		if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) return false;
+	return true;
+}
+
+static bool EndingStartsWithNoCase(const std::string &text, const std::string &prefix)
+{
+	if (prefix.size() > text.size()) return false;
+	for (size_t i = 0; i < prefix.size(); ++i)
+		if (std::tolower(static_cast<unsigned char>(text[i])) != std::tolower(static_cast<unsigned char>(prefix[i]))) return false;
+	return true;
+}
+
+DestinationId DestinationByName(const std::string &name)
+{
+	if (name.empty()) return DEST_COUNT;
+	if (name.size() == 1 && name[0] >= '0' && name[0] <= '9') {
+		const int n = name[0] - '0';
+		return n < DEST_COUNT ? static_cast<DestinationId>(n) : DEST_COUNT;
+	}
+	for (int i = 0; i < DEST_COUNT; ++i)
+		if (EndingSameNoCase(name, DESTINATIONS[i].name)) return DESTINATIONS[i].id;
+	// The names a console or a scenario is likely to use, beside the shipped name.
+	static const struct { const char *word; DestinationId id; } ALIASES[] = {
+		{ "klingon", DEST_KLINGON_EMPIRE }, { "qonos", DEST_KLINGON_EMPIRE }, { "qo'nos", DEST_KLINGON_EMPIRE },
+		{ "settlement", DEST_DELTA_SETTLEMENT }, { "delta", DEST_DELTA_SETTLEMENT },
+		{ "collective", DEST_COLLECTIVE }, { "borg", DEST_COLLECTIVE }, { "unimatrix", DEST_COLLECTIVE },
+		{ "sale", DEST_SALE }, { "sell", DEST_SALE }, { "buyer", DEST_SALE },
+		{ "none", DEST_NO_READER }, { "silence", DEST_NO_READER }, { "quiet", DEST_NO_READER },
+	};
+	for (const auto &a : ALIASES)
+		if (EndingSameNoCase(name, a.word)) return a.id;
+	for (int i = 0; i < DEST_COUNT; ++i)
+		if (EndingStartsWithNoCase(DESTINATIONS[i].name, name)) return DESTINATIONS[i].id;
+	return DEST_COUNT;
+}
+
+// The record's own counts, each one a read of state the simulation already keeps. Nothing here
+// reads the log to decide anything: the log counts are for the readers that read the log.
+static int EndingDead(const Ship &s)
+{
+	int n = 0;
+	for (const CrewMember &c : s.crew) if (c.status == CREW_DEAD) ++n;
+	return n;
+}
+
+static int EndingAssimilated(const Ship &s)
+{
+	int n = 0;
+	for (const CrewMember &c : s.crew) if (c.status == CREW_ASSIMILATED) ++n;
+	return n;
+}
+
+static int EndingMarks(const Ship &s, uint16_t event)
+{
+	int n = 0;
+	for (const CrewMember &c : s.crew)
+		for (const Memory &m : c.memories) if (m.event == event) ++n;
+	return n;
+}
+
+// A funeral is a person buried once, however many witnesses carry the mark.
+static int EndingFunerals(const Ship &s)
+{
+	std::vector<char> buried(s.crew.size(), 0);
+	int n = 0;
+	for (const CrewMember &c : s.crew)
+		for (const Memory &m : c.memories)
+			if (m.event == MEM_FUNERAL) {
+				if (m.person >= 0 && m.person < static_cast<int>(buried.size())) {
+					if (!buried[m.person]) { buried[m.person] = 1; ++n; }
+				} else ++n;
+			}
+	return n;
+}
+
+static int EndingPromises(const Ship &s, uint8_t state)
+{
+	int n = 0;
+	for (const Promise &p : s.promises) if (p.state == state) ++n;
+	return n;
+}
+
+static int EndingReportEdits(const Ship &s)
+{
+	int n = 0;
+	for (const MonthReport &r : s.reports)
+		for (const ReportLine &l : r.lines)
+			if (l.struck || l.added || l.text != l.draft) ++n;
+	return n;
+}
+
+static int EndingReportLines(const Ship &s)
+{
+	int n = 0;
+	for (const MonthReport &r : s.reports) n += static_cast<int>(r.lines.size());
+	return n;
+}
+
+static int EndingMinds(const Ship &s)
+{
+	int n = 0;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i)
+		if (HeldByCollective(s, i)) ++n;
+	return n;
+}
+
+static int EndingStations(const Ship &s)
+{
+	int n = 0;
+	for (int st = 0; st < STN_COUNT; ++st)
+		if (CollectiveOperates(s, static_cast<Station>(st))) ++n;
+	return n;
+}
+
+static int EndingTraders(const Ship &s)
+{
+	int n = 0;
+	for (const Beacon &b : s.sector)
+		if (b.kind == BEACON_TRADER && (b.visited || b.surveyed)) ++n;
+	return n;
+}
+
+static int EndingSurveys(const Ship &s)
+{
+	int n = 0;
+	for (const Beacon &b : s.sector) if (b.surveyed) ++n;
+	return n;
+}
+
+static int EndingWrittenOff(const Ship &s)
+{
+	int n = 0;
+	for (const Deck &d : s.decks) if (d.residue == RES_WRITTEN_OFF) ++n;
+	return n;
+}
+
+static float EndingHull(const Ship &s)
+{
+	float sum = 0.0f;
+	for (const Deck &d : s.decks) sum += d.hull;
+	return sum / static_cast<float>(DECKS);
+}
+
+static int EndingWouldStay(const Ship &s)
+{
+	int n = 0;
+	for (const CrewMember &c : s.crew)
+		if (c.allegiance.to == ALLEG_DELTA_NATIVE) ++n;
+	return n;
+}
+
+bool DestinationAvailable(const Ship &s, DestinationId d)
+{
+	switch (d) {
+	case DEST_EARTH:
+		return true; // you can always sail to Earth; the reading may be a trial
+	case DEST_KLINGON_EMPIRE:
+		// Honour is the deaths and the word given: a funeral held, or a promise kept, against the
+		// cost of a broken promise or a lie. It is a reading of the record, not a virtue score.
+		return 2 * EndingPromises(s, PROMISE_KEPT) - 2 * EndingPromises(s, PROMISE_BROKEN)
+			- EndingMarks(s, MEM_LIE) + EndingFunerals(s) >= 1;
+	case DEST_DELTA_SETTLEMENT:
+		// A settlement has to want the crew: a promise kept here, no promise broken to it, and
+		// enough people left to make a settlement rather than a memorial.
+		return EndingPromises(s, PROMISE_KEPT) > 0 && EndingPromises(s, PROMISE_BROKEN) == 0
+			&& s.CrewFit() >= (Complement(s) + 1) / 2;
+	case DEST_COLLECTIVE:
+		return EndingMinds(s) > 0;
+	case DEST_SALE:
+		return EndingTraders(s) > 0 && EndingHull(s) > 0.4f;
+	case DEST_NO_READER:
+		return s.logPurged || s.CrewFit() == 0;
+	default:
+		return false;
+	}
+}
+
+std::vector<DestinationId> DestinationsFor(const Ship &s)
+{
+	std::vector<DestinationId> out;
+	for (int d = 0; d < DEST_COUNT; ++d)
+		if (DestinationAvailable(s, static_cast<DestinationId>(d))) out.push_back(static_cast<DestinationId>(d));
+	return out;
+}
+
+bool MayFileAt(DestinationId d) { return d == DEST_EARTH; }
+
+EndingReading ReadEnding(const Ship &s, DestinationId d, bool filed)
+{
+	EndingReading r;
+	r.destination = d;
+	const Destination &spec = DestinationSpec(d);
+	r.reader = spec.reader;
+	r.lens = spec.lens;
+	r.filed = MayFileAt(d) ? filed : true;
+	r.read = r.filed;
+	const int dead = EndingDead(s);
+	const int assimilated = EndingAssimilated(s);
+	const int funerals = EndingFunerals(s);
+	const int kept = EndingPromises(s, PROMISE_KEPT);
+	const int broken = EndingPromises(s, PROMISE_BROKEN);
+	const int lies = EndingMarks(s, MEM_LIE);
+	const int edits = EndingReportEdits(s);
+	const int reportLines = EndingReportLines(s);
+	const int signedReports = static_cast<int>(s.reports.size());
+	const int official = static_cast<int>(s.log.size());
+	const int personal = static_cast<int>(s.personalLog.size());
+	const int minds = EndingMinds(s);
+	const int stations = EndingStations(s);
+
+	switch (d) {
+	case DEST_EARTH:
+		r.lines.push_back("month reports signed: " + std::to_string(signedReports)
+			+ "; drafted and unsigned: " + std::to_string(s.report.lines.empty() ? 0 : 1));
+		r.lines.push_back("report lines altered from the draft: " + std::to_string(edits)
+			+ " of " + std::to_string(reportLines));
+		r.lines.push_back("official log entries: " + std::to_string(official)
+			+ "; personal entries: " + std::to_string(personal));
+		r.lines.push_back("promises kept: " + std::to_string(kept) + "; broken: " + std::to_string(broken));
+		r.lines.push_back("deaths recorded: " + std::to_string(dead));
+		if (filed) r.conclusion = "Starfleet reads the month reports and the regulations; the reading is the record as filed, "
+			"with every difference between the draft and the signed report still in it.";
+		else r.conclusion = "The ship arrived at Earth; the record was not filed. It is handed back unread.";
+		break;
+	case DEST_KLINGON_EMPIRE:
+		r.lines.push_back("deaths recorded: " + std::to_string(dead));
+		r.lines.push_back("funerals recorded: " + std::to_string(funerals));
+		r.lines.push_back("promises kept: " + std::to_string(kept) + "; broken: " + std::to_string(broken));
+		r.lines.push_back("marks of a lie: " + std::to_string(lies));
+		r.lines.push_back("report lines altered from the draft: " + std::to_string(edits));
+		r.lines.push_back("clean intercepts recorded: " + std::to_string(s.cleanIntercepts));
+		r.conclusion = "The Klingon Empire reads the deaths and the word given: the dead are named, the funerals are counted, "
+			"and each promise is read as kept or broken.";
+		break;
+	case DEST_DELTA_SETTLEMENT:
+		r.lines.push_back("promises kept: " + std::to_string(kept) + "; broken: " + std::to_string(broken));
+		r.lines.push_back("crew who would stay: " + std::to_string(EndingWouldStay(s)));
+		r.lines.push_back("crew fit: " + std::to_string(s.CrewFit()) + " of " + std::to_string(Complement(s)));
+		r.lines.push_back("contacts surveyed: " + std::to_string(EndingSurveys(s)));
+		r.lines.push_back("rations: " + std::to_string(static_cast<int>(s.stores.rations + 0.5f)) + " days");
+		r.conclusion = "The settlement reads the promises made in this quadrant and the people who would stay; "
+			"the reading is the promises and the crew it would hold.";
+		break;
+	case DEST_COLLECTIVE:
+		r.lines.push_back("minds held: " + std::to_string(minds));
+		r.lines.push_back("of those, wholly assimilated: " + std::to_string(assimilated));
+		r.lines.push_back("private entries taken: " + std::to_string(static_cast<int>(CollectiveLog(s).size())));
+		r.lines.push_back("stations the taken could operate: " + std::to_string(stations) + " of " + std::to_string(STN_COUNT));
+		r.conclusion = "The Collective reads the minds it holds and the private log inside them; "
+			"the reading is what it took.";
+		break;
+	case DEST_SALE:
+		r.lines.push_back("decks written off: " + std::to_string(EndingWrittenOff(s)) + " of " + std::to_string(DECKS));
+		r.lines.push_back("hull: " + std::to_string(static_cast<int>(EndingHull(s) * 100.0f + 0.5f)) + "%");
+		r.lines.push_back("crew fit: " + std::to_string(s.CrewFit()) + " of " + std::to_string(Complement(s)));
+		r.lines.push_back("spare parts: " + std::to_string(static_cast<int>(s.stores.spareParts + 0.5f))
+			+ "; materials: " + std::to_string(static_cast<int>(s.stores.materials + 0.5f)));
+		r.conclusion = "The buyer reads the hull, the decks and the crew as a lot; "
+			"the reading is the condition of what is for sale.";
+		break;
+	case DEST_NO_READER:
+		r.lines.push_back("official log entries: " + std::to_string(official));
+		r.lines.push_back("signed reports: " + std::to_string(signedReports));
+		r.lines.push_back("personal entries: " + std::to_string(personal));
+		r.lines.push_back(std::string("published log purged: ") + (s.logPurged ? "yes" : "no"));
+		r.conclusion = "Nobody reads the record; the reading is the log going quiet.";
+		break;
+	default:
+		r.lines.push_back("no such destination");
+		r.conclusion = "No reading.";
+		r.read = false;
+		break;
+	}
+	return r;
+}
+
+// The tone words an ending may not use: they rank destinations or smuggle a verdict. The match is
+// case-insensitive and whole-word, so "reader" does not trip "read" and "Klingon" does not trip a
+// word inside it. The assertion is in the model and runs in the test suite, not in a pull-request body.
+static bool EndingContainsWord(const std::string &text, const char *word)
+{
+	const size_t n = std::strlen(word);
+	if (n == 0 || text.size() < n) return false;
+	for (size_t at = 0; at + n <= text.size(); ++at) {
+		bool same = true;
+		for (size_t i = 0; i < n; ++i)
+			if (std::tolower(static_cast<unsigned char>(text[at + i])) != word[i]) { same = false; break; }
+		if (!same) continue;
+		const bool left = at == 0 || !std::isalnum(static_cast<unsigned char>(text[at - 1]));
+		const bool right = at + n == text.size() || !std::isalnum(static_cast<unsigned char>(text[at + n]));
+		if (left && right) return true;
+	}
+	return false;
+}
+
+std::vector<std::string> EndingToneFindings(const std::vector<std::string> &strings)
+{
+	static const char *const WORDS[] = {
+		"better", "worse", "best", "worst", "good", "bad", "finally", "home", "safe", "safely",
+		"triumph", "victory", "victorious", "defeat", "defeated", "reward", "rewards", "punish",
+		"punished", "prefer", "preferred", "recommend", "win", "wins", "won", "lose", "loses",
+		"lost", "loss", "losses", "superior", "inferior", "should", "deserve"
+	};
+	std::vector<std::string> out;
+	for (const std::string &text : strings)
+		for (const char *word : WORDS)
+			if (EndingContainsWord(text, word)) out.push_back(std::string(word) + " in \"" + text + "\"");
+	return out;
+}
+
+std::vector<std::string> EndingToneFindings()
+{
+	std::vector<std::string> strings;
+	for (int d = 0; d < DEST_COUNT; ++d) {
+		strings.push_back(DESTINATIONS[d].name);
+		strings.push_back(DESTINATIONS[d].reader);
+		strings.push_back(DESTINATIONS[d].lens);
+		strings.push_back(DESTINATIONS[d].offer);
+	}
+	// The readings are shipped strings too: scan one reading of each destination on a plain ship.
+	const Ship plain = NewShip();
+	for (int d = 0; d < DEST_COUNT; ++d) {
+		const EndingReading r = ReadEnding(plain, static_cast<DestinationId>(d));
+		strings.push_back(r.reader);
+		strings.push_back(r.lens);
+		for (const std::string &line : r.lines) strings.push_back(line);
+		strings.push_back(r.conclusion);
+	}
+	return EndingToneFindings(strings);
+}
+
+std::vector<LogEntry> EndingLog(const Ship &s) { return s.log; }
 
 static void UpdateOutside(Ship &s, float shipSeconds)
 {

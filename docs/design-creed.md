@@ -68,9 +68,11 @@ silhouettes.
 
 The list of things we decided *not* to build is the reason the rest coheres: no point defence (canon has none),
 no time travel (the reset button we exist to refuse), no Borg-versus-holograms (unsupported), no flight sim
-(more expensive than every system combined), and section 42 deliberately left next door rather than spent in
-this room. **Every "we will not do that" is a decision that keeps the programme honest**, and it belongs in
-writing where the next agent will read it.
+(more expensive than every system combined), no **scripted arrival** (the finale's three seconds were the whole
+of it, and a run of this game accrues for seventy years -- a parade at the end would spend a beat that was
+never earned; the engine's own camera and a fade are the arrival, and the log is the last frame), and section 42
+deliberately left next door rather than spent in this room. **Every "we will not do that" is a decision that
+keeps the programme honest**, and it belongs in writing where the next agent will read it.
 
 ## 9. Write it where the builders are
 

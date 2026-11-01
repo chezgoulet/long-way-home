@@ -125,9 +125,9 @@ void LWH_CG_DrawPanelGlance( void )
 	{
 		const ship::Navigation nav = ship::NavigationCounter( *s );
 		if ( !nav.warp )
-			Com_sprintf( l4, sizeof( l4 ), "NO WARP: HOME STOPS GETTING CLOSER; %d LY OUT", static_cast<int>( nav.distanceLy + 0.5f ) );
+			Com_sprintf( l4, sizeof( l4 ), "NO WARP: THE GOAL STOPS GETTING CLOSER; %d LY OUT", static_cast<int>( nav.distanceLy + 0.5f ) );
 		else
-			Com_sprintf( l4, sizeof( l4 ), "HOME %d LY   %d YR NOM   %d YR NOW", static_cast<int>( nav.distanceLy + 0.5f ),
+			Com_sprintf( l4, sizeof( l4 ), "GOAL %d LY   %d YR NOM   %d YR NOW", static_cast<int>( nav.distanceLy + 0.5f ),
 				static_cast<int>( nav.nominalYears + 0.5f ), static_cast<int>( nav.currentYears + 0.5f ) );
 	}
 
