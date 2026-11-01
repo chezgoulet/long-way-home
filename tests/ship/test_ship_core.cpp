@@ -11039,6 +11039,205 @@ static int PrintAffinities()
 	return 0;
 }
 
+// The ending's fixture: one run that has earned every destination, so the set, the readers and the
+// neutrality of the shipped strings can be read together. It is a record, not a cheat: each field
+// is one of the things play writes -- a death and a funeral, a kept promise, a taken mind, a trader
+// met, a signed report, and a purge.
+static void EarnEveryDestination(Ship &s)
+{
+	s.crew[0].status = CREW_DEAD;
+	Remember(s, 1, MEM_FUNERAL, 0, MEM_SAW, 0.4f);
+	Promise p;
+	p.promiser = 2; p.beneficiary = 3; p.kind = PROMISE_RESCUE;
+	p.what = "the crew of the trader"; p.state = PROMISE_KEPT;
+	s.promises.push_back(p);
+	TakeMind(s, 4);
+	s.sector[s.beacon].kind = BEACON_TRADER;
+	s.sector[s.beacon].visited = true;
+	s.logPurged = true;
+	MonthReport r;
+	r.number = 1; r.signed_ = true; r.open = false;
+	ReportLine l; l.scope = "crew"; l.draft = "the crew stands"; l.text = l.draft;
+	r.lines.push_back(l);
+	s.reports.push_back(r);
+	LogEvent(s, "the conn", "outside", "the run is at its end");
+}
+
+static void TestEndingReaders()
+{
+	g_test = "one record, two readers: the reading differs and names its evidence";
+	Ship s = NewShip();
+	s.crew[0].status = CREW_DEAD;
+	Remember(s, 1, MEM_FUNERAL, 0, MEM_SAW, 0.4f);
+	Promise p;
+	p.promiser = 2; p.beneficiary = 3; p.kind = PROMISE_RESCUE; p.what = "a way off"; p.state = PROMISE_KEPT;
+	s.promises.push_back(p);
+	const size_t logBefore = s.log.size();
+
+	const EndingReading earth = ReadEnding(s, DEST_EARTH);
+	const EndingReading klingon = ReadEnding(s, DEST_KLINGON_EMPIRE);
+
+	CHECK(earth.reader == "Starfleet");
+	CHECK(klingon.reader == "the Klingon Empire");
+	CHECK(earth.reader != klingon.reader);
+	CHECK(earth.lines != klingon.lines);
+	CHECK(earth.conclusion != klingon.conclusion);
+	CHECK(earth.conclusion.find("month reports") != std::string::npos);
+	CHECK(klingon.conclusion.find("deaths") != std::string::npos);
+	CHECK(s.log.size() == logBefore); // a reading does not write the log
+
+	// Arriving at Earth and reporting to Starfleet are separable: declining to file is a reading
+	// too, and the record is handed back unread.
+	const EndingReading unfiled = ReadEnding(s, DEST_EARTH, false);
+	CHECK(MayFileAt(DEST_EARTH) && !MayFileAt(DEST_KLINGON_EMPIRE));
+	CHECK(!unfiled.read && earth.read);
+	CHECK(unfiled.conclusion != earth.conclusion);
+}
+
+static void TestEndingAvailability()
+{
+	g_test = "the destination set is accrued: Earth is always open, the others are earned";
+	Ship s = NewShip();
+	CHECK(DestinationAvailable(s, DEST_EARTH));
+	CHECK(!DestinationsFor(s).empty());
+	const size_t base = DestinationsFor(s).size();
+
+	// Earning one destination must not be the same as earning another.
+	Remember(s, 0, MEM_FUNERAL, 1, MEM_SAW, 0.4f);
+	CHECK(DestinationAvailable(s, DEST_KLINGON_EMPIRE));
+
+	Promise p;
+	p.promiser = 0; p.beneficiary = 1; p.kind = PROMISE_PROMOTION; p.what = "a post"; p.state = PROMISE_KEPT;
+	s.promises.push_back(p);
+	CHECK(DestinationAvailable(s, DEST_DELTA_SETTLEMENT));
+
+	TakeMind(s, 4);
+	CHECK(DestinationAvailable(s, DEST_COLLECTIVE));
+
+	s.sector[s.beacon].kind = BEACON_TRADER;
+	s.sector[s.beacon].visited = true;
+	CHECK(DestinationAvailable(s, DEST_SALE));
+
+	s.logPurged = true;
+	CHECK(DestinationAvailable(s, DEST_NO_READER));
+
+	const std::vector<DestinationId> all = DestinationsFor(s);
+	CHECK(all.size() == DEST_COUNT);
+	CHECK(all.size() > base);
+	for (size_t i = 0; i < all.size(); ++i) CHECK(all[i] == static_cast<DestinationId>(i)); // design order
+}
+
+static void TestEndingNeutrality()
+{
+	g_test = "no destination is presented as better: the shipped strings are neutral";
+	CHECK(EndingToneFindings().empty());
+	std::vector<std::string> planted = { "the best ending", "finally safe at home" };
+	CHECK(EndingToneFindings(planted).size() >= 3);
+	// The readings are scanned, not only the table.
+	Ship s = NewShip();
+	for (int d = 0; d < DEST_COUNT; ++d) {
+		const EndingReading r = ReadEnding(s, static_cast<DestinationId>(d));
+		std::vector<std::string> text = r.lines;
+		text.push_back(r.reader); text.push_back(r.lens); text.push_back(r.conclusion);
+		CHECK(EndingToneFindings(text).empty());
+	}
+	// There is no rank field to present one as better: the table's order is the design's.
+	CHECK(Destinations()[0].id == DEST_EARTH);
+	CHECK(Destinations()[DEST_COUNT - 1].id == DEST_NO_READER);
+}
+
+static void TestEndingArrival()
+{
+	g_test = "the arrival is three seconds, and the log is what follows";
+	CHECK(ARRIVAL_MS == 3000);
+	CHECK(ARRIVAL_SECONDS == 3);
+	Ship s = NewShip();
+	s.log.clear();
+	LogEvent(s, "the conn", "outside", "the run is at its end");
+	const std::vector<LogEntry> log = EndingLog(s);
+	CHECK(log.size() == 1);
+	CHECK(log.back().what == "the run is at its end");
+}
+
+// `test_ship_core --endings`: the observable criterion for Stage E, printed. The earned run is one
+// record read by two readers; the neutrality assertion is over the shipped string table and the
+// readings; the arrival is the one number every route shares. Returns nonzero if any criterion is
+// not shown, so the check's falsifications can fail for the reason they care about.
+static int PrintEndings()
+{
+	bool ok = true;
+	const Ship plain = NewShip();
+	std::printf("== the set the run accrued\n");
+	std::printf("  the record: %d crew, %d dead, %d held minds, %d promises, %d signed reports\n",
+		Complement(plain), 0, 0, 0, 0);
+	std::printf("  OFFERED (default run):");
+	bool first = true;
+	for (DestinationId d : DestinationsFor(plain)) {
+		std::printf("%s%s", first ? " " : ", ", DestinationSpec(d).name);
+		first = false;
+	}
+	std::printf("\n");
+	std::printf("  EARTH ALWAYS: %d\n", DestinationAvailable(plain, DEST_EARTH) ? 1 : 0);
+	if (!DestinationAvailable(plain, DEST_EARTH)) { std::printf("  FAIL  Earth is not always open\n"); ok = false; }
+
+	Ship run = NewShip();
+	EarnEveryDestination(run);
+	const std::vector<DestinationId> offers = DestinationsFor(run);
+	std::printf("  the earned run: %d crew, 1 dead, 1 held mind, 1 promise kept, 1 trader met, the log purged\n",
+		Complement(run));
+	std::printf("  OFFERED (earned run):");
+	first = true;
+	for (DestinationId d : offers) {
+		std::printf("%s%s", first ? " " : ", ", DestinationSpec(d).name);
+		first = false;
+	}
+	std::printf("\n");
+	if (offers.size() < 2) { std::printf("  FAIL  the earned run reaches fewer than two destinations\n"); ok = false; }
+
+	std::printf("== the same record, two readers\n");
+	const EndingReading earth = ReadEnding(run, DEST_EARTH);
+	const EndingReading klingon = ReadEnding(run, DEST_KLINGON_EMPIRE);
+	std::printf("  Earth line: %s\n", earth.lines.empty() ? "(none)" : earth.lines[0].c_str());
+	std::printf("  Klingon line: %s\n", klingon.lines.empty() ? "(none)" : klingon.lines[0].c_str());
+	const bool differ = earth.lines != klingon.lines && earth.conclusion != klingon.conclusion;
+	const bool named = earth.conclusion.find("month reports") != std::string::npos
+		&& klingon.conclusion.find("deaths") != std::string::npos;
+	std::printf("  readings differ: %d\n", differ ? 1 : 0);
+	std::printf("  each names what it reads: %d\n", named ? 1 : 0);
+	std::printf("  Earth reading: %s\n", earth.conclusion.c_str());
+	std::printf("  Klingon reading: %s\n", klingon.conclusion.c_str());
+	if (!differ || !named) { std::printf("  FAIL  the two readers do not read the same record differently\n"); ok = false; }
+	const EndingReading unfiled = ReadEnding(run, DEST_EARTH, false);
+	std::printf("  EARTH FILED: read %d; EARTH UNFILED: read %d, and the log is still the last frame\n",
+		earth.read ? 1 : 0, unfiled.read ? 1 : 0);
+	if (!earth.read || unfiled.read) { std::printf("  FAIL  filing is not separable from arriving\n"); ok = false; }
+
+	std::printf("== neutrality\n");
+	const std::vector<std::string> findings = EndingToneFindings();
+	std::printf("  NEUTRALITY: %d findings in the shipped strings (6 destinations x 4, plus 6 readings)\n",
+		static_cast<int>(findings.size()));
+	for (const std::string &f : findings) std::printf("    %s\n", f.c_str());
+	std::printf("  ORDER:");
+	for (int d = 0; d < DEST_COUNT; ++d) std::printf("%s%s", d ? ", " : " ", Destinations()[d].name);
+	std::printf("\n");
+	std::printf("  RANK FIELD: none (the order is the design's, not a ranking)\n");
+	if (!findings.empty()) { std::printf("  FAIL  a comparative or tone word is in a shipped ending string\n"); ok = false; }
+
+	std::printf("== the arrival\n");
+	std::printf("  ARRIVAL: %d ms (%d s), the engine's own camera and fade; one clip for every destination and route\n",
+		ARRIVAL_MS, ARRIVAL_SECONDS);
+	if (ARRIVAL_MS != 3000 || ARRIVAL_SECONDS != 3) { std::printf("  FAIL  the arrival is not three seconds\n"); ok = false; }
+	const std::vector<LogEntry> log = EndingLog(run);
+	std::printf("  THE LOG: the last frame is the official log (%d entries)\n", static_cast<int>(log.size()));
+	if (!log.empty()) std::printf("  LAST: %s\n", log.back().what.c_str());
+	else { std::printf("  FAIL  the log is empty\n"); ok = false; }
+
+	std::printf("%s\n", ok
+		? "PASS  the run reaches more than one destination; the same record is read differently by reader; no comparative or tone word is in the shipped strings; the arrival is three seconds and the log is the last frame"
+		: "FAIL  a Stage E criterion is not shown");
+	return ok ? 0 : 1;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--bills")) return PrintBills();
@@ -11077,6 +11276,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--starts")) return PrintStarts();
 	if (argc > 1 && !std::strcmp(argv[1], "--appearance")) return PrintAppearance();
 	if (argc > 1 && !std::strcmp(argv[1], "--affinities")) return PrintAffinities();
+	if (argc > 1 && !std::strcmp(argv[1], "--endings")) return PrintEndings();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -11253,6 +11453,10 @@ int main(int argc, char **argv)
 	TestScenarioContract();
 	TestScenarioEvaluator();
 	TestTextFit();
+	TestEndingReaders();
+	TestEndingAvailability();
+	TestEndingNeutrality();
+	TestEndingArrival();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

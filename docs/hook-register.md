@@ -163,7 +163,7 @@ substance of the brief's point and stands.
 | `Unpack` | `const uint8_t *data, size_t len, Ship &s` | False, leaving `s` untouched, on a truncated, foreign or newer record | play | — | — |
 
 ### 2. Situations the simulation generates on its own  
-*88 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "74 hooks"; **Corrected 2026-10-12:** one row (`ShieldHit`) was added for the shield sections, 87 → 88 rows follow.)*
+*97 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "74 hooks"; **Corrected 2026-10-12:** one row (`ShieldHit`) was added for the shield sections, 87 → 88 rows follow; **2026-10-31:** the nine ending hooks — `DestinationSpec`, `Destinations`, `DestinationByName`, `DestinationsFor`, `DestinationAvailable`, `ReadEnding`, `MayFileAt`, `EndingToneFindings`, `EndingLog` — were added, 88 → 97 rows follow.)*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -264,6 +264,15 @@ substance of the brief's point and stands.
 | `Won` | `const Ship &s` | won | nothing | — | — |
 | `SectorNumber` | `const Ship &s` | sector number | nothing | — | — |
 | `AdvanceSector` | `Ship &s` | advance sector | console | — | — |
+| `DestinationSpec` | `DestinationId d` | The destination's name, reader, lens and what makes it part of the accrued set | console | — | docs/endings.md |
+| `Destinations` | `-` | The six destinations, in the design's order and not a ranking | nothing | — | docs/endings.md |
+| `DestinationByName` | `const std::string &name` | A destination by its shipped name, an alias or its index; `DEST_COUNT` when none matches | console | — | docs/endings.md |
+| `DestinationsFor` | `const Ship &s` | The set this run has earned; Earth is always in it | console | — | docs/endings.md |
+| `DestinationAvailable` | `const Ship &s, DestinationId d` | Whether the run has given this destination a reason to be open | console | — | docs/endings.md |
+| `ReadEnding` | `const Ship &s, DestinationId d, bool filed` | One reader's reading of the record; the same ship and destination always read the same | console | — | docs/endings.md |
+| `MayFileAt` | `DestinationId d` | Earth only: arriving and reporting to Starfleet are separable | console | — | docs/endings.md |
+| `EndingToneFindings` | `const std::vector<std::string> &strings` | The comparative and tone words in a shipped ending string; empty when neutral. The assertion is in the model, not a pull-request body | nothing | — | docs/endings.md |
+| `EndingLog` | `const Ship &s` | The official log as the last frame: the whole record, oldest first | console | — | docs/endings.md |
 | `Trauma` | `const CrewMember &who` | The unprocessed weight a character carries: their negative marks, still salient | play | — | — |
 | `BuildComputerBrief` | `const Ship &s` | The computer is addressed, not convened: the same brief shape as a meeting's, built from the computer skeleton, whose pills are the ship's API | play | — | docs/staff-meetings.md |
 | `AddressComputer` | `const Ship &s, const std::string &input` | What the computer says to an input: membership in the ship's API (FindConsoleVerb); a recognised command answered from the authored line, an input outside the set refused in character ("that function is not available") with nothing invented and no state written | play | — | docs/staff-meetings.md |
@@ -622,15 +631,23 @@ command console; evidence in `docs/evidence/the-bills.md`.
 
 ## The counts (Task B)
 
-<!-- register-counts play=312 console=163 nothing=37 content=5 total=517 -->
+<!-- register-counts play=312 console=170 nothing=39 content=5 total=526 -->
 
 **The current count, machine-checked.** The marker above is the register's own count, re-derived from its
 rows and checked against the surface of `module/ship/ship_core.h` by
 `tools/docs/check_register_counts.py` (class 4 of `scripts/docs-check.sh`), which fails if it drifts from
 either. The dated paragraphs further down are the record of each pass's count at its date; this marker is
 what the register actually is now, so a reader sizes work on it and not on the prose above or below.
-**By reach:** play **312**, console **163**, nothing **37**, content **5**; **total 517**. (The counts in
+**By reach:** play **312**, console **170**, nothing **39**, content **5**; **total 526**. (The counts in
 the "By group" table and the dated re-derivations below are kept as history and are not the current count.)
+
+**Re-derived 2026-10-31, the ending (Stage E).** Nine hooks are added: the destination table and its
+reads, the neutral-string assertion, the filing question, and the log as the last frame. Seven are
+reached from the developer console (`ship destinations`, `ship ending`): `DestinationSpec`,
+`DestinationByName`, `DestinationsFor`, `DestinationAvailable`, `ReadEnding`, `MayFileAt`,
+`EndingLog`. Two are reached only by the tests and the model's own assertion (`Destinations` and
+`EndingToneFindings`). The marker above is the rows counted: 312 play, 163 + 7 console, 37 + 2
+nothing, 5 content; total 517 + 9 = 526. Evidence: `docs/evidence/endings.md`.
 
 **Re-derived 2026-10-31, the two logs and the purge (Stage D slice 3).** Two readers are added.
 `IsMeetingReport` names the published report's kind in one place, used by `ship log` to mark a report
@@ -841,11 +858,11 @@ developer console reaches it too (`ship startstate ...`).
 scenario author and the owner should read first: every one of these is a mechanism the simulation
 has and the game does not yet offer.
 
-### Reached only from the developer console (138)
+### Reached only from the developer console (145)
 
 **1. Entry points** (37): `OfferRising`, `OfferRisingTo`, `AttemptRising`, `NextRisingRoll`, `WritePersonalLog`, `VoiceWrite`, `VoiceRetire`, `EmitCue`, `QueueRender`, `CacheRendered`, `PruneVoiceCache`, `PlanMeetingAudio`, `WarmVoice`, `Repair`, `RepairDeck`, `LoadAwayKit`, `LaunchShuttle`, `RecallShuttle`, `LoseShuttle`, `ShuttleBayHit`, `RebuildShuttle`, `TractorWreck`, `TractorHold`, `LaunchProbe`, `RespondPhenomenon`, `FabricateParts`, `FabricateRations`, `MineBelt`, `EVA`, `TakeSurvivors`, `ObservePreWarp`, `InterferePreWarp`, `ReconcileFactions`, `Survey`, `CatchUp`, `Suspend`, `Sleep`
 
-**2. Situations the simulation generates on its own** (14): `EffectiveSkill`, `WorkContextName`, `WorkReading`, `DamageSystem`, `DamageSource`, `BreachDeck`, `IgniteDeck`, `Board`, `BoardAs`, `BoardBorg`, `JumpStartFromHolodeck`, `Pursued`, `AdvanceSector`, `NoveltyVerdictCount`
+**2. Situations the simulation generates on its own** (21): `EffectiveSkill`, `WorkContextName`, `WorkReading`, `DamageSystem`, `DamageSource`, `BreachDeck`, `IgniteDeck`, `Board`, `BoardAs`, `BoardBorg`, `JumpStartFromHolodeck`, `Pursued`, `AdvanceSector`, `NoveltyVerdictCount`, `DestinationSpec`, `DestinationByName`, `DestinationsFor`, `DestinationAvailable`, `ReadEnding`, `MayFileAt`, `EndingLog`
 
 **3. Outcomes content can ask for** (18): `SetAllocationBy`, `Hearing`, `SetMobileEmitter`, `EndHolodeckProgram`, `SetAirponics`, `Delegate`, `RevokeDelegation`, `RevokeCredential`, `LockOut`, `ClearLockout`, `Train`, `Brig`, `HoldFuneral`, `Brief`, `MakePromise`, `RunHolodeck`, `ImproveQuarters`, `SetRole`
 
@@ -854,7 +871,7 @@ has and the game does not yet offer.
 **5. Assimilation — what the Collective takes** (7, docs/the-record-and-the-log.md): `TakeMind`, `HeldByCollective`, `CollectiveLog`, `CollectiveMarks`, `CollectiveOperates`, `CollectiveRefusal`, `CollectiveVoice`. The Borg tick calls `TakeMind` in the normal case, and the console `ship collective` reads the rest; nothing in play yet shows the room the design's horror scene needs.
 
 
-### Reached by nothing yet (35)
+### Reached by nothing yet (39)
 
 - `RollAnomaly` — reached only by the tests (situation)
 - `TraitName` — reached only by the tests (reader)
@@ -892,6 +909,8 @@ has and the game does not yet offer.
 - `LogsPurged` — reached only by the tests (reader)
 - `Describe` — reached only by the tests (reader)
 - `DepartmentByName` — reached only by the tests (reader); the lookup a scenario's `staff` field will use
+- `Destinations` — reached only by the tests (situation)
+- `EndingToneFindings` — reached only by the tests (reader)
 
 ## The post-not-name law (Task B's last acceptance)
 

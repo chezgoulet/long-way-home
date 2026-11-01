@@ -199,6 +199,23 @@ are a lens plus a short scene; only the richest two — Earth and Qo'noS — jus
 joke ending says Earth's arrival gets three seconds regardless. **The endings are cheap by design; the money
 goes into the reading.**
 
+## Taken in the build (2026-10-31)
+
+The document leaves a few choices; Stage E took these, and they are recorded here so the owner can overrule
+them rather than discover them.
+
+- **The names are the document's, except where a name is a verdict.** "A Delta Quadrant settlement" is this
+  document's "A Delta Quadrant home" (and its own "settlement offer"), because "home" is a tone word;
+  "A sale of the ship" is "The cynical one"; "The Collective" is the reader inside "A half-assimilated
+  arrival". The table is in this document's order and carries no rank.
+- **The set is read from the record, not a new reputation field.** There is no reputation in the module, and
+  adding one would be a second store. The Klingons are open on funerals and kept promises; the settlement on a
+  kept promise, no broken one, and a crew that could settle; the Collective on a mind held; the sale on a
+  trader met and a hull; no reader on a purged log, or no crew. Earth is always open.
+- **The player may decline to file.** The document asks the question and does not answer it. At Earth the
+  arrival still happens, the counter still stops, and the log is still the last frame; the reading says the
+  record was not filed and is handed back unread. Filing is offered nowhere else.
+
 ## Acceptance
 
 - Arrival plays three seconds of our own engine's warp-in, with no scripted content, and the run then hands

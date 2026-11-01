@@ -616,9 +616,12 @@ are where an attrition game either lands or does not.
 
 `docs/endings.md` designs arrival as a reading: three seconds of our own engine's warp-in, then the log
 as the last frame; destinations are readers (Starfleet reads the paperwork, the Klingons read the
-deaths), no destination is better than another, and the core breach is the only unwinnable end. **None
-of it is implemented.** Three sectors and a `Won` flag exist in the outside loop; the ending, the
-arrival, the readers and the log-as-last-frame do not (**G16**).
+deaths), no destination is better than another, and the core breach is the only unwinnable end. **The
+model, the neutral string table, the arrival timer and the log handback are built** (2026-10-31,
+`docs/evidence/endings.md`): six destinations, the set accrued with Earth always open, the same record
+read differently by two readers, the engine's own camera on one 3000 ms timer, and the official log as
+the last frame. The rendered arrival is a **stand-in** until Voyager's exterior and a system skybox are
+authored, and no endgame screen was built; those are named in **G16**.
 
 **The stop's question:** *what did you choose to lose, and who was entitled to read it?* The build
 cannot yet ask it.
@@ -911,19 +914,20 @@ evidence: `docs/evidence/the-character-layer.md`, `docs/evidence/the-manner.md`.
 - **To close:** the owner's ruling, and crew scenarios on the decks where they belong.
 
 ### G16 — The record's endgame pieces are not built
-- **Status 2026-10-11 — PARTLY CLOSED.** The meeting brief is **built**: `docs/gates.md` (*The meeting,
-  phase one*) — *"a brief is built **per participant from their marks and the log**"*. The rest of the
-  row stands: `docs/the-record-and-the-log.md` ("What assimilation takes") is still specified, not built
-  (the personal log **and** the access levels, with the Collective speaking in the assimilated person's
-  voice), and the destination set, the arrival and the log as the last frame remain design only
-  (`docs/endings.md`). Left unannotated: the remainder is several pieces with no single named artifact.
-- **Missing:** the meeting brief built per participant from marks and the log; assimilation taking the
-  **personal log and the access levels**, with the Collective speaking in the assimilated person's
-  voice; the purge's full consequence; the destination set and the arrival; the log as the last frame.
-- **Says so:** `docs/the-record-and-the-log.md` ("Remaining (specified, not built)");
-  `docs/evidence/the-two-logs.md` ("What could not be verified"); `docs/endings.md`.
-- **To close:** the meeting brief and the assimilation transfer are the two the record calls out twice;
-  the endings are a later stage.
+- **Status 2026-10-31 — PARTLY CLOSED.** The meeting brief is built (`docs/gates.md`, *The meeting,
+  phase one*), and **the ending model is built** (`docs/evidence/endings.md`: six destinations as
+  readers, the accrued set, the neutral string table, the engine's three-second arrival and the log as
+  the last frame). The rest of the row stands: the **transwarp route** is design only; the arrival's
+  **rendered look** is a stand-in (no Voyager exterior model, no system skybox) and was not watched in
+  a graphical session; no endgame screen was built, so the destinations are reached by the console and
+  the model; and `docs/the-record-and-the-log.md` ("What assimilation takes") still has its own
+  remaining pieces. Left unannotated: the remainder is several pieces with no single named artifact.
+- **Missing:** the transwarp route; the rendered arrival against a skybox; an endgame screen; the
+  remaining assimilation pieces the record names.
+- **Says so:** `docs/evidence/endings.md` ("What could not be run here");
+  `docs/the-record-and-the-log.md` ("Remaining (specified, not built)"); `docs/endings.md`.
+- **To close:** the transwarp route and the arrival's picture are the named remainder; the ending model
+  and the log handback are no longer on this row.
 
 ### G17 — There is no away site, so the away mission's acceptance run is impossible
 - **Status 2026-10-11 — PARTLY CLOSED: the site is built and walkable; the acceptance run waits on the

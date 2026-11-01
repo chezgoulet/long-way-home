@@ -152,17 +152,46 @@ meeting lane before this slice, and its own in-engine run was not repeated here.
 
 **Blocks.** Stage C only in the sense of budget, not dependency.
 
-## Stage E — an ending
+## Stage E — an ending  *(built 2026-10-31 — `docs/evidence/endings.md`)*
 
 **Goal.** A run can finish, several ways, and the log is the last frame.
 
 **Deliverable.** The destinations as readers, the arrival clip, the transwarp route, and the question of
 whether the player may decline to file (`docs/endings.md`).
 
+**Built 2026-10-31.** Six destinations are in the model as readers, not a score screen: Earth, the
+Klingon Empire, a Delta Quadrant settlement, the Collective, a sale of the ship, and no reader. Each
+names who reads and what part of the record it reads; `ReadEnding` returns that reader's evidence and
+conclusion, and the same run read by two readers reaches different, attributable readings. The set is
+**accrued** from the record — Earth always, the others earned — and the table has no rank or quality
+field, in the design's own order. Neutrality is an assertion in the model over the shipped strings
+(`EndingToneFindings`), not a claim in a pull request. The arrival is the engine's own cinematic camera
+(`CGCam_Enable`/`CGCam_Move`/`CGCam_Fade`) on one 3000 ms timer, the same for every destination and
+route; the reading and then the official log are what the module prints when it ends, and the log is
+the last frame. The player may **decline to file** at Earth: arriving and reporting are separable, and
+the record is handed back unread. No save change — `SAVE_VERSION` remains **66**. The transwarp route
+is the design's and is not built; the conduit is a route, not a separate arrival. Evidence:
+`docs/evidence/endings.md`, `scripts/ending-check.sh`, `test_ship_core --endings`,
+`TestEndingReaders`, `TestEndingAvailability`, `TestEndingNeutrality`, `TestEndingArrival`.
+
 **Exit criteria, observable:**
-- A run can reach more than one destination, and the reading differs by reader for the same record.
-- No destination is presented as better than another, in text, UI or log.
-- The arrival is three seconds of our own engine's warp-in, and the log is what follows.
+- ✅ **A run can reach more than one destination, and the reading differs by reader for the same record.**
+  The earned run opens all six; the same record read by Earth and by the Klingon Empire prints different
+  evidence and different conclusions (`scripts/ending-check.sh`).
+- ✅ **No destination is presented as better than another, in text, UI or log.** The tone-word assertion
+  scans the shipped table and a reading of every destination and finds none; the table carries no rank;
+  the falsification plants "the best Earth" and the same assertion fails.
+- ✅ **The arrival is three seconds of our own engine's warp-in, and the log is what follows.** The
+  engine's own cinematic camera and fade run on one 3000 ms timer for every destination and route, and
+  the module prints the reading and then the official log. **Visually a stand-in:** the project ships no
+  Voyager exterior model and no system skybox, so the picture is not yet the show's shot; the duration,
+  the engine path and the log handback are built. The rendered arrival was not watched in a graphical
+  session.
+
+**Still deferred inside Stage E:** the crew's veto at the destination and the wildcard attempt (both
+designed in `docs/endings.md`, neither built); the transwarp route (the arrival is the same clip either
+way); an endgame screen (the destinations are reached by the console and the model); and the arrival's
+rendered picture against a Voyager exterior and a system skybox.
 
 ## Cross-cutting: what only the owner can close
 

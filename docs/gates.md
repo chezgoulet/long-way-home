@@ -400,6 +400,51 @@ voice input beyond the existing typed pill; the computer-as-a-place; and the own
 whether the room reads as a room. This slice does not touch the overlay, the brief, the generator or
 the Collective's voice, and it does not repeat the overlay's in-engine run.
 
+### An ending — destinations as readers, neutrality, and the three-second arrival *(Stage E, built 2026-10-31; `docs/evidence/endings.md`)*
+
+`docs/endings.md` designs the end as a **reading**: a destination is a lens plus a place, the same
+record reaches different conclusions by reader, no destination is better than another, and the log is
+the last frame. This is that model, the neutral string table, and the arrival's timer and handback.
+
+**What is built.** Six destinations — Earth, the Klingon Empire, a Delta Quadrant settlement, the
+Collective, a sale of the ship, and no reader — in `module/ship/ship_core.{h,cpp}`. Each declares its
+reader and the part of the record it reads; `ReadEnding` returns that reader's evidence and
+conclusion. The set is accrued (`DestinationsFor`): **Earth is always open**, the others are earned
+from funerals and kept promises (the Klingons), a kept promise and a crew that could settle, a mind
+held (the Collective), a trader met and a hull (the sale), or a purged log (no reader). The table is
+in the design's order and has **no rank or quality field**. `EndingToneFindings` asserts over the
+shipped table and the readings that no comparative or tone word is present; the check's falsification
+plants "the best Earth" and the same assertion fails. `MayFileAt` makes Earth's filing separable from
+Earth's arrival: `ReadEnding(s, DEST_EARTH, false)` says the record was not filed and is handed back
+unread, and the log is still the last frame.
+
+**The arrival.** `ARRIVAL_MS` is 3000 and `ARRIVAL_SECONDS` is 3. `module/ship/g_ship.cpp` starts it
+on the engine's own cinematic camera (`CGCam_Enable`, `CGCam_Move`, `CGCam_Fade`) and releases it on
+the same timer; the module then prints the reading and the official log, and the log is the last
+thing printed. `ship destinations` lists the accrued set; `ship ending <name> [nofile]` plays the
+arrival at the end of the run. The same timer and camera run for every destination and route.
+
+**Save format remains 66.** The destination and the filing decision are a one-shot ending read, host
+state derived at the end and never written into the record; an older save still loads. The end-of-run
+log line changed from "the ship is home" to "the run is at its end", the sector readout from `HOME`
+to `END`, and the panel's navigation line from `HOME` to `GOAL`, so the ending's own log and UI do not
+use the tone word `home`.
+
+**Demonstrated:** `TestEndingReaders`, `TestEndingAvailability`, `TestEndingNeutrality`,
+`TestEndingArrival`, `test_ship_core --endings`, and `scripts/ending-check.sh`, whose output and two
+falsifications are in `docs/evidence/endings.md`. The module also builds against the engine in a
+separate tree (`build-lwh-endings`: `[100%] Built target efgame`, `libefgame.so`), so the arrival's
+engine calls compile and link; it was not watched in a graphical session.
+
+**What remains (deferred, not claimed):** the **rendered look** of the arrival. The camera move and
+the fade are the engine's own and are timed at three seconds, but the project ships no Voyager
+exterior model and no system skybox, so the picture is a **stand-in** against the project's own bar —
+it is not yet the show's shot of the ship coming out of warp into a system. No graphical session was
+run to watch it; the duration and the log handback are proven, the frame is not. The transwarp route
+is designed and not built; the arrival is the same clip either way. The crew's veto at the destination
+and the wildcard attempt are designed and not built. The destinations are reached by the console and
+the model, not by an endgame screen.
+
 ## G4 and G5 — replaced by the ship programme (2026-10-05)
 
 The owner redirected the programme: the ship must work as a system before a crew can be given lives

@@ -12,6 +12,12 @@
 #include "g_scope.h"
 #include "lwh_panel.h"
 #include "g_crew.h"
+// The engine's own cinematic camera (linked into this module with the cgame). The arrival is three
+// seconds of it -- a camera move and a fade, the engine's own primitives -- not a recorded clip and
+// not a scripted scene. docs/endings.md's refusal to script an arrival is honoured by using this and
+// nothing else; the visual is named as a stand-in in the gate doc because the project ships no
+// Voyager exterior model and no system skybox.
+#include "cg_camera.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -96,6 +102,18 @@ bool active = false;
 bool tested = false;
 ship::Ship vessel;
 std::vector<uint8_t> pendingSave;
+
+// The arrival (docs/endings.md). It is host state, not ship state: the ending is one shot, the
+// destination is chosen at the end, and nothing here survives a save because there is nothing after
+// the log to replay. The timer is the same 3000 ms for every destination and every route; the camera
+// is the engine's, and the log is printed when it ends.
+bool arrivalActive = false;
+bool arrivalDone = false;
+int arrivalStartMs = 0;
+int arrivalDestination = ship::DEST_EARTH;
+bool arrivalFiled = true;
+bool arrivalWasLocked = false; // the input lock the arrival took, restored when it ends
+
 vec3_t glanceAngles = { 0, 0, 0 }; // where the glance test points the player, re-applied each frame
 bool haveGlanceAim = false;
 bool bodyApplied = false;          // S10: the player's model set from the crew record this map
@@ -813,7 +831,7 @@ void Publish( void )
 	{
 		const ship::Navigation nav = ship::NavigationCounter( vessel );
 		if ( !nav.warp )
-			gi.cvar_set( "lwh_ship_nav", Fmt( "NAV  %d LY OUT   NO WARP: HOME STOPS GETTING CLOSER",
+			gi.cvar_set( "lwh_ship_nav", Fmt( "NAV  %d LY OUT   NO WARP: THE GOAL STOPS GETTING CLOSER",
 				static_cast<int>( nav.distanceLy + 0.5f ) ).c_str() );
 		else
 			gi.cvar_set( "lwh_ship_nav", Fmt( "NAV  %d LY OUT   %d YR NOMINAL   %d YR NOW   %+.1f SINCE LAST",
@@ -852,7 +870,7 @@ void Publish( void )
 	// SetTarget was reached only by `ship target`; the console now carries the decision).
 	gi.cvar_set( "lwh_ship_target_idx", Fmt( "%d", static_cast<int>( vessel.target ) ).c_str() );
 	gi.cvar_set( "lwh_ship_pursued", vessel.pursued ? Fmt( "%d", vessel.pursuitJumps ).c_str() : "" );
-	gi.cvar_set( "lwh_ship_sector", Fmt( "SECTOR %d OF %d%s", vessel.sectorNumber + 1, ship::SECTORS_TO_CROSS, vessel.won ? "   HOME" : "" ).c_str() );
+	gi.cvar_set( "lwh_ship_sector", Fmt( "SECTOR %d OF %d%s", vessel.sectorNumber + 1, ship::SECTORS_TO_CROSS, vessel.won ? "   END" : "" ).c_str() );
 	gi.cvar_set( "lwh_ship_shields", ship::ShieldReadout( vessel ).c_str() );
 	// The phaser bank's setting (Tactical's standing decision, and the one that exists with no
 	// contact): the setting, and what it asks of the power budget over its nominal demand.
@@ -5968,6 +5986,9 @@ void Ship_Init( void )
 	tested = false;
 	bodyApplied = false;
 	pendingSave.clear();
+	if ( arrivalActive ) player_locked = arrivalWasLocked;
+	arrivalActive = false;
+	arrivalDone = false;
 	// A room open on the old map does not carry into the new one: the held brief is host-local.
 	meetingOpen = false;
 	currentMeeting = ship::MeetingBrief();
@@ -6036,6 +6057,81 @@ void Ship_Init( void )
 		static_cast<int>( vessel.crew.size() ), ship::SECONDS_PER_DAY / cfg.dayScale / 60.0f );
 }
 
+// ---- the arrival and the log as the last frame (docs/endings.md) --------------------------------
+//
+// Three seconds on the engine's own camera, then the reading and the log. Nothing is scripted and
+// nothing is recorded: the camera move and the fade are the engine's primitives, and the only thing
+// the module does at the end is print the record. The same timer and the same camera work for every
+// destination and every route (the grind and the conduit), because the clip is the constant.
+
+static void FinishArrival( void )
+{
+	if ( !arrivalActive ) return;
+	arrivalActive = false;
+	arrivalDone = true;
+	player_locked = arrivalWasLocked;
+	CGCam_Disable();
+	const ship::EndingReading reading = ship::ReadEnding( vessel,
+		static_cast<ship::DestinationId>( arrivalDestination ), arrivalFiled );
+	gi.Printf( "SHIP: ARRIVAL %s -- reader %s; reads %s\n",
+		ship::DestinationSpec( reading.destination ).name, reading.reader.c_str(), reading.lens.c_str() );
+	for ( const std::string &line : reading.lines ) gi.Printf( "SHIP:   %s\n", line.c_str() );
+	gi.Printf( "SHIP:   reading: %s\n", reading.conclusion.c_str() );
+	const std::vector<ship::LogEntry> log = ship::EndingLog( vessel );
+	gi.Printf( "SHIP: THE LOG IS THE LAST FRAME: %d official entries\n", static_cast<int>( log.size() ) );
+	const int show = std::min( 12, static_cast<int>( log.size() ) );
+	for ( int i = static_cast<int>( log.size() ) - show; i < static_cast<int>( log.size() ); ++i )
+	{
+		const ship::LogEntry &e = log[i];
+		const int day = static_cast<int>( e.time / ship::SECONDS_PER_DAY );
+		const int sod = static_cast<int>( e.time ) % ship::SECONDS_PER_DAY;
+		gi.Printf( "SHIP:   day %d %02d:%02d [%s] %s: %s\n", day, sod / 3600, sod % 3600 / 60,
+			e.scope.c_str(), e.who.c_str(), e.what.c_str() );
+	}
+	gi.cvar_set( "lwh_ship_arrival", "0" );
+	gi.cvar_set( "lwh_ship_ending", ship::DestinationSpec( reading.destination ).name );
+}
+
+static void StartArrival( ship::DestinationId d, bool filed )
+{
+	if ( arrivalActive ) return;
+	if ( !ship::Won( vessel ) )
+	{
+		gi.Printf( "SHIP: the run has not reached its end; there is no arrival yet\n" );
+		return;
+	}
+	if ( !ship::DestinationAvailable( vessel, d ) )
+	{
+		gi.Printf( "SHIP: %s is not open to this run: %s\n",
+			ship::DestinationSpec( d ).name, ship::DestinationSpec( d ).offer );
+		return;
+	}
+	arrivalDestination = d;
+	arrivalFiled = ship::MayFileAt( d ) ? filed : true;
+	arrivalStartMs = level.time;
+	arrivalActive = true;
+	arrivalDone = false;
+	arrivalWasLocked = player_locked;
+	player_locked = qtrue; // the three seconds in which the player has no decisions
+	vec3_t org = { 0, 0, 0 }, ang = { 0, 0, 0 };
+	if ( g_entities[0].client )
+	{
+		VectorCopy( g_entities[0].currentOrigin, org );
+		VectorCopy( g_entities[0].client->ps.viewangles, ang );
+	}
+	vec3_t fwd, to;
+	AngleVectors( ang, fwd, NULL, NULL );
+	VectorMA( org, 96.0f, fwd, to );
+	CGCam_Enable();
+	CGCam_Move( to, static_cast<float>( ship::ARRIVAL_MS ) );
+	vec4_t white = { 1.0f, 1.0f, 1.0f, 1.0f };
+	vec4_t clear = { 1.0f, 1.0f, 1.0f, 0.0f };
+	CGCam_Fade( white, clear, static_cast<float>( ship::ARRIVAL_MS ) );
+	gi.cvar_set( "lwh_ship_arrival", "1" );
+	gi.Printf( "SHIP: arrival: %d ms on the engine's own camera (%s); the same clip for every destination and route\n",
+		ship::ARRIVAL_MS, ship::DestinationSpec( d ).name );
+}
+
 void Ship_Frame( void )
 {
 	if ( !active ) return;
@@ -6066,6 +6162,9 @@ void Ship_Frame( void )
 	}
 	const int ms = level.time - level.previousTime;
 	if ( ms > 0 && ms < 1000 ) ship::Tick( vessel, ms / 1000.0f );
+	// The arrival ends on the module's own clock: exactly three seconds after it began, the engine's
+	// camera is released and the record is printed. The same check runs for every destination.
+	if ( arrivalActive && level.time - arrivalStartMs >= ship::ARRIVAL_MS ) FinishArrival();
 	// The alert klaxon (S9's "hear"): the game ships a red-alert and an alarm sound; play one when the
 	// condition changes, around the player.
 	static int lastAlert = -1;
@@ -7725,6 +7824,32 @@ void Svcmd_Ship_f( void )
 		}
 		return;
 	}
+	else if ( !Q_stricmp( cmd, "destinations" ) )
+	{//the set this run has accrued (docs/endings.md): Earth always, the others earned. The list is
+	 //the design's order and not a ranking; each line says who reads and what they read.
+		const std::vector<ship::DestinationId> offers = ship::DestinationsFor( vessel );
+		gi.Printf( "SHIP: %d destination(s) open to this run\n", static_cast<int>( offers.size() ) );
+		for ( ship::DestinationId d : offers )
+		{
+			const ship::Destination &spec = ship::DestinationSpec( d );
+			gi.Printf( "SHIP:   %s -- reader %s; reads %s\n", spec.name, spec.reader, spec.lens );
+		}
+		if ( !ship::Won( vessel ) ) gi.Printf( "SHIP: the run has not reached its end; no arrival yet\n" );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "ending" ) || !Q_stricmp( cmd, "arrive" ) )
+	{//the arrival: ship ending <destination> [nofile]. `nofile` is Earth's one last question --
+	 //arriving at Earth and reporting to Starfleet are separable, and declining still cuts to the log.
+		const ship::DestinationId d = ship::DestinationByName( a );
+		if ( d >= ship::DEST_COUNT )
+		{
+			gi.Printf( "SHIP: destination: name one of Earth, the Klingon Empire, a settlement, the Collective, a sale or no reader\n" );
+			return;
+		}
+		const bool filed = !( !Q_stricmp( b, "nofile" ) || !Q_stricmp( b, "unfiled" ) );
+		StartArrival( d, filed );
+		return;
+	}
 	else if ( !Q_stricmp( cmd, "log" ) )
 	{//the official log: ship log [count] [scope] -- the signed, published record, newest first.
 	 //The private log is a different store and is never returned here (ReadOfficialLog).
@@ -8051,7 +8176,8 @@ void Svcmd_Ship_f( void )
 		gi.Printf( "       ship seal <deck> | board <deck> <boarders> | borg <deck> <drones> | counterhack <system> <0..1>\n" );
 		gi.Printf( "       ship chart | jump <beacon> | fire | character <name> <department> <rank>\n" );
 		gi.Printf( "       ship order repair <system> | order security <deck> | order evacuate <deck> | order triage worst|rank\n" );
-		gi.Printf( "       ship log [count] [scope] | seal <deck> | field <deck> on|off\n" );
+		gi.Printf( "       ship log [count] [scope] | destinations | ending <name> [nofile]\n" );
+		gi.Printf( "       ship seal <deck> | field <deck> on|off\n" );
 		gi.Printf( "       ship personal [count] | personal write <text...>   (the private log; nobody else reads it)\n" );
 		gi.Printf( "       ship losses [sealed|stripped|uninhabitable|written] | writeoff <deck|system> [kind]\n" );
 		gi.Printf( "       ship report [draft] | strike|edit <line> ... | soften <line> [f] | add <scope> <text> | sign|file [crew] | diff | purge\n" );
