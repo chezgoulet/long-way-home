@@ -8,7 +8,7 @@ can fail for the reason its claim cares about.  It is the generalisation of the 
 measure written for `docs/evidence/the-dark-room.md`; `scripts/room-survey-check.sh` and
 `scripts/meeting-place-check.sh` use it, and every converted check uses this same file.
 
-Three assertions, and a way to name where each is asked:
+Four assertions, and a way to name where each is asked:
 
   floor  the region is legible: not black, and not uniform.  A lit, structured picture passes; a
          pitch-black frame, a frame shot into the inside of a solid, and a flat single-colour fill
@@ -22,6 +22,11 @@ Three assertions, and a way to name where each is asked:
          light rather than absent light), and **not** a lit room (a median ceiling).  For an
          archetype whose whole claim is failing light, where `floor` cannot be used and no per-frame
          dark exemption is allowed (`docs/evidence/derelict-interior.md`).
+  alien  the region reads as an **alien ship interior** -- **maintained** (a lit deck, the opposite
+         of the derelict's failing light), **built** (a brightness-edge fraction, for structure) and
+         **carrying a design language** (a colour fraction: enough pixels whose channels differ, not
+         a neutral grey box).  It asserts *a* foreign palette is present, not that it is the right
+         species' -- that is the owner's eye (`docs/evidence/alien-ship-interior.md`).
   region where the claim is about part of the screen (a panel, a footer, a console, a title bar)
          the region is named and measured, not the whole frame.  `--region NAME:x0,y0,x1,y1` or
          `--band TOP,BOTTOM` (fractions of the height, full width).  The whole frame is the default.
@@ -29,6 +34,7 @@ Three assertions, and a way to name where each is asked:
   tools/frames/frame.py floor [OPTIONS] FRAME.tga [FRAME.tga ...]
   tools/frames/frame.py diff  [OPTIONS] REFERENCE.tga FRAME.tga [FRAME.tga ...]
   tools/frames/frame.py derelict [OPTIONS] FRAME.tga [FRAME.tga ...]
+  tools/frames/frame.py alien [OPTIONS] FRAME.tga [FRAME.tga ...]
 
   python3 tools/frames/frame.py floor --min-p90 150 --min-spread 40 FRAME.tga
   python3 tools/frames/frame.py diff --region band=0,0,1280,120 --min-changed 0.05 BEFORE.tga AFTER.tga
@@ -328,6 +334,80 @@ def do_derelict(a):
     return 0
 
 
+def chroma_fraction(pixels, threshold):
+    """The fraction of pixels whose brightest and dimmest channels differ by `threshold`.
+
+    A design language is not only geometry: it is a palette. The alien ship's green ribs, gold
+    lamp coves and red machinery are what distinguishes it from a neutral grey test room, and that
+    is measurable. A grey wall, a grey fill and a black frame all read near zero here. The measure
+    cannot say *which* species' palette it is; it can say the frame is not colourless.
+    """
+    n = len(pixels)
+    if n == 0:
+        return 0.0
+    coloured = 0
+    for r, g, b in pixels:
+        if max(r, g, b) - min(r, g, b) >= threshold:
+            coloured += 1
+    return coloured / n
+
+
+def alien_reason(m, edge_frac, chroma_frac, a):
+    """Why a region does or does not read as an alien ship interior. The archetype's own stance.
+
+    `docs/outside-the-ship.md` names the archetype *"alien ship interior -- unfamiliar layout, the
+    species' own design language"*. Three things can be asserted from a frame, and the rest is the
+    owner's eye:
+
+      * **maintained, not a wreck** -- the deck is lit (a median floor and a clearly-lit pixel).
+        This is deliberately the inverse of the derelict measure: the same room with the lights out
+        is a different archetype, and fails here;
+      * **built** -- enough pixels sit on a brightness edge (bulkheads, ribs, machinery). A flat
+        fill -- black, grey or a single colour -- fails;
+      * **a design language** -- enough pixels carry colour (a channel spread), so a neutral grey
+        box with the same geometry and light fails. It asserts *a* palette, not the right one.
+
+    **No per-frame dark exemption is allowed for this archetype**, exactly as for the derelict: a
+    frame that does not carry the claim fails, named.
+    """
+    if m["median"] < a.min_median:
+        return "median %g < %g (the deck is not maintained: too dark)" % (m["median"], a.min_median)
+    if m["p90"] < a.min_p90:
+        return "p90 %g < %g (nothing clearly lit: a dark room, not a working deck)" % (m["p90"], a.min_p90)
+    if edge_frac < a.min_edge:
+        return "edge %.3f < %g (no structure: a flat field, not a built interior)" % (edge_frac, a.min_edge)
+    if chroma_frac < a.min_chroma:
+        return ("chroma %.2f < %g (a neutral grey box: no design language in the palette)"
+                % (chroma_frac, a.min_chroma))
+    return None
+
+
+def do_alien(a):
+    rc = 0
+    for path in a.frames:
+        try:
+            w, h, rows = read_tga(path)
+            region = region_of(a, w, h)
+        except (ValueError, OSError) as e:
+            print("%-46s %s" % (name(path), e))
+            rc = 1
+            continue
+        pixels = region_pixels(rows, region)
+        m = summarize(pixels)
+        ef = edge_fraction(rows, region, a.edge)
+        cf = chroma_fraction(pixels, a.chroma_threshold)
+        why = alien_reason(m, ef, cf, a)
+        print("%-46s %-15s median %5.1f p90 %5.1f edge %5.3f chroma %5.2f  %s"
+              % (name(path), region[0], m["median"], m["p90"], ef, cf,
+                 "ALIEN" if why is None else "NOT-XENO -- " + why))
+        if why is not None:
+            rc = 1
+    if rc and a.require:
+        print("a frame does not carry the alien ship's claim")
+        return 1
+    return 0
+
+
 def build_parser():
     ap = argparse.ArgumentParser(
         prog="frame.py", description=__doc__,
@@ -380,12 +460,30 @@ def build_parser():
     dr.add_argument("--edge", type=int, default=16,
                     help="the gradient above which a pixel counts as an edge (default 16)")
 
+    al = sub.add_parser("alien",
+                        help="the region reads as an alien ship interior: maintained, built, and coloured")
+    common(al)
+    al.add_argument("--min-median", type=float, default=40.0,
+                    help="the typical pixel must be at least this: a working deck, not the derelict's "
+                         "failing light (default 40)")
+    al.add_argument("--min-p90", type=float, default=60.0,
+                    help="something in the region must be at least this bright (default 60)")
+    al.add_argument("--min-edge", type=float, default=0.004,
+                    help="the fraction of pixels on a brightness edge, for structure (default 0.004)")
+    al.add_argument("--edge", type=int, default=16,
+                    help="the gradient above which a pixel counts as an edge (default 16)")
+    al.add_argument("--min-chroma", type=float, default=0.15,
+                    help="the fraction of pixels that must carry colour, for a design language "
+                         "(default 0.15)")
+    al.add_argument("--chroma-threshold", type=int, default=24,
+                    help="the max-min channel difference that counts as coloured (default 24)")
+
     return ap
 
 
 def main(argv=None):
     a = build_parser().parse_args(argv)
-    return {"floor": do_floor, "diff": do_diff, "derelict": do_derelict}[a.mode](a)
+    return {"floor": do_floor, "diff": do_diff, "derelict": do_derelict, "alien": do_alien}[a.mode](a)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MAPGEN = os.path.join(ROOT, "tools", "mapgen", "mapgen.py")
 CHECK_BSP = os.path.join(ROOT, "tools", "mapgen", "check-bsp.py")
 ENTITYDICT = os.path.join(ROOT, "tools", "entitydict", "entitydict.py")
+sys.path.insert(0, os.path.join(ROOT, "tools", "away"))
+import dress_alien_ship as alien  # noqa: E402
 
 POINT = r"\(\s*(-?\d+) (-?\d+) (-?\d+)\s*\)"
 FACE = re.compile(rf"^{POINT}\s*{POINT}\s*{POINT}", re.M)
@@ -73,6 +75,63 @@ class MapGen(unittest.TestCase):
         self.assertNotIn("common/caulk", text, "a room built of caulk loads and renders as a void")
         heights = {int(z) for z in re.findall(r'"classname" "waypoint"\n"origin" "-?\d+ -?\d+ (-?\d+)"', text)}
         self.assertEqual(heights, {24}, "waypoints stand on the floor (z=0): origin 24 above it, not in it")
+
+
+class AlienShipDress(unittest.TestCase):
+    """The alien-ship re-dress's own two defects, made tests.
+
+    The tool first tested a point against each brush's axis-aligned box, and it *clamped* a crossing
+    brush's face points to its window. On a source of sloped ribs and arches that turns a valid
+    six-plane brush into a five-plane one, and a five-plane brush has no interior: every point in
+    the room read as solid and the tool placed no waypoint at all. These tests fail if either
+    behaviour comes back.
+    """
+
+    def brush_lines(self, lo, hi):
+        from mapgen import brush
+        return alien.aslines(brush((lo, hi), "scavenger/m_basic"))
+
+    def test_point_in_brush_is_not_point_in_an_aabb(self):
+        s = alien.Solids()
+        s.add(self.brush_lines((0, 0, 0), (64, 64, 64)))
+        self.assertTrue(s.solid_at(32, 32, 32))
+        self.assertFalse(s.solid_at(-32, 32, 32), "the AABB of this brush would swallow the point")
+        self.assertEqual(s.floor_at(32, 32, top=100), 64)
+
+    def test_a_brush_crossing_the_window_is_dropped_not_clamped(self):
+        import stitch
+        inside = self.brush_lines((0, 600, -100), (64, 664, -36))
+        outside = self.brush_lines((-500, 600, -100), (-400, 664, -36))
+        text = ('{\n"classname" "worldspawn"\n{\n' + "\n".join(inside) + "\n}\n}\n"
+                '{\n"classname" "worldspawn"\n{\n' + "\n".join(outside) + "\n}\n}\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "s.map")
+            with open(path, "w") as f:
+                f.write(text)
+            ents = stitch.parse(path)
+        brushes = [b for _, bs in ents for b in bs]
+        self.assertEqual(len(brushes), 2)
+        kept = [alien.copy_brush(b) for b in brushes]
+        self.assertEqual(sum(1 for k in kept if k is not None), 1,
+                         "one brush is inside the window and one crosses it")
+        self.assertIsNone(kept[1], "a crossing brush must be dropped, not clamped into a broken one")
+
+    def test_drab_removes_the_palette_from_the_materials_and_the_lights(self):
+        inside = self.brush_lines((0, 600, -100), (64, 664, -36))
+        text = ('{\n"classname" "worldspawn"\n{\n' + "\n".join(inside) + "\n}\n}\n"
+                '{\n"classname" "light"\n"origin" "32 632 -60"\n"light" "300"\n'
+                '"_color" "0.4 0.8 0.4"\n}\n')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "s.map")
+            with open(path, "w") as f:
+                f.write(text)
+            b = alien.Build(path, lit=True, drab=True)
+        self.assertTrue(b.report["drab"])
+        self.assertTrue(all(alien.DRABTEX in ln for lines in b.world for ln in lines if ln.startswith("(")))
+        lights = [keys for keys, _ in b.entities if keys.get("classname") == "light"]
+        self.assertTrue(lights)
+        self.assertTrue(all(keys.get("_color") == "1 1 1" for keys in lights),
+                        "grey walls under coloured light still carry a palette")
 
 
 class CheckBsp(unittest.TestCase):

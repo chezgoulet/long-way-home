@@ -32,7 +32,7 @@ art that already ships:
 | archetype | reuse | texture of the place |
 |---|---|---|
 | **derelict interior** | **built 2026-10-15** (`feat/derelict-interior`): re-dress **`scav2`** (chosen by the survey, `docs/evidence/the-archetype-survey.md`) | wrecked corridors, failing light, no gravity in places — `docs/evidence/derelict-interior.md`; its own measure is `frame.py derelict`, and **no per-frame dark exemption is allowed for it** |
-| **alien ship interior** | re-dress `scav1`-`5` | unfamiliar layout, the species' own design language |
+| **alien ship interior** | **built 2026-11-02** (`feat/o11-archetype`): re-dress **`scav3`** (chosen by the survey, `docs/evidence/the-archetype-survey.md`) | unfamiliar layout, the species' own design language — `docs/evidence/alien-ship-interior.md`; its own measure is `frame.py alien`, and **no per-frame dark exemption is allowed for it** |
 | **industrial surface facility** | re-dress `forge1`-`5` | the closest thing the game has to a *place on a planet* |
 | **space station / outpost** | re-dress `ctf_space`, `scav5a` | docking bays, terminals, a market |
 | **cave / rock / mine** | re-dress `forge*` with rock textures | enclosed, dark, mineral |
