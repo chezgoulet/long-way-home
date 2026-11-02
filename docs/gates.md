@@ -1208,7 +1208,46 @@ scanning rather than by shooting"* — **is not run and could not be**: the tric
 *chart row*, not a place (`module/ship/ship_core.cpp`), and no scenario loads this map on a
 transporter delivery. The map half of G17 is closed; the **away-mission loop** (kit, scan of a place,
 window, return, write-back) is scenario content and the design's *Order of work* item 4, still open.
-The other five archetypes remain, the derelict interior first. <!-- register-row id=O11 state=partly marker=check:scripts/away-check.sh -->
+The other archetypes remain: the derelict interior was built next, then the alien ship interior (the
+section below). <!-- register-row id=O11 state=partly marker=check:scripts/away-check.sh -->
+
+### The alien ship interior — O11's third archetype
+
+**The second row of the design's table** (`docs/outside-the-ship.md`: *"alien ship interior — re-dress
+`scav1`-`5` — unfamiliar layout, the species' own design language"*), built on `feat/o11-archetype` (cut
+from `testing`; `docs/evidence/alien-ship-interior.md`, brief
+`docs/locations/alien-ship-interior.brief.md`). Map `lwh_alien_ship`.
+
+- **re-dressed from the design's own source family** — **`scav3`**, chosen by
+  `docs/evidence/the-archetype-survey.md`: the densest compact single-storey candidate, one 128-unit
+  engineering deck of green ribbed machinery, gold lamp coves and arched bulkheads. `scav2` is the
+  derelict's and is not reused. 245 of 3,394 world brushes, 24 patches and 11 source lights are kept;
+  the shell, the galleries and the console are built from the source's own materials, and every part
+  is in the game (26 materials, no new art) ✅
+- **two enclosed facings opened, and the other two named** — the **south** and **east** walls are
+  galleries: a window band with mullions and a rail, its aperture closed by a sky brush
+  (`holodeck_temple/ctfc_sky_light2`, `skyParms env/stars`) so the map is sealed and `-vis` writes a
+  portal file. The **west** and **north** stay solid because the ship continues there and the machine
+  banks stand against them. At the south gallery the outward frame's median is **2** (black space) and
+  the inward frame's **56** (a lit room); at the east gallery **0** and **60**; the outward and inward
+  frames differ by **73.2 %** and **86.4 %** (`frame.py diff`) ✅
+- **its own frame measure, no per-frame dark exemption** — `frame.py alien` asserts a **maintained**
+  deck (median ≥ 40, p90 ≥ 60), **built** structure (edge ≥ 0.004) and a **design language** in the
+  palette (chroma ≥ 0.15 at a channel spread of 24). All **twelve** vantages at the site's two posts
+  pass. The **drab** capture (grey materials, white lights) measures chroma 0.00–0.05 and fails the
+  palette clause; the **unlit** capture measures median 0 and fails the maintained clause ✅
+- **the check can fail** — `scripts/alien-ship-check.sh` runs the chain (re-dress, build, artifact,
+  census, both posts, both galleries, the three falsifications, nav, crew). The outside assertion was
+  planted broken by hand (the lit build's galleries sealed): the check failed at `outward median 14 >
+  5`; the line was removed, the tool diffed identical, and the check passed again ✅
+- **it loads and the crew reach it** — `CM_LoadMap(maps/lwh_alien_ship.bsp)`, `Munro connected`, the
+  engine bakes `maps/lwh_alien_ship.nav` on first load, and the crew layer embodies the ship's 9 and
+  all 9 reach their posts, none in solid ✅
+- **the module change** — the vantage rig takes its pace from `g_shipVantagePace` (default **192**), so
+  a cramped interior can step 96 without photographing through its own wall. The default leaves every
+  existing caller unchanged, and `scripts/away-check.sh` was re-run to prove it ✅
+- **save format unchanged** — no persistent state, no version bump; an older save loads as before ✅
+<!-- register-row id=O11-alien-ship state=partly marker=check:scripts/alien-ship-check.sh -->
 
 ### Then, in rough order
 
@@ -1580,7 +1619,7 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   <!-- register-row id=O10-gate state=partly marker=check:scripts/panel-control-check.sh -->
 - **O11 — the outside's site archetypes and exterior dressing** *(PARTLY BUILT 2026-10-11,
   `feat/the-away-site`)*, then the away-mission loop (`docs/outside-the-ship.md`, *Order of work* 2–4).
-  **One of the six archetypes is built** — the **space station / outpost**, map `lwh_away_depot`,
+  **Three of the six archetypes are built** — the **space station / outpost**, map `lwh_away_depot`,
   re-dressed from the design's own source `ctf_space`, with the source's lit debris sky doing the
   exterior dressing (see *The away site* above; `docs/evidence/the-away-site.md`,
   `docs/evidence/the-away-vantages.md`, `scripts/away-check.sh`). **The stores post's outward view was
@@ -1590,8 +1629,13 @@ evidence and the closing is this ledger's business. The same rule is stated in `
   **The second archetype — the derelict interior, the design's own first row — is built 2026-10-15**
   (`feat/derelict-interior`, `docs/evidence/derelict-interior.md`): re-dressed from `scav2`, with **its
   own frame measure** (`frame.py derelict`; **no per-frame dark exemption allowed**) and a **zero-g zone
-  shown by a run**. **What remains:** opening the *remaining* enclosed facings (the structure's first
-  cause), the other four archetypes, the wider sky pass, and the away-mission loop, which is scenario
+  shown by a run**. **The third — the alien ship interior — is built 2026-11-02**
+  (`feat/o11-archetype`, `docs/evidence/alien-ship-interior.md`): re-dressed from `scav3`, its **south
+  and east galleries opened** onto a starfield, and **its own measure** (`frame.py alien`; **no
+  per-frame dark exemption allowed**), with both galleries asserted from their outward and inward frames
+  and three planted falsifications (`scripts/alien-ship-check.sh`). **What remains:** the station's
+  remaining enclosed facings (the structure's first cause), the **other three** archetypes (industrial
+  surface facility, cave/mine, colony), the wider sky pass, and the away-mission loop, which is scenario
   content.
 - **O12 — the phenomenon's two canon story models** (`docs/exploration-and-science.md`).
 - **O13 — the Borg security squad embodied as bodies moving deck by deck** (`docs/borg-incursion.md`,

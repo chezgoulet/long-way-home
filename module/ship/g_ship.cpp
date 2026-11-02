@@ -91,8 +91,12 @@ cvar_t *g_shipTestWatch; // "x y z": report whether the trigger centred there ha
 // (screenshots/<stem>_<n>.tga). Their defaults are the dark room's own caller's, so a run that sets
 // neither (the dark-room pass's own command) is unchanged; a caller that sets them photographs its
 // own post and labels its own frames. The "x y z" in g_shipTestPos still overrides the anchor.
+// g_shipVantagePace is the rig's own third input: the distance of the two pace frames. It is 192 by
+// default, which is the dark room's and the outpost's own step; a cramped interior (the alien ship
+// archetype, 2026-11) sets a shorter pace rather than photographing through its own wall.
 cvar_t *g_shipVantage;     // the frames' stem, e.g. "lwh_darkroom_security" or "lwh_away_depot_console"
 cvar_t *g_shipVantagePost; // the targetname of the point entity to stand at, e.g. "lwh_armory_post"
+cvar_t *g_shipVantagePace; // the pace frames' distance, default 192 (the dark room's own step)
 
 // A breach puzzle in progress at a console: which system it is for, and the puzzle itself.
 int breachSystem = -1;
@@ -2368,14 +2372,17 @@ void RunTest( void )
 		if ( step == 1 )
 		{
 			// (dx, dy, dz, yaw): two positions -- the post itself, and a pace west and east of it --
-			// and four facings at the post. The room is asked to read at every one of them.
-			static const struct { const char *label; float dx, dy, dz, yaw; } V[] = {
+			// and four facings at the post. The room is asked to read at every one of them. The pace
+			// is the caller's (g_shipVantagePace, default 192): a cramped interior steps less rather
+			// than photographing the far side of its own wall.
+			const float pace = g_shipVantagePace ? g_shipVantagePace->value : 192.0f;
+			const struct { const char *label; float dx, dy, dz, yaw; } V[] = {
 				{ "post-north",  0.0f,   0.0f, 24.0f,   90.0f },
 				{ "post-south",  0.0f,   0.0f, 24.0f,  270.0f },
 				{ "post-east",   0.0f,   0.0f, 24.0f,    0.0f },
 				{ "post-west",   0.0f,   0.0f, 24.0f,  180.0f },
-				{ "west-east", -192.0f,  0.0f, 24.0f,    0.0f },
-				{ "east-west",  192.0f,  0.0f, 24.0f,  180.0f },
+				{ "west-east",   -pace,  0.0f, 24.0f,    0.0f },
+				{ "east-west",    pace,  0.0f, 24.0f,  180.0f },
 			};
 			if ( n >= (int)( sizeof( V ) / sizeof( V[0] ) ) )
 			{
@@ -5968,10 +5975,11 @@ void Ship_RegisterCvars( void )
 	g_shipTestPitch = gi.cvar( "g_shipDeckPitch", "0", 0 );
 	g_shipTestWatch = gi.cvar( "g_shipTestWatch", "", 0 );
 	g_shipPanelBreak = gi.cvar( "g_shipPanelBreak", "0", 0 );
-	// The vantage test's (96) two caller inputs. Their defaults are the dark-room pass's own command,
-	// which sets neither, so that caller's frames and frames' names are unchanged.
+	// The vantage test's (96) three caller inputs. Their defaults are the dark-room pass's own command,
+	// which sets none of them, so that caller's frames, frames' names and pace are unchanged.
 	g_shipVantage = gi.cvar( "g_shipVantage", "lwh_darkroom_security", 0 );
 	g_shipVantagePost = gi.cvar( "g_shipVantagePost", "lwh_armory_post", 0 );
+	g_shipVantagePace = gi.cvar( "g_shipVantagePace", "192", 0 );
 }
 
 const int IRONMAN_SAVE_MS = 60000; // how often the one save is written forward

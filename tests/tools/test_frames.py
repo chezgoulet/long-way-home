@@ -148,6 +148,59 @@ class FrameTests(unittest.TestCase):
             ["diff", "--require", "--min-changed", "0.05", "--region", "right:100,0,200,200", before, after])
         self.assertEqual(frame.do_diff(a), 1)
 
+    # ---- alien ---------------------------------------------------------------------------------
+    def test_an_alien_deck_is_lit_built_and_coloured(self):
+        # the three clauses at once: a lit room (median/p90), structure (an edge fraction) and a
+        # palette (a channel spread in enough pixels).
+        def pixel(x, y):
+            if (x // 20 + y // 20) % 2:
+                return (150, 90, 40)          # a coloured panel
+            return (20, 60, 30)               # a dark green wall
+        path = self.tmp(pixel)
+        w, h, rows = frame.read_tga(path)
+        region = R(0, 0, w, h)
+        px = frame.region_pixels(rows, region)
+        why = frame.alien_reason(frame.summarize(px), frame.edge_fraction(rows, region, 16),
+                                 frame.chroma_fraction(px, 24), opts("alien"))
+        self.assertIsNone(why)
+
+    def test_an_alien_deck_that_is_dark_fails_the_maintained_clause(self):
+        # the derelict's failing light is a different archetype: this one must fail it.
+        path = self.tmp(lambda x, y: (4, 4, 4))
+        w, h, rows = frame.read_tga(path)
+        region = R(0, 0, w, h)
+        px = frame.region_pixels(rows, region)
+        why = frame.alien_reason(frame.summarize(px), 0.01, 0.5, opts("alien"))
+        self.assertIn("too dark", why)
+
+    def test_an_alien_deck_that_is_a_flat_fill_fails_the_built_clause(self):
+        path = self.tmp(lambda x, y: (90, 80, 70))
+        w, h, rows = frame.read_tga(path)
+        region = R(0, 0, w, h)
+        px = frame.region_pixels(rows, region)
+        why = frame.alien_reason(frame.summarize(px), 0.0001, 0.5, opts("alien"))
+        self.assertIn("no structure", why)
+
+    def test_an_alien_deck_with_no_palette_fails_the_design_language_clause(self):
+        # the drab capture: the same geometry and light, every surface and lamp neutral grey. It is
+        # lit and structured, so only the palette clause can reject it.
+        def pixel(x, y):
+            return (120, 120, 120) if (x // 20 + y // 20) % 2 else (40, 40, 40)
+        path = self.tmp(pixel)
+        w, h, rows = frame.read_tga(path)
+        region = R(0, 0, w, h)
+        px = frame.region_pixels(rows, region)
+        cf = frame.chroma_fraction(px, 24)
+        self.assertEqual(cf, 0.0)
+        why = frame.alien_reason(frame.summarize(px), frame.edge_fraction(rows, region, 16), cf,
+                                 opts("alien"))
+        self.assertIn("neutral grey", why)
+
+    def test_chroma_counts_only_pixels_with_a_channel_spread(self):
+        self.assertEqual(frame.chroma_fraction([(10, 10, 10), (100, 70, 70)], 24), 0.5)
+        self.assertEqual(frame.chroma_fraction([(10, 10, 10)], 24), 0.0)
+        self.assertEqual(frame.chroma_fraction([], 24), 0.0)
+
     # ---- the reader ----------------------------------------------------------------------------
     def test_a_truncated_frame_is_rejected(self):
         f = tempfile.NamedTemporaryFile(suffix=".tga", delete=False)
