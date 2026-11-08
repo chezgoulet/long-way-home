@@ -927,7 +927,24 @@ void DeriveAffinities(CrewMember &c, uint32_t seed)
 	TrimAffinityLikes(c.likes);
 }
 
-float EffectiveValence(const CrewMember &c, float base, const std::string &thing)
+float AllegianceWeight(const CrewMember &c, uint8_t flavour)
+{
+	// The split is Starfleet/Maquis, and the design calls it "the canon engine". The other sides --
+	// Delta native, civilian, Borg-recovered -- are real allegiances but have no dog in that fight,
+	// so the weight is zero rather than an invented alignment [our call].
+	const float s = c.allegiance.strength;
+	if (flavour == FLAVOUR_STARFLEET) {
+		if (c.allegiance.to == ALLEG_STARFLEET) return s;
+		if (c.allegiance.to == ALLEG_MAQUIS) return -s;
+	}
+	if (flavour == FLAVOUR_MAQUIS) {
+		if (c.allegiance.to == ALLEG_MAQUIS) return s;
+		if (c.allegiance.to == ALLEG_STARFLEET) return -s;
+	}
+	return 0.0f;
+}
+
+float EffectiveValence(const CrewMember &c, float base, const std::string &thing, uint8_t flavour)
 {
 	float v = base;
 	if (!thing.empty())
@@ -937,6 +954,9 @@ float EffectiveValence(const CrewMember &c, float base, const std::string &thing
 		for (const Affinity &a : c.dislikes)
 			if (SameAffinityThing(a.thing, thing)) v -= a.strength;
 	}
+	// The allegiance fold, at the one writer that already sets a mark's valence. The document's
+	// words: the same decision lands positive on the side it reads as and negative on the other.
+	v += AllegianceWeight(c, flavour);
 	return std::max(-1.0f, std::min(1.0f, v));
 }
 
@@ -5983,7 +6003,7 @@ void ApplyStartState(Ship &s, const StartState &st)
 // ---- memory and consequence -------------------------------------------------------------------
 
 void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence,
-              const std::string &touched)
+              const std::string &touched, uint8_t flavour)
 {
 	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return;
 	CrewMember &c = s.crew[crew];
@@ -5993,11 +6013,21 @@ void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source
 	m.person = static_cast<int16_t>(person);
 	m.source = source;
 	m.time = static_cast<float>(s.clock);
-	m.valence = std::max(-1.0f, std::min(1.0f, EffectiveValence(c, valence, touched)));
+	m.valence = std::max(-1.0f, std::min(1.0f, EffectiveValence(c, valence, touched, flavour)));
 	m.salience = 1.0f;
-	// Reinforce: hearing the same thing again sharpens the mark, it does not duplicate it.
+	// Reinforce: hearing the same thing again sharpens the mark, it does not duplicate it. A mark
+	// re-earned by being there is no longer an orphan of a purged report, and the latest reading of
+	// the event updates the valence: two decisions of opposite political reading are not the same
+	// mark twice.
 	for (Memory &old : c.memories)
-		if (old.event == event && old.person == m.person) { old.salience = 1.0f; old.source = source; return; }
+		if (old.event == event && old.person == m.person) {
+			old.salience = 1.0f;
+			old.source = source;
+			old.time = m.time;
+			old.valence = m.valence;
+			if (source != MEM_LOG) old.orphaned = false;
+			return;
+		}
 	// Bounded: over the cap, the least salient (and oldest, on a tie) falls off.
 	if (static_cast<int>(c.memories.size()) >= MEMORY_MAX) {
 		size_t worst = 0;
@@ -9874,13 +9904,24 @@ void PublishMeetingReport(Ship &s, const MeetingBrief &b, int outcome, int decid
 		LogEvent(s, who, "command", "meeting agenda " + std::to_string(i + 1) + " ("
 			+ BriefAgendaSourceName(a.source) + "): " + a.text + " -- " + addressed);
 	}
+	uint8_t flavour = FLAVOUR_NEUTRAL;
 	if (outcome >= 0 && outcome < sk.outcomeCount) {
 		const MeetingOption &o = sk.outcomes[outcome].option;
+		flavour = o.flavour;
 		for (int i = 0; i < b.presentCount && i < MEETING_PARTICIPANT_MAX; ++i) {
 			const BriefParticipant &p = b.present[i];
 			if (p.stance[outcome] != STANCE_OPPOSED) continue;
 			LogEvent(s, who, "command", "meeting dissent: " + p.name + " opposed \""
 				+ o.label + "\" -- " + p.stanceReason[outcome]);
+		}
+		// The decision is an event the room saw, and its political reading lands on each person
+		// through their own allegiance: the same decision, two marks, opposite signs
+		// (docs/affinities-and-allegiance.md, "How an event lands"). Those in the room saw it, so
+		// the source is MEM_SAW -- they are not given the read-it-in-the-log mark below.
+		for (int i = 0; i < b.presentCount && i < MEETING_PARTICIPANT_MAX; ++i) {
+			const int c = b.present[i].crew;
+			if (c < 0 || c >= static_cast<int>(s.crew.size())) continue;
+			Remember(s, c, MEM_MEETING, -1, MEM_SAW, EventValence(MEM_MEETING), std::string(), flavour);
 		}
 	}
 
@@ -9896,7 +9937,7 @@ void PublishMeetingReport(Ship &s, const MeetingBrief &b, int outcome, int decid
 		for (int p = 0; p < b.presentCount && p < MEETING_PARTICIPANT_MAX; ++p)
 			if (b.present[p].crew == i) { present = true; break; }
 		if (present) continue;
-		Remember(s, i, MEM_MEETING, -1, MEM_LOG, EventValence(MEM_MEETING));
+		Remember(s, i, MEM_MEETING, -1, MEM_LOG, EventValence(MEM_MEETING), std::string(), flavour);
 	}
 }
 
@@ -11789,6 +11830,25 @@ const OrderClassSpec &OrderClassSpecOf(uint8_t order)
 	return ORDER_SPECS[order < ORDER_CLASS_COUNT ? order : 0];
 }
 
+uint8_t OrderFlavour(uint8_t order)
+{
+	// The reading is ours [our call], recorded in
+	// docs/evidence/allegiance-valence-and-compliance.md. There is no canon table for which order
+	// is "Starfleet"; the document's two poles are procedure and making do, and each class is put
+	// on one of them or left neutral rather than invented per person.
+	switch (order) {
+		case ORDER_SECURE_DECK:
+		case ORDER_EVACUATE_DECK:
+		case ORDER_MAINTAIN:
+			return FLAVOUR_STARFLEET;   // hold the line by the book; clear it by procedure; keep it up
+		case ORDER_ADVANCE_DECK:
+		case ORDER_BUILD_PARTS:
+			return FLAVOUR_MAQUIS;      // take it back, and make what you need
+		default:
+			return FLAVOUR_NEUTRAL;     // seeing to a post is neither
+	}
+}
+
 const char *OrderNeedName(uint16_t bit)
 {
 	switch (bit) {
@@ -12148,17 +12208,26 @@ OrderOutcome DispatchOrder(Ship &s, const OrderBrief &brief, int option, int giv
 	r.given = true;
 	LogEvent(s, gname, "order", "orders " + s.crew[recipient].name + ": " + o.label);
 
-	// The recipient answers as a person (Task D): their morale, conditions and traits move the line,
-	// and an order they take badly leaves a mark. Where a badly-taken order lands is an OPEN QUESTION
-	// in docs/orders.md (Q3); the behaviour chosen here is named in docs/evidence/orders.md.
+	// The recipient answers as a person (Task D): their morale, conditions, traits and now their
+	// declared allegiance move the line, and an order they take badly leaves a mark. Q3 in
+	// docs/orders.md asked where a badly-taken order lands; the answer is here and in
+	// docs/evidence/allegiance-valence-and-compliance.md. Allegiance does not refuse: it bends the
+	// order and pays for it in a mark, which is what morale reads (docs/affinities-and-allegiance.md).
 	const CrewMember &rec = s.crew[recipient];
 	const float morale = Morale(rec);
+	const uint8_t flavour = OrderFlavour(o.order);
+	const float allegiance = AllegianceWeight(rec, flavour);
+	r.allegiance = allegiance;
+	r.bent = allegiance < 0.0f;
 	r.resented = morale < 0.35f || HasTrait(rec, TRAIT_POOR_WITH_AUTHORITY)
-		|| FindCondition(rec, COND_EXHAUSTED) != nullptr || FindCondition(rec, COND_AFRAID) != nullptr;
+		|| FindCondition(rec, COND_EXHAUSTED) != nullptr || FindCondition(rec, COND_AFRAID) != nullptr
+		|| allegiance <= -0.30f; // a strong allegiance against the order's reading is its own cost
 	{
 		MeetingLine &l = r.reply[r.replyCount++];
 		l.speaker = recipient;
-		if (r.resented) { l.text = "Aye. Because you asked."; l.delivery = DELIVERY_CONFESSION; }
+		if (r.bent) { l.text = "Aye. My way, not the book's."; l.delivery = DELIVERY_CONFESSION; }
+		else if (r.resented) { l.text = "Aye. Because you asked."; l.delivery = DELIVERY_CONFESSION; }
+		else if (allegiance >= 0.30f) { l.text = "Aye -- that is the right call."; l.delivery = DELIVERY_REPORT; }
 		else if (morale >= 0.6f) { l.text = "Aye -- on it."; l.delivery = DELIVERY_REPORT; }
 		else { l.text = "Understood."; l.delivery = DELIVERY_FLAT; }
 		LogEvent(s, rec.name, "order", l.text);
@@ -12167,8 +12236,13 @@ OrderOutcome DispatchOrder(Ship &s, const OrderBrief &brief, int option, int giv
 	// they were asked to do and how they bear it are on the record together. The trigger is named.
 	EmitManner(s, nullptr, recipient, MANNER_TRIGGER_ORDER);
 	if (r.resented) {
-		Remember(s, recipient, MEM_ORDER, giver, MEM_SAW, -0.6f);
-		r.note = "given and logged; taken badly (a MEM_ORDER mark toward the giver)";
+		// The mark carries the event's political reading, so the allegiance that explains it is in
+		// the valence as well as in the note.
+		Remember(s, recipient, MEM_ORDER, giver, MEM_SAW, -0.6f, std::string(), flavour);
+		r.note = std::string("given and logged; taken badly (a MEM_ORDER mark toward the giver)");
+		if (r.bent)
+			r.note += std::string("; it reads as ") + MeetingFlavourName(flavour)
+				+ " against their " + AllegianceName(rec.allegiance.to) + " allegiance, so it is carried out their way";
 	} else {
 		r.note = "given and logged";
 	}

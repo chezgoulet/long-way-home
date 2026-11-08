@@ -66,12 +66,51 @@ run_collective() {
   echo "    the broken copy fails the transcript; the tree passes"
 }
 
+run_allegiance() {
+  echo
+  echo "==> allegiance weights a mark and bends an order (test_ship_core --allegiance)"
+  "$WORK/test_ship_core" --allegiance | tee "$WORK/allegiance.txt"
+  grep -q 'CREW A: .*allegiance the Maquis.*mark -0.80' "$WORK/allegiance.txt" \
+    || fail "the Maquis-weighted crew member's mark was not negative"
+  grep -q 'CREW B: .*allegiance Starfleet.*mark +0.80' "$WORK/allegiance.txt" \
+    || fail "the Starfleet-weighted crew member's mark was not positive"
+  grep -q '^  it bends: 1; it resents: 1; reply: "Aye. My way' "$WORK/allegiance.txt"     || fail "the opposed order was not bent and marked"
+
+  echo
+  echo "==> falsification: an allegiance that weights nothing must fail the transcript"
+  mkdir -p "$WORK/broken-allegiance"
+  cp -r "$ROOT/module" "$ROOT/tests" "$WORK/broken-allegiance/"
+  sed -i 's/const float s = c.allegiance.strength;/return 0.0f; \/\/ planted: allegiance weights nothing\n\tconst float s = c.allegiance.strength;/' \
+    "$WORK/broken-allegiance/module/ship/ship_core.cpp"
+  grep -q 'planted: allegiance weights nothing' "$WORK/broken-allegiance/module/ship/ship_core.cpp" \
+    || fail "the allegiance plant did not take"
+  build "$WORK/broken-allegiance" "$WORK/test_broken_allegiance"
+  if "$WORK/test_broken_allegiance" --allegiance >"$WORK/broken-allegiance.txt" 2>&1; then
+    fail "the transcript passed with an allegiance that weights nothing: the check has no teeth"
+  fi
+  if grep -q 'CREW A: .*allegiance the Maquis.*mark -0.80' "$WORK/broken-allegiance.txt"; then
+    fail "the broken copy failed for the wrong reason"
+  fi
+  echo "    the broken copy fails the transcript; the tree passes"
+}
+
 case "$MODE" in
   collective) run_collective ;;
-  all) run_collective ;;
+  allegiance) run_allegiance ;;
+  all) run_collective; run_allegiance ;;
   *) echo "unknown mode: $MODE" >&2; exit 2 ;;
 esac
 
 echo
-echo "PASS  the Collective speaks a taken person's own words in the stolen voice, and a planted"
-echo "      speaker that cannot speak fails the same transcript"
+case "$MODE" in
+  collective)
+    echo "PASS  the Collective speaks a taken person's own words in the stolen voice, and a planted"
+    echo "      speaker that cannot speak fails the same transcript" ;;
+  allegiance)
+    echo "PASS  the same event lands opposite on two declared sides, an opposed order bends and pays"
+    echo "      a mark, and a planted allegiance that weights nothing fails the same transcript" ;;
+  all)
+    echo "PASS  the Collective speaks a taken person's own words in the stolen voice; the same event"
+    echo "      lands opposite on two declared sides and an opposed order bends and pays a mark; each"
+    echo "      planted break fails its own transcript" ;;
+esac

@@ -151,12 +151,20 @@ de-assimilation in the window, or a death, ends it. No save change (66). Evidenc
 `docs/evidence/the-collectives-voice.md`, `TestTheCollectiveVoice`,
 `scripts/stage-d-check.sh collective`.
 
-**Still deferred inside Stage D:** allegiance is recorded and now weights a meeting's **stance**, but
-not the valence of an event or an order's compliance, so the document's Maquis/Starfleet morale
-consequence is not built; a pursuit does not yet produce an artifact or an event the log can point
-at; and the liked program observed on the deck in the running game (as opposed to the model's choice)
-needs a session. The meeting overlay was built in the meeting lane before these slices, and its own
-in-engine run was not repeated here.
+**Slice 5 built 2026-11-08 — allegiance weights a mark and bends an order.** `AllegianceWeight` is
+the folded weight a declared side gives an event that reads as Starfleet procedure or Maquis
+pragmatism; `EffectiveValence`/`Remember` apply it at the one mark writer, and the meeting's decision
+is written with the chosen option's own reading. `OrderFlavour` gives each order class the same axis,
+and `DispatchOrder` reads it: an order against a strong allegiance is not refused -- it is bent, and
+the cost is a `MEM_ORDER` mark toward the giver. The mapping of order classes is ours `[our call]`,
+recorded in the evidence. No save change (66). Evidence:
+`docs/evidence/allegiance-valence-and-compliance.md`, `TestAllegianceValenceAndCompliance`,
+`scripts/stage-d-check.sh allegiance`.
+
+**Still deferred inside Stage D:** a pursuit does not yet produce an artifact or an event the log can
+point at; and the liked program observed on the deck in the running game (as opposed to the model's
+choice) needs a session. The meeting overlay was built in the meeting lane before these slices, and
+its own in-engine run was not repeated here.
 
 **Blocks.** Stage C only in the sense of budget, not dependency.
 

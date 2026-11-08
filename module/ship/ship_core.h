@@ -740,12 +740,26 @@ uint8_t DeriveSpecies(uint8_t dept, uint32_t &rng);
 // that a transporter doubles keeps its taste; a save without the static half re-derives it exactly.
 void DeriveAffinities(CrewMember &c, uint32_t seed);
 
+// What an event or an order reads as politically (docs/affinities-and-allegiance.md): "a decision
+// that reads as Starfleet procedure lands negative on Maquis-weighted crew and positive on
+// Starfleet-weighted crew; a decision that reads as pragmatic and Maquis-flavoured, the reverse."
+// It is declared once here because meetings, marks and orders all read the same axis.
+enum MeetingFlavour : uint8_t { FLAVOUR_NEUTRAL = 0, FLAVOUR_STARFLEET, FLAVOUR_MAQUIS };
+const char *MeetingFlavourName(uint8_t f);
+
+// The allegiance half of the same design: how strongly this person's declared side bends a thing
+// that reads one way. Signed -- positive when the reading is theirs, negative when it is the other
+// side's, zero for a neutral reading or an allegiance with no dog in the fight. Pure.
+float AllegianceWeight(const CrewMember &c, uint8_t flavour);
+
 // Entry one: the valence fold. The base valence is left exactly as it was when nothing the person
-// likes or dislikes is named, so the bond store is unchanged by this mechanism. A matching like
-// raises the mark, a matching dislike lowers it; the result is clamped to the mark's -1..+1.
+// likes, dislikes or is loyal to is named, so the bond store is unchanged by this mechanism. A
+// matching like raises the mark, a matching dislike lowers it, and a declared allegiance bends a
+// mark whose event reads as one side's or the other's; the result is clamped to the mark's -1..+1.
 // `thing` is whatever the event touched, named as the record names it ("Klingon opera", "coffee",
-// "repair"). Matching is case-insensitive and whole-name.
-float EffectiveValence(const CrewMember &c, float base, const std::string &thing);
+// "repair"). Matching is case-insensitive and whole-name. `flavour` is the event's own reading.
+float EffectiveValence(const CrewMember &c, float base, const std::string &thing,
+                       uint8_t flavour = FLAVOUR_NEUTRAL);
 
 // Entry two: choice. The strongest liked program, or empty; the strongest liked task, or empty.
 std::string PreferredProgram(const CrewMember &c);
@@ -1499,13 +1513,10 @@ const char *MeetingEffectName(uint8_t e);
 const int MEETING_ALLOC_MAX = 2;
 struct MeetingAlloc { uint8_t system = 0xFF; int percent = 100; };
 
-// What an option reads as, for the room's disagreement (docs/affinities-and-allegiance.md):
-// "a decision that reads as Starfleet procedure lands negative on Maquis-weighted crew and positive
-// on Starfleet-weighted crew; a decision that reads as pragmatic and Maquis-flavoured, the reverse."
-// The authored skeleton declares it; the brief derives each participant's stance from their own
-// allegiance. NEUTRAL options carry no declared political reading.
-enum MeetingFlavour : uint8_t { FLAVOUR_NEUTRAL = 0, FLAVOUR_STARFLEET, FLAVOUR_MAQUIS };
-const char *MeetingFlavourName(uint8_t f);
+// The authored skeleton declares an option's reading with MeetingFlavour (declared with the
+// affinities above, because marks and orders read the same axis); the brief derives each
+// participant's stance from their own allegiance. NEUTRAL options carry no declared political
+// reading.
 
 // A stance is a read of the brief, never a stored opinion: -1 opposed, 0 neutral, +1 supports.
 enum MeetingStance : int8_t { STANCE_OPPOSED = -1, STANCE_NEUTRAL = 0, STANCE_SUPPORTS = 1 };
@@ -3241,10 +3252,12 @@ int SeniorFitOfficer(const Ship &s);
 // crew a thing (Brief); a query asks whether a character holds an event and how they came to (Recall,
 // RecallSource), how many marks they hold (MemoryCount), and how they feel about a person (Bond).
 // `touched` is the thing the event was about, when it has one: the affinity fold reads it and raises
-// or lowers the mark accordingly. Empty (the default) leaves the base valence exactly as given, so
-// every existing writer is unchanged and the bond store stays the bond store.
+// or lowers the mark accordingly. `flavour` is the event's political reading, when it has one: the
+// allegiance fold reads it and bends the mark toward or against the person's declared side. Both
+// defaults leave the base valence exactly as given, so every existing writer is unchanged and the
+// bond store stays the bond store.
 void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence,
-              const std::string &touched = std::string());
+              const std::string &touched = std::string(), uint8_t flavour = FLAVOUR_NEUTRAL);
 void Brief(Ship &s, uint16_t event, float valence, const std::string &touched = std::string());
 bool Recall(const CrewMember &who, uint16_t event);
 int RecallSource(const CrewMember &who, uint16_t event);
@@ -3410,6 +3423,12 @@ int OrderClassCount();                     // the register's row count
 const OrderClassSpec &OrderClassSpecOf(uint8_t order);
 const char *OrderNeedName(uint16_t bit);   // the need's own name, for the refusal and the log
 
+// How an order class reads politically, on the meeting's own axis (docs/affinities-and-allegiance.md,
+// "Whether the order is carried out, and how"). The reading is ours [our call], recorded in
+// docs/evidence/allegiance-valence-and-compliance.md: procedure and paperwork read Starfleet, making
+// do and taking a thing back read Maquis, and a repair reads neither.
+uint8_t OrderFlavour(uint8_t order);
+
 // May `giver` give an order to `recipient` at all? The one authority read the derivation and the
 // refusal both use: a fit giver, not themselves, senior to the recipient or holding command
 // (docs/access-and-authority.md). This is the "who may order whom" the console's lock teaches.
@@ -3476,6 +3495,8 @@ struct OrderOutcome {
 	int16_t target = 0;
 	int job = -1;              // the index the order's job landed at, or -1
 	bool resented = false;     // the recipient took it badly (morale/conditions/marks)
+	bool bent = false;         // their declared allegiance opposed it: carried out, but in their own way
+	float allegiance = 0.0f;   // the signed weight their allegiance gave this order's reading
 	MeetingLine reply[ORDER_REPLY_MAX]; int replyCount = 0; // the giver's line, then the answer
 	std::string note;          // what happened, in words, for the log
 };

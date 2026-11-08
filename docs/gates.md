@@ -323,13 +323,12 @@ picked in a recreation hour; a loved task is asked for from the queue. `TestAffi
 `TestAffinityValence`, `TestBondFoldUnchangedWithoutAffinity`, `TestAffinityChoice`,
 `scripts/affinity-check.sh`, `test_ship_core --affinities`.
 
-**What remains (deferred, not claimed):** the allegiance is recorded but does not yet weight valence
-or compliance — the document's Maquis/Starfleet morale consequence is not built here; a pursuit does
-not yet produce an artifact or an event the log can point at; and the in-engine observation of a
-program on the deck (as opposed to the model's choice) needs a session. *(Corrected 2026-10-31: the
-meeting overlay and the two-log split were already built in the meeting lane; the per-participant
-brief now carries this record into the meeting — see the next entry. The Collective's voice remains
-a later Stage D slice.)*
+**What remains (deferred, not claimed):** ~~the allegiance is recorded but does not yet weight
+valence or compliance~~ **(built 2026-11-08 as slice 5, below)**; a pursuit does not yet produce an
+artifact or an event the log can point at; and the in-engine observation of a program on the deck (as
+opposed to the model's choice) needs a session. *(Corrected 2026-10-31: the meeting overlay and the
+two-log split were already built in the meeting lane; the per-participant brief carries this record
+into the meeting — see the next entry.)*
 
 ### The meeting brief per participant — Stage D slice 2 *(built 2026-10-31; `docs/evidence/staff-meetings.md`)*
 
@@ -401,6 +400,32 @@ voice~~ **(built 2026-11-08 as slice 4, below)**; voice input beyond the existin
 computer-as-a-place; and the owner's judgement of whether the room reads as a room. This slice does
 not touch the overlay, the brief or the generator, and it does not repeat the overlay's in-engine
 run.
+
+### Allegiance weights a mark and bends an order — Stage D slice 5 *(built 2026-11-08; `docs/evidence/allegiance-valence-and-compliance.md`)*
+
+`docs/affinities-and-allegiance.md` says an allegiance is **not a team**: it is a weighting on how an
+event lands and on whether an order is carried out, and how. The record already carried the
+allegiance; it previously weighted only a meeting's stance. This slice builds the two uses where the
+document puts them.
+
+**How an event lands.** `AllegianceWeight` is the signed weight a declared side gives an event that
+reads as Starfleet procedure or Maquis pragmatism. `EffectiveValence` and `Remember` apply it at the
+one mark writer, so the same decision is `-0.80` for a Maquis-weighted record and `+0.80` for a
+Starfleet-weighted one. The meeting's decision is published with the chosen option's own flavour, so
+the simulation path, not only the writer, produces the difference.
+
+**Whether the order is carried out, and how.** `OrderFlavour` puts each order class on the same axis
+`[our call]`: `secure`, `evacuate` and `maintain` read Starfleet procedure; `advance` and `build`
+read Maquis pragmatism; `see to` is neutral. `DispatchOrder` reads the recipient's weight: a strong
+weight against the order does not refuse it -- the order is applied, the answer bends (*"Aye. My way,
+not the book's."*), and the cost is a `MEM_ORDER` mark toward the giver whose valence carries the
+reading. A strong weight for it answers warmly; neutral leaves the morale/condition/trait rule as it
+was. The mapping and the threshold are ours, recorded in the evidence so they can be tuned.
+
+**Demonstrated:** `TestAllegianceValenceAndCompliance`, `test_ship_core --allegiance`, and
+`scripts/stage-d-check.sh allegiance`, whose output and falsification are in
+`docs/evidence/allegiance-valence-and-compliance.md`. Save format remains **66**: the reading is an
+argument, not a stored field.
 
 ### The Collective's voice — Stage D slice 4 *(built 2026-11-08; `docs/evidence/the-collectives-voice.md`)*
 
