@@ -193,6 +193,44 @@ designed in `docs/endings.md`, neither built); the transwarp route (the arrival 
 way); an endgame screen (the destinations are reached by the console and the model); and the arrival's
 rendered picture against a Voyager exterior and a system skybox.
 
+## The remainder, scheduled 2026-11-07
+
+The owner's ruling: Stage C is closed by his own walkthrough; **Stage D is built out completely, including
+everything deferred**; **Stage E's deferred items are built**; the arrival picture is decided below; and the
+open O-items are placed in order rather than left in a list.
+
+**The order, and why it is this order:**
+
+1. **Stage C — the owner's walkthrough.** Five decks are built; the one criterion that cannot be automated is
+   his walk. Nothing below waits on it, but a play session does, and the deck gate is his to close.
+2. **Stage D — the crew in the world, fully.** In lane: the Collective's voice, allegiance weighting an
+   event's valence and an order's compliance, a pursuit producing an artifact the log can point at, and the
+   model half of the liked program observed on the deck.
+3. **Stage E — the deferred items.** In lane: the crew's veto at the destination, the wildcard attempt, the
+   transwarp route as a route, and an endgame screen that is not a score screen.
+4. **The arrival picture.** Two halves, and they are not the same problem:
+   - **The skybox we already have.** The player's own installation carries `env/bsky_{up,dn,lf,rt,ft,bk}.jpg`
+     in `pak3.pk3` — a complete six-face box. Loading it at runtime costs no new asset and is the asset
+     doctrine's own rule: the base game is the palette. This closes half the gap.
+   - **The ship, which we will not copy.** A faithful Voyager exterior is a named Paramount design, and the
+     doctrine's boundary is the same one it draws for named characters: *a mesh generated to look like a
+     specific lore asset is a new artifact with no clean chain of title*. So the arrival shows **an original
+     class ship of our own**, and the doctrine already blesses whole-cloth generation for our own content.
+5. **O15's remainder — the nine scenarios as played content, and the in-game verb that loads a declaration.**
+   Before O12 and O13, because firing content is what makes the crew and the decks worth walking: Stage D
+   built people who react, and a scenario is what they react to.
+6. **O12 — the phenomenon's two canon story models** (`docs/exploration-and-science.md`).
+7. **O13 — the Borg squad embodied as bodies moving deck by deck** (`docs/borg-incursion.md`). After O15,
+   because its bodies move through the decks a play session will already have walked.
+8. **O18 — multiplayer.** Stays deferred. It is a premise, not a stage, and nothing above needs it.
+
+**The generator, as its own piece of work.** A content generator is in scope by the doctrine — *whole-cloth
+generation is in scope for our own content* — with both of its constraints intact: it produces our content and
+never a lore asset, and its output lives in the player's cache, never in this repository. What it should be is
+**parametric rather than fantastical**: hulls from primitives with our own palette and greebles, panels re-dressed
+through the station path already built, and parts for anonymous crew. It serves the arrival's ship, the props a
+scenario needs, and the faces Stage D's anonymous crew are still waiting for.
+
 ## Cross-cutting: what only the owner can close
 
 These are not stages and they do not block the path, but they are the gates the code is already waiting on, and
