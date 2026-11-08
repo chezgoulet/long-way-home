@@ -161,10 +161,16 @@ recorded in the evidence. No save change (66). Evidence:
 `docs/evidence/allegiance-valence-and-compliance.md`, `TestAllegianceValenceAndCompliance`,
 `scripts/stage-d-check.sh allegiance`.
 
-**Still deferred inside Stage D:** a pursuit does not yet produce an artifact or an event the log can
-point at; and the liked program observed on the deck in the running game (as opposed to the model's
-choice) needs a session. The meeting overlay was built in the meeting lane before these slices, and
-its own in-engine run was not repeated here.
+**Slice 6 built 2026-11-08 — a pursuit puts an artifact in the world.** `PursuitArtifact` names what
+a person makes, deterministically from the record; `WorkOnPursuit` writes it into the official log
+and takes a `MEM_PURSUIT` mark, one per person per run so a reload cannot replay it; the schedule
+gives downtime one hand's turn per ship hour, read back from the marks. No save change (66): the
+event is a `uint16` event id and the artifact is a function of the record. Evidence:
+`docs/evidence/the-pursuit.md`, `TestPursuitArtifact`, `scripts/stage-d-check.sh pursuits`.
+
+**Still deferred inside Stage D:** the liked program observed on the deck in the running game (as
+opposed to the model's choice) needs a session. The meeting overlay was built in the meeting lane
+before these slices, and its own in-engine run was not repeated here.
 
 **Blocks.** Stage C only in the sense of budget, not dependency.
 

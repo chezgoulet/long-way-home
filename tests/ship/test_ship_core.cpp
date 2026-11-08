@@ -11450,6 +11450,83 @@ static int PrintAllegiance()
 }
 
 
+static void TestPursuitArtifact()
+{
+	g_test = "a pursuit produces an artifact the log can point at";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int who = 1;
+	s.crew[who].status = CREW_FIT;
+	s.crew[who].brigged = false;
+	s.crew[who].away = false;
+	s.crew[who].pursuits.clear();
+	Pursuit p;
+	p.kind = PURSUIT_POEM;
+	p.thing = PursuitKindName(PURSUIT_POEM);
+	p.strength = 0.90f;
+	s.crew[who].pursuits.push_back(p);
+	const std::string artifact = PursuitArtifact(s.crew[who]);
+	CHECK(!artifact.empty());
+	CHECK(artifact.find("poem") != std::string::npos);
+	CHECK(!HasPursued(s.crew[who]));
+	const size_t before = s.log.size();
+	const std::string line = WorkOnPursuit(s, who);
+	CHECK(!line.empty());
+	CHECK(line.find(artifact) != std::string::npos);
+	CHECK(s.log.size() == before + 1);
+	CHECK(s.log.back().what == line);
+	CHECK(HasPursued(s.crew[who]));
+	// Bounded to one per run: a reload cannot make it again.
+	CHECK(WorkOnPursuit(s, who).empty());
+	CHECK(s.log.size() == before + 1);
+	// The title is a function of the record, so the log line can be pointed at again.
+	CHECK(PursuitArtifact(s.crew[who]) == artifact);
+
+	// The schedule is where it happens: a recreation hour produces a piece without a console call.
+	Ship r = NewShip();
+	Tick(r, Hours(r, 9.5f));
+	bool made = false;
+	for (const CrewMember &c : r.crew) if (HasPursued(c)) made = true;
+	CHECK(made);
+	// A zero-time tick writes nothing (a load does not make a thing).
+	Ship z = NewShip();
+	Tick(z, Hours(z, 9.5f));
+	const size_t zlog = z.log.size();
+	Tick(z, 0.0f);
+	CHECK(z.log.size() == zlog);
+}
+
+// `test_ship_core --pursuits`: what they make, as a trace.
+static int PrintPursuits()
+{
+	int failures = 0;
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int who = 1;
+	s.crew[who].status = CREW_FIT;
+	s.crew[who].pursuits.clear();
+	Pursuit p; p.kind = PURSUIT_POEM; p.thing = PursuitKindName(PURSUIT_POEM); p.strength = 0.90f;
+	s.crew[who].pursuits.push_back(p);
+	std::printf("== a pursuit, put into the world\n");
+	std::printf("  the maker: %s; the pursuit: %s (%+.2f)\n", s.crew[who].name.c_str(),
+		p.thing.c_str(), p.strength);
+	const std::string line = WorkOnPursuit(s, who);
+	std::printf("  the artifact: %s\n", PursuitArtifact(s.crew[who]).c_str());
+	std::printf("  the log line: %s\n", line.empty() ? "(none)" : line.c_str());
+	std::printf("  the mark: MEM_PURSUIT held %d; a second making produces \"%s\"\n",
+		HasPursued(s.crew[who]) ? 1 : 0, WorkOnPursuit(s, who).c_str());
+	if (line.empty() || !HasPursued(s.crew[who]) || !WorkOnPursuit(s, who).empty()) ++failures;
+	Ship r = NewShip();
+	Tick(r, Hours(r, 9.5f));
+	int made = 0;
+	for (const CrewMember &c : r.crew) if (HasPursued(c)) ++made;
+	std::printf("  the schedule made %d piece(s) in a recreation hour\n", made);
+	if (made <= 0) ++failures;
+	std::printf("%s\n", failures ? "pursuits: FAILURES" : "all demonstrations passed");
+	return failures ? 1 : 0;
+}
+
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--bills")) return PrintBills();
@@ -11491,6 +11568,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--endings")) return PrintEndings();
 	if (argc > 1 && !std::strcmp(argv[1], "--collective")) return PrintCollectiveVoice();
 	if (argc > 1 && !std::strcmp(argv[1], "--allegiance")) return PrintAllegiance();
+	if (argc > 1 && !std::strcmp(argv[1], "--pursuits")) return PrintPursuits();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -11673,6 +11751,7 @@ int main(int argc, char **argv)
 	TestEndingArrival();
 	TestTheCollectiveVoice();
 	TestAllegianceValenceAndCompliance();
+	TestPursuitArtifact();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

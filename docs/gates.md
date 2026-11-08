@@ -324,9 +324,9 @@ picked in a recreation hour; a loved task is asked for from the queue. `TestAffi
 `scripts/affinity-check.sh`, `test_ship_core --affinities`.
 
 **What remains (deferred, not claimed):** ~~the allegiance is recorded but does not yet weight
-valence or compliance~~ **(built 2026-11-08 as slice 5, below)**; a pursuit does not yet produce an
-artifact or an event the log can point at; and the in-engine observation of a program on the deck (as
-opposed to the model's choice) needs a session. *(Corrected 2026-10-31: the meeting overlay and the
+valence or compliance~~ **(built 2026-11-08 as slice 5, below)**; ~~a pursuit does not yet produce an
+artifact or an event the log can point at~~ **(built 2026-11-08, below)**; and the in-engine
+observation of a program on the deck (as opposed to the model's choice) needs a session. *(Corrected 2026-10-31: the meeting overlay and the
 two-log split were already built in the meeting lane; the per-participant brief carries this record
 into the meeting — see the next entry.)*
 
@@ -426,6 +426,26 @@ was. The mapping and the threshold are ours, recorded in the evidence so they ca
 `scripts/stage-d-check.sh allegiance`, whose output and falsification are in
 `docs/evidence/allegiance-valence-and-compliance.md`. Save format remains **66**: the reading is an
 argument, not a stored field.
+
+### A pursuit puts an artifact in the world *(built 2026-11-08; `docs/evidence/the-pursuit.md`)*
+
+`docs/affinities-and-allegiance.md` says `pursuits[]` matter most because they **generate artifacts
+and events, which are the fuel the memory system runs on**. The record was generated; nothing came
+of it. This slice supplies the acceptance item.
+
+`PursuitArtifact` names what a person makes deterministically from their record; `WorkOnPursuit`
+writes it into the official log and takes a `MEM_PURSUIT` mark; `HasPursued` is the read. **One piece
+per person per run**, so a reload cannot replay it, and the schedule gives downtime one hand's turn
+per ship hour with the hour read back from the marks — no stored cursor, no new field. A zero-time
+tick (a load) writes nothing. The artifact is a log event, not a prop: the acceptance allows an
+artifact **or** an event, and the event is the form that costs the save nothing.
+
+**Demonstrated:** `TestPursuitArtifact`, `test_ship_core --pursuits`, and
+`scripts/stage-d-check.sh pursuits`, whose output and falsification are in
+`docs/evidence/the-pursuit.md`. Save format remains **66**.
+
+**What remains (deferred, not claimed):** the artifact is not a visible object on a table, and the
+maker working on it is not watched in the world; those are location/prop work.
 
 ### The Collective's voice — Stage D slice 4 *(built 2026-11-08; `docs/evidence/the-collectives-voice.md`)*
 

@@ -94,10 +94,37 @@ run_allegiance() {
   echo "    the broken copy fails the transcript; the tree passes"
 }
 
+run_pursuits() {
+  echo
+  echo "==> a pursuit puts an artifact in the log (test_ship_core --pursuits)"
+  "$WORK/test_ship_core" --pursuits | tee "$WORK/pursuits.txt"
+  grep -q '^  the artifact: a poem, "A Message Home"' "$WORK/pursuits.txt"     || fail "the pursuit did not name a deterministic artifact"
+  grep -q '^  the log line: .* finishes a poem, "A Message Home"$' "$WORK/pursuits.txt"     || fail "the artifact did not reach the log"
+  grep -q '^  the mark: MEM_PURSUIT held 1; a second making produces ""$' "$WORK/pursuits.txt"     || fail "the pursuit was not marked, or a reload could make it again"
+
+  echo
+  echo "==> falsification: a pursuit that makes nothing must fail the transcript"
+  mkdir -p "$WORK/broken-pursuits"
+  cp -r "$ROOT/module" "$ROOT/tests" "$WORK/broken-pursuits/"
+  sed -i 's/if (c.pursuits.empty() || HasPursued(c)) return std::string(); \/\/ one piece per person per run/return std::string(); \/\/ planted: a pursuit makes nothing/' \
+    "$WORK/broken-pursuits/module/ship/ship_core.cpp"
+  grep -q 'planted: a pursuit makes nothing' "$WORK/broken-pursuits/module/ship/ship_core.cpp" \
+    || fail "the pursuit plant did not take"
+  build "$WORK/broken-pursuits" "$WORK/test_broken_pursuits"
+  if "$WORK/test_broken_pursuits" --pursuits >"$WORK/broken-pursuits.txt" 2>&1; then
+    fail "the transcript passed with a pursuit that makes nothing: the check has no teeth"
+  fi
+  if grep -q '^  the log line: .* finishes a poem' "$WORK/broken-pursuits.txt"; then
+    fail "the broken copy failed for the wrong reason"
+  fi
+  echo "    the broken copy fails the transcript; the tree passes"
+}
+
 case "$MODE" in
   collective) run_collective ;;
   allegiance) run_allegiance ;;
-  all) run_collective; run_allegiance ;;
+  pursuits) run_pursuits ;;
+  all) run_collective; run_allegiance; run_pursuits ;;
   *) echo "unknown mode: $MODE" >&2; exit 2 ;;
 esac
 
@@ -109,8 +136,11 @@ case "$MODE" in
   allegiance)
     echo "PASS  the same event lands opposite on two declared sides, an opposed order bends and pays"
     echo "      a mark, and a planted allegiance that weights nothing fails the same transcript" ;;
+  pursuits)
+    echo "PASS  a pursuit puts a deterministic artifact into the log, marks it, and cannot make it"
+    echo "      twice; a planted pursuit that makes nothing fails the same transcript" ;;
   all)
     echo "PASS  the Collective speaks a taken person's own words in the stolen voice; the same event"
-    echo "      lands opposite on two declared sides and an opposed order bends and pays a mark; each"
-    echo "      planted break fails its own transcript" ;;
+    echo "      lands opposite on two declared sides and an opposed order bends and pays a mark; a"
+    echo "      pursuit puts an artifact in the log; each planted break fails its own transcript" ;;
 esac

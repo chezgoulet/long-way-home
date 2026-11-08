@@ -458,8 +458,11 @@ enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, ME
 	MEM_LOSS = 10,     // something the ship has given up: those aboard saw it, everyone else hears it as a rumour
 	                   // (docs/memory-and-consequence.md, "a deck written off is a mark in everyone who was aboard,
 	                   // and a rumour in everyone who was not") -- the event that makes MEM_RUMOUR a mark the crew carry
-	MEM_MEETING = 11 }; // a meeting was held and its report published: those not in the room read it, and the mark
+	MEM_MEETING = 11,  // a meeting was held and its report published: those not in the room read it, and the mark
 	                    // outlives the report when a purge removes it (docs/staff-meetings.md, docs/the-record-and-the-log.md)
+	MEM_PURSUIT = 12 }; // what a person made: their pursuit put an artifact into the world, and the log line
+	                    // is the trace (docs/affinities-and-allegiance.md). One per person per run, so a
+	                    // reload cannot replay it.
 const int MEMORY_MAX = 8;
 struct Memory {
 	uint16_t event = 0;
@@ -764,6 +767,17 @@ float EffectiveValence(const CrewMember &c, float base, const std::string &thing
 // Entry two: choice. The strongest liked program, or empty; the strongest liked task, or empty.
 std::string PreferredProgram(const CrewMember &c);
 std::string PreferredTask(const CrewMember &c);
+
+// What a pursuit puts into the world (docs/affinities-and-allegiance.md, "pursuits"): the thing a
+// person makes, named deterministically from their record and the seed, and whether they have yet.
+// The work itself is WorkOnPursuit below: one artifact per person per run, logged and marked, so it
+// is a trace the log can point at rather than a preference nobody can see.
+std::string PursuitArtifact(const CrewMember &c);
+bool HasPursued(const CrewMember &who);
+// The schedule's downtime work: a person in a recreation hour works on what they make, and the
+// first completed piece is logged and marked (MEM_PURSUIT). Bounded to one per person per run so a
+// save cannot replay it, and it returns the log line, or "" when there was nothing to make.
+std::string WorkOnPursuit(Ship &s, int crew);
 
 // ---- the appearance derivation: the face comes from the same seed --------------------------------
 // docs/character-attributes.md, "Appearance: the face is part of the person, so it comes from the

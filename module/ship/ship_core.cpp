@@ -978,6 +978,63 @@ std::string PreferredTask(const CrewMember &c)
 	return BestAffinity(c.likes, AFFT_TASK);
 }
 
+// ---- pursuits: what they make, put into the world ------------------------------------------------
+//
+// A pursuit is what a person *makes*: a holonovel, a meal, a model, a poem, a piece of music. It is
+// generated from the seed like the rest of taste, and the design says why it matters: "pursuits
+// matter more than likes, because they generate artifacts and events, which is the fuel the whole
+// memory system runs on." The artifact is named deterministically from the record, so the same
+// person makes the same thing on every load; the mark is the event, and the log line is the trace.
+bool HasPursued(const CrewMember &who) { return Recall(who, MEM_PURSUIT); }
+
+std::string PursuitArtifact(const CrewMember &c)
+{
+	if (c.pursuits.empty()) return std::string();
+	// The strongest pursuit is the one they finish first; the seed picks the title, never the kind.
+	const Pursuit *p = &c.pursuits[0];
+	for (const Pursuit &q : c.pursuits) if (q.strength > p->strength) p = &q;
+	uint32_t r = AffinitySeed(0x50555253u, c.name + "|" + c.type + "|" + p->thing);
+	auto pick = [&r](const char *const *pool, int n) { return std::string(pool[(r = r * 1664525u + 1013904223u, (r >> 8)) % static_cast<uint32_t>(n)]); };
+	switch (p->kind) {
+		case PURSUIT_HOLONOVEL: {
+			static const char *const TITLES[] = { "The Long Way Round", "A House on the Ridge", "The Quiet Watch", "Letters From Home" };
+			return std::string("a holonovel chapter, \"") + pick(TITLES, 4) + "\"";
+		}
+		case PURSUIT_MEAL: {
+			static const char *const DISHES[] = { "a slow-cooked root stew", "a spiced grain dish", "a fruit tart", "a broth for the night watch" };
+			return pick(DISHES, 4);
+		}
+		case PURSUIT_MODEL: {
+			static const char *const SUBJECTS[] = { "a model of the ship", "a model of a shuttle", "a model of the bridge", "a model of a delta-quadrant bird" };
+			return pick(SUBJECTS, 4);
+		}
+		case PURSUIT_POEM: {
+			static const char *const TITLES[] = { "What the Stars Are For", "A Message Home", "The Watch Before Dawn", "Nobody's Sky" };
+			return std::string("a poem, \"") + pick(TITLES, 4) + "\"";
+		}
+		case PURSUIT_MUSIC: {
+			static const char *const TITLES[] = { "a quartet for four hands", "a song for the mess hall", "a lament in a minor key", "a dance tune" };
+			return pick(TITLES, 4);
+		}
+		default: return std::string("something they made");
+	}
+}
+
+std::string WorkOnPursuit(Ship &s, int crew)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return std::string();
+	CrewMember &c = s.crew[crew];
+	if (c.status != CREW_FIT || c.brigged || c.away) return std::string();
+	if (c.pursuits.empty() || HasPursued(c)) return std::string(); // one piece per person per run
+	const std::string artifact = PursuitArtifact(c);
+	if (artifact.empty()) return std::string();
+	const std::string line = c.name + " finishes " + artifact;
+	LogEvent(s, c.name, "crew", line);
+	// The maker remembers making it; it is theirs, so no person is named in the mark (person -1).
+	Remember(s, crew, MEM_PURSUIT, -1, MEM_SAW, 0.5f);
+	return line;
+}
+
 // ---- the appearance derivation -------------------------------------------------------------------
 //
 // The pool, enumerated from the shipped data and recorded in docs/evidence/the-appearance.md. It is
@@ -2417,6 +2474,31 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 			if (buildingHands < 4)
 				for (size_t b = 0; b < s.jobs.size() && !busy; ++b)
 					if (s.jobs[b].kind == JOB_BUILD && s.jobs[b].target != 0) { ++buildingHands; busy = true; }
+		}
+	}
+
+	// The pursuit at the schedule (docs/affinities-and-allegiance.md): downtime is when what a person
+	// makes gets made. At most one piece enters the world per ship hour -- one hand's turn, chosen by
+	// the clock so a save replays it without storing a cursor -- so a run produces traces over time
+	// rather than a flood, and a zero-time tick (a load) writes nothing.
+	if (shipSeconds > 0.0f && !s.crew.empty()) {
+		// One piece per clock hour, and the hour is read back from the marks: their time is saved,
+		// so a reload in the same hour does not make a second piece and no cursor is stored.
+		const float hourStart = std::floor(static_cast<float>(s.clock) / 3600.0f) * 3600.0f;
+		bool madeThisHour = false;
+		for (const CrewMember &c : s.crew) {
+			for (const Memory &m : c.memories)
+				if (m.event == MEM_PURSUIT && m.time >= hourStart) { madeThisHour = true; break; }
+			if (madeThisHour) break;
+		}
+		if (!madeThisHour) {
+			const int n = static_cast<int>(s.crew.size());
+			const int first = static_cast<int>(s.clock / 3600.0) % n;
+			for (int k = 0; k < n; ++k) {
+				const int i = (first + k) % n;
+				if (s.crew[i].activity != ACT_RECREATION || s.crew[i].pursuits.empty()) continue;
+				if (!WorkOnPursuit(s, i).empty()) break;
+			}
 		}
 	}
 
@@ -6303,6 +6385,7 @@ static float EventValence(uint16_t event)
 	case MEM_ORDER: return 0.1f;
 	case MEM_FUNERAL: return 0.4f;
 	case MEM_LOCKOUT: return -0.6f;
+	case MEM_PURSUIT: return 0.4f; // something they made, and kept
 	default: return 0.0f;
 	}
 }
@@ -9664,6 +9747,7 @@ static std::string EventPhrase(const Ship &s, uint16_t event, int person)
 		case MEM_OVERRULED: what = "being overruled"; break;
 		case MEM_LOSS: what = "a loss"; break;
 		case MEM_MEETING: what = "a meeting"; break;
+		case MEM_PURSUIT: what = "something they made"; break;
 		default: what = "an event"; break;
 	}
 	if (person >= 0) what += " involving " + NameAt(s, person);
