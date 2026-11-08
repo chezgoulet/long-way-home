@@ -10424,6 +10424,30 @@ std::string CollectiveVoice(const Ship &s, int crew)
 	return CastVoiceOfRecord(s, s.crew[crew]);
 }
 
+CollectiveWords CollectiveSpeaks(const Ship &s, int crew)
+{
+	CollectiveWords w;
+	if (!HeldByCollective(s, crew)) return w; // not a mind it holds: no words, no voice
+	w.held = true;
+	w.speaker = crew;
+	w.voice = CollectiveVoice(s, crew);
+	// The newest private entry, from the mind it took -- not the published log, which a purge can
+	// empty, and not a re-authored line. It quotes what the person actually wrote.
+	for (const PersonalLogEntry &e : CollectiveLog(s))
+		if (e.owner == crew) { w.text = e.what; w.hasWords = true; }
+	return w;
+}
+
+bool CollectiveLine(const Ship &s, int crew, MeetingLine &line)
+{
+	const CollectiveWords w = CollectiveSpeaks(s, crew);
+	if (!w.held || !w.hasWords) return false;
+	line.speaker = crew;
+	line.text = w.text;
+	line.delivery = DELIVERY_FLAT; // the log read aloud: the Collective's register, not a performance
+	return true;
+}
+
 // A character's small set of pause cues: the four non-verbal clips are the set, and the person's own
 // record and the seed choose which they reach for. Deterministic, so a pause is characterisation and
 // not a different tic each time. CUE_HOLDING is not in the set: it is the deferral line, spoken when

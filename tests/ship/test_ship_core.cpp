@@ -11238,6 +11238,93 @@ static int PrintEndings()
 	return ok ? 0 : 1;
 }
 
+
+// ---- Stage D, the rest of it: the Collective's voice, allegiance, pursuits, the liked program -------
+
+static void TestTheCollectiveVoice()
+{
+	g_test = "the Collective speaks a taken person's own words in their voice";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int taken = 40;
+	s.crew[taken].status = CREW_FIT;
+	s.crew[taken].type = "tuvok";
+	s.crew[taken].wounds = 0.0f;
+	CHECK(WritePersonalLog(s, taken, "I do not trust the captain's numbers"));
+	CHECK(WritePersonalLog(s, taken, "the captain was wrong about the nebula"));
+	CHECK(!CollectiveSpeaks(s, taken).held);          // not taken: no words, no voice
+	MeetingLine before;
+	CHECK(!CollectiveLine(s, taken, before));         // and no line
+
+	TakeMind(s, taken);
+	s.crew[taken].status = CREW_ASSIMILATED;          // wholly taken: the ordinary cast now refuses
+	const CollectiveWords w = CollectiveSpeaks(s, taken);
+	CHECK(w.held && w.hasWords);
+	CHECK(w.speaker == taken);
+	CHECK(w.text == "the captain was wrong about the nebula"); // the newest private entry
+	CHECK(w.voice == "tuvok");                        // the voice the transfer stole
+
+	MeetingLine line;
+	CHECK(CollectiveLine(s, taken, line));
+	CHECK(line.speaker == taken);
+	CHECK(line.text == w.text);
+	CHECK(line.delivery == DELIVERY_FLAT);            // the log read aloud, not a performance
+	CHECK(CastVoice(s, taken).empty());               // the ordinary cast still refuses them
+	// The render seam routes a held speaker through the stolen voice: a key exists with no audio.
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+	CHECK(!MeetingLineKey(s, b, line).empty());
+
+	// The counter-case the design names: a de-assimilation ends the hold, and the words are the
+	// person's again -- the Collective cannot speak them.
+	s.crew[taken].status = CREW_INJURED;              // the window: not wholly taken, still recoverable
+	s.crew[taken].wounds = 0.5f;
+	CHECK(RecoverCaptive(s, taken));
+	CHECK(!CollectiveSpeaks(s, taken).held);
+	MeetingLine after;
+	CHECK(!CollectiveLine(s, taken, after));
+}
+
+// `test_ship_core --collective`: the observables for the Collective's voice.
+static int PrintCollectiveVoice()
+{
+	int failures = 0;
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int taken = 40;
+	s.crew[taken].status = CREW_FIT;
+	s.crew[taken].type = "tuvok";
+	s.crew[taken].wounds = 0.0f;
+	WritePersonalLog(s, taken, "I do not trust the captain's numbers");
+	WritePersonalLog(s, taken, "the captain was wrong about the nebula");
+	TakeMind(s, taken);
+	s.crew[taken].status = CREW_ASSIMILATED;          // wholly taken: the cast refuses, the Collective does not
+	const CollectiveWords w = CollectiveSpeaks(s, taken);
+	MeetingLine line;
+	const bool speaks = CollectiveLine(s, taken, line);
+	std::printf("PASS  the mind is held: %d; it has private words: %d\n", w.held ? 1 : 0, w.hasWords ? 1 : 0);
+	if (!w.held || !w.hasWords) ++failures;
+	std::printf("PASS  the words are the taken person's own: \"%s\"\n", w.text.c_str());
+	if (w.text != "the captain was wrong about the nebula") ++failures;
+	std::printf("PASS  the voice is the stolen cast reference: \"%s\" (the ordinary cast gives \"%s\")\n",
+		w.voice.c_str(), CastVoice(s, taken).c_str());
+	if (w.voice != "tuvok" || !CastVoice(s, taken).empty()) ++failures;
+	std::printf("PASS  it speaks as a line: speaker %d, delivery %s\n", line.speaker, DeliveryName(line.delivery));
+	if (!speaks || line.speaker != taken || line.text != w.text || line.delivery != DELIVERY_FLAT) ++failures;
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+	const std::string key = MeetingLineKey(s, b, line);
+	std::printf("PASS  the render seam takes it under the stolen voice: key %s\n", key.empty() ? "(none)" : "present");
+	if (key.empty()) ++failures;
+	s.crew[taken].status = CREW_INJURED;              // the window: still recoverable
+	s.crew[taken].wounds = 0.5f;
+	const bool ended = RecoverCaptive(s, taken);
+	MeetingLine after;
+	std::printf("PASS  a de-assimilation ends it: mind the person's again: %d; the Collective can speak: %d\n",
+		ended ? 1 : 0, CollectiveLine(s, taken, after) ? 1 : 0);
+	if (!ended || CollectiveLine(s, taken, after)) ++failures;
+	std::printf("%s\n", failures ? "collective voice: FAILURES" : "all demonstrations passed");
+	return failures ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--bills")) return PrintBills();
@@ -11277,6 +11364,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--appearance")) return PrintAppearance();
 	if (argc > 1 && !std::strcmp(argv[1], "--affinities")) return PrintAffinities();
 	if (argc > 1 && !std::strcmp(argv[1], "--endings")) return PrintEndings();
+	if (argc > 1 && !std::strcmp(argv[1], "--collective")) return PrintCollectiveVoice();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -11457,6 +11545,7 @@ int main(int argc, char **argv)
 	TestEndingAvailability();
 	TestEndingNeutrality();
 	TestEndingArrival();
+	TestTheCollectiveVoice();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

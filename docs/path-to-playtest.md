@@ -143,12 +143,20 @@ Evidence: `docs/evidence/two-logs.md`, `TestPurgeLeavesMeetingMarksOrphaned`,
   meeting-facing half. Evidence: `docs/evidence/two-logs.md`,
   `TestPurgeLeavesMeetingMarksOrphaned`, `scripts/two-log-check.sh`.
 
+**Slice 4 built 2026-11-08 — the Collective's voice.** An assimilated person speaks in the
+Collective's voice, using their own taken words: `CollectiveSpeaks` reads the newest private entry
+from `CollectiveLog` (the mind, not the published log) and `CollectiveLine` makes it a meeting line
+with `DELIVERY_FLAT` -- the log read aloud -- under the cast reference `CollectiveVoice` stole. A
+de-assimilation in the window, or a death, ends it. No save change (66). Evidence:
+`docs/evidence/the-collectives-voice.md`, `TestTheCollectiveVoice`,
+`scripts/stage-d-check.sh collective`.
+
 **Still deferred inside Stage D:** allegiance is recorded and now weights a meeting's **stance**, but
 not the valence of an event or an order's compliance, so the document's Maquis/Starfleet morale
 consequence is not built; a pursuit does not yet produce an artifact or an event the log can point
 at; and the liked program observed on the deck in the running game (as opposed to the model's choice)
-needs a session. The Collective's voice is the remaining slice; the meeting overlay was built in the
-meeting lane before this slice, and its own in-engine run was not repeated here.
+needs a session. The meeting overlay was built in the meeting lane before these slices, and its own
+in-engine run was not repeated here.
 
 **Blocks.** Stage C only in the sense of budget, not dependency.
 

@@ -361,10 +361,11 @@ round-trip test, `tests/tools/test_meeting_worker.py` (prompt carries the agenda
 deterministic; absent model writes no script), and `scripts/meeting-check.sh`, whose output and two
 falsifications are in `docs/evidence/staff-meetings.md`.
 
-**What remains (deferred, not claimed):** the Collective speaking in an assimilated person's voice;
-voice input beyond the existing typed pill; the computer-as-a-place; and the owner's judgement of
-whether the room reads as a room. The in-engine overlay run was not repeated in this slice — the
-overlay and the no-model arrival were demonstrated in the meeting lane's own evidence
+**What remains (deferred, not claimed):** ~~the Collective speaking in an assimilated person's
+voice~~ **(built 2026-11-08 as slice 4, below)**; voice input beyond the existing typed pill; the
+computer-as-a-place; and the owner's judgement of whether the room reads as a room. The in-engine
+overlay run was not repeated in this slice — the overlay and the no-model arrival were demonstrated
+in the meeting lane's own evidence
 (`docs/evidence/meeting-overlay.md`, `docs/evidence/model-call.md`) and the static criterion is what
 this slice adds.
 
@@ -395,10 +396,35 @@ invented. The meeting brief still builds from a record with the report gone.
 The save format remains **66**: `Memory::event` already carried the new id and `Memory::orphaned`
 already existed, so the record does not change shape.
 
-**What remains (deferred, not claimed):** the Collective speaking in an assimilated person's voice;
-voice input beyond the existing typed pill; the computer-as-a-place; and the owner's judgement of
-whether the room reads as a room. This slice does not touch the overlay, the brief, the generator or
-the Collective's voice, and it does not repeat the overlay's in-engine run.
+**What remains (deferred, not claimed):** ~~the Collective speaking in an assimilated person's
+voice~~ **(built 2026-11-08 as slice 4, below)**; voice input beyond the existing typed pill; the
+computer-as-a-place; and the owner's judgement of whether the room reads as a room. This slice does
+not touch the overlay, the brief or the generator, and it does not repeat the overlay's in-engine
+run.
+
+### The Collective's voice — Stage D slice 4 *(built 2026-11-08; `docs/evidence/the-collectives-voice.md`)*
+
+`docs/the-record-and-the-log.md` makes assimilation take **the contents of a person's private log**
+and give the Collective **their voice, using their own words**. The transfer was already a rule
+(`docs/evidence/the-assimilation.md`): `HeldByCollective`, `CollectiveLog`, `CollectiveOperates`,
+`CollectiveVoice`, and `LineVoice` routing a held speaker through the stolen cast reference. What
+was missing, and what `docs/designs-against-code.md` row 19 named, was the **line itself**:
+*"no code builds a line from `CollectiveLog`."*
+
+`CollectiveSpeaks` now returns the newest private entry the person wrote, read from the mind
+(`CollectiveLog`), not the published log, so a purge cannot empty it; and `CollectiveLine` makes it
+the meeting language: the held person is the speaker, their own words are the text, and the delivery
+is `DELIVERY_FLAT` -- *the log read aloud* -- which is what travels to synthesis. `MeetingLineKey`
+therefore builds the render key under the stolen voice and writes no audio. A de-assimilation in the
+narrow window, or a death, ends the hold and the Collective can no longer speak the words.
+
+**Demonstrated:** `TestTheCollectiveVoice`, `test_ship_core --collective`, and
+`scripts/stage-d-check.sh collective`, whose output and falsification are in
+`docs/evidence/the-collectives-voice.md`. The save format remains **66**: the words, the held-mind
+list and the voice are reads of records already saved.
+
+**What remains (deferred, not claimed):** the ear is the owner's -- no audio is generated, committed
+or attached; and the in-engine scene was not run on this static host.
 
 ### An ending — destinations as readers, neutrality, and the three-second arrival *(Stage E, built 2026-10-31; `docs/evidence/endings.md`)*
 

@@ -1260,6 +1260,20 @@ std::string CollectiveRefusal(const Ship &s, Station st);
 // with the mind. "" when the person is not held.
 std::string CollectiveVoice(const Ship &s, int crew);
 
+// The Collective speaks *what the person wrote*, not only in their voice: their private words, taken
+// from the mind (CollectiveLog), in the cast reference the transfer stole (CollectiveVoice). This is
+// the "speak in their voice, using their own words" half of the design
+// (docs/the-record-and-the-log.md). Empty when the person is not held or left no private words; the
+// line itself is built by CollectiveLine below, once a MeetingLine is in scope.
+struct CollectiveWords {
+	bool held = false;         // the Collective holds the mind
+	bool hasWords = false;     // and it left private words to quote
+	int speaker = -1;
+	std::string text;
+	std::string voice;
+};
+CollectiveWords CollectiveSpeaks(const Ship &s, int crew);
+
 // ---- the ship's API: the enumerated command surface (docs/evidence/the-computer-api.md) ----------
 //
 // The console Svcmd_Ship_f (module/ship/g_ship.cpp) answers a fixed, enumerable set of verbs. That set
@@ -1458,6 +1472,11 @@ struct MeetingLine {
 	std::string text;
 	uint8_t delivery = DELIVERY_UNMARKED;  // carried with the text
 };
+
+// A line the Collective speaks in a held person's voice, from their own taken private words:
+// `speaker` is the held person, `text` is the most recent entry they wrote, and the delivery is
+// flat -- the log read aloud (DeliveryName). False when the person is not held or left no words.
+bool CollectiveLine(const Ship &s, int crew, MeetingLine &line);
 
 // What an option asks the simulation to do. The options are the enumerated outcomes made visible; the
 // simulation applies the chosen one -- the script and any model never do. The model speaks only.
