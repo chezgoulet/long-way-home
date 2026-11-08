@@ -38,7 +38,7 @@ must make the same transcript fail.
 ==> the liked program, as the model can carry it (test_ship_core --program)
 == the liked program, at the schedule
   CREW: Kathryn Janeway -- recreation on deck 6, program "Captain Proton"
-  ON DECK 6: 20 program(s) -- Kathryn Janeway: Captain Proton; Tom Paris: Captain Proton; B'Elanna Torres: the orbital skydiving program; The Doctor: Photons Be Free; Vorik: a da Vinci workshop; Rick Biessman: a jazz club; Austin Chang: a da Vinci workshop; Chell: the Gothic holonovel; Juliet Jurot: a Klingon opera program; ...
+  ON DECK 6: 20 program(s) -- Kathryn Janeway: Captain Proton; Tom Paris: Captain Proton; B'Elanna Torres: the orbital skydiving program; The Doctor: Photons Be Free; Vorik: a da Vinci workshop; Rick Biessman: a jazz club; ... (the transcript prints all 20; the line is shortened here for the page)
   RUN: 1; the log says: Kathryn Janeway takes recreation on the holodeck: "Captain Proton"
   OUTSTANDING: whether the program reads as a program *on the deck* is the owner's eye in a session
 all demonstrations passed
