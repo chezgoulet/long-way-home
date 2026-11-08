@@ -245,13 +245,8 @@ const float GRAVITY_REGEN_HOURS = 1.0f;    // ... and a supplied deck gets it ba
 // always add to the whole.
 static const int DEPT_SIZE[DEPT_COUNT] = {5, 13, 42, 25, 9, 12, 10, 19, 6}; // sums to COMPLEMENT_DEFAULT [inv split]
 static const int DEPT_DECK[DEPT_COUNT] = {1, 1, 11, 4, 8, 5, 10, 2, 6};      // where department duties are done
-// MESS_DECK is declared in ship_core.h (the casualty-clearing deck the bills read).
-// The deck crew go to for recreation by default -- not "the holodeck". Holodeck 1 is on deck 14 and
-// Holodeck 2 on deck 6, per docs/locations/deck14-stasis.brief.md; SYS_HOLODECKS is one system and
-// this is the *recreational* deck the routine sends people to, which is deck 6, where the crew
-// quarters are. Crew do not model walking to whichever holodeck is nearer: that is a design change,
-// not a rename (see the deck-14 evidence, judgement call 6).
-const int HOLODECK_RECREATION_DECK = 6;
+// MESS_DECK and HOLODECK_RECREATION_DECK are declared in ship_core.h (the casualty-clearing deck
+// and the recreational deck the schedule sends people to).
 
 static float Clamp01(float v) { return std::min(1.0f, std::max(0.0f, v)); }
 
@@ -6616,12 +6611,16 @@ bool RunHolodeck(Ship &s, HolodeckUse use, int crew)
 	CrewMember &c = s.crew[crew];
 	if (c.status != CREW_FIT || c.brigged) return false;
 	switch (use) {
-	case HOLO_RECREATION:
+	case HOLO_RECREATION: {
 		c.outlook = std::min(1.0f, c.outlook + 0.15f);  // a night on the holodeck lifts the outlook
 		c.deficit = std::max(0.0f, c.deficit - 0.15f);  // and eases what they are short of
 		c.holoCompulsion = std::min(1.5f, c.holoCompulsion + 0.3f); // time in the program adds up
-		LogEvent(s, c.name, "crew", c.name + " takes recreation on the holodeck");
-		break;
+		// The program the schedule would pick is the one they run; naming it in the log is the
+		// trace, and ProgramsOnDeck is the read a surface on the deck would draw.
+		const std::string program = PreferredProgram(c);
+		LogEvent(s, c.name, "crew", c.name + " takes recreation on the holodeck"
+			+ (program.empty() ? std::string() : ": \"" + program + "\""));
+		break; }
 	case HOLO_TRAINING: {
 		Station st = STN_OPS;
 		switch (c.dept) {
@@ -6650,6 +6649,32 @@ bool RunHolodeck(Ship &s, HolodeckUse use, int crew)
 		return false;
 	}
 	return true;
+}
+
+// What is running on the deck: each person in a recreation hour and the liking the schedule chose.
+// This is the model's half of "observed on the deck"; the other half is the owner standing there.
+std::vector<DeckProgram> ProgramsOnDeck(const Ship &s, int deck)
+{
+	std::vector<DeckProgram> out;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT || c.away || c.brigged) continue;
+		if (c.deck != deck || c.program.empty()) continue;
+		DeckProgram p;
+		p.crew = i;
+		p.name = c.name;
+		p.program = c.program;
+		out.push_back(p);
+	}
+	return out;
+}
+
+std::string ProgramManifest(const Ship &s, int deck)
+{
+	std::string out;
+	for (const DeckProgram &p : ProgramsOnDeck(s, deck))
+		out += (out.empty() ? "" : "; ") + p.name + ": " + p.program;
+	return out;
 }
 
 // The program that will not end: pulling a crew member out of the holodeck when its hold on them has

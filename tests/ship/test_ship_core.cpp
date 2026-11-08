@@ -11527,6 +11527,58 @@ static int PrintPursuits()
 }
 
 
+static void TestLikedProgramModel()
+{
+	g_test = "the liked program is chosen and readable on the deck";
+	Ship s = NewShip();
+	s.crew[0].likes.clear();
+	s.crew[0].dislikes.clear();
+	Affinity program{AFFT_PROGRAM, "Captain Proton", 0.90f, false};
+	s.crew[0].likes.push_back(program);
+	Tick(s, Hours(s, 9.5f));
+	CHECK(s.crew[0].activity == ACT_RECREATION);
+	CHECK(s.crew[0].deck == HOLODECK_RECREATION_DECK);
+	CHECK(s.crew[0].program == "Captain Proton");
+	const std::vector<DeckProgram> on = ProgramsOnDeck(s, HOLODECK_RECREATION_DECK);
+	bool found = false;
+	for (const DeckProgram &d : on)
+		if (d.crew == 0 && d.name == s.crew[0].name && d.program == "Captain Proton") found = true;
+	CHECK(found);
+	CHECK(ProgramManifest(s, HOLODECK_RECREATION_DECK).find("Captain Proton") != std::string::npos);
+	CHECK(ProgramsOnDeck(s, 1).empty()); // a deck with no program running is empty
+	// The explicit recreation call names the program it runs, so the log can point at it.
+	const size_t before = s.log.size();
+	CHECK(RunHolodeck(s, HOLO_RECREATION, 0));
+	CHECK(s.log.size() == before + 1);
+	CHECK(s.log.back().what.find("Captain Proton") != std::string::npos);
+}
+
+// `test_ship_core --program`: the liked program, as the model can carry it.
+static int PrintLikedProgram()
+{
+	int failures = 0;
+	Ship s = NewShip();
+	s.crew[0].likes.clear(); s.crew[0].dislikes.clear();
+	Affinity program{AFFT_PROGRAM, "Captain Proton", 0.90f, false};
+	s.crew[0].likes.push_back(program);
+	Tick(s, Hours(s, 9.5f));
+	std::printf("== the liked program, at the schedule\n");
+	std::printf("  CREW: %s -- recreation on deck %d, program \"%s\"\n",
+		s.crew[0].name.c_str(), static_cast<int>(s.crew[0].deck), s.crew[0].program.c_str());
+	const std::vector<DeckProgram> on = ProgramsOnDeck(s, HOLODECK_RECREATION_DECK);
+	std::printf("  ON DECK %d: %d program(s) -- %s\n", HOLODECK_RECREATION_DECK,
+		static_cast<int>(on.size()), ProgramManifest(s, HOLODECK_RECREATION_DECK).c_str());
+	if (s.crew[0].program != "Captain Proton" || on.empty()) ++failures;
+	const size_t before = s.log.size();
+	const bool ran = RunHolodeck(s, HOLO_RECREATION, 0);
+	std::printf("  RUN: %d; the log says: %s\n", ran ? 1 : 0,
+		s.log.size() > before ? s.log.back().what.c_str() : "(nothing)");
+	if (!ran || s.log.size() != before + 1 || s.log.back().what.find("Captain Proton") == std::string::npos) ++failures;
+	std::printf("  OUTSTANDING: whether the program reads as a program *on the deck* is the owner's eye in a session\n");
+	std::printf("%s\n", failures ? "liked program: FAILURES" : "all demonstrations passed");
+	return failures ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--bills")) return PrintBills();
@@ -11569,6 +11621,7 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--collective")) return PrintCollectiveVoice();
 	if (argc > 1 && !std::strcmp(argv[1], "--allegiance")) return PrintAllegiance();
 	if (argc > 1 && !std::strcmp(argv[1], "--pursuits")) return PrintPursuits();
+	if (argc > 1 && !std::strcmp(argv[1], "--program")) return PrintLikedProgram();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -11752,6 +11805,7 @@ int main(int argc, char **argv)
 	TestTheCollectiveVoice();
 	TestAllegianceValenceAndCompliance();
 	TestPursuitArtifact();
+	TestLikedProgramModel();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

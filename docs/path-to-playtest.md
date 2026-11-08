@@ -168,9 +168,18 @@ gives downtime one hand's turn per ship hour, read back from the marks. No save 
 event is a `uint16` event id and the artifact is a function of the record. Evidence:
 `docs/evidence/the-pursuit.md`, `TestPursuitArtifact`, `scripts/stage-d-check.sh pursuits`.
 
-**Still deferred inside Stage D:** the liked program observed on the deck in the running game (as
-opposed to the model's choice) needs a session. The meeting overlay was built in the meeting lane
-before these slices, and its own in-engine run was not repeated here.
+**Slice 7 built 2026-11-08 — the liked program, carried to the deck.** `ProgramsOnDeck` /
+`ProgramManifest` return who is on a deck in a recreation hour and what program the schedule chose;
+`ship crew <deck>` prints it, `lwh_ship_holodeck` publishes it for a surface on the deck, and
+`RunHolodeck` names the program in the log. No save change (66): `program` is derived every tick.
+Evidence: `docs/evidence/the-liked-program.md`, `TestLikedProgramModel`,
+`scripts/stage-d-check.sh program`.
+
+**Still deferred inside Stage D:** one observation, and it is the owner's: **standing on deck 6
+during a recreation hour, does the program read as a program on the deck?** The model, the console
+read, the cvar and the log line are built; the render of the room is not proved off-device. The
+meeting overlay was built in the meeting lane before these slices, and its own in-engine run was not
+repeated here.
 
 **Blocks.** Stage C only in the sense of budget, not dependency.
 

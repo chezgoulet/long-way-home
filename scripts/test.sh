@@ -85,6 +85,10 @@ echo "==> affinities: the record, the valence fold and choice (Stage D slice 1)"
 "$ROOT/scripts/affinity-check.sh"
 
 echo
+echo "==> stage D: the Collective's voice, allegiance, pursuits, and the liked program"
+"$ROOT/scripts/stage-d-check.sh" all
+
+echo
 echo "==> manner: the crew's state is audible and visible, and degrades without audio (G14)"
 "$ROOT/scripts/manner-check.sh"
 

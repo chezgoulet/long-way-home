@@ -325,8 +325,9 @@ picked in a recreation hour; a loved task is asked for from the queue. `TestAffi
 
 **What remains (deferred, not claimed):** ~~the allegiance is recorded but does not yet weight
 valence or compliance~~ **(built 2026-11-08 as slice 5, below)**; ~~a pursuit does not yet produce an
-artifact or an event the log can point at~~ **(built 2026-11-08, below)**; and the in-engine
-observation of a program on the deck (as opposed to the model's choice) needs a session. *(Corrected 2026-10-31: the meeting overlay and the
+artifact or an event the log can point at~~ **(built 2026-11-08, below)**; and ~~the in-engine
+observation of a program on the deck (as opposed to the model's choice)~~ **(the model half is built
+2026-11-08, below; the owner's eye on the deck remains the one observation)**. *(Corrected 2026-10-31: the meeting overlay and the
 two-log split were already built in the meeting lane; the per-participant brief carries this record
 into the meeting — see the next entry.)*
 
@@ -426,6 +427,24 @@ was. The mapping and the threshold are ours, recorded in the evidence so they ca
 `scripts/stage-d-check.sh allegiance`, whose output and falsification are in
 `docs/evidence/allegiance-valence-and-compliance.md`. Save format remains **66**: the reading is an
 argument, not a stored field.
+
+### The liked program, carried to the deck *(built 2026-11-08; `docs/evidence/the-liked-program.md`)*
+
+`docs/affinities-and-allegiance.md` requires a liked program to **appear in downtime and be observed
+on the deck**. `PreferredProgram` already chose it; this slice carries it out of the model:
+`ProgramsOnDeck`/`ProgramManifest` return who is on a deck and what program the schedule chose,
+`ship crew <deck>` prints it, `lwh_ship_holodeck` publishes it for an in-world surface, and
+`RunHolodeck` names the program in the official log. `program` remains derived every tick and never
+saved, so the format is **66**.
+
+**Demonstrated:** `TestLikedProgramModel`, `test_ship_core --program`, and
+`scripts/stage-d-check.sh program`, whose output and falsification are in
+`docs/evidence/the-liked-program.md`.
+
+**The one observation still outstanding:** standing on deck 6 during a recreation hour, **does the
+program read as a program on the deck?** The data, the console read, the cvar and the log are built;
+the rendered room is the owner's eye, and there is no authored holodeck set per program (that is
+Stage C location work).
 
 ### A pursuit puts an artifact in the world *(built 2026-11-08; `docs/evidence/the-pursuit.md`)*
 

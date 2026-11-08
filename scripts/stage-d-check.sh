@@ -120,11 +120,43 @@ run_pursuits() {
   echo "    the broken copy fails the transcript; the tree passes"
 }
 
+run_program() {
+  echo
+  echo "==> the liked program, as the model can carry it (test_ship_core --program)"
+  "$WORK/test_ship_core" --program | tee "$WORK/program.txt"
+  grep -q '^  CREW: .* -- recreation on deck 6, program "Captain Proton"$' "$WORK/program.txt" \
+    || fail "the schedule did not choose the liked program"
+  grep -q '^  ON DECK 6: [1-9][0-9]* program(s) -- .*Captain Proton' "$WORK/program.txt" \
+    || fail "the deck read did not carry the program"
+  grep -q '^  RUN: 1; the log says: .*: "Captain Proton"$' "$WORK/program.txt" \
+    || fail "the recreation call did not name the program it ran"
+  grep -q '^  OUTSTANDING: whether the program reads as a program \*on the deck\* is the owner.s eye in a session$' "$WORK/program.txt" \
+    || fail "the outstanding observation is not stated"
+
+  echo
+  echo "==> falsification: a schedule that stops choosing the program must fail the transcript"
+  mkdir -p "$WORK/broken-program"
+  cp -r "$ROOT/module" "$ROOT/tests" "$WORK/broken-program/"
+  sed -i 's/c.program = (a == ACT_RECREATION \&\& c.deck == HOLODECK_RECREATION_DECK) ? PreferredProgram(c) : std::string();/c.program.clear(); \/\/ planted: the schedule stops choosing/' \
+    "$WORK/broken-program/module/ship/ship_core.cpp"
+  grep -q 'planted: the schedule stops choosing' "$WORK/broken-program/module/ship/ship_core.cpp" \
+    || fail "the program plant did not take"
+  build "$WORK/broken-program" "$WORK/test_broken_program"
+  if "$WORK/test_broken_program" --program >"$WORK/broken-program.txt" 2>&1; then
+    fail "the transcript passed with a schedule that does not choose: the check has no teeth"
+  fi
+  if grep -q '^  CREW: .*program "Captain Proton"$' "$WORK/broken-program.txt"; then
+    fail "the broken copy failed for the wrong reason"
+  fi
+  echo "    the broken copy fails the transcript; the tree passes"
+}
+
 case "$MODE" in
   collective) run_collective ;;
   allegiance) run_allegiance ;;
   pursuits) run_pursuits ;;
-  all) run_collective; run_allegiance; run_pursuits ;;
+  program) run_program ;;
+  all) run_collective; run_allegiance; run_pursuits; run_program ;;
   *) echo "unknown mode: $MODE" >&2; exit 2 ;;
 esac
 
@@ -139,8 +171,14 @@ case "$MODE" in
   pursuits)
     echo "PASS  a pursuit puts a deterministic artifact into the log, marks it, and cannot make it"
     echo "      twice; a planted pursuit that makes nothing fails the same transcript" ;;
+  program)
+    echo "PASS  the schedule chooses the liked program, the deck read carries it, and the recreation"
+    echo "      call names it; a planted schedule that stops choosing fails the same transcript; the"
+    echo "      in-world observation of the program on the deck remains the owner's session" ;;
   all)
     echo "PASS  the Collective speaks a taken person's own words in the stolen voice; the same event"
     echo "      lands opposite on two declared sides and an opposed order bends and pays a mark; a"
-    echo "      pursuit puts an artifact in the log; each planted break fails its own transcript" ;;
+    echo "      pursuit puts an artifact in the log; the liked program is chosen and readable on the"
+    echo "      deck; each planted break fails its own transcript. The in-world observation of the"
+    echo "      program on the deck remains the owner's session" ;;
 esac

@@ -1146,6 +1146,12 @@ struct Shuttle {
 const int SECTOR_BEACONS = 12;
 const int SHUTTLE_BAY_DECK = 10;         // shuttlebay 1, aft dorsal [lore]
 const int MESS_DECK = 2;                 // the mess hall: where the galley and casualty clearing are [inv]
+// The deck crew go to for recreation by default -- not "the holodeck". Holodeck 1 is on deck 14 and
+// Holodeck 2 on deck 6, per docs/locations/deck14-stasis.brief.md; SYS_HOLODECKS is one system and
+// this is the *recreational* deck the routine sends people to, which is deck 6, where the crew
+// quarters are. Crew do not model walking to whichever holodeck is nearer: that is a design change,
+// not a rename (see the deck-14 evidence, judgement call 6).
+const int HOLODECK_RECREATION_DECK = 6;
 const float SHUTTLE_REBUILD_MATERIALS = 30.0f; // material to construct a replacement [inv]
 const float SHUTTLE_REBUILD_HOURS = 8.0f;      // crew-hours of the second bay's work [inv]
 const float JUMP_DEUTERIUM = 0.01f;      // fraction of tankage per jump [inv]
@@ -3356,6 +3362,15 @@ bool LogsPurged(const Ship &s);
 // All need the holodeck delivering. Console `ship holo <recreation|training|therapy|forensic> <crew>`.
 enum HolodeckUse : uint8_t { HOLO_RECREATION = 0, HOLO_TRAINING, HOLO_THERAPY, HOLO_FORENSIC, HOLO_USE_COUNT };
 bool RunHolodeck(Ship &s, HolodeckUse use, int crew);
+
+// What is running on the holodeck deck right now, as the model can carry it: each person there in a
+// recreation hour and the liked program the schedule chose. This is the data an in-world surface
+// draws; whether it reads as a program *on the deck* needs the owner's eyes in a session
+// (docs/evidence/the-liked-program.md).
+struct DeckProgram { int crew = -1; std::string name; std::string program; };
+std::vector<DeckProgram> ProgramsOnDeck(const Ship &s, int deck);
+// The manifest as one line, for the console and the world cvar: "Name: program; Name: program".
+std::string ProgramManifest(const Ship &s, int deck);
 // Living conditions: improve the crew's quarters, at a cost in material.
 bool ImproveQuarters(Ship &s);
 // The name that signs command's acts: the player's character if there is one, otherwise the captain
