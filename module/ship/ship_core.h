@@ -3014,10 +3014,13 @@ struct EndingReading {
 	std::string lens;
 	bool filed = true;     // Earth: was the record filed?
 	bool read = true;      // false when the player declined to file at Earth
+	bool received = true;  // a wildcard can reach a place and be received, or be refused at it
 	std::vector<std::string> lines; // the evidence the reader reads, in the reader's own terms
 	std::string conclusion;
 };
-EndingReading ReadEnding(const Ship &s, DestinationId d, bool filed = true);
+// `received = false` is the wildcard's refusal at the destination: the reader read the record and
+// did not take the ship, and the conclusion says so in the reader's own terms.
+EndingReading ReadEnding(const Ship &s, DestinationId d, bool filed = true, bool received = true);
 bool MayFileAt(DestinationId d);   // Earth only
 
 // ---- the crew's veto at the destination (docs/endings.md) ---------------------------------------
@@ -3058,6 +3061,34 @@ const int ARRIVAL_SECONDS = ARRIVAL_MS / 1000;
 // The log as the last frame: the whole official record, oldest first. The destination does not edit
 // it; a purge leaves it empty, and the reading says so.
 std::vector<LogEntry> EndingLog(const Ship &s);
+
+// ---- the wildcard attempt (docs/endings.md) -----------------------------------------------------
+//
+// A play for a place that has not invited the run. It spends a shuttle and part of the reserve
+// before the draw, and what it spends cannot be got back whether or not it reaches. It can fail in
+// the two ways the design names: the ship does not reach the place (a read of its own condition), or
+// it reaches and the reader does not receive it (a read of the record). Either failure names the
+// state that caused it, so the attempt is attributable to what the player did.
+struct WildcardOutcome {
+	bool offered = false;    // there is a play to make at all
+	bool reached = false;    // the ship got there
+	bool received = false;   // the reader took the record once it had
+	float reachOdds = 0.0f;  // the ship's condition, as one number
+	float receiveOdds = 0.0f;// the record the reader reads, as one number
+	DestinationId destination = DEST_COUNT;
+	std::string target;      // the place, by its shipped name
+	std::string spent;       // what the play took, named
+	std::string failure;     // empty when received; the state or the reading that refused it
+	std::string line;        // the fact, worded for the official log
+};
+// What a play spends before the draw. Ours, and recorded so they can be overruled.
+const float WILDCARD_DEUTERIUM = 0.10f; // tenth of the reserve [inv]
+const float WILDCARD_CRYSTAL = 0.05f;   // twentieth of the crystal [inv]
+// Pure: the two draws are explicit so the outcome can be read without spending anything.
+WildcardOutcome SolveWildcard(const Ship &s, DestinationId d, float reachRoll, float receiveRoll);
+// The attempt: it spends first, then draws on the saved counter (s.riskRolls), so a save taken
+// before it replays the same draws. An attempt that is not offered spends nothing.
+WildcardOutcome AttemptWildcard(Ship &s, DestinationId d);
 
 // ---- the stations' purposes (S4) ------------------------------------------------------------------
 //

@@ -11194,6 +11194,54 @@ static void TestEndingVeto()
 }
 
 
+static void TestEndingWildcard()
+{
+	g_test = "the wildcard is a play for a place that has not invited the run; its failure is attributable";
+	Ship s = NewShip();
+	const DestinationId target = DEST_KLINGON_EMPIRE;
+	CHECK(!DestinationAvailable(s, target)); // a place the plain run has not earned
+
+	// It does not reach: the state that refused it is named.
+	Ship damaged = NewShip();
+	damaged.systems[SYS_WARP_DRIVE].health = 0.2f;
+	for (Deck &d : damaged.decks) d.hull = 0.3f;
+	damaged.stores.deuterium = 0.2f;
+	const WildcardOutcome miss = SolveWildcard(damaged, target, 0.99f, 1.0f);
+	CHECK(miss.offered);
+	CHECK(!miss.reached && !miss.received);
+	CHECK(miss.reachOdds < 0.5f);
+	CHECK(miss.failure.find("warp drive") != std::string::npos);
+	CHECK(miss.failure.find("hull") != std::string::npos);
+	CHECK(EndingToneFindings({miss.failure, miss.line}).empty());
+
+	// It reaches and is refused at the door: the record that refused it is named.
+	const WildcardOutcome refused = SolveWildcard(s, target, 0.0f, 1.0f);
+	CHECK(refused.offered && refused.reached && !refused.received);
+	CHECK(refused.failure.find("deaths recorded") != std::string::npos);
+	CHECK(EndingToneFindings({refused.failure, refused.line}).empty());
+
+	// The attempt spends, and what it spends cannot be got back.
+	const float deuterium = s.stores.deuterium;
+	const float crystal = s.dilithium;
+	const size_t logBefore = s.log.size();
+	const WildcardOutcome played = AttemptWildcard(s, target);
+	CHECK(played.offered);
+	CHECK(s.stores.deuterium < deuterium);
+	CHECK(s.dilithium < crystal);
+	CHECK(s.log.size() == logBefore + 1);
+	CHECK(s.log.back().what.find("spent:") != std::string::npos);
+	CHECK(EndingToneFindings({played.line, played.spent}).empty());
+
+	// A place the run has already earned is not a play, and costs nothing.
+	Ship earned = NewShip();
+	EarnEveryDestination(earned);
+	const float kept = earned.stores.deuterium;
+	const WildcardOutcome none = AttemptWildcard(earned, target);
+	CHECK(!none.offered);
+	CHECK(earned.stores.deuterium == kept);
+}
+
+
 // `test_ship_core --endings`: the observable criterion for Stage E, printed. The earned run is one
 // record read by two readers; the neutrality assertion is over the shipped string table and the
 // readings; the arrival is the one number every route shares. Returns nonzero if any criterion is
@@ -11301,6 +11349,57 @@ static int PrintEndings()
 	}
 
 	
+	std::printf("== the wildcard\n");
+	{
+		Ship play = NewShip();
+		const DestinationId target = DEST_KLINGON_EMPIRE;
+		Ship damaged = NewShip();
+		damaged.systems[SYS_WARP_DRIVE].health = 0.2f;
+		for (Deck &d : damaged.decks) d.hull = 0.3f;
+		damaged.stores.deuterium = 0.2f;
+		const WildcardOutcome miss = SolveWildcard(damaged, target, 0.99f, 1.0f);
+		const WildcardOutcome refused = SolveWildcard(play, target, 0.0f, 1.0f);
+		std::printf("  WILDCARD: a play for %s; reach odds %d%%, reception %d%%\n", miss.target.c_str(),
+			static_cast<int>(miss.reachOdds * 100.0f + 0.5f),
+			static_cast<int>(miss.receiveOdds * 100.0f + 0.5f));
+		std::printf("  NOT REACHED: %s\n", miss.failure.c_str());
+		std::printf("  REFUSED AT IT: %s\n", refused.failure.c_str());
+		if (!miss.offered || miss.reached || refused.received) {
+			std::printf("  FAIL  the wildcard's two failures are not both reachable\n");
+			ok = false;
+		}
+		int lostBefore = 0;
+		for (const Shuttle &sh : play.shuttles) if (sh.location == SHUTTLE_LOST) ++lostBefore;
+		const float deuterium = play.stores.deuterium;
+		const float crystal = play.dilithium;
+		const WildcardOutcome played = AttemptWildcard(play, target);
+		int lostAfter = 0;
+		for (const Shuttle &sh : play.shuttles) if (sh.location == SHUTTLE_LOST) ++lostAfter;
+		std::printf("  SPENT: deuterium %d%% -> %d%%; crystal %d%% -> %d%%; shuttles lost %d -> %d\n",
+			static_cast<int>(deuterium * 100.0f + 0.5f), static_cast<int>(play.stores.deuterium * 100.0f + 0.5f),
+			static_cast<int>(crystal * 100.0f + 0.5f), static_cast<int>(play.dilithium * 100.0f + 0.5f),
+			lostBefore, lostAfter);
+		if (!played.offered || play.stores.deuterium >= deuterium || play.dilithium >= crystal) {
+			std::printf("  FAIL  the play did not spend what cannot be got back\n");
+			ok = false;
+		}
+		const std::vector<std::string> wildFindings = EndingToneFindings({miss.line, refused.line, played.line});
+		std::printf("  WILDCARD NEUTRAL: %d\n", static_cast<int>(wildFindings.size()));
+		for (const std::string &f : wildFindings) std::printf("    %s\n", f.c_str());
+		if (!wildFindings.empty()) { std::printf("  FAIL  the wildcard's own words are not neutral\n"); ok = false; }
+		Ship earned = NewShip();
+		EarnEveryDestination(earned);
+		const float kept = earned.stores.deuterium;
+		const WildcardOutcome none = AttemptWildcard(earned, target);
+		std::printf("  EARNED ALREADY: offered %d; the reserve is unchanged %d\n", none.offered ? 1 : 0,
+			earned.stores.deuterium == kept ? 1 : 0);
+		if (none.offered || earned.stores.deuterium != kept) {
+			std::printf("  FAIL  a place already earned was treated as a play\n");
+			ok = false;
+		}
+	}
+
+
 	std::printf("%s\n", ok
 		? "PASS  the run reaches more than one destination; the same record is read differently by reader; no comparative or tone word is in the shipped strings; the arrival is three seconds and the log is the last frame"
 		: "FAIL  a Stage E criterion is not shown");
@@ -11527,6 +11626,7 @@ int main(int argc, char **argv)
 	TestEndingNeutrality();
 	TestEndingArrival();
 	TestEndingVeto();
+	TestEndingWildcard();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

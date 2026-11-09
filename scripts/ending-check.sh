@@ -73,6 +73,18 @@ grep -qE '^  VETO LOG: \[.+\] the crew would not make for .+' "$WORK/endings.txt
 grep -qF -- '  VETO ONCE: 1' "$WORK/endings.txt" || fail "the veto fired more than once"
 grep -qF -- '  VETO NEUTRAL: 0' "$WORK/endings.txt" || fail "the veto's own words are not neutral"
 
+# The wildcard: both failures are reachable and attributable, and what a play spends cannot be got back.
+grep -qE '^  NOT REACHED: the ship did not reach .+: the warp drive was at .+, the hull at .+' "$WORK/endings.txt" \
+	|| fail "the wildcard's failure to reach is not attributable to the ship's state"
+grep -qE '^  REFUSED AT IT: .+ read the record and did not receive the ship: .+' "$WORK/endings.txt" \
+	|| fail "the wildcard's refusal is not attributable to the record"
+grep -qE '^  SPENT: deuterium [0-9]+% -> [0-9]+%; crystal [0-9]+% -> [0-9]+%; shuttles lost 0 -> 1' "$WORK/endings.txt" \
+	|| fail "the wildcard did not spend what cannot be got back"
+grep -qF -- '  EARNED ALREADY: offered 0; the reserve is unchanged 1' "$WORK/endings.txt" \
+	|| fail "a place already earned was treated as a play"
+grep -qF -- '  WILDCARD NEUTRAL: 0' "$WORK/endings.txt" || fail "the wildcard's own words are not neutral"
+
+
 echo
 echo "==> endings: falsification one (a destination named 'the best Earth'; the neutrality assertion must fail)"
 cp -r module/ship "$WORK/ship_best"
@@ -123,5 +135,6 @@ echo
 echo "PASS  one run reaches more than one destination; the same record is read differently by two"
 echo "      readers, each naming its evidence; no comparative or tone word is in the shipped ending"
 echo "      strings; the arrival is 3000 ms and the log follows it; the crew's veto fires once and"
-echo "      names the conn; and the guard fails on a planted 'best', a 2500 ms arrival and a"
-echo "      planted veto 'better'"
+echo "      names the conn; the wildcard fails in both ways it can and spends what cannot be got"
+echo "      back; and the guards fail on a planted 'best', a 2500 ms arrival and a planted veto"
+echo "      'better'"

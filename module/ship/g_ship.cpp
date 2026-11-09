@@ -116,6 +116,7 @@ bool arrivalDone = false;
 int arrivalStartMs = 0;
 int arrivalDestination = ship::DEST_EARTH;
 bool arrivalFiled = true;
+bool arrivalReceived = true;   // a wildcard can reach a place and be refused at it
 bool arrivalWasLocked = false; // the input lock the arrival took, restored when it ends
 // The endgame's once-only state (docs/endings.md): the crew's veto fires once at the destination.
 // It is host state; nothing after the log is replayed.
@@ -6084,9 +6085,10 @@ static void FinishArrival( void )
 	player_locked = arrivalWasLocked;
 	CGCam_Disable();
 	const ship::EndingReading reading = ship::ReadEnding( vessel,
-		static_cast<ship::DestinationId>( arrivalDestination ), arrivalFiled );
+		static_cast<ship::DestinationId>( arrivalDestination ), arrivalFiled, arrivalReceived );
 	gi.Printf( "SHIP: ARRIVAL %s -- reader %s; reads %s\n",
 		ship::DestinationSpec( reading.destination ).name, reading.reader.c_str(), reading.lens.c_str() );
+	gi.Printf( "SHIP:   the record %s\n", arrivalReceived ? "was received" : "was not received at the door" );
 	for ( const std::string &line : reading.lines ) gi.Printf( "SHIP:   %s\n", line.c_str() );
 	gi.Printf( "SHIP:   reading: %s\n", reading.conclusion.c_str() );
 	const std::vector<ship::LogEntry> log = ship::EndingLog( vessel );
@@ -6102,9 +6104,10 @@ static void FinishArrival( void )
 	}
 	gi.cvar_set( "lwh_ship_arrival", "0" );
 	gi.cvar_set( "lwh_ship_ending", ship::DestinationSpec( reading.destination ).name );
+	gi.cvar_set( "lwh_ship_ending_received", arrivalReceived ? "1" : "0" );
 }
 
-static void StartArrival( ship::DestinationId d, bool filed )
+static void StartArrival( ship::DestinationId d, bool filed, bool received = true, bool wildcard = false )
 {
 	if ( arrivalActive ) return;
 	if ( !ship::Won( vessel ) )
@@ -6112,7 +6115,7 @@ static void StartArrival( ship::DestinationId d, bool filed )
 		gi.Printf( "SHIP: the run has not reached its end; there is no arrival yet\n" );
 		return;
 	}
-	if ( !ship::DestinationAvailable( vessel, d ) )
+	if ( !wildcard && !ship::DestinationAvailable( vessel, d ) )
 	{
 		gi.Printf( "SHIP: %s is not open to this run: %s\n",
 			ship::DestinationSpec( d ).name, ship::DestinationSpec( d ).offer );
@@ -6120,6 +6123,7 @@ static void StartArrival( ship::DestinationId d, bool filed )
 	}
 	arrivalDestination = d;
 	arrivalFiled = ship::MayFileAt( d ) ? filed : true;
+	arrivalReceived = received;
 	arrivalStartMs = level.time;
 	arrivalActive = true;
 	arrivalDone = false;
@@ -7875,6 +7879,48 @@ void Svcmd_Ship_f( void )
 				ship::DestinationSpec( choice.chosen ).name );
 		}
 		StartArrival( choice.chosen, filed );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "wildcard" ) )
+	{//the wildcard (docs/endings.md): a play for a place that has not invited the run. It spends a
+	 //shuttle and part of the reserve before the draw; it can fail to reach, or reach and be refused
+	 //at the door, and either failure names the state that caused it. The crew's veto is asked first
+	 //and fires once: a crew that has lost confidence does not follow the captain's gamble.
+		if ( !ship::Won( vessel ) )
+		{
+			gi.Printf( "SHIP: the run has not reached its end; there is no arrival yet\n" );
+			return;
+		}
+		const ship::DestinationId target = ship::DestinationByName( a );
+		if ( target >= ship::DEST_COUNT )
+		{
+			gi.Printf( "SHIP: wildcard: name the place to make a play for\n" );
+			return;
+		}
+		const ship::WildcardOutcome probe = ship::SolveWildcard( vessel, target, 0.0f, 0.0f );
+		if ( !probe.offered )
+		{
+			gi.Printf( "SHIP: %s\n", probe.line.c_str() );
+			return;
+		}
+		const ship::EndingChoice choice = ship::ChooseEnding( vessel, target, endingVetoFired );
+		if ( choice.vetoed )
+		{
+			ship::RecordEndingChoice( vessel, choice );
+			endingVetoFired = true;
+			gi.Printf( "SHIP: the crew would not make a play for %s; %s holds the conn, and the course is laid for %s\n",
+				ship::DestinationSpec( choice.requested ).name, choice.conn.c_str(),
+				ship::DestinationSpec( choice.chosen ).name );
+			StartArrival( choice.chosen, true, true, false );
+			return;
+		}
+		const ship::WildcardOutcome play = ship::AttemptWildcard( vessel, target );
+		gi.Printf( "SHIP: %s\n", play.line.c_str() );
+		gi.Printf( "SHIP:   spent: %s\n", play.spent.c_str() );
+		if ( play.reached )
+			StartArrival( target, true, play.received, true );
+		else
+			StartArrival( ship::DEST_EARTH, true, true, false );
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "log" ) )
