@@ -11242,6 +11242,48 @@ static void TestEndingWildcard()
 }
 
 
+static void TestEndingRoute()
+{
+	g_test = "the conduit is a route: the enemy's knowledge, all three costs, and the same clip";
+	// The canon roster carries Seven, so the default run already has the road aboard; strip it to
+	// test the gate, then put it back.
+	Ship s = NewShip();
+	for (CrewMember &c : s.crew) {
+		if (c.species == SPECIES_BORG_RECOVERED) c.species = SPECIES_HUMAN;
+		if (c.allegiance.to == ALLEG_BORG_RECOVERED) c.allegiance.to = ALLEG_STARFLEET;
+	}
+	for (Deck &d : s.decks) d.assimilated = 0.0f;
+	CHECK(!BorgKnowledgeAboard(s));
+	CHECK(!TranswarpCostOf(s).available);
+	const double clock = s.clock;
+	std::string why;
+	CHECK(!TakeTranswarp(s, &why));
+	CHECK(s.clock == clock);
+	CHECK(!why.empty());
+	CHECK(EndingToneFindings({why}).empty());
+
+	// A recovered drone aboard: the road can be taken, and the cost is all three.
+	s.crew.back().species = SPECIES_BORG_RECOVERED;
+	const TranswarpCost cost = TranswarpCostOf(s);
+	CHECK(BorgKnowledgeAboard(s));
+	CHECK(cost.available);
+	CHECK(!cost.crew.empty());
+	CHECK(cost.line.find("does not come back") != std::string::npos);
+	CHECK(cost.line.find("a year passes") != std::string::npos);
+	CHECK(EndingToneFindings({cost.line, cost.principle}).empty());
+
+	const int fitBefore = s.CrewFit();
+	const double clockBefore = s.clock;
+	CHECK(TakeTranswarp(s, &why));
+	CHECK(s.CrewFit() == fitBefore - 1);
+	CHECK(s.clock >= clockBefore + 364.0 * SECONDS_PER_DAY);
+	CHECK(s.log.back().what == cost.line);
+	CHECK(std::string(RouteName(ROUTE_GRIND)) == "the grind");
+	CHECK(std::string(RouteName(ROUTE_CONDUIT)) == "the conduit");
+	CHECK(ARRIVAL_MS == 3000); // the clip is the constant; the route is the variable
+}
+
+
 // `test_ship_core --endings`: the observable criterion for Stage E, printed. The earned run is one
 // record read by two readers; the neutrality assertion is over the shipped string table and the
 // readings; the arrival is the one number every route shares. Returns nonzero if any criterion is
@@ -11397,6 +11439,40 @@ static int PrintEndings()
 			std::printf("  FAIL  a place already earned was treated as a play\n");
 			ok = false;
 		}
+	}
+
+
+	std::printf("== the route\n");
+	{
+		Ship plainRoute = NewShip();
+		for (CrewMember &c : plainRoute.crew) {
+			if (c.species == SPECIES_BORG_RECOVERED) c.species = SPECIES_HUMAN;
+			if (c.allegiance.to == ALLEG_BORG_RECOVERED) c.allegiance.to = ALLEG_STARFLEET;
+		}
+		for (Deck &d : plainRoute.decks) d.assimilated = 0.0f;
+		std::printf("  BORG KNOWLEDGE: %d aboard; the conduit %s\n", BorgKnowledgeAboard(plainRoute) ? 1 : 0,
+			TranswarpCostOf(plainRoute).available ? "is available" : "is not available");
+		Ship conduit = NewShip();
+		conduit.crew.back().species = SPECIES_BORG_RECOVERED;
+		const TranswarpCost cost = TranswarpCostOf(conduit);
+		std::printf("  CONDUIT: %s; %s\n", cost.available ? "available" : "not available", cost.line.c_str());
+		const int fitBefore = conduit.CrewFit();
+		const double clockBefore = conduit.clock;
+		std::string why;
+		const bool taken = TakeTranswarp(conduit, &why);
+		const int days = static_cast<int>((conduit.clock - clockBefore) / SECONDS_PER_DAY + 0.5);
+		std::printf("  TAKEN: %d; the clock moved %d days; crew fit %d -> %d\n", taken ? 1 : 0, days,
+			fitBefore, conduit.CrewFit());
+		if (!cost.available || !taken || days != 365 || conduit.CrewFit() != fitBefore - 1) {
+			std::printf("  FAIL  the conduit did not cost all three\n");
+			ok = false;
+		}
+		const std::vector<std::string> routeFindings = EndingToneFindings({cost.line, cost.principle});
+		std::printf("  CONDUIT NEUTRAL: %d\n", static_cast<int>(routeFindings.size()));
+		for (const std::string &f : routeFindings) std::printf("    %s\n", f.c_str());
+		if (!routeFindings.empty()) { std::printf("  FAIL  the conduit's own words are not neutral\n"); ok = false; }
+		std::printf("  THE CLIP: %d ms on the grind and on the conduit (the route is the variable)\n", ARRIVAL_MS);
+		if (ARRIVAL_MS != 3000) { std::printf("  FAIL  the clip is not the constant\n"); ok = false; }
 	}
 
 
@@ -11627,6 +11703,7 @@ int main(int argc, char **argv)
 	TestEndingArrival();
 	TestEndingVeto();
 	TestEndingWildcard();
+	TestEndingRoute();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

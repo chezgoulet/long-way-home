@@ -163,7 +163,7 @@ substance of the brief's point and stands.
 | `Unpack` | `const uint8_t *data, size_t len, Ship &s` | False, leaving `s` untouched, on a truncated, foreign or newer record | play | — | — |
 
 ### 2. Situations the simulation generates on its own  
-*103 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "74 hooks"; **Corrected 2026-10-12:** one row (`ShieldHit`) was added for the shield sections, 87 → 88 rows follow; **2026-10-31:** the nine ending hooks — `DestinationSpec`, `Destinations`, `DestinationByName`, `DestinationsFor`, `DestinationAvailable`, `ReadEnding`, `MayFileAt`, `EndingToneFindings`, `EndingLog` — were added, 88 → 97 rows follow; **2026-11-08:** the crew's veto adds four (97 → 101), and the wildcard adds two (101 → 103).)*
+*107 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "74 hooks"; **Corrected 2026-10-12:** one row (`ShieldHit`) was added for the shield sections, 87 → 88 rows follow; **2026-10-31:** the nine ending hooks — `DestinationSpec`, `Destinations`, `DestinationByName`, `DestinationsFor`, `DestinationAvailable`, `ReadEnding`, `MayFileAt`, `EndingToneFindings`, `EndingLog` — were added, 88 → 97 rows follow; **2026-11-08:** the crew's veto adds four (97 → 101), the wildcard adds two (101 → 103), and the conduit route adds four (103 → 107).)*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -279,6 +279,10 @@ substance of the brief's point and stands.
 | `RecordEndingChoice` | `Ship &s, const EndingChoice &c` | Write the veto and who holds the conn into the official log | console | — | docs/endings.md |
 | `SolveWildcard` | `const Ship &s, DestinationId d, float reachRoll, float receiveRoll` | The wildcard's outcome without spending: not reached, refused at it, or received | console | — | docs/endings.md |
 | `AttemptWildcard` | `Ship &s, DestinationId d` | A play for a place that has not invited the run, spending what cannot be got back | console | — | docs/endings.md |
+| `RouteName` | `EndingRoute r` | The route: the grind or the conduit | console | — | docs/endings.md |
+| `BorgKnowledgeAboard` | `const Ship &s` | Whether the enemy's knowledge is aboard: a recovered drone or a section never got back | console | — | docs/endings.md |
+| `TranswarpCostOf` | `const Ship &s` | Whether the conduit can be taken and what all three costs would be | console | — | docs/endings.md |
+| `TakeTranswarp` | `Ship &s, std::string *line` | Spend the principle, the crew member and the year, and record it | console | — | docs/endings.md |
 | `Trauma` | `const CrewMember &who` | The unprocessed weight a character carries: their negative marks, still salient | play | — | — |
 | `BuildComputerBrief` | `const Ship &s` | The computer is addressed, not convened: the same brief shape as a meeting's, built from the computer skeleton, whose pills are the ship's API | play | — | docs/staff-meetings.md |
 | `AddressComputer` | `const Ship &s, const std::string &input` | What the computer says to an input: membership in the ship's API (FindConsoleVerb); a recognised command answered from the authored line, an input outside the set refused in character ("that function is not available") with nothing invented and no state written | play | — | docs/staff-meetings.md |
@@ -637,14 +641,14 @@ command console; evidence in `docs/evidence/the-bills.md`.
 
 ## The counts (Task B)
 
-<!-- register-counts play=312 console=176 nothing=39 content=5 total=532 -->
+<!-- register-counts play=312 console=180 nothing=39 content=5 total=536 -->
 
 **The current count, machine-checked.** The marker above is the register's own count, re-derived from its
 rows and checked against the surface of `module/ship/ship_core.h` by
 `tools/docs/check_register_counts.py` (class 4 of `scripts/docs-check.sh`), which fails if it drifts from
 either. The dated paragraphs further down are the record of each pass's count at its date; this marker is
 what the register actually is now, so a reader sizes work on it and not on the prose above or below.
-**By reach:** play **312**, console **176**, nothing **39**, content **5**; **total 532**. (The counts in
+**By reach:** play **312**, console **180**, nothing **39**, content **5**; **total 536**. (The counts in
 the "By group" table and the dated re-derivations below are kept as history and are not the current count.)
 
 **Re-derived 2026-10-31, the ending (Stage E).** Nine hooks are added: the destination table and its

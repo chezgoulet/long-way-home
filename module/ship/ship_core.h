@@ -3090,6 +3090,28 @@ WildcardOutcome SolveWildcard(const Ship &s, DestinationId d, float reachRoll, f
 // before it replays the same draws. An attempt that is not offered spends nothing.
 WildcardOutcome AttemptWildcard(Ship &s, DestinationId d);
 
+// ---- the transwarp route (docs/endings.md) ------------------------------------------------------
+//
+// The conduit is a route, not a separate arrival: the clip, the timer and the camera are the same
+// for both. It requires the enemy's knowledge aboard, and it costs all three the design names -- a
+// principle, a crew member and a year -- which is why it is the only route that collapses the
+// journey into one event. The route is recorded; the arrival is not.
+enum EndingRoute : uint8_t { ROUTE_GRIND = 0, ROUTE_CONDUIT, ROUTE_COUNT };
+const char *RouteName(EndingRoute r);
+// Seven, a recovered drone, a Borg-recovered allegiance, or a section of the hull that never got
+// back: the road is the Collective's, and the ship cannot take it without their knowledge.
+bool BorgKnowledgeAboard(const Ship &s);
+struct TranswarpCost {
+	bool available = false;
+	std::string crew;       // who carries the knowledge and does not come back
+	std::string principle;  // what the route spends, named
+	std::string line;       // the fact, worded for the official log
+};
+TranswarpCost TranswarpCostOf(const Ship &s);
+// Spend it and record it. Returns false, changing nothing, when there is no knowledge aboard or no
+// one to take it. `line`, when given, receives the fact written.
+bool TakeTranswarp(Ship &s, std::string *line = nullptr);
+
 // ---- the stations' purposes (S4) ------------------------------------------------------------------
 //
 // Each console does more than switch its systems on and off: the transporter beams a party to a site,

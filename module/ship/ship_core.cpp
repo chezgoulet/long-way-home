@@ -4769,6 +4769,13 @@ std::vector<std::string> EndingToneFindings()
 		strings.push_back(refused.failure);
 		strings.push_back(refused.line);
 	}
+	{
+		Ship borg = plain;
+		if (!borg.crew.empty()) borg.crew[0].species = SPECIES_BORG_RECOVERED;
+		const TranswarpCost cost = TranswarpCostOf(borg);
+		strings.push_back(cost.principle);
+		strings.push_back(cost.line);
+	}
 	return EndingToneFindings(strings);
 }
 
@@ -5006,6 +5013,81 @@ WildcardOutcome AttemptWildcard(Ship &s, DestinationId d)
 	s.dilithium = std::max(0.0f, s.dilithium - WILDCARD_CRYSTAL);
 	LogEvent(s, CommandingOfficer(s), "outside", o.line + " (spent: " + o.spent + ")");
 	return o;
+}
+
+// ---- the transwarp route (docs/endings.md) ------------------------------------------------------
+
+const char *RouteName(EndingRoute r) { return r == ROUTE_CONDUIT ? "the conduit" : "the grind"; }
+
+bool BorgKnowledgeAboard(const Ship &s)
+{
+	for (const CrewMember &c : s.crew) {
+		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) continue;
+		if (c.species == SPECIES_BORG_RECOVERED || c.allegiance.to == ALLEG_BORG_RECOVERED) return true;
+	}
+	// A section of the ship that never got back: the deck stays Borg until it is stripped.
+	for (const Deck &d : s.decks)
+		if (d.assimilated > 0.5f) return true;
+	return false;
+}
+
+// Who takes the knowledge through: a recovered drone first, then the best science hand aboard.
+static int EndingConduitCarrier(const Ship &s)
+{
+	int best = -1;
+	bool bestKnows = false;
+	float bestSkill = -1.0f;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT && c.status != CREW_INJURED) continue;
+		const bool knows = c.species == SPECIES_BORG_RECOVERED || c.allegiance.to == ALLEG_BORG_RECOVERED;
+		const float skill = EffectiveSkill(c, SKILL_SCIENCE);
+		if (best < 0 || (knows && !bestKnows) || (knows == bestKnows && skill > bestSkill)) {
+			best = i; bestKnows = knows; bestSkill = skill;
+		}
+	}
+	return best;
+}
+
+TranswarpCost TranswarpCostOf(const Ship &s)
+{
+	TranswarpCost cost;
+	if (!BorgKnowledgeAboard(s)) {
+		cost.line = "the conduit needs the enemy's knowledge aboard, and none is";
+		return cost;
+	}
+	const int carrier = EndingConduitCarrier(s);
+	if (carrier < 0) {
+		cost.line = "the conduit needs a hand to take the knowledge through, and no one is fit";
+		return cost;
+	}
+	cost.available = true;
+	cost.crew = s.crew[carrier].name;
+	cost.principle = "the ship takes the Collective's road";
+	cost.line = "the conduit: " + cost.crew + " takes the hub's knowledge and does not come back; "
+		+ cost.principle + "; a year passes in three seconds";
+	return cost;
+}
+
+bool TakeTranswarp(Ship &s, std::string *line)
+{
+	const TranswarpCost cost = TranswarpCostOf(s);
+	if (!cost.available) {
+		if (line) *line = cost.line;
+		return false;
+	}
+	const int carrier = EndingConduitCarrier(s);
+	if (carrier < 0) {
+		if (line) *line = cost.line;
+		return false;
+	}
+	// All three costs, in the order the crossing takes them: the year first, then the person, and the
+	// principle is the fact of the road itself, recorded in the line.
+	s.clock += 365.0 * SECONDS_PER_DAY;
+	KillCrew(s, carrier, "the transwarp conduit");
+	LogEvent(s, CommandingOfficer(s), "outside", cost.line);
+	if (line) *line = cost.line;
+	return true;
 }
 
 static void UpdateOutside(Ship &s, float shipSeconds)

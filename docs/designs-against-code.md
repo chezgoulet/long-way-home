@@ -789,6 +789,8 @@ Two things that table will not say by itself, and should:
 | 42 | "what it costs, and this is not optional" (`rising-to-the-occasion.md:36`) | implemented | `ship_core.cpp:5864-5871,5914` | |
 | 43 | "a memory in the witnesses" (`rising-to-the-occasion.md:40`) | implemented | `RisingWitnesses:5824`; `RetellRising:5928` | |
 | 44 | "a wildcard is attemptable … fail to reach it or be refused at it" (`endings.md:191`) | implemented | `SolveWildcard`/`AttemptWildcard`; `TestEndingWildcard` | both failures name the state or the record; spends a shuttle, a tenth of the reserve and a twentieth of the crystal |
+| 45 | "it requires the enemy's knowledge" (`endings.md:151`) | implemented | `BorgKnowledgeAboard`/`TranswarpCostOf`/`TakeTranswarp`; `TestEndingRoute` | the conduit is gated; it pays a principle, a crew member and a year |
+| 46 | "the arrival clip is identical for every destination and for every route, including the conduit" (`endings.md:223`) | implemented | `ARRIVAL_MS`; `StartArrival`; `TestEndingRoute` | one camera and one timer; the route is recorded, not rendered |
 | 44 | "the person may refuse … as a decision from their drives and morale" (`rising-to-the-occasion.md:47`) | implemented | `RisingWouldGo:5725-5766`; `RISING_REFUSED:5851` | |
 | 45 | "a mark's salience decays unless reinforced" (`rising-to-the-occasion.md:111`) | implemented | `Remember:4733-4735`; `RetellRising:5928` | |
 | 46 | a heroism stat, a courage roll, a bar should be refused (`rising-to-the-occasion.md:127`) | implemented | no such field or roll | |

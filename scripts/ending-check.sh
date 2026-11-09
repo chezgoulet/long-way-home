@@ -85,6 +85,18 @@ grep -qF -- '  EARNED ALREADY: offered 0; the reserve is unchanged 1' "$WORK/end
 grep -qF -- '  WILDCARD NEUTRAL: 0' "$WORK/endings.txt" || fail "the wildcard's own words are not neutral"
 
 
+# The conduit: the enemy's knowledge is the gate, all three costs are paid, and the clip is unchanged.
+grep -qF -- '  BORG KNOWLEDGE: 0 aboard; the conduit is not available' "$WORK/endings.txt" \
+	|| fail "the conduit is not gated on the enemy's knowledge"
+grep -qE '^  CONDUIT: available; the conduit: .+ does not come back; .+; a year passes in three seconds' "$WORK/endings.txt" \
+	|| fail "the conduit's three costs are not named"
+grep -qE '^  TAKEN: 1; the clock moved 365 days; crew fit [0-9]+ -> [0-9]+' "$WORK/endings.txt" \
+	|| fail "the conduit did not spend the year and the crew member"
+grep -qF -- '  CONDUIT NEUTRAL: 0' "$WORK/endings.txt" || fail "the conduit's own words are not neutral"
+grep -qF -- '  THE CLIP: 3000 ms on the grind and on the conduit' "$WORK/endings.txt" \
+	|| fail "the clip is not the constant across the routes"
+
+
 echo
 echo "==> endings: falsification one (a destination named 'the best Earth'; the neutrality assertion must fail)"
 cp -r module/ship "$WORK/ship_best"
@@ -136,5 +148,5 @@ echo "PASS  one run reaches more than one destination; the same record is read d
 echo "      readers, each naming its evidence; no comparative or tone word is in the shipped ending"
 echo "      strings; the arrival is 3000 ms and the log follows it; the crew's veto fires once and"
 echo "      names the conn; the wildcard fails in both ways it can and spends what cannot be got"
-echo "      back; and the guards fail on a planted 'best', a 2500 ms arrival and a planted veto"
-echo "      'better'"
+echo "      back; the conduit is gated on the enemy's knowledge and pays all three costs; and the"
+echo "      guards fail on a planted 'best', a 2500 ms arrival and a planted veto 'better'"
