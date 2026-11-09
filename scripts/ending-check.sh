@@ -84,7 +84,6 @@ grep -qF -- '  EARNED ALREADY: offered 0; the reserve is unchanged 1' "$WORK/end
 	|| fail "a place already earned was treated as a play"
 grep -qF -- '  WILDCARD NEUTRAL: 0' "$WORK/endings.txt" || fail "the wildcard's own words are not neutral"
 
-
 # The conduit: the enemy's knowledge is the gate, all three costs are paid, and the clip is unchanged.
 grep -qF -- '  BORG KNOWLEDGE: 0 aboard; the conduit is not available' "$WORK/endings.txt" \
 	|| fail "the conduit is not gated on the enemy's knowledge"
@@ -96,6 +95,25 @@ grep -qF -- '  CONDUIT NEUTRAL: 0' "$WORK/endings.txt" || fail "the conduit's ow
 grep -qF -- '  THE CLIP: 3000 ms on the grind and on the conduit' "$WORK/endings.txt" \
 	|| fail "the clip is not the constant across the routes"
 
+# The endgame screen: the design's order, no rank field, and words that pass the same assertion.
+grep -qF -- "  SCREEN ROWS: 6 in the design's order 0 1 2 3 4 5" "$WORK/endings.txt" \
+	|| fail "the endgame screen is not in the design's order"
+grep -qF -- '  SCREEN RANK FIELD: none' "$WORK/endings.txt" || fail "the endgame screen sorts by a rank"
+grep -qF -- '  SCREEN LABELS: 11, 0 tone findings' "$WORK/endings.txt" \
+	|| fail "the endgame screen's words are not neutral"
+grep -qF -- '  SCREEN EARNED: 6 of 6 open' "$WORK/endings.txt" \
+	|| fail "an earned run did not open every destination on the screen"
+
+# No rank, score or quality field in the two structs a destination is read through. A field added
+# here is the score screen the design forbids, so this guard is part of the lane.
+rank_free() { # <header> <struct>
+	awk "/^struct $2 \\{/,/^\\};/" "$1" | grep -Eq '(^|[^A-Za-z_])(rank|score|quality|grade)([^A-Za-z_]|$)' && return 1
+	return 0
+}
+rank_free module/ship/ship_core.h Destination \
+	|| fail "the destination table carries a rank, score or quality field"
+rank_free module/ship/ship_core.h EndingScreenRow \
+	|| fail "the endgame screen's row carries a rank, score or quality field"
 
 echo
 echo "==> endings: falsification one (a destination named 'the best Earth'; the neutrality assertion must fail)"
@@ -144,9 +162,35 @@ grep -qF -- 'better in "the crew is better off not making for ' "$WORK/veto.txt"
 echo "    the planted veto fails the same assertion; the tree passes"
 
 echo
+echo "==> endings: falsification four (the screen's rows reversed; the design's order must fail)"
+cp -r module/ship "$WORK/ship_order"
+sed -i 's/row.destination = static_cast<DestinationId>(i);/row.destination = static_cast<DestinationId>(DEST_COUNT - 1 - i);/' \
+	"$WORK/ship_order/ship_core.cpp"
+grep -q 'DEST_COUNT - 1 - i' "$WORK/ship_order/ship_core.cpp" || fail "the screen-order plant did not take"
+build "$WORK/ship_order" "$WORK/test_order"
+if "$WORK/test_order" --endings >"$WORK/order.txt" 2>&1; then
+	fail "the screen-order assertion passed with the rows reversed: it has no teeth"
+fi
+grep -qF -- "SCREEN ROWS: 6 in the design's order 5 4 3 2 1 0" "$WORK/order.txt" \
+	|| fail "the reversed rows did not print their own order"
+grep -qF -- 'FAIL  the screen is not in the design'"'"'s order' "$WORK/order.txt" \
+	|| fail "the reversed rows failed for some other reason"
+echo "    the reversed rows fail the same assertion; the tree passes"
+
+echo
+echo "==> endings: falsification five (a rank field planted in the screen's row; the rank guard must fail)"
+cp module/ship/ship_core.h "$WORK/rank.h"
+sed -i '/^struct EndingScreenRow {/,/^};/ s/bool open = false;/bool open = false; int rank = 0;/' "$WORK/rank.h"
+grep -q 'int rank = 0;' "$WORK/rank.h" || fail "the rank-field plant did not take"
+rank_free "$WORK/rank.h" EndingScreenRow && fail "the rank guard passed with a rank field in the row: it has no teeth"
+echo "    the planted rank field fails the guard; the tree passes"
+
+echo
 echo "PASS  one run reaches more than one destination; the same record is read differently by two"
 echo "      readers, each naming its evidence; no comparative or tone word is in the shipped ending"
 echo "      strings; the arrival is 3000 ms and the log follows it; the crew's veto fires once and"
 echo "      names the conn; the wildcard fails in both ways it can and spends what cannot be got"
-echo "      back; the conduit is gated on the enemy's knowledge and pays all three costs; and the"
-echo "      guards fail on a planted 'best', a 2500 ms arrival and a planted veto 'better'"
+echo "      back; the conduit is gated on the enemy's knowledge and pays all three costs; the"
+echo "      endgame screen is in the design's order with no rank field; and the guards fail on a"
+echo "      planted 'best', a 2500 ms arrival, a planted veto 'better', reversed rows and a rank"
+echo "      field"

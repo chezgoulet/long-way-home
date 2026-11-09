@@ -436,14 +436,31 @@ falsifications are in `docs/evidence/endings.md`. The module also builds against
 separate tree (`build-lwh-endings`: `[100%] Built target efgame`, `libefgame.so`), so the arrival's
 engine calls compile and link; it was not watched in a graphical session.
 
-**What remains (deferred, not claimed):** the **rendered look** of the arrival. The camera move and
-the fade are the engine's own and are timed at three seconds, but the project ships no Voyager
-exterior model and no system skybox, so the picture is a **stand-in** against the project's own bar —
-it is not yet the show's shot of the ship coming out of warp into a system. No graphical session was
-run to watch it; the duration and the log handback are proven, the frame is not. The transwarp route
-is designed and not built; the arrival is the same clip either way. The crew's veto at the destination
-and the wildcard attempt are designed and not built. The destinations are reached by the console and
-the model, not by an endgame screen.
+**The deferred endgame, built 2026-11-08.** The crew's **veto** fires once at the destination: a
+crew whose confidence is gone refuses the course, chooses the place themselves, and the official log
+records who holds the conn (`CrewConfidence`, `ChooseEnding`, `RecordEndingChoice`). The **wildcard**
+is a play for a place that has not invited the run; it spends a shuttle, a tenth of the reserve and a
+twentieth of the crystal before the draw, and it fails either by not reaching (the ship's state named)
+or by reaching and being refused (the record named) (`SolveWildcard`, `AttemptWildcard`). The
+**transwarp route** is a route, not a second arrival: it requires the enemy's knowledge aboard and
+pays the principle, the crew member and the year, while `ARRIVAL_MS` and the camera are unchanged
+(`BorgKnowledgeAboard`, `TranswarpCostOf`, `TakeTranswarp`). The **endgame screen**
+(`module/ui/ui_lwh_ending.cpp`) lists the accrued destinations as readers in the design's order; it
+has no rank, score or quality field, sorts nothing, draws words shipped by the model so
+`EndingToneFindings` scans them, and closes before the arrival so the record is still the last frame.
+
+**What remains (deferred, not claimed):** the **rendered look** of the arrival — and that is out of
+scope by the owner's decision until a Voyager exterior or an original one is chosen. The camera move
+and the fade are the engine's own and are timed at three seconds, but the project ships no exterior
+model and no system skybox, so the picture is a **stand-in** against the project's own bar. No
+graphical session was run to watch it; the duration, the route and the log handback are proven, the
+frame is not.
+
+**Demonstrated, for the deferred items:** `TestEndingVeto`, `TestEndingWildcard`, `TestEndingRoute`,
+`TestEndingScreen`, the extended `test_ship_core --endings`, and `scripts/ending-check.sh` with five
+falsifications, in `docs/evidence/the-crews-veto.md`, `docs/evidence/the-wildcard.md`,
+`docs/evidence/the-conduit-route.md` and `docs/evidence/the-endgame-screen.md`. The module (game and
+UI) builds against the engine in a separate tree; the screen was not watched in a graphical session.
 
 ## G4 and G5 — replaced by the ship programme (2026-10-05)
 

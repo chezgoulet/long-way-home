@@ -40,6 +40,17 @@ older save still loads. The end-of-run log line changed from "the ship is home" 
 end", the sector readout from `HOME` to `END`, and the panel's navigation line from `HOME` to `GOAL`,
 so the ending's own log and UI do not use the tone word `home`.
 
+## The deferred items, built 2026-11-08
+
+The stage's own deferred list is closed except the rendered picture: the crew's **veto** at the
+destination, the **wildcard** attempt, the **transwarp route**, and an **endgame screen** that is a
+list of readers rather than a score screen. Each has its own evidence document and its own tests:
+`docs/evidence/the-crews-veto.md`, `docs/evidence/the-wildcard.md`,
+`docs/evidence/the-conduit-route.md` and `docs/evidence/the-endgame-screen.md`. `scripts/ending-check.sh`
+was extended with their criteria and three more falsifications (a planted veto "better", reversed
+screen rows, a planted rank field), so its exit 0 now covers the whole endgame. The rendered arrival
+remains out of scope by the owner's decision and is not claimed.
+
 ## The command
 
 ```sh

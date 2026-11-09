@@ -11284,6 +11284,37 @@ static void TestEndingRoute()
 }
 
 
+static void TestEndingScreen()
+{
+	g_test = "the endgame screen: the design's order, no rank field, and the fixed words are neutral";
+	Ship s = NewShip();
+	const std::vector<EndingScreenRow> rows = EndingScreenRows(s);
+	CHECK(rows.size() == DEST_COUNT);
+	for (int i = 0; i < DEST_COUNT; ++i) {
+		CHECK(rows[i].destination == static_cast<DestinationId>(i)); // the design's order, not a sort
+		CHECK(!rows[i].name.empty());
+		CHECK(!rows[i].reader.empty());
+		CHECK(!rows[i].lens.empty());
+		CHECK(rows[i].open == DestinationAvailable(s, rows[i].destination));
+	}
+	CHECK(rows.front().open); // Earth
+	CHECK(rows.back().destination == DEST_NO_READER);
+	bool play = false;
+	for (const EndingScreenRow &r : rows) if (!r.play.empty()) play = true;
+	CHECK(play); // a place not earned says what a play would spend
+	const std::vector<std::string> labels = EndingScreenLabels();
+	CHECK(labels.size() == END_LABEL_COUNT);
+	CHECK(EndingToneFindings(labels).empty());
+	CHECK(std::string(EndingScreenLabel(END_LABEL_TITLE)).find("home") == std::string::npos);
+
+	// An earned run opens them all, in the same order.
+	Ship earned = NewShip();
+	EarnEveryDestination(earned);
+	const std::vector<EndingScreenRow> all = EndingScreenRows(earned);
+	CHECK(all.size() == DEST_COUNT);
+	for (const EndingScreenRow &r : all) CHECK(r.open);
+}
+
 // `test_ship_core --endings`: the observable criterion for Stage E, printed. The earned run is one
 // record read by two readers; the neutrality assertion is over the shipped string table and the
 // readings; the arrival is the one number every route shares. Returns nonzero if any criterion is
@@ -11475,6 +11506,40 @@ static int PrintEndings()
 		if (ARRIVAL_MS != 3000) { std::printf("  FAIL  the clip is not the constant\n"); ok = false; }
 	}
 
+
+	std::printf("== the endgame screen\n");
+	{
+		const std::vector<EndingScreenRow> rows = EndingScreenRows(NewShip());
+		std::printf("  SCREEN ROWS: %d in the design's order", static_cast<int>(rows.size()));
+		for (const EndingScreenRow &r : rows) std::printf(" %d", static_cast<int>(r.destination));
+		std::printf("\n");
+		bool order = rows.size() == DEST_COUNT;
+		int open = 0, plays = 0;
+		for (size_t i = 0; i < rows.size(); ++i) {
+			if (rows[i].destination != static_cast<DestinationId>(i)) order = false;
+			if (rows[i].open) ++open;
+			if (!rows[i].play.empty()) ++plays;
+		}
+		std::printf("  SCREEN OPEN: %d of %d; a play is offered for %d\n", open, static_cast<int>(rows.size()), plays);
+		std::printf("  SCREEN RANK FIELD: none (the row is destination, open, name, reader, lens, offer, play)\n");
+		if (!order) { std::printf("  FAIL  the screen is not in the design's order\n"); ok = false; }
+		const std::vector<std::string> labels = EndingScreenLabels();
+		const std::vector<std::string> labelFindings = EndingToneFindings(labels);
+		std::printf("  SCREEN LABELS: %d, %d tone findings\n", static_cast<int>(labels.size()),
+			static_cast<int>(labelFindings.size()));
+		for (const std::string &f : labelFindings) std::printf("    %s\n", f.c_str());
+		if (labels.size() != END_LABEL_COUNT || !labelFindings.empty()) {
+			std::printf("  FAIL  the screen's words are not neutral, or a label is missing\n");
+			ok = false;
+		}
+		Ship earnedScreen = NewShip();
+		EarnEveryDestination(earnedScreen);
+		int allOpen = 0;
+		const std::vector<EndingScreenRow> earnedRows = EndingScreenRows(earnedScreen);
+		for (const EndingScreenRow &r : earnedRows) if (r.open) ++allOpen;
+		std::printf("  SCREEN EARNED: %d of %d open\n", allOpen, DEST_COUNT);
+		if (allOpen != DEST_COUNT) { std::printf("  FAIL  an earned run did not open every destination\n"); ok = false; }
+	}
 
 	std::printf("%s\n", ok
 		? "PASS  the run reaches more than one destination; the same record is read differently by reader; no comparative or tone word is in the shipped strings; the arrival is three seconds and the log is the last frame"
@@ -11704,6 +11769,7 @@ int main(int argc, char **argv)
 	TestEndingVeto();
 	TestEndingWildcard();
 	TestEndingRoute();
+	TestEndingScreen();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

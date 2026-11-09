@@ -85,8 +85,8 @@ The falsification, from the same run:
 
 ## What could not be run here, and is not claimed
 
-- **Not watched in a graphical session.** The veto is a model read and a log write; the screen that
-  follows is compiled and linked in the later endgame-screen work, and its rendered frame is not
-  claimed here.
+- **Not watched in a graphical session.** The veto is a model read and a log write; the endgame
+  screen that follows is built and compiled (`docs/evidence/the-endgame-screen.md`), but its rendered
+  frame is not claimed here.
 - **No save change.** The confidence is a fold over saved state, and the once-latch is host state for
   the one-shot endgame. `SAVE_VERSION` remains **66**.

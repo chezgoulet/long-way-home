@@ -169,8 +169,9 @@ field, in the design's own order. Neutrality is an assertion in the model over t
 (`CGCam_Enable`/`CGCam_Move`/`CGCam_Fade`) on one 3000 ms timer, the same for every destination and
 route; the reading and then the official log are what the module prints when it ends, and the log is
 the last frame. The player may **decline to file** at Earth: arriving and reporting are separable, and
-the record is handed back unread. No save change — `SAVE_VERSION` remains **66**. The transwarp route
-is the design's and is not built; the conduit is a route, not a separate arrival. Evidence:
+the record is handed back unread. No save change — `SAVE_VERSION` remains **66**. The transwarp
+route landed with the deferred items on 2026-11-08 (the conduit is a route, not a separate arrival).
+Evidence:
 `docs/evidence/endings.md`, `scripts/ending-check.sh`, `test_ship_core --endings`,
 `TestEndingReaders`, `TestEndingAvailability`, `TestEndingNeutrality`, `TestEndingArrival`.
 
@@ -188,10 +189,27 @@ is the design's and is not built; the conduit is a route, not a separate arrival
   the engine path and the log handback are built. The rendered arrival was not watched in a graphical
   session.
 
-**Still deferred inside Stage E:** the crew's veto at the destination and the wildcard attempt (both
-designed in `docs/endings.md`, neither built); the transwarp route (the arrival is the same clip either
-way); an endgame screen (the destinations are reached by the console and the model); and the arrival's
-rendered picture against a Voyager exterior and a system skybox.
+**Built 2026-11-08 — the deferred items.** The crew's **veto** fires once at the destination: a
+crew whose confidence is gone refuses the course, chooses the place themselves, and the official
+log records who holds the conn after it does (`CrewConfidence`, `ChooseEnding`,
+`RecordEndingChoice`; `docs/evidence/the-crews-veto.md`). The **wildcard** is a play for a place
+that has not invited the run, spending a shuttle, a tenth of the deuterium reserve and a twentieth
+of the crystal before the draw; it can fail to reach (the ship's own state named) or reach and be
+refused at the door (the record named) (`SolveWildcard`, `AttemptWildcard`;
+`docs/evidence/the-wildcard.md`). The **transwarp route** is the conduit: it requires the enemy's
+knowledge aboard and pays all three costs the design names — a principle, a crew member and a year
+— and it is a route, not a separate arrival, so the clip, the timer and the camera are unchanged
+(`BorgKnowledgeAboard`, `TranswarpCostOf`, `TakeTranswarp`;
+`docs/evidence/the-conduit-route.md`). The **endgame screen** lists the accrued destinations as
+readers in the design's order, with no rank, score or quality field and no sorting; its fixed words
+are shipped from the model so `EndingToneFindings` scans the screen too, and the screen chooses while
+the record remains the last frame (`EndingScreenRows`, `ui_lwh_ending.cpp`;
+`docs/evidence/the-endgame-screen.md`).
+
+**Still deferred inside Stage E, and out of scope by the owner's decision:** the arrival's rendered
+picture — whether it is a Voyager exterior or an original one is still being decided, so no model,
+no generated ship and no skybox was built. The camera move, the fade and the three-second handback
+remain the engine's own, and the picture is still a stand-in.
 
 ## Cross-cutting: what only the owner can close
 

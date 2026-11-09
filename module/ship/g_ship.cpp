@@ -123,6 +123,7 @@ bool arrivalWasLocked = false; // the input lock the arrival took, restored when
 // and the conduit is taken once. Both are host state; nothing after the log is replayed.
 bool endingVetoFired = false;
 bool endingRouteTaken = false;
+bool endScreenShown = false;   // the endgame screen has been opened once for this run
 
 vec3_t glanceAngles = { 0, 0, 0 }; // where the glance test points the player, re-applied each frame
 bool haveGlanceAim = false;
@@ -1047,6 +1048,34 @@ void Publish( void )
 	gi.cvar_set( "lwh_ship_transporter", ship::TransporterConditionLine( vessel ).c_str() );
 	gi.cvar_set( "lwh_ship_course", Fmt( "%d", vessel.course ).c_str() );
 	gi.cvar_set( "lwh_ship_goal", Fmt( "%d", static_cast<int>( vessel.sector.size() ) - 1 ).c_str() );
+	// The endgame screen (docs/endings.md): the same table and the same accrued set the console
+	// reads, in the design's order, with no rank, score or quality to sort by. The screen chooses and
+	// sends `ship ending` or `ship wildcard`; the record is still the last frame.
+	{
+		gi.cvar_set( "lwh_ship_ending_won", ship::Won( vessel ) ? "1" : "0" );
+		gi.cvar_set( "lwh_ship_ending_knowledge", ship::BorgKnowledgeAboard( vessel ) ? "1" : "0" );
+		gi.cvar_set( "lwh_ship_ending_route", ship::RouteName( endingRouteTaken
+			? ship::ROUTE_CONDUIT : ship::ROUTE_GRIND ) );
+		gi.cvar_set( "lwh_ship_ending_veto_fired", endingVetoFired ? "1" : "0" );
+		const std::vector<ship::EndingScreenRow> rows = ship::EndingScreenRows( vessel );
+		gi.cvar_set( "lwh_ship_ending_rows", Fmt( "%d", static_cast<int>( rows.size() ) ).c_str() );
+		for ( size_t i = 0; i < rows.size(); ++i )
+		{
+			const ship::EndingScreenRow &r = rows[i];
+			gi.cvar_set( Fmt( "lwh_ship_ending_row%d", static_cast<int>( i ) ).c_str(),
+				Fmt( "%d|%s|%s|%s|%d|%s|%s", static_cast<int>( r.destination ), r.name.c_str(),
+					r.reader.c_str(), r.lens.c_str(), r.open ? 1 : 0, r.offer.c_str(), r.play.c_str() ).c_str() );
+		}
+		static const char *const LABEL_CVARS[ship::END_LABEL_COUNT] = {
+			"lwh_ship_ending_title", "lwh_ship_ending_subtitle", "lwh_ship_ending_earned",
+			"lwh_ship_ending_play", "lwh_ship_ending_approach", "lwh_ship_ending_grind",
+			"lwh_ship_ending_conduit", "lwh_ship_ending_conduit_note", "lwh_ship_ending_file",
+			"lwh_ship_ending_keys", "lwh_ship_ending_last",
+		};
+		for ( int i = 0; i < ship::END_LABEL_COUNT; ++i )
+			gi.cvar_set( LABEL_CVARS[i], ship::EndingScreenLabel( static_cast<uint8_t>( i ) ) );
+	}
+
 
 	// The log, newest first, for the browsable screen: when|who|scope|what, one per entry.
 	{
@@ -6005,6 +6034,7 @@ void Ship_Init( void )
 	arrivalDone = false;
 	endingVetoFired = false;
 	endingRouteTaken = false;
+	endScreenShown = false;
 	// A room open on the old map does not carry into the new one: the held brief is host-local.
 	meetingOpen = false;
 	currentMeeting = ship::MeetingBrief();
@@ -6116,7 +6146,7 @@ static void FinishArrival( void )
 static void StartArrival( ship::DestinationId d, bool filed, bool received = true, bool wildcard = false,
 	ship::EndingRoute route = ship::ROUTE_GRIND )
 {
-	if ( arrivalActive ) return;
+	if ( arrivalActive || arrivalDone ) return;
 	if ( !ship::Won( vessel ) )
 	{
 		gi.Printf( "SHIP: the run has not reached its end; there is no arrival yet\n" );
@@ -6201,6 +6231,14 @@ void Ship_Frame( void )
 		}
 	}
 	if ( level.time / 250 != level.previousTime / 250 ) Publish();
+	// The endgame screen opens once when the run reaches its end. It is a choice of readers, not a
+	// score screen; it closes before the arrival, and the record is what follows.
+	if ( ship::Won( vessel ) && !arrivalActive && !arrivalDone && !endScreenShown )
+	{
+		endScreenShown = true;
+		Publish(); // the screen reads the same table the console does, so publish before it opens
+		gi.SendConsoleCommand( "ui_lwh_ending\n" );
+	}
 	LWH_Panel_Frame( &vessel ); // the status panel's live surface (S4's glance, second half)
 	BorgAssets( &vessel );      // the Borg swap the ship's state onto the generated decks (S8)
 	if ( !ship::SavesAllowed( vessel.cfg ) && level.time >= nextIronmanSaveMs && !g_shipTest->integer )
@@ -7870,6 +7908,11 @@ void Svcmd_Ship_f( void )
 			gi.Printf( "SHIP: the run has not reached its end; there is no arrival yet\n" );
 			return;
 		}
+		if ( arrivalActive || arrivalDone )
+		{
+			gi.Printf( "SHIP: the arrival is already under way, or the run is over\n" );
+			return;
+		}
 		const ship::DestinationId requested = ship::DestinationByName( a );
 		if ( requested >= ship::DEST_COUNT )
 		{
@@ -7918,6 +7961,11 @@ void Svcmd_Ship_f( void )
 		if ( !ship::Won( vessel ) )
 		{
 			gi.Printf( "SHIP: the run has not reached its end; there is no arrival yet\n" );
+			return;
+		}
+		if ( arrivalActive || arrivalDone )
+		{
+			gi.Printf( "SHIP: the arrival is already under way, or the run is over\n" );
 			return;
 		}
 		const ship::DestinationId target = ship::DestinationByName( a );

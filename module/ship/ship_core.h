@@ -3112,6 +3112,31 @@ TranswarpCost TranswarpCostOf(const Ship &s);
 // one to take it. `line`, when given, receives the fact written.
 bool TakeTranswarp(Ship &s, std::string *line = nullptr);
 
+// ---- the endgame screen (docs/endings.md) -------------------------------------------------------
+//
+// The destinations have a screen of their own. It is the same table and the same accrued set, in the
+// design's order: no row is sorted, and no row carries a rank, a score or a quality. The fixed words
+// it draws are shipped from here so the neutrality assertion scans the screen as well as the
+// readings. The screen chooses; the record is still the last frame.
+struct EndingScreenRow {
+	DestinationId destination = DEST_EARTH;
+	bool open = false;
+	std::string name;
+	std::string reader;
+	std::string lens;
+	std::string offer;   // why it is open, or why it is not
+	std::string play;    // what a wildcard play would spend, when one is possible; empty otherwise
+};
+std::vector<EndingScreenRow> EndingScreenRows(const Ship &s);
+// The fixed words, in END_LABEL order, and the names the game publishes them under.
+enum EndingScreenLabel : uint8_t {
+	END_LABEL_TITLE = 0, END_LABEL_SUBTITLE, END_LABEL_EARNED, END_LABEL_PLAY,
+	END_LABEL_APPROACH, END_LABEL_GRIND, END_LABEL_CONDUIT, END_LABEL_CONDUIT_NOTE,
+	END_LABEL_FILE, END_LABEL_KEYS, END_LABEL_LAST, END_LABEL_COUNT
+};
+const char *EndingScreenLabel(uint8_t which);
+std::vector<std::string> EndingScreenLabels();
+
 // ---- the stations' purposes (S4) ------------------------------------------------------------------
 //
 // Each console does more than switch its systems on and off: the transporter beams a party to a site,

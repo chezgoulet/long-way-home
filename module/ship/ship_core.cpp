@@ -4745,8 +4745,18 @@ std::vector<std::string> EndingToneFindings()
 		const EndingReading refused = ReadEnding(plain, static_cast<DestinationId>(d), true, false);
 		strings.push_back(refused.conclusion);
 	}
-	// The veto's own words, produced from a broken fixture so the assertion scans the same strings a
-	// run will print rather than a hand-copied echo of them.
+	// The screen's own words, and the endgame's other outcomes, produced from sample states so the
+	// assertion scans the same strings a run will print rather than a hand-copied echo of them.
+	for (const std::string &line : EndingScreenLabels()) strings.push_back(line);
+	for (const EndingScreenRow &row : EndingScreenRows(plain)) {
+		strings.push_back(row.name);
+		strings.push_back(row.reader);
+		strings.push_back(row.lens);
+		strings.push_back(row.offer);
+		strings.push_back(row.play);
+	}
+	strings.push_back(RouteName(ROUTE_GRIND));
+	strings.push_back(RouteName(ROUTE_CONDUIT));
 	{
 		Ship broken = plain;
 		for (CrewMember &c : broken.crew) { c.deficit = 1.0f; c.outlook = 0.0f; }
@@ -5088,6 +5098,55 @@ bool TakeTranswarp(Ship &s, std::string *line)
 	LogEvent(s, CommandingOfficer(s), "outside", cost.line);
 	if (line) *line = cost.line;
 	return true;
+}
+
+// ---- the endgame screen (docs/endings.md) -------------------------------------------------------
+
+std::vector<EndingScreenRow> EndingScreenRows(const Ship &s)
+{
+	std::vector<EndingScreenRow> out;
+	for (int i = 0; i < DEST_COUNT; ++i) {
+		const Destination &spec = DESTINATIONS[i];
+		EndingScreenRow row;
+		row.destination = static_cast<DestinationId>(i);
+		row.open = DestinationAvailable(s, row.destination);
+		row.name = spec.name;
+		row.reader = spec.reader;
+		row.lens = spec.lens;
+		row.offer = spec.offer;
+		if (!row.open) {
+			const std::string why = EndingWildcardWhyNot(s, row.destination);
+			if (why.empty()) row.play = "a play: " + EndingWildcardSpendName(s);
+			else row.offer = why;
+		}
+		out.push_back(row);
+	}
+	return out;
+}
+
+const char *EndingScreenLabel(uint8_t which)
+{
+	static const char *const LABELS[END_LABEL_COUNT] = {
+		"THE READING  -  WHOSE RECORD IT BECOMES",
+		"The run is at its end. One of these readers takes the record.",
+		"THE DESTINATIONS THIS RUN HAS EARNED",
+		"A PLACE THAT HAS NOT INVITED THE RUN: A PLAY",
+		"THE APPROACH",
+		"the grind",
+		"the conduit",
+		"the conduit needs the enemy's knowledge aboard",
+		"AT EARTH: file the record, or hand it back unread",
+		"UP/DOWN choose   LEFT/RIGHT turn   ENTER arrive   ESC leave",
+		"THE RECORD IS THE LAST FRAME: the reading and the official log follow the arrival",
+	};
+	return which < END_LABEL_COUNT ? LABELS[which] : "";
+}
+
+std::vector<std::string> EndingScreenLabels()
+{
+	std::vector<std::string> out;
+	for (int i = 0; i < END_LABEL_COUNT; ++i) out.push_back(EndingScreenLabel(static_cast<uint8_t>(i)));
+	return out;
 }
 
 static void UpdateOutside(Ship &s, float shipSeconds)

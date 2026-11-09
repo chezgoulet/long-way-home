@@ -55,6 +55,7 @@ cmake -S /home/c/big/git/upstream/efgame -B /home/c/big/git/upstream/efgame/buil
   -DLWH_MODULE_DIR=/home/c/big/work/lwh-endings/module
 cmake --build /home/c/big/git/upstream/efgame/build-lwh-endings2 -j4
 # [100%] Built target efgame
+cd /home/c/big/git/upstream/efgame
 nm -C build-lwh-endings2/libefui.so | grep LWH_UI_EndingScreens
 # 000000000004c780 t LWH_UI_EndingScreens(char const*)
 ```
