@@ -3020,6 +3020,31 @@ struct EndingReading {
 EndingReading ReadEnding(const Ship &s, DestinationId d, bool filed = true);
 bool MayFileAt(DestinationId d);   // Earth only
 
+// ---- the crew's veto at the destination (docs/endings.md) ---------------------------------------
+//
+// The destination is the largest use of the soft authority gate. The crew's confidence is a read
+// over the people still aboard -- their morale, which is itself a read and never a stored counter --
+// and when it is gone the crew refuse the course and choose the place themselves. The veto fires
+// once, at the destination, and the log names who holds the conn after it does. It is the final
+// expression of the captain's failure mode, not a second opinion during the run.
+float CrewConfidence(const Ship &s);   // 0..1 over the crew aboard; 0 when there is no crew
+const float CREW_CONFIDENCE_VETO = 0.35f; // below this the crew will not follow the course [inv]
+bool CrewWouldVeto(const Ship &s);
+struct EndingChoice {
+	DestinationId requested = DEST_EARTH;
+	DestinationId chosen = DEST_EARTH;
+	bool vetoed = false;   // the crew refused the request and chose instead
+	std::string conn;      // who holds the conn after the choice
+	std::string reason;    // the confidence they carry, attributed
+	std::string line;      // the fact, worded for the official log
+};
+// Pure. `vetoAlreadyFired` is the once-only latch: the veto fires at the destination, and a second
+// choice in the same endgame does not fire it again.
+EndingChoice ChooseEnding(const Ship &s, DestinationId requested, bool vetoAlreadyFired = false);
+// Write the veto, and who holds the conn, into the official log. A choice that did not fire writes
+// nothing.
+void RecordEndingChoice(Ship &s, const EndingChoice &c);
+
 // The tone words an ending may not use: they rank destinations or smuggle a verdict. The assertion
 // is over the shipped strings (the destination table and the readings), not over a pull-request body.
 std::vector<std::string> EndingToneFindings(const std::vector<std::string> &strings);

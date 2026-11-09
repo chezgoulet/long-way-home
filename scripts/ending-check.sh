@@ -65,6 +65,14 @@ grep -qE '^  ARRIVAL: 3000 ms \(3 s\)' "$WORK/endings.txt" \
 grep -qE '^  THE LOG: the last frame is the official log' "$WORK/endings.txt" \
 	|| fail "the log is not the last frame"
 
+# The crew's veto: it fires once, the log names who holds the conn, and its own words are neutral.
+grep -qE '^  VETO: requested .+ -> chose .+; who holds the conn: .+' "$WORK/endings.txt" \
+	|| fail "the crew's veto did not fire, or names no conn"
+grep -qE '^  VETO LOG: \[.+\] the crew would not make for .+' "$WORK/endings.txt" \
+	|| fail "the log did not record the veto"
+grep -qF -- '  VETO ONCE: 1' "$WORK/endings.txt" || fail "the veto fired more than once"
+grep -qF -- '  VETO NEUTRAL: 0' "$WORK/endings.txt" || fail "the veto's own words are not neutral"
+
 echo
 echo "==> endings: falsification one (a destination named 'the best Earth'; the neutrality assertion must fail)"
 cp -r module/ship "$WORK/ship_best"
@@ -96,7 +104,24 @@ grep -qF -- 'the arrival is not three seconds' "$WORK/short.txt" \
 echo "    the shortened arrival fails the same assertion; the tree passes"
 
 echo
+echo "==> endings: falsification three (the veto's log line planted with 'better'; its neutrality must fail)"
+cp -r module/ship "$WORK/ship_veto"
+sed -i 's/"the crew would not make for "/"the crew is better off not making for "/' "$WORK/ship_veto/ship_core.cpp"
+grep -q '"the crew is better off not making for "' "$WORK/ship_veto/ship_core.cpp" \
+	|| fail "the veto neutrality plant did not take"
+build "$WORK/ship_veto" "$WORK/test_veto"
+if "$WORK/test_veto" --endings >"$WORK/veto.txt" 2>&1; then
+	fail "the veto neutrality assertion passed with 'better' in the line: it has no teeth"
+fi
+grep -qE '^  VETO NEUTRAL: [1-9]' "$WORK/veto.txt" \
+	|| fail "the planted veto tone word did not surface as a finding"
+grep -qF -- 'better in "the crew is better off not making for ' "$WORK/veto.txt" \
+	|| fail "the planted veto tone word was not the one found"
+echo "    the planted veto fails the same assertion; the tree passes"
+
+echo
 echo "PASS  one run reaches more than one destination; the same record is read differently by two"
 echo "      readers, each naming its evidence; no comparative or tone word is in the shipped ending"
-echo "      strings; the arrival is 3000 ms and the log follows it; and the guard fails on a planted"
-echo "      'best' and on a 2500 ms arrival"
+echo "      strings; the arrival is 3000 ms and the log follows it; the crew's veto fires once and"
+echo "      names the conn; and the guard fails on a planted 'best', a 2500 ms arrival and a"
+echo "      planted veto 'better'"

@@ -117,6 +117,9 @@ int arrivalStartMs = 0;
 int arrivalDestination = ship::DEST_EARTH;
 bool arrivalFiled = true;
 bool arrivalWasLocked = false; // the input lock the arrival took, restored when it ends
+// The endgame's once-only state (docs/endings.md): the crew's veto fires once at the destination.
+// It is host state; nothing after the log is replayed.
+bool endingVetoFired = false;
 
 vec3_t glanceAngles = { 0, 0, 0 }; // where the glance test points the player, re-applied each frame
 bool haveGlanceAim = false;
@@ -5997,6 +6000,7 @@ void Ship_Init( void )
 	if ( arrivalActive ) player_locked = arrivalWasLocked;
 	arrivalActive = false;
 	arrivalDone = false;
+	endingVetoFired = false;
 	// A room open on the old map does not carry into the new one: the held brief is host-local.
 	meetingOpen = false;
 	currentMeeting = ship::MeetingBrief();
@@ -7848,14 +7852,29 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "ending" ) || !Q_stricmp( cmd, "arrive" ) )
 	{//the arrival: ship ending <destination> [nofile]. `nofile` is Earth's one last question --
 	 //arriving at Earth and reporting to Starfleet are separable, and declining still cuts to the log.
-		const ship::DestinationId d = ship::DestinationByName( a );
-		if ( d >= ship::DEST_COUNT )
+	 //The crew's veto is asked once, at the destination, after the run has reached its end.
+		if ( !ship::Won( vessel ) )
+		{
+			gi.Printf( "SHIP: the run has not reached its end; there is no arrival yet\n" );
+			return;
+		}
+		const ship::DestinationId requested = ship::DestinationByName( a );
+		if ( requested >= ship::DEST_COUNT )
 		{
 			gi.Printf( "SHIP: destination: name one of Earth, the Klingon Empire, a settlement, the Collective, a sale or no reader\n" );
 			return;
 		}
 		const bool filed = !( !Q_stricmp( b, "nofile" ) || !Q_stricmp( b, "unfiled" ) );
-		StartArrival( d, filed );
+		const ship::EndingChoice choice = ship::ChooseEnding( vessel, requested, endingVetoFired );
+		if ( choice.vetoed )
+		{
+			ship::RecordEndingChoice( vessel, choice );
+			endingVetoFired = true;
+			gi.Printf( "SHIP: the crew would not make for %s; %s holds the conn, and the course is laid for %s\n",
+				ship::DestinationSpec( choice.requested ).name, choice.conn.c_str(),
+				ship::DestinationSpec( choice.chosen ).name );
+		}
+		StartArrival( choice.chosen, filed );
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "log" ) )

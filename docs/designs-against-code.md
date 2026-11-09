@@ -776,7 +776,7 @@ Two things that table will not say by itself, and should:
 | 29 | "the set is accrued, not selected" (reputation) (`endings.md:63`) | partial | `DestinationAvailable`, `DestinationsFor` | accrued from promises, funerals, minds, traders and a purge; no separate reputation field |
 | 30 | "exactly one unwinnable end state, the core breach" (`endings.md:73`) | implemented | `lost` `ship_core.h:1979`; `ship_core.cpp:6513-6522` | |
 | 31 | "Earth: always reachable; not always welcoming" (`endings.md:80`) | implemented | `DestinationAvailable(DEST_EARTH)`; `TestEndingAvailability` | always open; the reading may be a trial |
-| 32 | "the crew get a vote … the veto fires once, at the destination" (`endings.md:187`) | absent | no vote/destination code | still not built |
+| 32 | "the crew get a vote … the veto fires once, at the destination" (`endings.md:187`) | implemented | `CrewConfidence`/`CrewWouldVeto`/`ChooseEnding`/`RecordEndingChoice`; `TestEndingVeto`; `scripts/ending-check.sh` | the crew choose the place; the log's own `who` field names who holds the conn; the once-latch is tested |
 | 33 | "mode 1 … the SP path runs the campaign, saves and reloads" (`client-modes.md:9`) | partial | `scripts/exits-check.sh:42` retail quit proven | full campaign/save not automated here |
 | 34 | "mode 2 … retail Holomatch, over a LAN or a VPN" (`client-modes.md:10`) | partial | `scripts/run-cmod.sh:23` | launcher staged; no match test |
 | 35 | "mode 2 is cMod as shipped — zero delta from us" (`client-modes.md:73`) | implemented | `scripts/run-cmod.sh:4-5` | |

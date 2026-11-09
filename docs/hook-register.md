@@ -163,7 +163,7 @@ substance of the brief's point and stands.
 | `Unpack` | `const uint8_t *data, size_t len, Ship &s` | False, leaving `s` untouched, on a truncated, foreign or newer record | play | — | — |
 
 ### 2. Situations the simulation generates on its own  
-*97 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "74 hooks"; **Corrected 2026-10-12:** one row (`ShieldHit`) was added for the shield sections, 87 → 88 rows follow; **2026-10-31:** the nine ending hooks — `DestinationSpec`, `Destinations`, `DestinationByName`, `DestinationsFor`, `DestinationAvailable`, `ReadEnding`, `MayFileAt`, `EndingToneFindings`, `EndingLog` — were added, 88 → 97 rows follow.)*
+*101 hooks.* *(**Corrected 2026-10-11 (D6-28):** this read "74 hooks"; **Corrected 2026-10-12:** one row (`ShieldHit`) was added for the shield sections, 87 → 88 rows follow; **2026-10-31:** the nine ending hooks — `DestinationSpec`, `Destinations`, `DestinationByName`, `DestinationsFor`, `DestinationAvailable`, `ReadEnding`, `MayFileAt`, `EndingToneFindings`, `EndingLog` — were added, 88 → 97 rows follow; **2026-11-08:** the crew's veto adds four, 97 → 101 rows follow.)*
 
 | hook | takes | does (the header's line, or the name) | reach | law | owner |
 |---|---|---|---|---|---|
@@ -273,6 +273,10 @@ substance of the brief's point and stands.
 | `MayFileAt` | `DestinationId d` | Earth only: arriving and reporting to Starfleet are separable | console | — | docs/endings.md |
 | `EndingToneFindings` | `const std::vector<std::string> &strings` | The comparative and tone words in a shipped ending string; empty when neutral. The assertion is in the model, not a pull-request body | nothing | — | docs/endings.md |
 | `EndingLog` | `const Ship &s` | The official log as the last frame: the whole record, oldest first | console | — | docs/endings.md |
+| `CrewConfidence` | `const Ship &s` | The crew's confidence: a read over the people aboard, never a stored counter | console | — | docs/endings.md |
+| `CrewWouldVeto` | `const Ship &s` | Whether the crew will refuse the course at the destination | console | — | docs/endings.md |
+| `ChooseEnding` | `const Ship &s, DestinationId requested, bool vetoAlreadyFired` | The crew's once-only veto: the destination they choose instead, and who holds the conn | console | — | docs/endings.md |
+| `RecordEndingChoice` | `Ship &s, const EndingChoice &c` | Write the veto and who holds the conn into the official log | console | — | docs/endings.md |
 | `Trauma` | `const CrewMember &who` | The unprocessed weight a character carries: their negative marks, still salient | play | — | — |
 | `BuildComputerBrief` | `const Ship &s` | The computer is addressed, not convened: the same brief shape as a meeting's, built from the computer skeleton, whose pills are the ship's API | play | — | docs/staff-meetings.md |
 | `AddressComputer` | `const Ship &s, const std::string &input` | What the computer says to an input: membership in the ship's API (FindConsoleVerb); a recognised command answered from the authored line, an input outside the set refused in character ("that function is not available") with nothing invented and no state written | play | — | docs/staff-meetings.md |
@@ -631,14 +635,14 @@ command console; evidence in `docs/evidence/the-bills.md`.
 
 ## The counts (Task B)
 
-<!-- register-counts play=312 console=170 nothing=39 content=5 total=526 -->
+<!-- register-counts play=312 console=174 nothing=39 content=5 total=530 -->
 
 **The current count, machine-checked.** The marker above is the register's own count, re-derived from its
 rows and checked against the surface of `module/ship/ship_core.h` by
 `tools/docs/check_register_counts.py` (class 4 of `scripts/docs-check.sh`), which fails if it drifts from
 either. The dated paragraphs further down are the record of each pass's count at its date; this marker is
 what the register actually is now, so a reader sizes work on it and not on the prose above or below.
-**By reach:** play **312**, console **170**, nothing **39**, content **5**; **total 526**. (The counts in
+**By reach:** play **312**, console **174**, nothing **39**, content **5**; **total 530**. (The counts in
 the "By group" table and the dated re-derivations below are kept as history and are not the current count.)
 
 **Re-derived 2026-10-31, the ending (Stage E).** Nine hooks are added: the destination table and its

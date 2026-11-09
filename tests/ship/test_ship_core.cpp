@@ -11159,6 +11159,41 @@ static void TestEndingArrival()
 	CHECK(log.back().what == "the run is at its end");
 }
 
+static void TestEndingVeto()
+{
+	g_test = "the crew's veto fires once, at the destination, and the log names who holds the conn";
+	Ship s = NewShip();
+	CHECK(!CrewWouldVeto(s));
+	CHECK(CrewConfidence(s) > CREW_CONFIDENCE_VETO);
+	const EndingChoice quiet = ChooseEnding(s, DEST_EARTH);
+	CHECK(!quiet.vetoed && quiet.chosen == DEST_EARTH);
+	CHECK(quiet.line.empty());
+
+	// A crew at breaking point, with a funeral so the Empire is a place they could make for.
+	Remember(s, 0, MEM_FUNERAL, 1, MEM_SAW, 0.4f);
+	for (CrewMember &c : s.crew) { c.deficit = 1.0f; c.outlook = 0.0f; }
+	CHECK(CrewWouldVeto(s));
+	const EndingChoice veto = ChooseEnding(s, DEST_EARTH);
+	CHECK(veto.vetoed);
+	CHECK(veto.chosen != DEST_EARTH);
+	CHECK(DestinationAvailable(s, veto.chosen));
+	CHECK(veto.chosen == DEST_KLINGON_EMPIRE);
+	CHECK(!veto.conn.empty());
+	CHECK(veto.line.find("would not make for Earth") != std::string::npos);
+	CHECK(EndingToneFindings({veto.line, veto.reason}).empty());
+
+	const size_t before = s.log.size();
+	RecordEndingChoice(s, veto);
+	CHECK(s.log.size() == before + 1);
+	CHECK(s.log.back().who == veto.conn); // the log records who holds the conn after it does
+	CHECK(s.log.back().what == veto.line);
+
+	// The once-only latch: a second choice in the same endgame does not fire it again.
+	const EndingChoice again = ChooseEnding(s, DEST_EARTH, true);
+	CHECK(!again.vetoed && again.chosen == DEST_EARTH);
+}
+
+
 // `test_ship_core --endings`: the observable criterion for Stage E, printed. The earned run is one
 // record read by two readers; the neutrality assertion is over the shipped string table and the
 // readings; the arrival is the one number every route shares. Returns nonzero if any criterion is
@@ -11232,6 +11267,40 @@ static int PrintEndings()
 	if (!log.empty()) std::printf("  LAST: %s\n", log.back().what.c_str());
 	else { std::printf("  FAIL  the log is empty\n"); ok = false; }
 
+	std::printf("== the crew's veto\n");
+	{
+		const int freshPct = static_cast<int>(CrewConfidence(NewShip()) * 100.0f + 0.5f);
+		Ship broken = NewShip();
+		Remember(broken, 0, MEM_FUNERAL, 1, MEM_SAW, 0.4f);
+		for (CrewMember &c : broken.crew) { c.deficit = 1.0f; c.outlook = 0.0f; }
+		const int brokenPct = static_cast<int>(CrewConfidence(broken) * 100.0f + 0.5f);
+		std::printf("  CONFIDENCE: a fresh crew %d%%; a crew at breaking point %d%% (the veto is below %d%%)\n",
+			freshPct, brokenPct, static_cast<int>(CREW_CONFIDENCE_VETO * 100.0f + 0.5f));
+		const EndingChoice veto = ChooseEnding(broken, DEST_EARTH);
+		if (!veto.vetoed) {
+			std::printf("  FAIL  a crew at breaking point did not veto the course\n");
+			ok = false;
+		} else {
+			std::printf("  VETO: requested %s -> chose %s; who holds the conn: %s\n",
+				DestinationSpec(veto.requested).name, DestinationSpec(veto.chosen).name, veto.conn.c_str());
+			const size_t before = broken.log.size();
+			RecordEndingChoice(broken, veto);
+			std::printf("  VETO LOG: [%s] %s\n", broken.log.back().who.c_str(), broken.log.back().what.c_str());
+			if (broken.log.size() != before + 1 || broken.log.back().who != veto.conn) {
+				std::printf("  FAIL  the log does not record who holds the conn\n");
+				ok = false;
+			}
+		}
+		const EndingChoice once = ChooseEnding(broken, DEST_EARTH, true);
+		std::printf("  VETO ONCE: %d\n", (!once.vetoed && once.chosen == DEST_EARTH) ? 1 : 0);
+		if (once.vetoed) { std::printf("  FAIL  the veto fired a second time\n"); ok = false; }
+		const std::vector<std::string> vetoFindings = EndingToneFindings({veto.line, veto.reason});
+		std::printf("  VETO NEUTRAL: %d\n", static_cast<int>(vetoFindings.size()));
+		for (const std::string &f : vetoFindings) std::printf("    %s\n", f.c_str());
+		if (!vetoFindings.empty()) { std::printf("  FAIL  the veto's own words are not neutral\n"); ok = false; }
+	}
+
+	
 	std::printf("%s\n", ok
 		? "PASS  the run reaches more than one destination; the same record is read differently by reader; no comparative or tone word is in the shipped strings; the arrival is three seconds and the log is the last frame"
 		: "FAIL  a Stage E criterion is not shown");
@@ -11457,6 +11526,7 @@ int main(int argc, char **argv)
 	TestEndingAvailability();
 	TestEndingNeutrality();
 	TestEndingArrival();
+	TestEndingVeto();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

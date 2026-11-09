@@ -4735,10 +4735,104 @@ std::vector<std::string> EndingToneFindings()
 		for (const std::string &line : r.lines) strings.push_back(line);
 		strings.push_back(r.conclusion);
 	}
+	// The veto's own words, produced from a broken fixture so the assertion scans the same strings a
+	// run will print rather than a hand-copied echo of them.
+	{
+		Ship broken = plain;
+		for (CrewMember &c : broken.crew) { c.deficit = 1.0f; c.outlook = 0.0f; }
+		Remember(broken, 0, MEM_FUNERAL, 1, MEM_SAW, 0.4f);
+		const EndingChoice choice = ChooseEnding(broken, DEST_EARTH);
+		if (choice.vetoed) {
+			strings.push_back(choice.reason);
+			strings.push_back(choice.line);
+		}
+	}
 	return EndingToneFindings(strings);
 }
 
 std::vector<LogEntry> EndingLog(const Ship &s) { return s.log; }
+
+// ---- the crew's veto at the destination (docs/endings.md) ---------------------------------------
+
+float CrewConfidence(const Ship &s)
+{
+	float sum = 0.0f;
+	int aboard = 0;
+	for (const CrewMember &c : s.crew) {
+		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) continue;
+		sum += Morale(c);
+		++aboard;
+	}
+	return aboard ? sum / static_cast<float>(aboard) : 0.0f;
+}
+
+bool CrewWouldVeto(const Ship &s)
+{
+	int aboard = 0;
+	for (const CrewMember &c : s.crew)
+		if (c.status != CREW_DEAD && c.status != CREW_ASSIMILATED) ++aboard;
+	if (aboard == 0) return false;
+	return CrewConfidence(s) < CREW_CONFIDENCE_VETO;
+}
+
+// The senior fit officer who is not the player: command passes to a person, and the log names them.
+static std::string ConnAfterVeto(const Ship &s)
+{
+	int best = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (i == s.player || c.status != CREW_FIT) continue;
+		if (best < 0) { best = i; continue; }
+		const CrewMember &held = s.crew[best];
+		const bool onDuty = c.activity == ACT_ON_DUTY;
+		const bool heldOnDuty = held.activity == ACT_ON_DUTY;
+		if (c.rank > held.rank || (c.rank == held.rank && onDuty && !heldOnDuty)) best = i;
+	}
+	return best >= 0 ? s.crew[best].name : "the watch";
+}
+
+// The place the crew themselves would make for. It is a read of the same record every destination
+// reads, in the design's order of claims: a settlement they would stay for, then the Empire that
+// reads the dead, then Earth, which is always open. It is not a preference score and not a ranking.
+static DestinationId CrewsChoice(const Ship &s)
+{
+	if (DestinationAvailable(s, DEST_DELTA_SETTLEMENT) && EndingWouldStay(s) > 0
+		&& EndingWouldStay(s) * 2 >= s.CrewFit())
+		return DEST_DELTA_SETTLEMENT;
+	if (DestinationAvailable(s, DEST_KLINGON_EMPIRE)) return DEST_KLINGON_EMPIRE;
+	return DEST_EARTH;
+}
+
+EndingChoice ChooseEnding(const Ship &s, DestinationId requested, bool vetoAlreadyFired)
+{
+	EndingChoice choice;
+	choice.requested = requested;
+	choice.chosen = requested;
+	if (vetoAlreadyFired || !CrewWouldVeto(s)) return choice;
+	const DestinationId theirs = CrewsChoice(s);
+	if (theirs == requested) return choice; // they agree with the course; there is nothing to refuse
+	choice.vetoed = true;
+	choice.chosen = theirs;
+	choice.conn = ConnAfterVeto(s);
+	const float confidence = CrewConfidence(s);
+	int aboard = 0, breaking = 0;
+	for (const CrewMember &c : s.crew) {
+		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) continue;
+		++aboard;
+		if (Morale(c) < 0.3f) ++breaking;
+	}
+	choice.reason = "the crew's confidence is " + std::to_string(static_cast<int>(confidence * 100.0f + 0.5f))
+		+ "%, and " + std::to_string(breaking) + " of " + std::to_string(aboard) + " are at breaking point";
+	choice.line = "the crew would not make for " + std::string(DestinationSpec(requested).name)
+		+ "; the course is laid for " + DestinationSpec(theirs).name + " (" + choice.reason + ")";
+	return choice;
+}
+
+void RecordEndingChoice(Ship &s, const EndingChoice &c)
+{
+	if (!c.vetoed) return;
+	LogEvent(s, c.conn.empty() ? std::string("the watch") : c.conn, "command", c.line);
+}
 
 static void UpdateOutside(Ship &s, float shipSeconds)
 {
