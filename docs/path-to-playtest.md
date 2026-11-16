@@ -143,12 +143,43 @@ Evidence: `docs/evidence/two-logs.md`, `TestPurgeLeavesMeetingMarksOrphaned`,
   meeting-facing half. Evidence: `docs/evidence/two-logs.md`,
   `TestPurgeLeavesMeetingMarksOrphaned`, `scripts/two-log-check.sh`.
 
-**Still deferred inside Stage D:** allegiance is recorded and now weights a meeting's **stance**, but
-not the valence of an event or an order's compliance, so the document's Maquis/Starfleet morale
-consequence is not built; a pursuit does not yet produce an artifact or an event the log can point
-at; and the liked program observed on the deck in the running game (as opposed to the model's choice)
-needs a session. The Collective's voice is the remaining slice; the meeting overlay was built in the
-meeting lane before this slice, and its own in-engine run was not repeated here.
+**Slice 4 built 2026-11-08 — the Collective's voice.** An assimilated person speaks in the
+Collective's voice, using their own taken words: `CollectiveSpeaks` reads the newest private entry
+from `CollectiveLog` (the mind, not the published log) and `CollectiveLine` makes it a meeting line
+with `DELIVERY_FLAT` -- the log read aloud -- under the cast reference `CollectiveVoice` stole. A
+de-assimilation in the window, or a death, ends it. No save change (66). Evidence:
+`docs/evidence/the-collectives-voice.md`, `TestTheCollectiveVoice`,
+`scripts/stage-d-check.sh collective`.
+
+**Slice 5 built 2026-11-08 — allegiance weights a mark and bends an order.** `AllegianceWeight` is
+the folded weight a declared side gives an event that reads as Starfleet procedure or Maquis
+pragmatism; `EffectiveValence`/`Remember` apply it at the one mark writer, and the meeting's decision
+is written with the chosen option's own reading. `OrderFlavour` gives each order class the same axis,
+and `DispatchOrder` reads it: an order against a strong allegiance is not refused -- it is bent, and
+the cost is a `MEM_ORDER` mark toward the giver. The mapping of order classes is ours `[our call]`,
+recorded in the evidence. No save change (66). Evidence:
+`docs/evidence/allegiance-valence-and-compliance.md`, `TestAllegianceValenceAndCompliance`,
+`scripts/stage-d-check.sh allegiance`.
+
+**Slice 6 built 2026-11-08 — a pursuit puts an artifact in the world.** `PursuitArtifact` names what
+a person makes, deterministically from the record; `WorkOnPursuit` writes it into the official log
+and takes a `MEM_PURSUIT` mark, one per person per run so a reload cannot replay it; the schedule
+gives downtime one hand's turn per ship hour, read back from the marks. No save change (66): the
+event is a `uint16` event id and the artifact is a function of the record. Evidence:
+`docs/evidence/the-pursuit.md`, `TestPursuitArtifact`, `scripts/stage-d-check.sh pursuits`.
+
+**Slice 7 built 2026-11-08 — the liked program, carried to the deck.** `ProgramsOnDeck` /
+`ProgramManifest` return who is on a deck in a recreation hour and what program the schedule chose;
+`ship crew <deck>` prints it, `lwh_ship_holodeck` publishes it for a surface on the deck, and
+`RunHolodeck` names the program in the log. No save change (66): `program` is derived every tick.
+Evidence: `docs/evidence/the-liked-program.md`, `TestLikedProgramModel`,
+`scripts/stage-d-check.sh program`.
+
+**Still deferred inside Stage D:** one observation, and it is the owner's: **standing on deck 6
+during a recreation hour, does the program read as a program on the deck?** The model, the console
+read, the cvar and the log line are built; the render of the room is not proved off-device. The
+meeting overlay was built in the meeting lane before these slices, and its own in-engine run was not
+repeated here.
 
 **Blocks.** Stage C only in the sense of budget, not dependency.
 

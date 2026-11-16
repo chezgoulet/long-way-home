@@ -68,5 +68,9 @@ regenerated. No audio is committed.
 2. **One to one, or one to many?** A group order (a department, a watch, the security squad) is a different
    act from an order to a named person — the design names both, and the enumeration differs.
 3. **What does an order that is refused or resented cost?** `MEM_OVERRULED` exists for the chief engineer's
-   advice; an order that a person takes badly is the same family, and where it lands is not yet decided.
+   advice; an order that a person takes badly is the same family. **Decided 2026-11-08:** a resented
+   order writes a `MEM_ORDER` mark toward the giver, and a declared allegiance against the order's
+   political reading bends it and writes that mark too; the direction and the mapping are recorded in
+   `docs/evidence/allegiance-valence-and-compliance.md`. A refusal still changes nothing and is named
+   by its rule.
 4. **Does an order appear in the log as its own kind of act**, distinct from a decision and from a job?

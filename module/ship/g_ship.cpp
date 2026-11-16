@@ -874,6 +874,10 @@ void Publish( void )
 	// SetTarget was reached only by `ship target`; the console now carries the decision).
 	gi.cvar_set( "lwh_ship_target_idx", Fmt( "%d", static_cast<int>( vessel.target ) ).c_str() );
 	gi.cvar_set( "lwh_ship_pursued", vessel.pursued ? Fmt( "%d", vessel.pursuitJumps ).c_str() : "" );
+	// What the liked program is running to, on the holodeck deck (docs/affinities-and-allegiance.md,
+	// "the liked program appears in their downtime"). The model carries the data; whether it reads
+	// as a program on the deck is the owner's observation in a session.
+	gi.cvar_set( "lwh_ship_holodeck", ship::ProgramManifest( vessel, ship::HOLODECK_RECREATION_DECK ).c_str() );
 	gi.cvar_set( "lwh_ship_sector", Fmt( "SECTOR %d OF %d%s", vessel.sectorNumber + 1, ship::SECTORS_TO_CROSS, vessel.won ? "   END" : "" ).c_str() );
 	gi.cvar_set( "lwh_ship_shields", ship::ShieldReadout( vessel ).c_str() );
 	// The phaser bank's setting (Tactical's standing decision, and the one that exists with no
@@ -6731,7 +6735,12 @@ void Svcmd_Ship_f( void )
 		const std::vector<int> aboard = ship::CrewOnDeck( vessel, deck );
 		gi.Printf( "SHIP: deck %d: %d crew\n", deck, static_cast<int>( aboard.size() ) );
 		for ( int i : aboard )
-			gi.Printf( "SHIP:   %-18s %-10s %s\n", vessel.crew[i].name.c_str(), vessel.crew[i].type.c_str(), DOING[vessel.crew[i].activity] );
+		{
+			gi.Printf( "SHIP:   %-18s %-10s %s", vessel.crew[i].name.c_str(), vessel.crew[i].type.c_str(), DOING[vessel.crew[i].activity] );
+			if ( !vessel.crew[i].program.empty() )
+				gi.Printf( "  \"%s\"", vessel.crew[i].program.c_str() );
+			gi.Printf( "\n" );
+		}
 		return;
 	}
 	if ( !Q_stricmp( cmd, "console" ) ) { gi.SendConsoleCommand( "ui_lwh_engineering\n" ); return; }

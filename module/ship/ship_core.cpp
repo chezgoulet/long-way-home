@@ -245,13 +245,8 @@ const float GRAVITY_REGEN_HOURS = 1.0f;    // ... and a supplied deck gets it ba
 // always add to the whole.
 static const int DEPT_SIZE[DEPT_COUNT] = {5, 13, 42, 25, 9, 12, 10, 19, 6}; // sums to COMPLEMENT_DEFAULT [inv split]
 static const int DEPT_DECK[DEPT_COUNT] = {1, 1, 11, 4, 8, 5, 10, 2, 6};      // where department duties are done
-// MESS_DECK is declared in ship_core.h (the casualty-clearing deck the bills read).
-// The deck crew go to for recreation by default -- not "the holodeck". Holodeck 1 is on deck 14 and
-// Holodeck 2 on deck 6, per docs/locations/deck14-stasis.brief.md; SYS_HOLODECKS is one system and
-// this is the *recreational* deck the routine sends people to, which is deck 6, where the crew
-// quarters are. Crew do not model walking to whichever holodeck is nearer: that is a design change,
-// not a rename (see the deck-14 evidence, judgement call 6).
-const int HOLODECK_RECREATION_DECK = 6;
+// MESS_DECK and HOLODECK_RECREATION_DECK are declared in ship_core.h (the casualty-clearing deck
+// and the recreational deck the schedule sends people to).
 
 static float Clamp01(float v) { return std::min(1.0f, std::max(0.0f, v)); }
 
@@ -927,7 +922,24 @@ void DeriveAffinities(CrewMember &c, uint32_t seed)
 	TrimAffinityLikes(c.likes);
 }
 
-float EffectiveValence(const CrewMember &c, float base, const std::string &thing)
+float AllegianceWeight(const CrewMember &c, uint8_t flavour)
+{
+	// The split is Starfleet/Maquis, and the design calls it "the canon engine". The other sides --
+	// Delta native, civilian, Borg-recovered -- are real allegiances but have no dog in that fight,
+	// so the weight is zero rather than an invented alignment [our call].
+	const float s = c.allegiance.strength;
+	if (flavour == FLAVOUR_STARFLEET) {
+		if (c.allegiance.to == ALLEG_STARFLEET) return s;
+		if (c.allegiance.to == ALLEG_MAQUIS) return -s;
+	}
+	if (flavour == FLAVOUR_MAQUIS) {
+		if (c.allegiance.to == ALLEG_MAQUIS) return s;
+		if (c.allegiance.to == ALLEG_STARFLEET) return -s;
+	}
+	return 0.0f;
+}
+
+float EffectiveValence(const CrewMember &c, float base, const std::string &thing, uint8_t flavour)
 {
 	float v = base;
 	if (!thing.empty())
@@ -937,6 +949,9 @@ float EffectiveValence(const CrewMember &c, float base, const std::string &thing
 		for (const Affinity &a : c.dislikes)
 			if (SameAffinityThing(a.thing, thing)) v -= a.strength;
 	}
+	// The allegiance fold, at the one writer that already sets a mark's valence. The document's
+	// words: the same decision lands positive on the side it reads as and negative on the other.
+	v += AllegianceWeight(c, flavour);
 	return std::max(-1.0f, std::min(1.0f, v));
 }
 
@@ -956,6 +971,63 @@ std::string PreferredProgram(const CrewMember &c)
 std::string PreferredTask(const CrewMember &c)
 {
 	return BestAffinity(c.likes, AFFT_TASK);
+}
+
+// ---- pursuits: what they make, put into the world ------------------------------------------------
+//
+// A pursuit is what a person *makes*: a holonovel, a meal, a model, a poem, a piece of music. It is
+// generated from the seed like the rest of taste, and the design says why it matters: "pursuits
+// matter more than likes, because they generate artifacts and events, which is the fuel the whole
+// memory system runs on." The artifact is named deterministically from the record, so the same
+// person makes the same thing on every load; the mark is the event, and the log line is the trace.
+bool HasPursued(const CrewMember &who) { return Recall(who, MEM_PURSUIT); }
+
+std::string PursuitArtifact(const CrewMember &c)
+{
+	if (c.pursuits.empty()) return std::string();
+	// The strongest pursuit is the one they finish first; the seed picks the title, never the kind.
+	const Pursuit *p = &c.pursuits[0];
+	for (const Pursuit &q : c.pursuits) if (q.strength > p->strength) p = &q;
+	uint32_t r = AffinitySeed(0x50555253u, c.name + "|" + c.type + "|" + p->thing);
+	auto pick = [&r](const char *const *pool, int n) { return std::string(pool[(r = r * 1664525u + 1013904223u, (r >> 8)) % static_cast<uint32_t>(n)]); };
+	switch (p->kind) {
+		case PURSUIT_HOLONOVEL: {
+			static const char *const TITLES[] = { "The Long Way Round", "A House on the Ridge", "The Quiet Watch", "Letters From Home" };
+			return std::string("a holonovel chapter, \"") + pick(TITLES, 4) + "\"";
+		}
+		case PURSUIT_MEAL: {
+			static const char *const DISHES[] = { "a slow-cooked root stew", "a spiced grain dish", "a fruit tart", "a broth for the night watch" };
+			return pick(DISHES, 4);
+		}
+		case PURSUIT_MODEL: {
+			static const char *const SUBJECTS[] = { "a model of the ship", "a model of a shuttle", "a model of the bridge", "a model of a delta-quadrant bird" };
+			return pick(SUBJECTS, 4);
+		}
+		case PURSUIT_POEM: {
+			static const char *const TITLES[] = { "What the Stars Are For", "A Message Home", "The Watch Before Dawn", "Nobody's Sky" };
+			return std::string("a poem, \"") + pick(TITLES, 4) + "\"";
+		}
+		case PURSUIT_MUSIC: {
+			static const char *const TITLES[] = { "a quartet for four hands", "a song for the mess hall", "a lament in a minor key", "a dance tune" };
+			return pick(TITLES, 4);
+		}
+		default: return std::string("something they made");
+	}
+}
+
+std::string WorkOnPursuit(Ship &s, int crew)
+{
+	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return std::string();
+	CrewMember &c = s.crew[crew];
+	if (c.status != CREW_FIT || c.brigged || c.away) return std::string();
+	if (c.pursuits.empty() || HasPursued(c)) return std::string(); // one piece per person per run
+	const std::string artifact = PursuitArtifact(c);
+	if (artifact.empty()) return std::string();
+	const std::string line = c.name + " finishes " + artifact;
+	LogEvent(s, c.name, "crew", line);
+	// The maker remembers making it; it is theirs, so no person is named in the mark (person -1).
+	Remember(s, crew, MEM_PURSUIT, -1, MEM_SAW, 0.5f);
+	return line;
 }
 
 // ---- the appearance derivation -------------------------------------------------------------------
@@ -2397,6 +2469,31 @@ static void UpdateCrew(Ship &s, float shipSeconds)
 			if (buildingHands < 4)
 				for (size_t b = 0; b < s.jobs.size() && !busy; ++b)
 					if (s.jobs[b].kind == JOB_BUILD && s.jobs[b].target != 0) { ++buildingHands; busy = true; }
+		}
+	}
+
+	// The pursuit at the schedule (docs/affinities-and-allegiance.md): downtime is when what a person
+	// makes gets made. At most one piece enters the world per ship hour -- one hand's turn, chosen by
+	// the clock so a save replays it without storing a cursor -- so a run produces traces over time
+	// rather than a flood, and a zero-time tick (a load) writes nothing.
+	if (shipSeconds > 0.0f && !s.crew.empty()) {
+		// One piece per clock hour, and the hour is read back from the marks: their time is saved,
+		// so a reload in the same hour does not make a second piece and no cursor is stored.
+		const float hourStart = std::floor(static_cast<float>(s.clock) / 3600.0f) * 3600.0f;
+		bool madeThisHour = false;
+		for (const CrewMember &c : s.crew) {
+			for (const Memory &m : c.memories)
+				if (m.event == MEM_PURSUIT && m.time >= hourStart) { madeThisHour = true; break; }
+			if (madeThisHour) break;
+		}
+		if (!madeThisHour) {
+			const int n = static_cast<int>(s.crew.size());
+			const int first = static_cast<int>(s.clock / 3600.0) % n;
+			for (int k = 0; k < n; ++k) {
+				const int i = (first + k) % n;
+				if (s.crew[i].activity != ACT_RECREATION || s.crew[i].pursuits.empty()) continue;
+				if (!WorkOnPursuit(s, i).empty()) break;
+			}
 		}
 	}
 
@@ -5983,7 +6080,7 @@ void ApplyStartState(Ship &s, const StartState &st)
 // ---- memory and consequence -------------------------------------------------------------------
 
 void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence,
-              const std::string &touched)
+              const std::string &touched, uint8_t flavour)
 {
 	if (crew < 0 || crew >= static_cast<int>(s.crew.size())) return;
 	CrewMember &c = s.crew[crew];
@@ -5993,11 +6090,21 @@ void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source
 	m.person = static_cast<int16_t>(person);
 	m.source = source;
 	m.time = static_cast<float>(s.clock);
-	m.valence = std::max(-1.0f, std::min(1.0f, EffectiveValence(c, valence, touched)));
+	m.valence = std::max(-1.0f, std::min(1.0f, EffectiveValence(c, valence, touched, flavour)));
 	m.salience = 1.0f;
-	// Reinforce: hearing the same thing again sharpens the mark, it does not duplicate it.
+	// Reinforce: hearing the same thing again sharpens the mark, it does not duplicate it. A mark
+	// re-earned by being there is no longer an orphan of a purged report, and the latest reading of
+	// the event updates the valence: two decisions of opposite political reading are not the same
+	// mark twice.
 	for (Memory &old : c.memories)
-		if (old.event == event && old.person == m.person) { old.salience = 1.0f; old.source = source; return; }
+		if (old.event == event && old.person == m.person) {
+			old.salience = 1.0f;
+			old.source = source;
+			old.time = m.time;
+			old.valence = m.valence;
+			if (source != MEM_LOG) old.orphaned = false;
+			return;
+		}
 	// Bounded: over the cap, the least salient (and oldest, on a tie) falls off.
 	if (static_cast<int>(c.memories.size()) >= MEMORY_MAX) {
 		size_t worst = 0;
@@ -6273,6 +6380,7 @@ static float EventValence(uint16_t event)
 	case MEM_ORDER: return 0.1f;
 	case MEM_FUNERAL: return 0.4f;
 	case MEM_LOCKOUT: return -0.6f;
+	case MEM_PURSUIT: return 0.4f; // something they made, and kept
 	default: return 0.0f;
 	}
 }
@@ -6503,12 +6611,16 @@ bool RunHolodeck(Ship &s, HolodeckUse use, int crew)
 	CrewMember &c = s.crew[crew];
 	if (c.status != CREW_FIT || c.brigged) return false;
 	switch (use) {
-	case HOLO_RECREATION:
+	case HOLO_RECREATION: {
 		c.outlook = std::min(1.0f, c.outlook + 0.15f);  // a night on the holodeck lifts the outlook
 		c.deficit = std::max(0.0f, c.deficit - 0.15f);  // and eases what they are short of
 		c.holoCompulsion = std::min(1.5f, c.holoCompulsion + 0.3f); // time in the program adds up
-		LogEvent(s, c.name, "crew", c.name + " takes recreation on the holodeck");
-		break;
+		// The program the schedule would pick is the one they run; naming it in the log is the
+		// trace, and ProgramsOnDeck is the read a surface on the deck would draw.
+		const std::string program = PreferredProgram(c);
+		LogEvent(s, c.name, "crew", c.name + " takes recreation on the holodeck"
+			+ (program.empty() ? std::string() : ": \"" + program + "\""));
+		break; }
 	case HOLO_TRAINING: {
 		Station st = STN_OPS;
 		switch (c.dept) {
@@ -6537,6 +6649,32 @@ bool RunHolodeck(Ship &s, HolodeckUse use, int crew)
 		return false;
 	}
 	return true;
+}
+
+// What is running on the deck: each person in a recreation hour and the liking the schedule chose.
+// This is the model's half of "observed on the deck"; the other half is the owner standing there.
+std::vector<DeckProgram> ProgramsOnDeck(const Ship &s, int deck)
+{
+	std::vector<DeckProgram> out;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT || c.away || c.brigged) continue;
+		if (c.deck != deck || c.program.empty()) continue;
+		DeckProgram p;
+		p.crew = i;
+		p.name = c.name;
+		p.program = c.program;
+		out.push_back(p);
+	}
+	return out;
+}
+
+std::string ProgramManifest(const Ship &s, int deck)
+{
+	std::string out;
+	for (const DeckProgram &p : ProgramsOnDeck(s, deck))
+		out += (out.empty() ? "" : "; ") + p.name + ": " + p.program;
+	return out;
 }
 
 // The program that will not end: pulling a crew member out of the holodeck when its hold on them has
@@ -9634,6 +9772,7 @@ static std::string EventPhrase(const Ship &s, uint16_t event, int person)
 		case MEM_OVERRULED: what = "being overruled"; break;
 		case MEM_LOSS: what = "a loss"; break;
 		case MEM_MEETING: what = "a meeting"; break;
+		case MEM_PURSUIT: what = "something they made"; break;
 		default: what = "an event"; break;
 	}
 	if (person >= 0) what += " involving " + NameAt(s, person);
@@ -9874,13 +10013,24 @@ void PublishMeetingReport(Ship &s, const MeetingBrief &b, int outcome, int decid
 		LogEvent(s, who, "command", "meeting agenda " + std::to_string(i + 1) + " ("
 			+ BriefAgendaSourceName(a.source) + "): " + a.text + " -- " + addressed);
 	}
+	uint8_t flavour = FLAVOUR_NEUTRAL;
 	if (outcome >= 0 && outcome < sk.outcomeCount) {
 		const MeetingOption &o = sk.outcomes[outcome].option;
+		flavour = o.flavour;
 		for (int i = 0; i < b.presentCount && i < MEETING_PARTICIPANT_MAX; ++i) {
 			const BriefParticipant &p = b.present[i];
 			if (p.stance[outcome] != STANCE_OPPOSED) continue;
 			LogEvent(s, who, "command", "meeting dissent: " + p.name + " opposed \""
 				+ o.label + "\" -- " + p.stanceReason[outcome]);
+		}
+		// The decision is an event the room saw, and its political reading lands on each person
+		// through their own allegiance: the same decision, two marks, opposite signs
+		// (docs/affinities-and-allegiance.md, "How an event lands"). Those in the room saw it, so
+		// the source is MEM_SAW -- they are not given the read-it-in-the-log mark below.
+		for (int i = 0; i < b.presentCount && i < MEETING_PARTICIPANT_MAX; ++i) {
+			const int c = b.present[i].crew;
+			if (c < 0 || c >= static_cast<int>(s.crew.size())) continue;
+			Remember(s, c, MEM_MEETING, -1, MEM_SAW, EventValence(MEM_MEETING), std::string(), flavour);
 		}
 	}
 
@@ -9896,7 +10046,7 @@ void PublishMeetingReport(Ship &s, const MeetingBrief &b, int outcome, int decid
 		for (int p = 0; p < b.presentCount && p < MEETING_PARTICIPANT_MAX; ++p)
 			if (b.present[p].crew == i) { present = true; break; }
 		if (present) continue;
-		Remember(s, i, MEM_MEETING, -1, MEM_LOG, EventValence(MEM_MEETING));
+		Remember(s, i, MEM_MEETING, -1, MEM_LOG, EventValence(MEM_MEETING), std::string(), flavour);
 	}
 }
 
@@ -10422,6 +10572,30 @@ std::string CollectiveVoice(const Ship &s, int crew)
 {
 	if (!HeldByCollective(s, crew)) return "";
 	return CastVoiceOfRecord(s, s.crew[crew]);
+}
+
+CollectiveWords CollectiveSpeaks(const Ship &s, int crew)
+{
+	CollectiveWords w;
+	if (!HeldByCollective(s, crew)) return w; // not a mind it holds: no words, no voice
+	w.held = true;
+	w.speaker = crew;
+	w.voice = CollectiveVoice(s, crew);
+	// The newest private entry, from the mind it took -- not the published log, which a purge can
+	// empty, and not a re-authored line. It quotes what the person actually wrote.
+	for (const PersonalLogEntry &e : CollectiveLog(s))
+		if (e.owner == crew) { w.text = e.what; w.hasWords = true; }
+	return w;
+}
+
+bool CollectiveLine(const Ship &s, int crew, MeetingLine &line)
+{
+	const CollectiveWords w = CollectiveSpeaks(s, crew);
+	if (!w.held || !w.hasWords) return false;
+	line.speaker = crew;
+	line.text = w.text;
+	line.delivery = DELIVERY_FLAT; // the log read aloud: the Collective's register, not a performance
+	return true;
 }
 
 // A character's small set of pause cues: the four non-verbal clips are the set, and the person's own
@@ -11765,6 +11939,25 @@ const OrderClassSpec &OrderClassSpecOf(uint8_t order)
 	return ORDER_SPECS[order < ORDER_CLASS_COUNT ? order : 0];
 }
 
+uint8_t OrderFlavour(uint8_t order)
+{
+	// The reading is ours [our call], recorded in
+	// docs/evidence/allegiance-valence-and-compliance.md. There is no canon table for which order
+	// is "Starfleet"; the document's two poles are procedure and making do, and each class is put
+	// on one of them or left neutral rather than invented per person.
+	switch (order) {
+		case ORDER_SECURE_DECK:
+		case ORDER_EVACUATE_DECK:
+		case ORDER_MAINTAIN:
+			return FLAVOUR_STARFLEET;   // hold the line by the book; clear it by procedure; keep it up
+		case ORDER_ADVANCE_DECK:
+		case ORDER_BUILD_PARTS:
+			return FLAVOUR_MAQUIS;      // take it back, and make what you need
+		default:
+			return FLAVOUR_NEUTRAL;     // seeing to a post is neither
+	}
+}
+
 const char *OrderNeedName(uint16_t bit)
 {
 	switch (bit) {
@@ -12124,17 +12317,26 @@ OrderOutcome DispatchOrder(Ship &s, const OrderBrief &brief, int option, int giv
 	r.given = true;
 	LogEvent(s, gname, "order", "orders " + s.crew[recipient].name + ": " + o.label);
 
-	// The recipient answers as a person (Task D): their morale, conditions and traits move the line,
-	// and an order they take badly leaves a mark. Where a badly-taken order lands is an OPEN QUESTION
-	// in docs/orders.md (Q3); the behaviour chosen here is named in docs/evidence/orders.md.
+	// The recipient answers as a person (Task D): their morale, conditions, traits and now their
+	// declared allegiance move the line, and an order they take badly leaves a mark. Q3 in
+	// docs/orders.md asked where a badly-taken order lands; the answer is here and in
+	// docs/evidence/allegiance-valence-and-compliance.md. Allegiance does not refuse: it bends the
+	// order and pays for it in a mark, which is what morale reads (docs/affinities-and-allegiance.md).
 	const CrewMember &rec = s.crew[recipient];
 	const float morale = Morale(rec);
+	const uint8_t flavour = OrderFlavour(o.order);
+	const float allegiance = AllegianceWeight(rec, flavour);
+	r.allegiance = allegiance;
+	r.bent = allegiance < 0.0f;
 	r.resented = morale < 0.35f || HasTrait(rec, TRAIT_POOR_WITH_AUTHORITY)
-		|| FindCondition(rec, COND_EXHAUSTED) != nullptr || FindCondition(rec, COND_AFRAID) != nullptr;
+		|| FindCondition(rec, COND_EXHAUSTED) != nullptr || FindCondition(rec, COND_AFRAID) != nullptr
+		|| allegiance <= -0.30f; // a strong allegiance against the order's reading is its own cost
 	{
 		MeetingLine &l = r.reply[r.replyCount++];
 		l.speaker = recipient;
-		if (r.resented) { l.text = "Aye. Because you asked."; l.delivery = DELIVERY_CONFESSION; }
+		if (r.bent) { l.text = "Aye. My way, not the book's."; l.delivery = DELIVERY_CONFESSION; }
+		else if (r.resented) { l.text = "Aye. Because you asked."; l.delivery = DELIVERY_CONFESSION; }
+		else if (allegiance >= 0.30f) { l.text = "Aye -- that is the right call."; l.delivery = DELIVERY_REPORT; }
 		else if (morale >= 0.6f) { l.text = "Aye -- on it."; l.delivery = DELIVERY_REPORT; }
 		else { l.text = "Understood."; l.delivery = DELIVERY_FLAT; }
 		LogEvent(s, rec.name, "order", l.text);
@@ -12143,8 +12345,13 @@ OrderOutcome DispatchOrder(Ship &s, const OrderBrief &brief, int option, int giv
 	// they were asked to do and how they bear it are on the record together. The trigger is named.
 	EmitManner(s, nullptr, recipient, MANNER_TRIGGER_ORDER);
 	if (r.resented) {
-		Remember(s, recipient, MEM_ORDER, giver, MEM_SAW, -0.6f);
-		r.note = "given and logged; taken badly (a MEM_ORDER mark toward the giver)";
+		// The mark carries the event's political reading, so the allegiance that explains it is in
+		// the valence as well as in the note.
+		Remember(s, recipient, MEM_ORDER, giver, MEM_SAW, -0.6f, std::string(), flavour);
+		r.note = std::string("given and logged; taken badly (a MEM_ORDER mark toward the giver)");
+		if (r.bent)
+			r.note += std::string("; it reads as ") + MeetingFlavourName(flavour)
+				+ " against their " + AllegianceName(rec.allegiance.to) + " allegiance, so it is carried out their way";
 	} else {
 		r.note = "given and logged";
 	}

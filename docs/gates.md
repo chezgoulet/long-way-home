@@ -323,13 +323,13 @@ picked in a recreation hour; a loved task is asked for from the queue. `TestAffi
 `TestAffinityValence`, `TestBondFoldUnchangedWithoutAffinity`, `TestAffinityChoice`,
 `scripts/affinity-check.sh`, `test_ship_core --affinities`.
 
-**What remains (deferred, not claimed):** the allegiance is recorded but does not yet weight valence
-or compliance — the document's Maquis/Starfleet morale consequence is not built here; a pursuit does
-not yet produce an artifact or an event the log can point at; and the in-engine observation of a
-program on the deck (as opposed to the model's choice) needs a session. *(Corrected 2026-10-31: the
-meeting overlay and the two-log split were already built in the meeting lane; the per-participant
-brief now carries this record into the meeting — see the next entry. The Collective's voice remains
-a later Stage D slice.)*
+**What remains (deferred, not claimed):** ~~the allegiance is recorded but does not yet weight
+valence or compliance~~ **(built 2026-11-08 as slice 5, below)**; ~~a pursuit does not yet produce an
+artifact or an event the log can point at~~ **(built 2026-11-08, below)**; and ~~the in-engine
+observation of a program on the deck (as opposed to the model's choice)~~ **(the model half is built
+2026-11-08, below; the owner's eye on the deck remains the one observation)**. *(Corrected 2026-10-31: the meeting overlay and the
+two-log split were already built in the meeting lane; the per-participant brief carries this record
+into the meeting — see the next entry.)*
 
 ### The meeting brief per participant — Stage D slice 2 *(built 2026-10-31; `docs/evidence/staff-meetings.md`)*
 
@@ -361,10 +361,11 @@ round-trip test, `tests/tools/test_meeting_worker.py` (prompt carries the agenda
 deterministic; absent model writes no script), and `scripts/meeting-check.sh`, whose output and two
 falsifications are in `docs/evidence/staff-meetings.md`.
 
-**What remains (deferred, not claimed):** the Collective speaking in an assimilated person's voice;
-voice input beyond the existing typed pill; the computer-as-a-place; and the owner's judgement of
-whether the room reads as a room. The in-engine overlay run was not repeated in this slice — the
-overlay and the no-model arrival were demonstrated in the meeting lane's own evidence
+**What remains (deferred, not claimed):** ~~the Collective speaking in an assimilated person's
+voice~~ **(built 2026-11-08 as slice 4, below)**; voice input beyond the existing typed pill; the
+computer-as-a-place; and the owner's judgement of whether the room reads as a room. The in-engine
+overlay run was not repeated in this slice — the overlay and the no-model arrival were demonstrated
+in the meeting lane's own evidence
 (`docs/evidence/meeting-overlay.md`, `docs/evidence/model-call.md`) and the static criterion is what
 this slice adds.
 
@@ -395,10 +396,99 @@ invented. The meeting brief still builds from a record with the report gone.
 The save format remains **66**: `Memory::event` already carried the new id and `Memory::orphaned`
 already existed, so the record does not change shape.
 
-**What remains (deferred, not claimed):** the Collective speaking in an assimilated person's voice;
-voice input beyond the existing typed pill; the computer-as-a-place; and the owner's judgement of
-whether the room reads as a room. This slice does not touch the overlay, the brief, the generator or
-the Collective's voice, and it does not repeat the overlay's in-engine run.
+**What remains (deferred, not claimed):** ~~the Collective speaking in an assimilated person's
+voice~~ **(built 2026-11-08 as slice 4, below)**; voice input beyond the existing typed pill; the
+computer-as-a-place; and the owner's judgement of whether the room reads as a room. This slice does
+not touch the overlay, the brief or the generator, and it does not repeat the overlay's in-engine
+run.
+
+### Allegiance weights a mark and bends an order — Stage D slice 5 *(built 2026-11-08; `docs/evidence/allegiance-valence-and-compliance.md`)*
+
+`docs/affinities-and-allegiance.md` says an allegiance is **not a team**: it is a weighting on how an
+event lands and on whether an order is carried out, and how. The record already carried the
+allegiance; it previously weighted only a meeting's stance. This slice builds the two uses where the
+document puts them.
+
+**How an event lands.** `AllegianceWeight` is the signed weight a declared side gives an event that
+reads as Starfleet procedure or Maquis pragmatism. `EffectiveValence` and `Remember` apply it at the
+one mark writer, so the same decision is `-0.80` for a Maquis-weighted record and `+0.80` for a
+Starfleet-weighted one. The meeting's decision is published with the chosen option's own flavour, so
+the simulation path, not only the writer, produces the difference.
+
+**Whether the order is carried out, and how.** `OrderFlavour` puts each order class on the same axis
+`[our call]`: `secure`, `evacuate` and `maintain` read Starfleet procedure; `advance` and `build`
+read Maquis pragmatism; `see to` is neutral. `DispatchOrder` reads the recipient's weight: a strong
+weight against the order does not refuse it -- the order is applied, the answer bends (*"Aye. My way,
+not the book's."*), and the cost is a `MEM_ORDER` mark toward the giver whose valence carries the
+reading. A strong weight for it answers warmly; neutral leaves the morale/condition/trait rule as it
+was. The mapping and the threshold are ours, recorded in the evidence so they can be tuned.
+
+**Demonstrated:** `TestAllegianceValenceAndCompliance`, `test_ship_core --allegiance`, and
+`scripts/stage-d-check.sh allegiance`, whose output and falsification are in
+`docs/evidence/allegiance-valence-and-compliance.md`. Save format remains **66**: the reading is an
+argument, not a stored field.
+
+### The liked program, carried to the deck *(built 2026-11-08; `docs/evidence/the-liked-program.md`)*
+
+`docs/affinities-and-allegiance.md` requires a liked program to **appear in downtime and be observed
+on the deck**. `PreferredProgram` already chose it; this slice carries it out of the model:
+`ProgramsOnDeck`/`ProgramManifest` return who is on a deck and what program the schedule chose,
+`ship crew <deck>` prints it, `lwh_ship_holodeck` publishes it for an in-world surface, and
+`RunHolodeck` names the program in the official log. `program` remains derived every tick and never
+saved, so the format is **66**.
+
+**Demonstrated:** `TestLikedProgramModel`, `test_ship_core --program`, and
+`scripts/stage-d-check.sh program`, whose output and falsification are in
+`docs/evidence/the-liked-program.md`.
+
+**The one observation still outstanding:** standing on deck 6 during a recreation hour, **does the
+program read as a program on the deck?** The data, the console read, the cvar and the log are built;
+the rendered room is the owner's eye, and there is no authored holodeck set per program (that is
+Stage C location work).
+
+### A pursuit puts an artifact in the world *(built 2026-11-08; `docs/evidence/the-pursuit.md`)*
+
+`docs/affinities-and-allegiance.md` says `pursuits[]` matter most because they **generate artifacts
+and events, which are the fuel the memory system runs on**. The record was generated; nothing came
+of it. This slice supplies the acceptance item.
+
+`PursuitArtifact` names what a person makes deterministically from their record; `WorkOnPursuit`
+writes it into the official log and takes a `MEM_PURSUIT` mark; `HasPursued` is the read. **One piece
+per person per run**, so a reload cannot replay it, and the schedule gives downtime one hand's turn
+per ship hour with the hour read back from the marks — no stored cursor, no new field. A zero-time
+tick (a load) writes nothing. The artifact is a log event, not a prop: the acceptance allows an
+artifact **or** an event, and the event is the form that costs the save nothing.
+
+**Demonstrated:** `TestPursuitArtifact`, `test_ship_core --pursuits`, and
+`scripts/stage-d-check.sh pursuits`, whose output and falsification are in
+`docs/evidence/the-pursuit.md`. Save format remains **66**.
+
+**What remains (deferred, not claimed):** the artifact is not a visible object on a table, and the
+maker working on it is not watched in the world; those are location/prop work.
+
+### The Collective's voice — Stage D slice 4 *(built 2026-11-08; `docs/evidence/the-collectives-voice.md`)*
+
+`docs/the-record-and-the-log.md` makes assimilation take **the contents of a person's private log**
+and give the Collective **their voice, using their own words**. The transfer was already a rule
+(`docs/evidence/the-assimilation.md`): `HeldByCollective`, `CollectiveLog`, `CollectiveOperates`,
+`CollectiveVoice`, and `LineVoice` routing a held speaker through the stolen cast reference. What
+was missing, and what `docs/designs-against-code.md` row 19 named, was the **line itself**:
+*"no code builds a line from `CollectiveLog`."*
+
+`CollectiveSpeaks` now returns the newest private entry the person wrote, read from the mind
+(`CollectiveLog`), not the published log, so a purge cannot empty it; and `CollectiveLine` makes it
+the meeting language: the held person is the speaker, their own words are the text, and the delivery
+is `DELIVERY_FLAT` -- *the log read aloud* -- which is what travels to synthesis. `MeetingLineKey`
+therefore builds the render key under the stolen voice and writes no audio. A de-assimilation in the
+narrow window, or a death, ends the hold and the Collective can no longer speak the words.
+
+**Demonstrated:** `TestTheCollectiveVoice`, `test_ship_core --collective`, and
+`scripts/stage-d-check.sh collective`, whose output and falsification are in
+`docs/evidence/the-collectives-voice.md`. The save format remains **66**: the words, the held-mind
+list and the voice are reads of records already saved.
+
+**What remains (deferred, not claimed):** the ear is the owner's -- no audio is generated, committed
+or attached; and the in-engine scene was not run on this static host.
 
 ### An ending — destinations as readers, neutrality, and the three-second arrival *(Stage E, built 2026-10-31; `docs/evidence/endings.md`)*
 

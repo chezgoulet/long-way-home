@@ -176,9 +176,13 @@ substance of the brief's point and stands.
 | `DeriveCharacter` | `CrewMember &c, uint32_t &rng` | The derivation: given the record (its identity, department, rank and species) and a seed stream, fills the four kinds and the drives | play | — | — |
 | `DeriveSpecies` | `uint8_t dept, uint32_t &rng` | Species for a record: named crew carry theirs; a generated member draws one from the seed | play | — | — |
 | `DeriveAffinities` | `CrewMember &c, uint32_t seed` | The affinity record -- likes, dislikes, pursuits and allegiance -- generated from the roster seed and authored over for the named few (docs/affinities-and-allegiance.md) | play | — | docs/affinities-and-allegiance.md |
-| `EffectiveValence` | `const CrewMember &c, float base, const std::string &thing` | Entry one: the valence fold. A matching like raises and a matching dislike lowers the mark; no match leaves the base exactly as it was, so the bond store is unchanged | play | person | docs/affinities-and-allegiance.md |
+| `EffectiveValence` | `const CrewMember &c, float base, const std::string &thing, uint8_t flavour = FLAVOUR_NEUTRAL` | Entry one: the valence fold. A matching like raises and a matching dislike lowers the mark; a declared allegiance bends a mark whose event reads as one side's, and no match leaves the base exactly as it was, so the bond store is unchanged | play | person | docs/affinities-and-allegiance.md |
+| `AllegianceWeight` | `const CrewMember &c, uint8_t flavour` | The signed weight a declared side gives an event or order that reads as Starfleet procedure or Maquis pragmatism | play | — | docs/affinities-and-allegiance.md |
 | `PreferredProgram` | `const CrewMember &c` | Entry two: the program the schedule picks in a recreation hour, or empty | play | person | docs/affinities-and-allegiance.md |
 | `PreferredTask` | `const CrewMember &c` | Entry two: the kind of work the person asks for from the queue, or empty | play | person | docs/affinities-and-allegiance.md |
+| `PursuitArtifact` | `const CrewMember &c` | What a pursuit puts into the world: the deterministic artifact a person makes, named from their record | play | person | docs/affinities-and-allegiance.md |
+| `HasPursued` | `const CrewMember &who` | Has this person finished the thing they make? The MEM_PURSUIT mark, which bounds it to one per run | play | person | docs/affinities-and-allegiance.md |
+| `WorkOnPursuit` | `Ship &s, int crew` | The schedule's downtime work: write one completed pursuit artifact into the log and mark it, or nothing | play | person | docs/affinities-and-allegiance.md |
 | `AffinityTopicName` | `uint8_t t` | the name of an affinity topic: food, program, music, game, craft, person, task | nothing | — | docs/affinities-and-allegiance.md |
 | `PursuitKindName` | `uint8_t p` | the name of a pursuit: a holonovel, a meal, a model, a poem, a piece of music | nothing | — | docs/affinities-and-allegiance.md |
 | `AllegianceName` | `uint8_t a` | what a person is to: Starfleet, the Maquis, a Delta native, a civilian, Borg-recovered | nothing | — | docs/affinities-and-allegiance.md |
@@ -332,6 +336,8 @@ substance of the brief's point and stands.
 | `SignReport` | `Ship &s, int signer, uint8_t audience` | sign report | play | person | — |
 | `PurgeLogs` | `Ship &s` | purge logs | play | — | — |
 | `RunHolodeck` | `Ship &s, HolodeckUse use, int crew` | run holodeck | console | person | — |
+| `ProgramsOnDeck` | `const Ship &s, int deck` | What is running on the deck: each person in a recreation hour and the liked program the schedule chose | console | — | docs/affinities-and-allegiance.md |
+| `ProgramManifest` | `const Ship &s, int deck` | The programs on a deck as one line ("Name: program; ..."), for the console and the world cvar | console | — | docs/affinities-and-allegiance.md |
 | `ImproveQuarters` | `Ship &s` | Living conditions: improve the crew's quarters, at a cost in material | console | — | — |
 | `OrderRepairFirst` | `Ship &s, int system` | order repair first | play | — | — |
 | `OrderMaintain` | `Ship &s, int system` | order maintain: the preventive job for a worn system, pushed to the head of the queue (docs/crew-work.md, the seventh kind). The play path is the order class `ORDER_MAINTAIN`; this hook is the developer console's `ship order maintain` | console | post | docs/crew-work.md |
@@ -349,6 +355,7 @@ spoken content scripted like a meeting's. The register of classes is `module/shi
 |---|---|---|---|---|---|
 | `OrderClassCount` | `` | the register's row count | console | — | docs/orders.md |
 | `OrderClassSpecOf` | `uint8_t order` | the order class's spec (name, label, cost, needs, job, target) | console | — | docs/orders.md |
+| `OrderFlavour` | `uint8_t order` | How an order class reads politically on the meeting axis: Starfleet procedure, Maquis pragmatism, or neutral | play | — | docs/affinities-and-allegiance.md |
 | `OrderNeedName` | `uint16_t bit` | the need's own name, for the refusal and the log | console | — | docs/orders.md |
 | `MayOrder` | `const Ship &s, int giver, int recipient` | May giver give an order to recipient at all? | play | person | docs/access-and-authority.md |
 | `OrderPermitted` | `const Ship &s, int giver, int recipient, uint8_t order` | The one place the derivation reads: may this order class be given to this recipient by this giver? | play | person | docs/orders.md |
@@ -446,6 +453,8 @@ command console; evidence in `docs/evidence/the-bills.md`.
 | `CollectiveOperates` | `const Ship &s, Station st` | The authority the Collective can operate: a station is the Collective's when someone it holds could have operated it | console | post | docs/the-record-and-the-log.md |
 | `CollectiveRefusal` | `const Ship &s, Station st` | The named refusal: the Collective operates only what was taken | console | post | docs/the-record-and-the-log.md |
 | `CollectiveVoice` | `const Ship &s, int crew` | The voice the Collective speaks a taken person's lines in: the cast reference that person already had | console | person | docs/the-record-and-the-log.md |
+| `CollectiveSpeaks` | `const Ship &s, int crew` | The newest private entry the Collective took from a held mind, with the stolen cast reference that speaks it | play | person | docs/the-record-and-the-log.md |
+| `CollectiveLine` | `const Ship &s, int crew, MeetingLine &line` | Build the line the Collective speaks in a held person's voice from their own taken words | play | person | docs/the-record-and-the-log.md |
 | `MeetingKindName` | `uint8_t kind` | meeting kind name | play | — | — |
 | `DeliveryName` | `uint8_t d` | delivery name | console | — | — |
 | `DeliveryExaggeration` | `uint8_t d` | What the delivery asks the synthesizer for, in the review's own knob | console | — | — |
@@ -631,7 +640,7 @@ command console; evidence in `docs/evidence/the-bills.md`.
 
 ## The counts (Task B)
 
-<!-- register-counts play=312 console=170 nothing=39 content=5 total=526 -->
+<!-- register-counts play=319 console=172 nothing=39 content=5 total=535 -->
 
 **The current count, machine-checked.** The marker above is the register's own count, re-derived from its
 rows and checked against the surface of `module/ship/ship_core.h` by
