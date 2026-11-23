@@ -116,7 +116,14 @@ bool arrivalDone = false;
 int arrivalStartMs = 0;
 int arrivalDestination = ship::DEST_EARTH;
 bool arrivalFiled = true;
+bool arrivalReceived = true;   // a wildcard can reach a place and be refused at it
+ship::EndingRoute arrivalRoute = ship::ROUTE_GRIND;
 bool arrivalWasLocked = false; // the input lock the arrival took, restored when it ends
+// The endgame's once-only state (docs/endings.md): the crew's veto fires once at the destination,
+// and the conduit is taken once. Both are host state; nothing after the log is replayed.
+bool endingVetoFired = false;
+bool endingRouteTaken = false;
+bool endScreenShown = false;   // the endgame screen has been opened once for this run
 
 vec3_t glanceAngles = { 0, 0, 0 }; // where the glance test points the player, re-applied each frame
 bool haveGlanceAim = false;
@@ -1041,6 +1048,34 @@ void Publish( void )
 	gi.cvar_set( "lwh_ship_transporter", ship::TransporterConditionLine( vessel ).c_str() );
 	gi.cvar_set( "lwh_ship_course", Fmt( "%d", vessel.course ).c_str() );
 	gi.cvar_set( "lwh_ship_goal", Fmt( "%d", static_cast<int>( vessel.sector.size() ) - 1 ).c_str() );
+	// The endgame screen (docs/endings.md): the same table and the same accrued set the console
+	// reads, in the design's order, with no rank, score or quality to sort by. The screen chooses and
+	// sends `ship ending` or `ship wildcard`; the record is still the last frame.
+	{
+		gi.cvar_set( "lwh_ship_ending_won", ship::Won( vessel ) ? "1" : "0" );
+		gi.cvar_set( "lwh_ship_ending_knowledge", ship::BorgKnowledgeAboard( vessel ) ? "1" : "0" );
+		gi.cvar_set( "lwh_ship_ending_route", ship::RouteName( endingRouteTaken
+			? ship::ROUTE_CONDUIT : ship::ROUTE_GRIND ) );
+		gi.cvar_set( "lwh_ship_ending_veto_fired", endingVetoFired ? "1" : "0" );
+		const std::vector<ship::EndingScreenRow> rows = ship::EndingScreenRows( vessel );
+		gi.cvar_set( "lwh_ship_ending_rows", Fmt( "%d", static_cast<int>( rows.size() ) ).c_str() );
+		for ( size_t i = 0; i < rows.size(); ++i )
+		{
+			const ship::EndingScreenRow &r = rows[i];
+			gi.cvar_set( Fmt( "lwh_ship_ending_row%d", static_cast<int>( i ) ).c_str(),
+				Fmt( "%d|%s|%s|%s|%d|%s|%s", static_cast<int>( r.destination ), r.name.c_str(),
+					r.reader.c_str(), r.lens.c_str(), r.open ? 1 : 0, r.offer.c_str(), r.play.c_str() ).c_str() );
+		}
+		static const char *const LABEL_CVARS[ship::END_LABEL_COUNT] = {
+			"lwh_ship_ending_title", "lwh_ship_ending_subtitle", "lwh_ship_ending_earned",
+			"lwh_ship_ending_play", "lwh_ship_ending_approach", "lwh_ship_ending_grind",
+			"lwh_ship_ending_conduit", "lwh_ship_ending_conduit_note", "lwh_ship_ending_file",
+			"lwh_ship_ending_keys", "lwh_ship_ending_last",
+		};
+		for ( int i = 0; i < ship::END_LABEL_COUNT; ++i )
+			gi.cvar_set( LABEL_CVARS[i], ship::EndingScreenLabel( static_cast<uint8_t>( i ) ) );
+	}
+
 
 	// The log, newest first, for the browsable screen: when|who|scope|what, one per entry.
 	{
@@ -5997,6 +6032,9 @@ void Ship_Init( void )
 	if ( arrivalActive ) player_locked = arrivalWasLocked;
 	arrivalActive = false;
 	arrivalDone = false;
+	endingVetoFired = false;
+	endingRouteTaken = false;
+	endScreenShown = false;
 	// A room open on the old map does not carry into the new one: the held brief is host-local.
 	meetingOpen = false;
 	currentMeeting = ship::MeetingBrief();
@@ -6080,9 +6118,12 @@ static void FinishArrival( void )
 	player_locked = arrivalWasLocked;
 	CGCam_Disable();
 	const ship::EndingReading reading = ship::ReadEnding( vessel,
-		static_cast<ship::DestinationId>( arrivalDestination ), arrivalFiled );
-	gi.Printf( "SHIP: ARRIVAL %s -- reader %s; reads %s\n",
-		ship::DestinationSpec( reading.destination ).name, reading.reader.c_str(), reading.lens.c_str() );
+		static_cast<ship::DestinationId>( arrivalDestination ), arrivalFiled, arrivalReceived );
+	gi.Printf( "SHIP: ARRIVAL %s by %s -- reader %s; reads %s\n",
+		ship::DestinationSpec( reading.destination ).name, ship::RouteName( arrivalRoute ),
+		reading.reader.c_str(), reading.lens.c_str() );
+	gi.Printf( "SHIP:   the approach: %s; the record %s\n", ship::RouteName( arrivalRoute ),
+		arrivalReceived ? "was received" : "was not received at the door" );
 	for ( const std::string &line : reading.lines ) gi.Printf( "SHIP:   %s\n", line.c_str() );
 	gi.Printf( "SHIP:   reading: %s\n", reading.conclusion.c_str() );
 	const std::vector<ship::LogEntry> log = ship::EndingLog( vessel );
@@ -6098,17 +6139,20 @@ static void FinishArrival( void )
 	}
 	gi.cvar_set( "lwh_ship_arrival", "0" );
 	gi.cvar_set( "lwh_ship_ending", ship::DestinationSpec( reading.destination ).name );
+	gi.cvar_set( "lwh_ship_ending_route", ship::RouteName( arrivalRoute ) );
+	gi.cvar_set( "lwh_ship_ending_received", arrivalReceived ? "1" : "0" );
 }
 
-static void StartArrival( ship::DestinationId d, bool filed )
+static void StartArrival( ship::DestinationId d, bool filed, bool received = true, bool wildcard = false,
+	ship::EndingRoute route = ship::ROUTE_GRIND )
 {
-	if ( arrivalActive ) return;
+	if ( arrivalActive || arrivalDone ) return;
 	if ( !ship::Won( vessel ) )
 	{
 		gi.Printf( "SHIP: the run has not reached its end; there is no arrival yet\n" );
 		return;
 	}
-	if ( !ship::DestinationAvailable( vessel, d ) )
+	if ( !wildcard && !ship::DestinationAvailable( vessel, d ) )
 	{
 		gi.Printf( "SHIP: %s is not open to this run: %s\n",
 			ship::DestinationSpec( d ).name, ship::DestinationSpec( d ).offer );
@@ -6116,6 +6160,8 @@ static void StartArrival( ship::DestinationId d, bool filed )
 	}
 	arrivalDestination = d;
 	arrivalFiled = ship::MayFileAt( d ) ? filed : true;
+	arrivalReceived = received;
+	arrivalRoute = route;
 	arrivalStartMs = level.time;
 	arrivalActive = true;
 	arrivalDone = false;
@@ -6136,8 +6182,8 @@ static void StartArrival( ship::DestinationId d, bool filed )
 	vec4_t clear = { 1.0f, 1.0f, 1.0f, 0.0f };
 	CGCam_Fade( white, clear, static_cast<float>( ship::ARRIVAL_MS ) );
 	gi.cvar_set( "lwh_ship_arrival", "1" );
-	gi.Printf( "SHIP: arrival: %d ms on the engine's own camera (%s); the same clip for every destination and route\n",
-		ship::ARRIVAL_MS, ship::DestinationSpec( d ).name );
+	gi.Printf( "SHIP: arrival: %d ms on the engine's own camera (%s, by %s); the same clip for every destination and route\n",
+		ship::ARRIVAL_MS, ship::DestinationSpec( d ).name, ship::RouteName( route ) );
 }
 
 void Ship_Frame( void )
@@ -6185,6 +6231,14 @@ void Ship_Frame( void )
 		}
 	}
 	if ( level.time / 250 != level.previousTime / 250 ) Publish();
+	// The endgame screen opens once when the run reaches its end. It is a choice of readers, not a
+	// score screen; it closes before the arrival, and the record is what follows.
+	if ( ship::Won( vessel ) && !arrivalActive && !arrivalDone && !endScreenShown )
+	{
+		endScreenShown = true;
+		Publish(); // the screen reads the same table the console does, so publish before it opens
+		gi.SendConsoleCommand( "ui_lwh_ending\n" );
+	}
 	LWH_Panel_Frame( &vessel ); // the status panel's live surface (S4's glance, second half)
 	BorgAssets( &vessel );      // the Borg swap the ship's state onto the generated decks (S8)
 	if ( !ship::SavesAllowed( vessel.cfg ) && level.time >= nextIronmanSaveMs && !g_shipTest->integer )
@@ -7848,14 +7902,125 @@ void Svcmd_Ship_f( void )
 	else if ( !Q_stricmp( cmd, "ending" ) || !Q_stricmp( cmd, "arrive" ) )
 	{//the arrival: ship ending <destination> [nofile]. `nofile` is Earth's one last question --
 	 //arriving at Earth and reporting to Starfleet are separable, and declining still cuts to the log.
-		const ship::DestinationId d = ship::DestinationByName( a );
-		if ( d >= ship::DEST_COUNT )
+	 //The crew's veto is asked once, at the destination, after the run has reached its end.
+		if ( !ship::Won( vessel ) )
+		{
+			gi.Printf( "SHIP: the run has not reached its end; there is no arrival yet\n" );
+			return;
+		}
+		if ( arrivalActive || arrivalDone )
+		{
+			gi.Printf( "SHIP: the arrival is already under way, or the run is over\n" );
+			return;
+		}
+		const ship::DestinationId requested = ship::DestinationByName( a );
+		if ( requested >= ship::DEST_COUNT )
 		{
 			gi.Printf( "SHIP: destination: name one of Earth, the Klingon Empire, a settlement, the Collective, a sale or no reader\n" );
 			return;
 		}
 		const bool filed = !( !Q_stricmp( b, "nofile" ) || !Q_stricmp( b, "unfiled" ) );
-		StartArrival( d, filed );
+		bool conduit = false;
+		for ( int i = first + 1; i < gi.argc(); ++i )
+			if ( !Q_stricmp( gi.argv( i ), "conduit" ) ) conduit = true;
+		if ( conduit && !endingRouteTaken )
+		{
+			const ship::TranswarpCost cost = ship::TranswarpCostOf( vessel );
+			if ( !cost.available )
+			{
+				gi.Printf( "SHIP: %s\n", cost.line.c_str() );
+				return;
+			}
+			std::string line;
+			if ( !ship::TakeTranswarp( vessel, &line ) )
+			{
+				gi.Printf( "SHIP: the conduit is not taken: %s\n", line.c_str() );
+				return;
+			}
+			endingRouteTaken = true;
+			gi.Printf( "SHIP: %s\n", line.c_str() );
+		}
+		const ship::EndingChoice choice = ship::ChooseEnding( vessel, requested, endingVetoFired );
+		if ( choice.vetoed )
+		{
+			ship::RecordEndingChoice( vessel, choice );
+			endingVetoFired = true;
+			gi.Printf( "SHIP: the crew would not make for %s; %s holds the conn, and the course is laid for %s\n",
+				ship::DestinationSpec( choice.requested ).name, choice.conn.c_str(),
+				ship::DestinationSpec( choice.chosen ).name );
+		}
+		StartArrival( choice.chosen, filed, true, false,
+			endingRouteTaken ? ship::ROUTE_CONDUIT : ship::ROUTE_GRIND );
+		return;
+	}
+	else if ( !Q_stricmp( cmd, "wildcard" ) )
+	{//the wildcard (docs/endings.md): a play for a place that has not invited the run. It spends a
+	 //shuttle and part of the reserve before the draw; it can fail to reach, or reach and be refused
+	 //at the door, and either failure names the state that caused it. The crew's veto is asked first
+	 //and fires once: a crew that has lost confidence does not follow the captain's gamble.
+		if ( !ship::Won( vessel ) )
+		{
+			gi.Printf( "SHIP: the run has not reached its end; there is no arrival yet\n" );
+			return;
+		}
+		if ( arrivalActive || arrivalDone )
+		{
+			gi.Printf( "SHIP: the arrival is already under way, or the run is over\n" );
+			return;
+		}
+		const ship::DestinationId target = ship::DestinationByName( a );
+		if ( target >= ship::DEST_COUNT )
+		{
+			gi.Printf( "SHIP: wildcard: name the place to make a play for\n" );
+			return;
+		}
+		const ship::WildcardOutcome probe = ship::SolveWildcard( vessel, target, 0.0f, 0.0f );
+		if ( !probe.offered )
+		{
+			gi.Printf( "SHIP: %s\n", probe.line.c_str() );
+			return;
+		}
+		bool conduit = false;
+		for ( int i = first + 1; i < gi.argc(); ++i )
+			if ( !Q_stricmp( gi.argv( i ), "conduit" ) ) conduit = true;
+		if ( conduit && !endingRouteTaken )
+		{
+			const ship::TranswarpCost cost = ship::TranswarpCostOf( vessel );
+			if ( !cost.available )
+			{
+				gi.Printf( "SHIP: %s\n", cost.line.c_str() );
+				return;
+			}
+			std::string line;
+			if ( !ship::TakeTranswarp( vessel, &line ) )
+			{
+				gi.Printf( "SHIP: the conduit is not taken: %s\n", line.c_str() );
+				return;
+			}
+			endingRouteTaken = true;
+			gi.Printf( "SHIP: %s\n", line.c_str() );
+		}
+		const ship::EndingChoice choice = ship::ChooseEnding( vessel, target, endingVetoFired );
+		if ( choice.vetoed )
+		{
+			ship::RecordEndingChoice( vessel, choice );
+			endingVetoFired = true;
+			gi.Printf( "SHIP: the crew would not make a play for %s; %s holds the conn, and the course is laid for %s\n",
+				ship::DestinationSpec( choice.requested ).name, choice.conn.c_str(),
+				ship::DestinationSpec( choice.chosen ).name );
+			StartArrival( choice.chosen, true, true, false,
+				endingRouteTaken ? ship::ROUTE_CONDUIT : ship::ROUTE_GRIND );
+			return;
+		}
+		const ship::WildcardOutcome play = ship::AttemptWildcard( vessel, target );
+		gi.Printf( "SHIP: %s\n", play.line.c_str() );
+		gi.Printf( "SHIP:   spent: %s\n", play.spent.c_str() );
+		if ( play.reached )
+			StartArrival( target, true, play.received, true,
+				endingRouteTaken ? ship::ROUTE_CONDUIT : ship::ROUTE_GRIND );
+		else
+			StartArrival( ship::DEST_EARTH, true, true, false,
+				endingRouteTaken ? ship::ROUTE_CONDUIT : ship::ROUTE_GRIND );
 		return;
 	}
 	else if ( !Q_stricmp( cmd, "log" ) )

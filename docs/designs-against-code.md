@@ -776,7 +776,7 @@ Two things that table will not say by itself, and should:
 | 29 | "the set is accrued, not selected" (reputation) (`endings.md:63`) | partial | `DestinationAvailable`, `DestinationsFor` | accrued from promises, funerals, minds, traders and a purge; no separate reputation field |
 | 30 | "exactly one unwinnable end state, the core breach" (`endings.md:73`) | implemented | `lost` `ship_core.h:1979`; `ship_core.cpp:6513-6522` | |
 | 31 | "Earth: always reachable; not always welcoming" (`endings.md:80`) | implemented | `DestinationAvailable(DEST_EARTH)`; `TestEndingAvailability` | always open; the reading may be a trial |
-| 32 | "the crew get a vote … the veto fires once, at the destination" (`endings.md:187`) | absent | no vote/destination code | still not built |
+| 32 | "the crew get a vote … the veto fires once, at the destination" (`endings.md:187`) | implemented | `CrewConfidence`/`CrewWouldVeto`/`ChooseEnding`/`RecordEndingChoice`; `TestEndingVeto`; `scripts/ending-check.sh` | the crew choose the place; the log's own `who` field names who holds the conn; the once-latch is tested |
 | 33 | "mode 1 … the SP path runs the campaign, saves and reloads" (`client-modes.md:9`) | partial | `scripts/exits-check.sh:42` retail quit proven | full campaign/save not automated here |
 | 34 | "mode 2 … retail Holomatch, over a LAN or a VPN" (`client-modes.md:10`) | partial | `scripts/run-cmod.sh:23` | launcher staged; no match test |
 | 35 | "mode 2 is cMod as shipped — zero delta from us" (`client-modes.md:73`) | implemented | `scripts/run-cmod.sh:4-5` | |
@@ -788,6 +788,10 @@ Two things that table will not say by itself, and should:
 | 41 | "the attempt is made beyond the person's effective skill … they are not zero" (`rising-to-the-occasion.md:33`) | implemented | `RisingOdds:5800-5808`; `RISING_MIN_SUCCESS=0.05` | |
 | 42 | "what it costs, and this is not optional" (`rising-to-the-occasion.md:36`) | implemented | `ship_core.cpp:5864-5871,5914` | |
 | 43 | "a memory in the witnesses" (`rising-to-the-occasion.md:40`) | implemented | `RisingWitnesses:5824`; `RetellRising:5928` | |
+| 44 | "a wildcard is attemptable … fail to reach it or be refused at it" (`endings.md:191`) | implemented | `SolveWildcard`/`AttemptWildcard`; `TestEndingWildcard` | both failures name the state or the record; spends a shuttle, a tenth of the reserve and a twentieth of the crystal |
+| 45 | "it requires the enemy's knowledge" (`endings.md:151`) | implemented | `BorgKnowledgeAboard`/`TranswarpCostOf`/`TakeTranswarp`; `TestEndingRoute` | the conduit is gated; it pays a principle, a crew member and a year |
+| 46 | "the arrival clip is identical for every destination and for every route, including the conduit" (`endings.md:223`) | implemented | `ARRIVAL_MS`; `StartArrival`; `TestEndingRoute` | one camera and one timer; the route is recorded, not rendered |
+| 47 | "destinations are readers … not a score screen" (`endings.md:69`) | implemented | `EndingScreenRows`/`EndingScreenLabel`; `module/ui/ui_lwh_ending.cpp`; `TestEndingScreen` | design order, no rank field, neutral labels; the screen chooses and the log is still the last frame |
 | 44 | "the person may refuse … as a decision from their drives and morale" (`rising-to-the-occasion.md:47`) | implemented | `RisingWouldGo:5725-5766`; `RISING_REFUSED:5851` | |
 | 45 | "a mark's salience decays unless reinforced" (`rising-to-the-occasion.md:111`) | implemented | `Remember:4733-4735`; `RetellRising:5928` | |
 | 46 | a heroism stat, a courage roll, a bar should be refused (`rising-to-the-occasion.md:127`) | implemented | no such field or roll | |

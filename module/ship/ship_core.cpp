@@ -4594,7 +4594,7 @@ std::vector<DestinationId> DestinationsFor(const Ship &s)
 
 bool MayFileAt(DestinationId d) { return d == DEST_EARTH; }
 
-EndingReading ReadEnding(const Ship &s, DestinationId d, bool filed)
+EndingReading ReadEnding(const Ship &s, DestinationId d, bool filed, bool received)
 {
 	EndingReading r;
 	r.destination = d;
@@ -4603,6 +4603,7 @@ EndingReading ReadEnding(const Ship &s, DestinationId d, bool filed)
 	r.lens = spec.lens;
 	r.filed = MayFileAt(d) ? filed : true;
 	r.read = r.filed;
+	r.received = received;
 	const int dead = EndingDead(s);
 	const int assimilated = EndingAssimilated(s);
 	const int funerals = EndingFunerals(s);
@@ -4680,6 +4681,13 @@ EndingReading ReadEnding(const Ship &s, DestinationId d, bool filed)
 		r.read = false;
 		break;
 	}
+	// A wildcard can reach a place and be refused at it. The refusal is the reader's, in the reader's
+	// own terms: the same evidence, read to a different end. It is not a fallback to another
+	// destination and not a worse end -- it is that reader's reading.
+	if (!received) {
+		r.conclusion = r.reader + " read the record and did not receive the ship"
+			+ (r.lines.empty() ? std::string(".") : ": " + r.lines.front());
+	}
 	return r;
 }
 
@@ -4734,11 +4742,412 @@ std::vector<std::string> EndingToneFindings()
 		strings.push_back(r.lens);
 		for (const std::string &line : r.lines) strings.push_back(line);
 		strings.push_back(r.conclusion);
+		const EndingReading refused = ReadEnding(plain, static_cast<DestinationId>(d), true, false);
+		strings.push_back(refused.conclusion);
+	}
+	// The screen's own words, and the endgame's other outcomes, produced from sample states so the
+	// assertion scans the same strings a run will print rather than a hand-copied echo of them.
+	for (const std::string &line : EndingScreenLabels()) strings.push_back(line);
+	for (const EndingScreenRow &row : EndingScreenRows(plain)) {
+		strings.push_back(row.name);
+		strings.push_back(row.reader);
+		strings.push_back(row.lens);
+		strings.push_back(row.offer);
+		strings.push_back(row.play);
+	}
+	strings.push_back(RouteName(ROUTE_GRIND));
+	strings.push_back(RouteName(ROUTE_CONDUIT));
+	{
+		Ship broken = plain;
+		for (CrewMember &c : broken.crew) { c.deficit = 1.0f; c.outlook = 0.0f; }
+		Remember(broken, 0, MEM_FUNERAL, 1, MEM_SAW, 0.4f);
+		const EndingChoice choice = ChooseEnding(broken, DEST_EARTH);
+		if (choice.vetoed) {
+			strings.push_back(choice.reason);
+			strings.push_back(choice.line);
+		}
+	}
+	{
+		Ship damaged = plain;
+		damaged.systems[SYS_WARP_DRIVE].health = 0.2f;
+		for (Deck &d : damaged.decks) d.hull = 0.3f;
+		damaged.stores.deuterium = 0.2f;
+		const WildcardOutcome miss = SolveWildcard(damaged, DEST_KLINGON_EMPIRE, 0.99f, 1.0f);
+		strings.push_back(miss.failure);
+		strings.push_back(miss.line);
+		const WildcardOutcome refused = SolveWildcard(plain, DEST_KLINGON_EMPIRE, 0.0f, 1.0f);
+		strings.push_back(refused.failure);
+		strings.push_back(refused.line);
+	}
+	{
+		Ship borg = plain;
+		if (!borg.crew.empty()) borg.crew[0].species = SPECIES_BORG_RECOVERED;
+		const TranswarpCost cost = TranswarpCostOf(borg);
+		strings.push_back(cost.principle);
+		strings.push_back(cost.line);
 	}
 	return EndingToneFindings(strings);
 }
 
 std::vector<LogEntry> EndingLog(const Ship &s) { return s.log; }
+
+// ---- the crew's veto at the destination (docs/endings.md) ---------------------------------------
+
+float CrewConfidence(const Ship &s)
+{
+	float sum = 0.0f;
+	int aboard = 0;
+	for (const CrewMember &c : s.crew) {
+		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) continue;
+		sum += Morale(c);
+		++aboard;
+	}
+	return aboard ? sum / static_cast<float>(aboard) : 0.0f;
+}
+
+bool CrewWouldVeto(const Ship &s)
+{
+	int aboard = 0;
+	for (const CrewMember &c : s.crew)
+		if (c.status != CREW_DEAD && c.status != CREW_ASSIMILATED) ++aboard;
+	if (aboard == 0) return false;
+	return CrewConfidence(s) < CREW_CONFIDENCE_VETO;
+}
+
+// The senior fit officer who is not the player: command passes to a person, and the log names them.
+static std::string ConnAfterVeto(const Ship &s)
+{
+	int best = -1;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (i == s.player || c.status != CREW_FIT) continue;
+		if (best < 0) { best = i; continue; }
+		const CrewMember &held = s.crew[best];
+		const bool onDuty = c.activity == ACT_ON_DUTY;
+		const bool heldOnDuty = held.activity == ACT_ON_DUTY;
+		if (c.rank > held.rank || (c.rank == held.rank && onDuty && !heldOnDuty)) best = i;
+	}
+	return best >= 0 ? s.crew[best].name : "the watch";
+}
+
+// The place the crew themselves would make for. It is a read of the same record every destination
+// reads, in the design's order of claims: a settlement they would stay for, then the Empire that
+// reads the dead, then Earth, which is always open. It is not a preference score and not a ranking.
+static DestinationId CrewsChoice(const Ship &s)
+{
+	if (DestinationAvailable(s, DEST_DELTA_SETTLEMENT) && EndingWouldStay(s) > 0
+		&& EndingWouldStay(s) * 2 >= s.CrewFit())
+		return DEST_DELTA_SETTLEMENT;
+	if (DestinationAvailable(s, DEST_KLINGON_EMPIRE)) return DEST_KLINGON_EMPIRE;
+	return DEST_EARTH;
+}
+
+EndingChoice ChooseEnding(const Ship &s, DestinationId requested, bool vetoAlreadyFired)
+{
+	EndingChoice choice;
+	choice.requested = requested;
+	choice.chosen = requested;
+	if (vetoAlreadyFired || !CrewWouldVeto(s)) return choice;
+	const DestinationId theirs = CrewsChoice(s);
+	if (theirs == requested) return choice; // they agree with the course; there is nothing to refuse
+	choice.vetoed = true;
+	choice.chosen = theirs;
+	choice.conn = ConnAfterVeto(s);
+	const float confidence = CrewConfidence(s);
+	int aboard = 0, breaking = 0;
+	for (const CrewMember &c : s.crew) {
+		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) continue;
+		++aboard;
+		if (Morale(c) < 0.3f) ++breaking;
+	}
+	choice.reason = "the crew's confidence is " + std::to_string(static_cast<int>(confidence * 100.0f + 0.5f))
+		+ "%, and " + std::to_string(breaking) + " of " + std::to_string(aboard) + " are at breaking point";
+	choice.line = "the crew would not make for " + std::string(DestinationSpec(requested).name)
+		+ "; the course is laid for " + DestinationSpec(theirs).name + " (" + choice.reason + ")";
+	return choice;
+}
+
+void RecordEndingChoice(Ship &s, const EndingChoice &c)
+{
+	if (!c.vetoed) return;
+	LogEvent(s, c.conn.empty() ? std::string("the watch") : c.conn, "command", c.line);
+}
+
+// ---- the wildcard attempt (docs/endings.md) -----------------------------------------------------
+
+static std::string EndingPercent(float v)
+{
+	return std::to_string(static_cast<int>(Clamp01(v) * 100.0f + 0.5f)) + "%";
+}
+
+// The best shuttle still in the bay: the one a play spends.
+static int EndingShuttleInBay(const Ship &s)
+{
+	int best = -1;
+	for (int i = 0; i < static_cast<int>(s.shuttles.size()); ++i) {
+		if (s.shuttles[i].location != SHUTTLE_IN_BAY) continue;
+		if (best < 0 || s.shuttles[i].condition > s.shuttles[best].condition) best = i;
+	}
+	return best;
+}
+
+// A skill read over everyone still able to work, normalised to 0..1. The best hand, not the average:
+// one good navigator is enough to fly an approach, which is how the ship already staffs a post.
+static float EndingBestSkill(const Ship &s, uint8_t skill)
+{
+	float best = 0.0f;
+	for (const CrewMember &c : s.crew) {
+		if (c.status != CREW_FIT && c.status != CREW_INJURED) continue;
+		best = std::max(best, EffectiveSkill(c, skill));
+	}
+	return Clamp01(best / static_cast<float>(SKILL_MAX));
+}
+
+static float EndingWildcardReach(const Ship &s)
+{
+	const float drive = s.systems[SYS_WARP_DRIVE].health;
+	const float hull = EndingHull(s);
+	const float fuel = s.stores.deuterium;
+	const float flight = EndingBestSkill(s, SKILL_FLIGHT);
+	return Clamp01(0.45f * drive + 0.25f * hull + 0.20f * fuel + 0.10f * flight);
+}
+
+// What the reader at the door reads, as a number: the design's own terms for each destination, not a
+// virtue score. The Klingons read the deaths and the word given; the settlement reads the promises
+// and the people who would stay; the Collective takes what comes to it; the buyer reads the hull.
+static float EndingWildcardReception(const Ship &s, DestinationId d)
+{
+	switch (d) {
+	case DEST_KLINGON_EMPIRE: {
+		const int honour = EndingFunerals(s) + EndingPromises(s, PROMISE_KEPT)
+			- EndingPromises(s, PROMISE_BROKEN) - EndingMarks(s, MEM_LIE);
+		return Clamp01(0.50f + 0.25f * static_cast<float>(honour));
+	}
+	case DEST_DELTA_SETTLEMENT: {
+		float p = 0.60f;
+		if (EndingPromises(s, PROMISE_KEPT) > 0) p += 0.20f;
+		if (EndingPromises(s, PROMISE_BROKEN) > 0) p -= 0.40f;
+		if (EndingWouldStay(s) > 0) p += 0.20f;
+		return Clamp01(p);
+	}
+	case DEST_COLLECTIVE:
+		return 1.0f; // it takes what comes to it
+	case DEST_SALE:
+		return Clamp01(EndingHull(s) > 0.4f ? 0.90f : EndingHull(s) * 2.0f);
+	default:
+		return 0.0f;
+	}
+}
+
+static bool EndingWildcardPlace(DestinationId d)
+{
+	return d == DEST_KLINGON_EMPIRE || d == DEST_DELTA_SETTLEMENT
+		|| d == DEST_COLLECTIVE || d == DEST_SALE;
+}
+
+// Empty when a play is possible; otherwise the reason there is none, in plain words.
+static std::string EndingWildcardWhyNot(const Ship &s, DestinationId d)
+{
+	if (d >= DEST_COUNT) return "there is no such place";
+	if (!EndingWildcardPlace(d)) return "there is no one there to make a play to";
+	if (DestinationAvailable(s, d)) return "the run has already earned it";
+	if (EndingShuttleInBay(s) < 0) return "no shuttle is in the bay";
+	if (s.stores.deuterium < WILDCARD_DEUTERIUM) return "the deuterium reserve is under the tenth a play takes";
+	if (s.dilithium <= 0.0f) return "there is no crystal left to spend";
+	if (d == DEST_SALE && EndingTraders(s) == 0) return "no trader has been met, so there is no buyer";
+	return "";
+}
+
+static std::string EndingWildcardSpendName(const Ship &s)
+{
+	const int shuttle = EndingShuttleInBay(s);
+	return (shuttle >= 0 ? s.shuttles[shuttle].name : std::string("a shuttle")) + ", "
+		+ EndingPercent(WILDCARD_DEUTERIUM) + " of the deuterium reserve and "
+		+ EndingPercent(WILDCARD_CRYSTAL) + " of the crystal";
+}
+
+WildcardOutcome SolveWildcard(const Ship &s, DestinationId d, float reachRoll, float receiveRoll)
+{
+	WildcardOutcome o;
+	o.destination = d;
+	o.target = DestinationSpec(d).name;
+	o.reachOdds = EndingWildcardReach(s);
+	o.receiveOdds = EndingWildcardReception(s, d);
+	const std::string why = EndingWildcardWhyNot(s, d);
+	if (!why.empty()) {
+		o.failure = why;
+		o.line = "no play is made for " + o.target + ": " + why;
+		return o;
+	}
+	o.offered = true;
+	o.spent = EndingWildcardSpendName(s);
+	if (Clamp01(reachRoll) >= o.reachOdds) {
+		o.failure = "the ship did not reach " + o.target + ": the warp drive was at "
+			+ EndingPercent(s.systems[SYS_WARP_DRIVE].health) + ", the hull at "
+			+ EndingPercent(EndingHull(s)) + " and the reserve at "
+			+ EndingPercent(s.stores.deuterium) + "; the play's odds were "
+			+ EndingPercent(o.reachOdds);
+		o.line = o.failure;
+		return o;
+	}
+	o.reached = true;
+	if (Clamp01(receiveRoll) >= o.receiveOdds) {
+		const EndingReading refused = ReadEnding(s, d, true, false);
+		o.failure = o.target + " read the record and did not receive the ship: "
+			+ (refused.lines.empty() ? std::string("the record is the reason") : refused.lines.front());
+		o.line = "the play reaches " + o.target + "; " + o.failure;
+		return o;
+	}
+	o.received = true;
+	o.line = "the play reaches " + o.target + ", and " + o.target + " receives the ship";
+	return o;
+}
+
+WildcardOutcome AttemptWildcard(Ship &s, DestinationId d)
+{
+	// Nothing is spent, and no draw is taken, when there is no play to make.
+	const WildcardOutcome probe = SolveWildcard(s, d, 0.0f, 0.0f);
+	if (!probe.offered) return probe;
+	const float reachRoll = static_cast<float>(AnomalyRoll(s.riskRolls++, s.cfg.seed) & 0xFFFFFFu)
+		/ 16777216.0f;
+	const float receiveRoll = static_cast<float>(AnomalyRoll(s.riskRolls++, s.cfg.seed) & 0xFFFFFFu)
+		/ 16777216.0f;
+	const WildcardOutcome o = SolveWildcard(s, d, reachRoll, receiveRoll);
+	// Spend first: the shuttle, the reserve and the crystal are gone whether or not it reaches.
+	const int shuttle = EndingShuttleInBay(s);
+	if (shuttle >= 0) {
+		s.shuttles[shuttle].location = SHUTTLE_LOST;
+		s.shuttles[shuttle].awayBeacon = -1;
+	}
+	s.stores.deuterium = std::max(0.0f, s.stores.deuterium - WILDCARD_DEUTERIUM);
+	s.dilithium = std::max(0.0f, s.dilithium - WILDCARD_CRYSTAL);
+	LogEvent(s, CommandingOfficer(s), "outside", o.line + " (spent: " + o.spent + ")");
+	return o;
+}
+
+// ---- the transwarp route (docs/endings.md) ------------------------------------------------------
+
+const char *RouteName(EndingRoute r) { return r == ROUTE_CONDUIT ? "the conduit" : "the grind"; }
+
+bool BorgKnowledgeAboard(const Ship &s)
+{
+	for (const CrewMember &c : s.crew) {
+		if (c.status == CREW_DEAD || c.status == CREW_ASSIMILATED) continue;
+		if (c.species == SPECIES_BORG_RECOVERED || c.allegiance.to == ALLEG_BORG_RECOVERED) return true;
+	}
+	// A section of the ship that never got back: the deck stays Borg until it is stripped.
+	for (const Deck &d : s.decks)
+		if (d.assimilated > 0.5f) return true;
+	return false;
+}
+
+// Who takes the knowledge through: a recovered drone first, then the best science hand aboard.
+static int EndingConduitCarrier(const Ship &s)
+{
+	int best = -1;
+	bool bestKnows = false;
+	float bestSkill = -1.0f;
+	for (int i = 0; i < static_cast<int>(s.crew.size()); ++i) {
+		const CrewMember &c = s.crew[i];
+		if (c.status != CREW_FIT && c.status != CREW_INJURED) continue;
+		const bool knows = c.species == SPECIES_BORG_RECOVERED || c.allegiance.to == ALLEG_BORG_RECOVERED;
+		const float skill = EffectiveSkill(c, SKILL_SCIENCE);
+		if (best < 0 || (knows && !bestKnows) || (knows == bestKnows && skill > bestSkill)) {
+			best = i; bestKnows = knows; bestSkill = skill;
+		}
+	}
+	return best;
+}
+
+TranswarpCost TranswarpCostOf(const Ship &s)
+{
+	TranswarpCost cost;
+	if (!BorgKnowledgeAboard(s)) {
+		cost.line = "the conduit needs the enemy's knowledge aboard, and none is";
+		return cost;
+	}
+	const int carrier = EndingConduitCarrier(s);
+	if (carrier < 0) {
+		cost.line = "the conduit needs a hand to take the knowledge through, and no one is fit";
+		return cost;
+	}
+	cost.available = true;
+	cost.crew = s.crew[carrier].name;
+	cost.principle = "the ship takes the Collective's road";
+	cost.line = "the conduit: " + cost.crew + " takes the hub's knowledge and does not come back; "
+		+ cost.principle + "; a year passes in three seconds";
+	return cost;
+}
+
+bool TakeTranswarp(Ship &s, std::string *line)
+{
+	const TranswarpCost cost = TranswarpCostOf(s);
+	if (!cost.available) {
+		if (line) *line = cost.line;
+		return false;
+	}
+	const int carrier = EndingConduitCarrier(s);
+	if (carrier < 0) {
+		if (line) *line = cost.line;
+		return false;
+	}
+	// All three costs, in the order the crossing takes them: the year first, then the person, and the
+	// principle is the fact of the road itself, recorded in the line.
+	s.clock += 365.0 * SECONDS_PER_DAY;
+	KillCrew(s, carrier, "the transwarp conduit");
+	LogEvent(s, CommandingOfficer(s), "outside", cost.line);
+	if (line) *line = cost.line;
+	return true;
+}
+
+// ---- the endgame screen (docs/endings.md) -------------------------------------------------------
+
+std::vector<EndingScreenRow> EndingScreenRows(const Ship &s)
+{
+	std::vector<EndingScreenRow> out;
+	for (int i = 0; i < DEST_COUNT; ++i) {
+		const Destination &spec = DESTINATIONS[i];
+		EndingScreenRow row;
+		row.destination = static_cast<DestinationId>(i);
+		row.open = DestinationAvailable(s, row.destination);
+		row.name = spec.name;
+		row.reader = spec.reader;
+		row.lens = spec.lens;
+		row.offer = spec.offer;
+		if (!row.open) {
+			const std::string why = EndingWildcardWhyNot(s, row.destination);
+			if (why.empty()) row.play = "a play: " + EndingWildcardSpendName(s);
+			else row.offer = why;
+		}
+		out.push_back(row);
+	}
+	return out;
+}
+
+const char *EndingScreenLabel(uint8_t which)
+{
+	static const char *const LABELS[END_LABEL_COUNT] = {
+		"THE READING  -  WHOSE RECORD IT BECOMES",
+		"The run is at its end. One of these readers takes the record.",
+		"THE DESTINATIONS THIS RUN HAS EARNED",
+		"A PLACE THAT HAS NOT INVITED THE RUN: A PLAY",
+		"THE APPROACH",
+		"the grind",
+		"the conduit",
+		"the conduit needs the enemy's knowledge aboard",
+		"AT EARTH: file the record, or hand it back unread",
+		"UP/DOWN choose   LEFT/RIGHT turn   ENTER arrive   ESC leave",
+		"THE RECORD IS THE LAST FRAME: the reading and the official log follow the arrival",
+	};
+	return which < END_LABEL_COUNT ? LABELS[which] : "";
+}
+
+std::vector<std::string> EndingScreenLabels()
+{
+	std::vector<std::string> out;
+	for (int i = 0; i < END_LABEL_COUNT; ++i) out.push_back(EndingScreenLabel(static_cast<uint8_t>(i)));
+	return out;
+}
 
 static void UpdateOutside(Ship &s, float shipSeconds)
 {
