@@ -458,8 +458,11 @@ enum MemoryEvent : uint16_t { MEM_DEATH = 1, MEM_ORDER, MEM_PROMISE, MEM_LIE, ME
 	MEM_LOSS = 10,     // something the ship has given up: those aboard saw it, everyone else hears it as a rumour
 	                   // (docs/memory-and-consequence.md, "a deck written off is a mark in everyone who was aboard,
 	                   // and a rumour in everyone who was not") -- the event that makes MEM_RUMOUR a mark the crew carry
-	MEM_MEETING = 11 }; // a meeting was held and its report published: those not in the room read it, and the mark
+	MEM_MEETING = 11,  // a meeting was held and its report published: those not in the room read it, and the mark
 	                    // outlives the report when a purge removes it (docs/staff-meetings.md, docs/the-record-and-the-log.md)
+	MEM_PURSUIT = 12 }; // what a person made: their pursuit put an artifact into the world, and the log line
+	                    // is the trace (docs/affinities-and-allegiance.md). One per person per run, so a
+	                    // reload cannot replay it.
 const int MEMORY_MAX = 8;
 struct Memory {
 	uint16_t event = 0;
@@ -740,16 +743,41 @@ uint8_t DeriveSpecies(uint8_t dept, uint32_t &rng);
 // that a transporter doubles keeps its taste; a save without the static half re-derives it exactly.
 void DeriveAffinities(CrewMember &c, uint32_t seed);
 
+// What an event or an order reads as politically (docs/affinities-and-allegiance.md): "a decision
+// that reads as Starfleet procedure lands negative on Maquis-weighted crew and positive on
+// Starfleet-weighted crew; a decision that reads as pragmatic and Maquis-flavoured, the reverse."
+// It is declared once here because meetings, marks and orders all read the same axis.
+enum MeetingFlavour : uint8_t { FLAVOUR_NEUTRAL = 0, FLAVOUR_STARFLEET, FLAVOUR_MAQUIS };
+const char *MeetingFlavourName(uint8_t f);
+
+// The allegiance half of the same design: how strongly this person's declared side bends a thing
+// that reads one way. Signed -- positive when the reading is theirs, negative when it is the other
+// side's, zero for a neutral reading or an allegiance with no dog in the fight. Pure.
+float AllegianceWeight(const CrewMember &c, uint8_t flavour);
+
 // Entry one: the valence fold. The base valence is left exactly as it was when nothing the person
-// likes or dislikes is named, so the bond store is unchanged by this mechanism. A matching like
-// raises the mark, a matching dislike lowers it; the result is clamped to the mark's -1..+1.
+// likes, dislikes or is loyal to is named, so the bond store is unchanged by this mechanism. A
+// matching like raises the mark, a matching dislike lowers it, and a declared allegiance bends a
+// mark whose event reads as one side's or the other's; the result is clamped to the mark's -1..+1.
 // `thing` is whatever the event touched, named as the record names it ("Klingon opera", "coffee",
-// "repair"). Matching is case-insensitive and whole-name.
-float EffectiveValence(const CrewMember &c, float base, const std::string &thing);
+// "repair"). Matching is case-insensitive and whole-name. `flavour` is the event's own reading.
+float EffectiveValence(const CrewMember &c, float base, const std::string &thing,
+                       uint8_t flavour = FLAVOUR_NEUTRAL);
 
 // Entry two: choice. The strongest liked program, or empty; the strongest liked task, or empty.
 std::string PreferredProgram(const CrewMember &c);
 std::string PreferredTask(const CrewMember &c);
+
+// What a pursuit puts into the world (docs/affinities-and-allegiance.md, "pursuits"): the thing a
+// person makes, named deterministically from their record and the seed, and whether they have yet.
+// The work itself is WorkOnPursuit below: one artifact per person per run, logged and marked, so it
+// is a trace the log can point at rather than a preference nobody can see.
+std::string PursuitArtifact(const CrewMember &c);
+bool HasPursued(const CrewMember &who);
+// The schedule's downtime work: a person in a recreation hour works on what they make, and the
+// first completed piece is logged and marked (MEM_PURSUIT). Bounded to one per person per run so a
+// save cannot replay it, and it returns the log line, or "" when there was nothing to make.
+std::string WorkOnPursuit(Ship &s, int crew);
 
 // ---- the appearance derivation: the face comes from the same seed --------------------------------
 // docs/character-attributes.md, "Appearance: the face is part of the person, so it comes from the
@@ -1118,6 +1146,12 @@ struct Shuttle {
 const int SECTOR_BEACONS = 12;
 const int SHUTTLE_BAY_DECK = 10;         // shuttlebay 1, aft dorsal [lore]
 const int MESS_DECK = 2;                 // the mess hall: where the galley and casualty clearing are [inv]
+// The deck crew go to for recreation by default -- not "the holodeck". Holodeck 1 is on deck 14 and
+// Holodeck 2 on deck 6, per docs/locations/deck14-stasis.brief.md; SYS_HOLODECKS is one system and
+// this is the *recreational* deck the routine sends people to, which is deck 6, where the crew
+// quarters are. Crew do not model walking to whichever holodeck is nearer: that is a design change,
+// not a rename (see the deck-14 evidence, judgement call 6).
+const int HOLODECK_RECREATION_DECK = 6;
 const float SHUTTLE_REBUILD_MATERIALS = 30.0f; // material to construct a replacement [inv]
 const float SHUTTLE_REBUILD_HOURS = 8.0f;      // crew-hours of the second bay's work [inv]
 const float JUMP_DEUTERIUM = 0.01f;      // fraction of tankage per jump [inv]
@@ -1259,6 +1293,20 @@ std::string CollectiveRefusal(const Ship &s, Station st);
 // cast refuses a taken person (CastVoice is ""); the Collective does not, because it stole the voice
 // with the mind. "" when the person is not held.
 std::string CollectiveVoice(const Ship &s, int crew);
+
+// The Collective speaks *what the person wrote*, not only in their voice: their private words, taken
+// from the mind (CollectiveLog), in the cast reference the transfer stole (CollectiveVoice). This is
+// the "speak in their voice, using their own words" half of the design
+// (docs/the-record-and-the-log.md). Empty when the person is not held or left no private words; the
+// line itself is built by CollectiveLine below, once a MeetingLine is in scope.
+struct CollectiveWords {
+	bool held = false;         // the Collective holds the mind
+	bool hasWords = false;     // and it left private words to quote
+	int speaker = -1;
+	std::string text;
+	std::string voice;
+};
+CollectiveWords CollectiveSpeaks(const Ship &s, int crew);
 
 // ---- the ship's API: the enumerated command surface (docs/evidence/the-computer-api.md) ----------
 //
@@ -1459,6 +1507,11 @@ struct MeetingLine {
 	uint8_t delivery = DELIVERY_UNMARKED;  // carried with the text
 };
 
+// A line the Collective speaks in a held person's voice, from their own taken private words:
+// `speaker` is the held person, `text` is the most recent entry they wrote, and the delivery is
+// flat -- the log read aloud (DeliveryName). False when the person is not held or left no words.
+bool CollectiveLine(const Ship &s, int crew, MeetingLine &line);
+
 // What an option asks the simulation to do. The options are the enumerated outcomes made visible; the
 // simulation applies the chosen one -- the script and any model never do. The model speaks only.
 enum MeetingEffect : uint8_t {
@@ -1480,13 +1533,10 @@ const char *MeetingEffectName(uint8_t e);
 const int MEETING_ALLOC_MAX = 2;
 struct MeetingAlloc { uint8_t system = 0xFF; int percent = 100; };
 
-// What an option reads as, for the room's disagreement (docs/affinities-and-allegiance.md):
-// "a decision that reads as Starfleet procedure lands negative on Maquis-weighted crew and positive
-// on Starfleet-weighted crew; a decision that reads as pragmatic and Maquis-flavoured, the reverse."
-// The authored skeleton declares it; the brief derives each participant's stance from their own
-// allegiance. NEUTRAL options carry no declared political reading.
-enum MeetingFlavour : uint8_t { FLAVOUR_NEUTRAL = 0, FLAVOUR_STARFLEET, FLAVOUR_MAQUIS };
-const char *MeetingFlavourName(uint8_t f);
+// The authored skeleton declares an option's reading with MeetingFlavour (declared with the
+// affinities above, because marks and orders read the same axis); the brief derives each
+// participant's stance from their own allegiance. NEUTRAL options carry no declared political
+// reading.
 
 // A stance is a read of the brief, never a stored opinion: -1 opposed, 0 neutral, +1 supports.
 enum MeetingStance : int8_t { STANCE_OPPOSED = -1, STANCE_NEUTRAL = 0, STANCE_SUPPORTS = 1 };
@@ -3325,10 +3375,12 @@ int SeniorFitOfficer(const Ship &s);
 // crew a thing (Brief); a query asks whether a character holds an event and how they came to (Recall,
 // RecallSource), how many marks they hold (MemoryCount), and how they feel about a person (Bond).
 // `touched` is the thing the event was about, when it has one: the affinity fold reads it and raises
-// or lowers the mark accordingly. Empty (the default) leaves the base valence exactly as given, so
-// every existing writer is unchanged and the bond store stays the bond store.
+// or lowers the mark accordingly. `flavour` is the event's political reading, when it has one: the
+// allegiance fold reads it and bends the mark toward or against the person's declared side. Both
+// defaults leave the base valence exactly as given, so every existing writer is unchanged and the
+// bond store stays the bond store.
 void Remember(Ship &s, int crew, uint16_t event, int person, MemorySource source, float valence,
-              const std::string &touched = std::string());
+              const std::string &touched = std::string(), uint8_t flavour = FLAVOUR_NEUTRAL);
 void Brief(Ship &s, uint16_t event, float valence, const std::string &touched = std::string());
 bool Recall(const CrewMember &who, uint16_t event);
 int RecallSource(const CrewMember &who, uint16_t event);
@@ -3413,6 +3465,15 @@ bool LogsPurged(const Ship &s);
 // All need the holodeck delivering. Console `ship holo <recreation|training|therapy|forensic> <crew>`.
 enum HolodeckUse : uint8_t { HOLO_RECREATION = 0, HOLO_TRAINING, HOLO_THERAPY, HOLO_FORENSIC, HOLO_USE_COUNT };
 bool RunHolodeck(Ship &s, HolodeckUse use, int crew);
+
+// What is running on the holodeck deck right now, as the model can carry it: each person there in a
+// recreation hour and the liked program the schedule chose. This is the data an in-world surface
+// draws; whether it reads as a program *on the deck* needs the owner's eyes in a session
+// (docs/evidence/the-liked-program.md).
+struct DeckProgram { int crew = -1; std::string name; std::string program; };
+std::vector<DeckProgram> ProgramsOnDeck(const Ship &s, int deck);
+// The manifest as one line, for the console and the world cvar: "Name: program; Name: program".
+std::string ProgramManifest(const Ship &s, int deck);
 // Living conditions: improve the crew's quarters, at a cost in material.
 bool ImproveQuarters(Ship &s);
 // The name that signs command's acts: the player's character if there is one, otherwise the captain
@@ -3494,6 +3555,12 @@ int OrderClassCount();                     // the register's row count
 const OrderClassSpec &OrderClassSpecOf(uint8_t order);
 const char *OrderNeedName(uint16_t bit);   // the need's own name, for the refusal and the log
 
+// How an order class reads politically, on the meeting's own axis (docs/affinities-and-allegiance.md,
+// "Whether the order is carried out, and how"). The reading is ours [our call], recorded in
+// docs/evidence/allegiance-valence-and-compliance.md: procedure and paperwork read Starfleet, making
+// do and taking a thing back read Maquis, and a repair reads neither.
+uint8_t OrderFlavour(uint8_t order);
+
 // May `giver` give an order to `recipient` at all? The one authority read the derivation and the
 // refusal both use: a fit giver, not themselves, senior to the recipient or holding command
 // (docs/access-and-authority.md). This is the "who may order whom" the console's lock teaches.
@@ -3560,6 +3627,8 @@ struct OrderOutcome {
 	int16_t target = 0;
 	int job = -1;              // the index the order's job landed at, or -1
 	bool resented = false;     // the recipient took it badly (morale/conditions/marks)
+	bool bent = false;         // their declared allegiance opposed it: carried out, but in their own way
+	float allegiance = 0.0f;   // the signed weight their allegiance gave this order's reading
 	MeetingLine reply[ORDER_REPLY_MAX]; int replyCount = 0; // the giver's line, then the answer
 	std::string note;          // what happened, in words, for the log
 };

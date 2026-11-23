@@ -11547,6 +11547,347 @@ static int PrintEndings()
 	return ok ? 0 : 1;
 }
 
+
+// ---- Stage D, the rest of it: the Collective's voice, allegiance, pursuits, the liked program -------
+
+static void TestTheCollectiveVoice()
+{
+	g_test = "the Collective speaks a taken person's own words in their voice";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int taken = 40;
+	s.crew[taken].status = CREW_FIT;
+	s.crew[taken].type = "tuvok";
+	s.crew[taken].wounds = 0.0f;
+	CHECK(WritePersonalLog(s, taken, "I do not trust the captain's numbers"));
+	CHECK(WritePersonalLog(s, taken, "the captain was wrong about the nebula"));
+	CHECK(!CollectiveSpeaks(s, taken).held);          // not taken: no words, no voice
+	MeetingLine before;
+	CHECK(!CollectiveLine(s, taken, before));         // and no line
+
+	TakeMind(s, taken);
+	s.crew[taken].status = CREW_ASSIMILATED;          // wholly taken: the ordinary cast now refuses
+	const CollectiveWords w = CollectiveSpeaks(s, taken);
+	CHECK(w.held && w.hasWords);
+	CHECK(w.speaker == taken);
+	CHECK(w.text == "the captain was wrong about the nebula"); // the newest private entry
+	CHECK(w.voice == "tuvok");                        // the voice the transfer stole
+
+	MeetingLine line;
+	CHECK(CollectiveLine(s, taken, line));
+	CHECK(line.speaker == taken);
+	CHECK(line.text == w.text);
+	CHECK(line.delivery == DELIVERY_FLAT);            // the log read aloud, not a performance
+	CHECK(CastVoice(s, taken).empty());               // the ordinary cast still refuses them
+	// The render seam routes a held speaker through the stolen voice: a key exists with no audio.
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+	CHECK(!MeetingLineKey(s, b, line).empty());
+
+	// The counter-case the design names: a de-assimilation ends the hold, and the words are the
+	// person's again -- the Collective cannot speak them.
+	s.crew[taken].status = CREW_INJURED;              // the window: not wholly taken, still recoverable
+	s.crew[taken].wounds = 0.5f;
+	CHECK(RecoverCaptive(s, taken));
+	CHECK(!CollectiveSpeaks(s, taken).held);
+	MeetingLine after;
+	CHECK(!CollectiveLine(s, taken, after));
+}
+
+// `test_ship_core --collective`: the observables for the Collective's voice.
+static int PrintCollectiveVoice()
+{
+	int failures = 0;
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int taken = 40;
+	s.crew[taken].status = CREW_FIT;
+	s.crew[taken].type = "tuvok";
+	s.crew[taken].wounds = 0.0f;
+	WritePersonalLog(s, taken, "I do not trust the captain's numbers");
+	WritePersonalLog(s, taken, "the captain was wrong about the nebula");
+	TakeMind(s, taken);
+	s.crew[taken].status = CREW_ASSIMILATED;          // wholly taken: the cast refuses, the Collective does not
+	const CollectiveWords w = CollectiveSpeaks(s, taken);
+	MeetingLine line;
+	const bool speaks = CollectiveLine(s, taken, line);
+	std::printf("PASS  the mind is held: %d; it has private words: %d\n", w.held ? 1 : 0, w.hasWords ? 1 : 0);
+	if (!w.held || !w.hasWords) ++failures;
+	std::printf("PASS  the words are the taken person's own: \"%s\"\n", w.text.c_str());
+	if (w.text != "the captain was wrong about the nebula") ++failures;
+	std::printf("PASS  the voice is the stolen cast reference: \"%s\" (the ordinary cast gives \"%s\")\n",
+		w.voice.c_str(), CastVoice(s, taken).c_str());
+	if (w.voice != "tuvok" || !CastVoice(s, taken).empty()) ++failures;
+	std::printf("PASS  it speaks as a line: speaker %d, delivery %s\n", line.speaker, DeliveryName(line.delivery));
+	if (!speaks || line.speaker != taken || line.text != w.text || line.delivery != DELIVERY_FLAT) ++failures;
+	const MeetingBrief b = BuildBrief(s, MEET_ALLOCATION);
+	const std::string key = MeetingLineKey(s, b, line);
+	std::printf("PASS  the render seam takes it under the stolen voice: key %s\n", key.empty() ? "(none)" : "present");
+	if (key.empty()) ++failures;
+	s.crew[taken].status = CREW_INJURED;              // the window: still recoverable
+	s.crew[taken].wounds = 0.5f;
+	const bool ended = RecoverCaptive(s, taken);
+	MeetingLine after;
+	std::printf("PASS  a de-assimilation ends it: mind the person's again: %d; the Collective can speak: %d\n",
+		ended ? 1 : 0, CollectiveLine(s, taken, after) ? 1 : 0);
+	if (!ended || CollectiveLine(s, taken, after)) ++failures;
+	std::printf("%s\n", failures ? "collective voice: FAILURES" : "all demonstrations passed");
+	return failures ? 1 : 0;
+}
+
+static void TestAllegianceValenceAndCompliance()
+{
+	g_test = "allegiance weights an event's valence and bends an order";
+	// The same event, read the same way, landing opposite on two declared sides. This is the
+	// document's own sentence, and it is the mark writer (Remember -> EffectiveValence).
+	Ship s = NewShip();
+	const int mq = 20, sf = 21;
+	s.crew[mq].memories.clear();
+	s.crew[sf].memories.clear();
+	s.crew[mq].allegiance.to = ALLEG_MAQUIS;    s.crew[mq].allegiance.strength = 0.80f;
+	s.crew[sf].allegiance.to = ALLEG_STARFLEET; s.crew[sf].allegiance.strength = 0.80f;
+	Remember(s, mq, MEM_MEETING, -1, MEM_SAW, 0.0f, std::string(), FLAVOUR_STARFLEET);
+	Remember(s, sf, MEM_MEETING, -1, MEM_SAW, 0.0f, std::string(), FLAVOUR_STARFLEET);
+	CHECK(s.crew[mq].memories.size() == 1 && s.crew[sf].memories.size() == 1);
+	CHECK(s.crew[mq].memories.back().valence < 0.0f);
+	CHECK(s.crew[sf].memories.back().valence > 0.0f);
+	CHECK(std::fabs(s.crew[mq].memories.back().valence + 0.80f) < 1e-5f);
+	CHECK(std::fabs(s.crew[sf].memories.back().valence - 0.80f) < 1e-5f);
+	CHECK(std::fabs(AllegianceWeight(s.crew[mq], FLAVOUR_STARFLEET) + 0.80f) < 1e-5f);
+	CHECK(std::fabs(AllegianceWeight(s.crew[mq], FLAVOUR_MAQUIS) - 0.80f) < 1e-5f);
+	CHECK(AllegianceWeight(s.crew[mq], FLAVOUR_NEUTRAL) == 0.0f);
+	// A side with no dog in the Starfleet/Maquis fight is not invented into one.
+	s.crew[mq].allegiance.to = ALLEG_DELTA_NATIVE;
+	CHECK(AllegianceWeight(s.crew[mq], FLAVOUR_STARFLEET) == 0.0f);
+
+	// The order half: an order that reads Starfleet, given to a high-morale Maquis engineer. They
+	// do not refuse -- they bend it, and carry the mark. The same order to a Starfleet engineer of
+	// the same morale is carried clean.
+	Ship o; int giver, eng, sec;
+	OrderFixture(o, giver, eng, sec);
+	o.crew[eng].deficit = 0.0f; o.crew[eng].outlook = 1.0f; RegardTo(o.crew[eng], 1.0f);
+	o.crew[eng].traits = 0; o.crew[eng].conditionCount = 0;
+	o.crew[eng].allegiance.to = ALLEG_MAQUIS; o.crew[eng].allegiance.strength = 0.85f;
+	o.systems[SYS_WARP_DRIVE].wear = 0.5f; // the maintenance order has something to work
+	const OrderBrief b = BuildOrderBrief(o, giver, eng);
+	const int idx = OptionOf(b, ORDER_MAINTAIN);
+	CHECK(idx >= 0);
+	CHECK(OrderFlavour(ORDER_MAINTAIN) == FLAVOUR_STARFLEET);
+	const int marksBefore = MemoryCount(o.crew[eng]);
+	const OrderOutcome r = DispatchOrder(o, b, idx, giver);
+	CHECK(r.given && !r.refused);
+	CHECK(r.allegiance < 0.0f);
+	CHECK(r.bent && r.resented);
+	CHECK(r.replyCount >= 2 && r.reply[1].text.find("My way") != std::string::npos);
+	CHECK(HasMark(o.crew[eng], MEM_ORDER, giver));
+	CHECK(MemoryCount(o.crew[eng]) == marksBefore + 1);
+	CHECK(r.note.find("Maquis") != std::string::npos);
+
+	Ship f; int fg, fe, fs;
+	OrderFixture(f, fg, fe, fs);
+	f.crew[fe].deficit = 0.0f; f.crew[fe].outlook = 1.0f; RegardTo(f.crew[fe], 1.0f);
+	f.crew[fe].traits = 0; f.crew[fe].conditionCount = 0;
+	f.crew[fe].allegiance.to = ALLEG_STARFLEET; f.crew[fe].allegiance.strength = 0.85f;
+	f.systems[SYS_WARP_DRIVE].wear = 0.5f;
+	const OrderBrief fb = BuildOrderBrief(f, fg, fe);
+	const int fidx = OptionOf(fb, ORDER_MAINTAIN);
+	CHECK(fidx >= 0);
+	const int fMarks = MemoryCount(f.crew[fe]);
+	const OrderOutcome fr = DispatchOrder(f, fb, fidx, fg);
+	CHECK(fr.given && !fr.refused);
+	CHECK(fr.allegiance > 0.0f);
+	CHECK(!fr.bent && !fr.resented);
+	CHECK(!HasMark(f.crew[fe], MEM_ORDER, fg));
+	CHECK(MemoryCount(f.crew[fe]) == fMarks);
+
+	// The event path in the simulation, not only the writer: a meeting's decision is the event,
+	// and the room's own members take it through their allegiance.
+	Ship m = NewShip();
+	const MeetingBrief mb = BuildBrief(m, MEET_ALLOCATION);
+	CHECK(mb.presentCount > 0);
+	const int p = mb.present[0].crew;
+	m.crew[p].memories.clear();
+	m.crew[p].allegiance.to = ALLEG_MAQUIS; m.crew[p].allegiance.strength = 0.80f;
+	CHECK(ApplyMeetingOutcome(m, mb, 0, m.player, false)); // outcome 0 reads Starfleet
+	bool meetingMark = false;
+	for (const Memory &mk : m.crew[p].memories)
+		if (mk.event == MEM_MEETING) { meetingMark = true; CHECK(mk.valence < 0.0f); }
+	CHECK(meetingMark);
+}
+
+// `test_ship_core --allegiance`: the observables for allegiance weighting.
+static int PrintAllegiance()
+{
+	int failures = 0;
+	Ship s = NewShip();
+	const int mq = 20, sf = 21;
+	s.crew[mq].memories.clear(); s.crew[sf].memories.clear();
+	s.crew[mq].allegiance.to = ALLEG_MAQUIS; s.crew[mq].allegiance.strength = 0.80f;
+	s.crew[sf].allegiance.to = ALLEG_STARFLEET; s.crew[sf].allegiance.strength = 0.80f;
+	Remember(s, mq, MEM_MEETING, -1, MEM_SAW, 0.0f, std::string(), FLAVOUR_STARFLEET);
+	Remember(s, sf, MEM_MEETING, -1, MEM_SAW, 0.0f, std::string(), FLAVOUR_STARFLEET);
+	std::printf("== the same event, read as %s\n", MeetingFlavourName(FLAVOUR_STARFLEET));
+	std::printf("  EVENT: base valence +0.00, the same decision to both\n");
+	std::printf("  CREW A: %s -- allegiance %s (%+.2f): weight %+.2f, mark %+.2f\n",
+		s.crew[mq].name.c_str(), AllegianceName(s.crew[mq].allegiance.to),
+		s.crew[mq].allegiance.strength, AllegianceWeight(s.crew[mq], FLAVOUR_STARFLEET),
+		s.crew[mq].memories.back().valence);
+	std::printf("  CREW B: %s -- allegiance %s (%+.2f): weight %+.2f, mark %+.2f\n",
+		s.crew[sf].name.c_str(), AllegianceName(s.crew[sf].allegiance.to),
+		s.crew[sf].allegiance.strength, AllegianceWeight(s.crew[sf], FLAVOUR_STARFLEET),
+		s.crew[sf].memories.back().valence);
+	if (!(s.crew[mq].memories.back().valence < 0.0f && s.crew[sf].memories.back().valence > 0.0f)) ++failures;
+
+	Ship o; int giver, eng, sec;
+	OrderFixture(o, giver, eng, sec);
+	o.crew[eng].deficit = 0.0f; o.crew[eng].outlook = 1.0f; RegardTo(o.crew[eng], 1.0f);
+	o.crew[eng].traits = 0; o.crew[eng].conditionCount = 0;
+	o.crew[eng].allegiance.to = ALLEG_MAQUIS; o.crew[eng].allegiance.strength = 0.85f;
+	o.systems[SYS_WARP_DRIVE].wear = 0.5f;
+	const OrderBrief b = BuildOrderBrief(o, giver, eng);
+	const int idx = OptionOf(b, ORDER_MAINTAIN);
+	const OrderOutcome r = DispatchOrder(o, b, idx, giver);
+	std::printf("== one order (%s), one recipient (a %s engineer)\n",
+		OrderClassSpecOf(ORDER_MAINTAIN).name, AllegianceName(o.crew[eng].allegiance.to));
+	std::printf("  order reads: %s; allegiance weight %+.2f; given %d, refused %d\n",
+		MeetingFlavourName(OrderFlavour(ORDER_MAINTAIN)), r.allegiance, r.given ? 1 : 0, r.refused ? 1 : 0);
+	std::printf("  it bends: %d; it resents: %d; reply: \"%s\"\n", r.bent ? 1 : 0, r.resented ? 1 : 0,
+		r.replyCount >= 2 ? r.reply[1].text.c_str() : "");
+	std::printf("  the mark it costs: %s\n", HasMark(o.crew[eng], MEM_ORDER, giver) ? "a MEM_ORDER mark toward the giver" : "none");
+	if (!r.given || r.refused || !r.bent || !r.resented || !HasMark(o.crew[eng], MEM_ORDER, giver)) ++failures;
+	std::printf("%s\n", failures ? "allegiance: FAILURES" : "all demonstrations passed");
+	return failures ? 1 : 0;
+}
+
+
+static void TestPursuitArtifact()
+{
+	g_test = "a pursuit produces an artifact the log can point at";
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int who = 1;
+	s.crew[who].status = CREW_FIT;
+	s.crew[who].brigged = false;
+	s.crew[who].away = false;
+	s.crew[who].pursuits.clear();
+	Pursuit p;
+	p.kind = PURSUIT_POEM;
+	p.thing = PursuitKindName(PURSUIT_POEM);
+	p.strength = 0.90f;
+	s.crew[who].pursuits.push_back(p);
+	const std::string artifact = PursuitArtifact(s.crew[who]);
+	CHECK(!artifact.empty());
+	CHECK(artifact.find("poem") != std::string::npos);
+	CHECK(!HasPursued(s.crew[who]));
+	const size_t before = s.log.size();
+	const std::string line = WorkOnPursuit(s, who);
+	CHECK(!line.empty());
+	CHECK(line.find(artifact) != std::string::npos);
+	CHECK(s.log.size() == before + 1);
+	CHECK(s.log.back().what == line);
+	CHECK(HasPursued(s.crew[who]));
+	// Bounded to one per run: a reload cannot make it again.
+	CHECK(WorkOnPursuit(s, who).empty());
+	CHECK(s.log.size() == before + 1);
+	// The title is a function of the record, so the log line can be pointed at again.
+	CHECK(PursuitArtifact(s.crew[who]) == artifact);
+
+	// The schedule is where it happens: a recreation hour produces a piece without a console call.
+	Ship r = NewShip();
+	Tick(r, Hours(r, 9.5f));
+	bool made = false;
+	for (const CrewMember &c : r.crew) if (HasPursued(c)) made = true;
+	CHECK(made);
+	// A zero-time tick writes nothing (a load does not make a thing).
+	Ship z = NewShip();
+	Tick(z, Hours(z, 9.5f));
+	const size_t zlog = z.log.size();
+	Tick(z, 0.0f);
+	CHECK(z.log.size() == zlog);
+}
+
+// `test_ship_core --pursuits`: what they make, as a trace.
+static int PrintPursuits()
+{
+	int failures = 0;
+	Ship s = NewShip();
+	Tick(s, 1.0f);
+	const int who = 1;
+	s.crew[who].status = CREW_FIT;
+	s.crew[who].pursuits.clear();
+	Pursuit p; p.kind = PURSUIT_POEM; p.thing = PursuitKindName(PURSUIT_POEM); p.strength = 0.90f;
+	s.crew[who].pursuits.push_back(p);
+	std::printf("== a pursuit, put into the world\n");
+	std::printf("  the maker: %s; the pursuit: %s (%+.2f)\n", s.crew[who].name.c_str(),
+		p.thing.c_str(), p.strength);
+	const std::string line = WorkOnPursuit(s, who);
+	std::printf("  the artifact: %s\n", PursuitArtifact(s.crew[who]).c_str());
+	std::printf("  the log line: %s\n", line.empty() ? "(none)" : line.c_str());
+	std::printf("  the mark: MEM_PURSUIT held %d; a second making produces \"%s\"\n",
+		HasPursued(s.crew[who]) ? 1 : 0, WorkOnPursuit(s, who).c_str());
+	if (line.empty() || !HasPursued(s.crew[who]) || !WorkOnPursuit(s, who).empty()) ++failures;
+	Ship r = NewShip();
+	Tick(r, Hours(r, 9.5f));
+	int made = 0;
+	for (const CrewMember &c : r.crew) if (HasPursued(c)) ++made;
+	std::printf("  the schedule made %d piece(s) in a recreation hour\n", made);
+	if (made <= 0) ++failures;
+	std::printf("%s\n", failures ? "pursuits: FAILURES" : "all demonstrations passed");
+	return failures ? 1 : 0;
+}
+
+
+static void TestLikedProgramModel()
+{
+	g_test = "the liked program is chosen and readable on the deck";
+	Ship s = NewShip();
+	s.crew[0].likes.clear();
+	s.crew[0].dislikes.clear();
+	Affinity program{AFFT_PROGRAM, "Captain Proton", 0.90f, false};
+	s.crew[0].likes.push_back(program);
+	Tick(s, Hours(s, 9.5f));
+	CHECK(s.crew[0].activity == ACT_RECREATION);
+	CHECK(s.crew[0].deck == HOLODECK_RECREATION_DECK);
+	CHECK(s.crew[0].program == "Captain Proton");
+	const std::vector<DeckProgram> on = ProgramsOnDeck(s, HOLODECK_RECREATION_DECK);
+	bool found = false;
+	for (const DeckProgram &d : on)
+		if (d.crew == 0 && d.name == s.crew[0].name && d.program == "Captain Proton") found = true;
+	CHECK(found);
+	CHECK(ProgramManifest(s, HOLODECK_RECREATION_DECK).find("Captain Proton") != std::string::npos);
+	CHECK(ProgramsOnDeck(s, 1).empty()); // a deck with no program running is empty
+	// The explicit recreation call names the program it runs, so the log can point at it.
+	const size_t before = s.log.size();
+	CHECK(RunHolodeck(s, HOLO_RECREATION, 0));
+	CHECK(s.log.size() == before + 1);
+	CHECK(s.log.back().what.find("Captain Proton") != std::string::npos);
+}
+
+// `test_ship_core --program`: the liked program, as the model can carry it.
+static int PrintLikedProgram()
+{
+	int failures = 0;
+	Ship s = NewShip();
+	s.crew[0].likes.clear(); s.crew[0].dislikes.clear();
+	Affinity program{AFFT_PROGRAM, "Captain Proton", 0.90f, false};
+	s.crew[0].likes.push_back(program);
+	Tick(s, Hours(s, 9.5f));
+	std::printf("== the liked program, at the schedule\n");
+	std::printf("  CREW: %s -- recreation on deck %d, program \"%s\"\n",
+		s.crew[0].name.c_str(), static_cast<int>(s.crew[0].deck), s.crew[0].program.c_str());
+	const std::vector<DeckProgram> on = ProgramsOnDeck(s, HOLODECK_RECREATION_DECK);
+	std::printf("  ON DECK %d: %d program(s) -- %s\n", HOLODECK_RECREATION_DECK,
+		static_cast<int>(on.size()), ProgramManifest(s, HOLODECK_RECREATION_DECK).c_str());
+	if (s.crew[0].program != "Captain Proton" || on.empty()) ++failures;
+	const size_t before = s.log.size();
+	const bool ran = RunHolodeck(s, HOLO_RECREATION, 0);
+	std::printf("  RUN: %d; the log says: %s\n", ran ? 1 : 0,
+		s.log.size() > before ? s.log.back().what.c_str() : "(nothing)");
+	if (!ran || s.log.size() != before + 1 || s.log.back().what.find("Captain Proton") == std::string::npos) ++failures;
+	std::printf("  OUTSTANDING: whether the program reads as a program *on the deck* is the owner's eye in a session\n");
+	std::printf("%s\n", failures ? "liked program: FAILURES" : "all demonstrations passed");
+	return failures ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1 && !std::strcmp(argv[1], "--bills")) return PrintBills();
@@ -11586,6 +11927,10 @@ int main(int argc, char **argv)
 	if (argc > 1 && !std::strcmp(argv[1], "--appearance")) return PrintAppearance();
 	if (argc > 1 && !std::strcmp(argv[1], "--affinities")) return PrintAffinities();
 	if (argc > 1 && !std::strcmp(argv[1], "--endings")) return PrintEndings();
+	if (argc > 1 && !std::strcmp(argv[1], "--collective")) return PrintCollectiveVoice();
+	if (argc > 1 && !std::strcmp(argv[1], "--allegiance")) return PrintAllegiance();
+	if (argc > 1 && !std::strcmp(argv[1], "--pursuits")) return PrintPursuits();
+	if (argc > 1 && !std::strcmp(argv[1], "--program")) return PrintLikedProgram();
 
 	TestNominalShip();
 	TestPowerIsConserved();
@@ -11766,6 +12111,10 @@ int main(int argc, char **argv)
 	TestEndingAvailability();
 	TestEndingNeutrality();
 	TestEndingArrival();
+	TestTheCollectiveVoice();
+	TestAllegianceValenceAndCompliance();
+	TestPursuitArtifact();
+	TestLikedProgramModel();
 	TestEndingVeto();
 	TestEndingWildcard();
 	TestEndingRoute();
