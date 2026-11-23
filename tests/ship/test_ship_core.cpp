@@ -11159,6 +11159,162 @@ static void TestEndingArrival()
 	CHECK(log.back().what == "the run is at its end");
 }
 
+static void TestEndingVeto()
+{
+	g_test = "the crew's veto fires once, at the destination, and the log names who holds the conn";
+	Ship s = NewShip();
+	CHECK(!CrewWouldVeto(s));
+	CHECK(CrewConfidence(s) > CREW_CONFIDENCE_VETO);
+	const EndingChoice quiet = ChooseEnding(s, DEST_EARTH);
+	CHECK(!quiet.vetoed && quiet.chosen == DEST_EARTH);
+	CHECK(quiet.line.empty());
+
+	// A crew at breaking point, with a funeral so the Empire is a place they could make for.
+	Remember(s, 0, MEM_FUNERAL, 1, MEM_SAW, 0.4f);
+	for (CrewMember &c : s.crew) { c.deficit = 1.0f; c.outlook = 0.0f; }
+	CHECK(CrewWouldVeto(s));
+	const EndingChoice veto = ChooseEnding(s, DEST_EARTH);
+	CHECK(veto.vetoed);
+	CHECK(veto.chosen != DEST_EARTH);
+	CHECK(DestinationAvailable(s, veto.chosen));
+	CHECK(veto.chosen == DEST_KLINGON_EMPIRE);
+	CHECK(!veto.conn.empty());
+	CHECK(veto.line.find("would not make for Earth") != std::string::npos);
+	CHECK(EndingToneFindings({veto.line, veto.reason}).empty());
+
+	const size_t before = s.log.size();
+	RecordEndingChoice(s, veto);
+	CHECK(s.log.size() == before + 1);
+	CHECK(s.log.back().who == veto.conn); // the log records who holds the conn after it does
+	CHECK(s.log.back().what == veto.line);
+
+	// The once-only latch: a second choice in the same endgame does not fire it again.
+	const EndingChoice again = ChooseEnding(s, DEST_EARTH, true);
+	CHECK(!again.vetoed && again.chosen == DEST_EARTH);
+}
+
+
+static void TestEndingWildcard()
+{
+	g_test = "the wildcard is a play for a place that has not invited the run; its failure is attributable";
+	Ship s = NewShip();
+	const DestinationId target = DEST_KLINGON_EMPIRE;
+	CHECK(!DestinationAvailable(s, target)); // a place the plain run has not earned
+
+	// It does not reach: the state that refused it is named.
+	Ship damaged = NewShip();
+	damaged.systems[SYS_WARP_DRIVE].health = 0.2f;
+	for (Deck &d : damaged.decks) d.hull = 0.3f;
+	damaged.stores.deuterium = 0.2f;
+	const WildcardOutcome miss = SolveWildcard(damaged, target, 0.99f, 1.0f);
+	CHECK(miss.offered);
+	CHECK(!miss.reached && !miss.received);
+	CHECK(miss.reachOdds < 0.5f);
+	CHECK(miss.failure.find("warp drive") != std::string::npos);
+	CHECK(miss.failure.find("hull") != std::string::npos);
+	CHECK(EndingToneFindings({miss.failure, miss.line}).empty());
+
+	// It reaches and is refused at the door: the record that refused it is named.
+	const WildcardOutcome refused = SolveWildcard(s, target, 0.0f, 1.0f);
+	CHECK(refused.offered && refused.reached && !refused.received);
+	CHECK(refused.failure.find("deaths recorded") != std::string::npos);
+	CHECK(EndingToneFindings({refused.failure, refused.line}).empty());
+
+	// The attempt spends, and what it spends cannot be got back.
+	const float deuterium = s.stores.deuterium;
+	const float crystal = s.dilithium;
+	const size_t logBefore = s.log.size();
+	const WildcardOutcome played = AttemptWildcard(s, target);
+	CHECK(played.offered);
+	CHECK(s.stores.deuterium < deuterium);
+	CHECK(s.dilithium < crystal);
+	CHECK(s.log.size() == logBefore + 1);
+	CHECK(s.log.back().what.find("spent:") != std::string::npos);
+	CHECK(EndingToneFindings({played.line, played.spent}).empty());
+
+	// A place the run has already earned is not a play, and costs nothing.
+	Ship earned = NewShip();
+	EarnEveryDestination(earned);
+	const float kept = earned.stores.deuterium;
+	const WildcardOutcome none = AttemptWildcard(earned, target);
+	CHECK(!none.offered);
+	CHECK(earned.stores.deuterium == kept);
+}
+
+
+static void TestEndingRoute()
+{
+	g_test = "the conduit is a route: the enemy's knowledge, all three costs, and the same clip";
+	// The canon roster carries Seven, so the default run already has the road aboard; strip it to
+	// test the gate, then put it back.
+	Ship s = NewShip();
+	for (CrewMember &c : s.crew) {
+		if (c.species == SPECIES_BORG_RECOVERED) c.species = SPECIES_HUMAN;
+		if (c.allegiance.to == ALLEG_BORG_RECOVERED) c.allegiance.to = ALLEG_STARFLEET;
+	}
+	for (Deck &d : s.decks) d.assimilated = 0.0f;
+	CHECK(!BorgKnowledgeAboard(s));
+	CHECK(!TranswarpCostOf(s).available);
+	const double clock = s.clock;
+	std::string why;
+	CHECK(!TakeTranswarp(s, &why));
+	CHECK(s.clock == clock);
+	CHECK(!why.empty());
+	CHECK(EndingToneFindings({why}).empty());
+
+	// A recovered drone aboard: the road can be taken, and the cost is all three.
+	s.crew.back().species = SPECIES_BORG_RECOVERED;
+	const TranswarpCost cost = TranswarpCostOf(s);
+	CHECK(BorgKnowledgeAboard(s));
+	CHECK(cost.available);
+	CHECK(!cost.crew.empty());
+	CHECK(cost.line.find("does not come back") != std::string::npos);
+	CHECK(cost.line.find("a year passes") != std::string::npos);
+	CHECK(EndingToneFindings({cost.line, cost.principle}).empty());
+
+	const int fitBefore = s.CrewFit();
+	const double clockBefore = s.clock;
+	CHECK(TakeTranswarp(s, &why));
+	CHECK(s.CrewFit() == fitBefore - 1);
+	CHECK(s.clock >= clockBefore + 364.0 * SECONDS_PER_DAY);
+	CHECK(s.log.back().what == cost.line);
+	CHECK(std::string(RouteName(ROUTE_GRIND)) == "the grind");
+	CHECK(std::string(RouteName(ROUTE_CONDUIT)) == "the conduit");
+	CHECK(ARRIVAL_MS == 3000); // the clip is the constant; the route is the variable
+}
+
+
+static void TestEndingScreen()
+{
+	g_test = "the endgame screen: the design's order, no rank field, and the fixed words are neutral";
+	Ship s = NewShip();
+	const std::vector<EndingScreenRow> rows = EndingScreenRows(s);
+	CHECK(rows.size() == DEST_COUNT);
+	for (int i = 0; i < DEST_COUNT; ++i) {
+		CHECK(rows[i].destination == static_cast<DestinationId>(i)); // the design's order, not a sort
+		CHECK(!rows[i].name.empty());
+		CHECK(!rows[i].reader.empty());
+		CHECK(!rows[i].lens.empty());
+		CHECK(rows[i].open == DestinationAvailable(s, rows[i].destination));
+	}
+	CHECK(rows.front().open); // Earth
+	CHECK(rows.back().destination == DEST_NO_READER);
+	bool play = false;
+	for (const EndingScreenRow &r : rows) if (!r.play.empty()) play = true;
+	CHECK(play); // a place not earned says what a play would spend
+	const std::vector<std::string> labels = EndingScreenLabels();
+	CHECK(labels.size() == END_LABEL_COUNT);
+	CHECK(EndingToneFindings(labels).empty());
+	CHECK(std::string(EndingScreenLabel(END_LABEL_TITLE)).find("home") == std::string::npos);
+
+	// An earned run opens them all, in the same order.
+	Ship earned = NewShip();
+	EarnEveryDestination(earned);
+	const std::vector<EndingScreenRow> all = EndingScreenRows(earned);
+	CHECK(all.size() == DEST_COUNT);
+	for (const EndingScreenRow &r : all) CHECK(r.open);
+}
+
 // `test_ship_core --endings`: the observable criterion for Stage E, printed. The earned run is one
 // record read by two readers; the neutrality assertion is over the shipped string table and the
 // readings; the arrival is the one number every route shares. Returns nonzero if any criterion is
@@ -11231,6 +11387,159 @@ static int PrintEndings()
 	std::printf("  THE LOG: the last frame is the official log (%d entries)\n", static_cast<int>(log.size()));
 	if (!log.empty()) std::printf("  LAST: %s\n", log.back().what.c_str());
 	else { std::printf("  FAIL  the log is empty\n"); ok = false; }
+
+	std::printf("== the crew's veto\n");
+	{
+		const int freshPct = static_cast<int>(CrewConfidence(NewShip()) * 100.0f + 0.5f);
+		Ship broken = NewShip();
+		Remember(broken, 0, MEM_FUNERAL, 1, MEM_SAW, 0.4f);
+		for (CrewMember &c : broken.crew) { c.deficit = 1.0f; c.outlook = 0.0f; }
+		const int brokenPct = static_cast<int>(CrewConfidence(broken) * 100.0f + 0.5f);
+		std::printf("  CONFIDENCE: a fresh crew %d%%; a crew at breaking point %d%% (the veto is below %d%%)\n",
+			freshPct, brokenPct, static_cast<int>(CREW_CONFIDENCE_VETO * 100.0f + 0.5f));
+		const EndingChoice veto = ChooseEnding(broken, DEST_EARTH);
+		if (!veto.vetoed) {
+			std::printf("  FAIL  a crew at breaking point did not veto the course\n");
+			ok = false;
+		} else {
+			std::printf("  VETO: requested %s -> chose %s; who holds the conn: %s\n",
+				DestinationSpec(veto.requested).name, DestinationSpec(veto.chosen).name, veto.conn.c_str());
+			const size_t before = broken.log.size();
+			RecordEndingChoice(broken, veto);
+			std::printf("  VETO LOG: [%s] %s\n", broken.log.back().who.c_str(), broken.log.back().what.c_str());
+			if (broken.log.size() != before + 1 || broken.log.back().who != veto.conn) {
+				std::printf("  FAIL  the log does not record who holds the conn\n");
+				ok = false;
+			}
+		}
+		const EndingChoice once = ChooseEnding(broken, DEST_EARTH, true);
+		std::printf("  VETO ONCE: %d\n", (!once.vetoed && once.chosen == DEST_EARTH) ? 1 : 0);
+		if (once.vetoed) { std::printf("  FAIL  the veto fired a second time\n"); ok = false; }
+		const std::vector<std::string> vetoFindings = EndingToneFindings({veto.line, veto.reason});
+		std::printf("  VETO NEUTRAL: %d\n", static_cast<int>(vetoFindings.size()));
+		for (const std::string &f : vetoFindings) std::printf("    %s\n", f.c_str());
+		if (!vetoFindings.empty()) { std::printf("  FAIL  the veto's own words are not neutral\n"); ok = false; }
+	}
+
+	
+	std::printf("== the wildcard\n");
+	{
+		Ship play = NewShip();
+		const DestinationId target = DEST_KLINGON_EMPIRE;
+		Ship damaged = NewShip();
+		damaged.systems[SYS_WARP_DRIVE].health = 0.2f;
+		for (Deck &d : damaged.decks) d.hull = 0.3f;
+		damaged.stores.deuterium = 0.2f;
+		const WildcardOutcome miss = SolveWildcard(damaged, target, 0.99f, 1.0f);
+		const WildcardOutcome refused = SolveWildcard(play, target, 0.0f, 1.0f);
+		std::printf("  WILDCARD: a play for %s; reach odds %d%%, reception %d%%\n", miss.target.c_str(),
+			static_cast<int>(miss.reachOdds * 100.0f + 0.5f),
+			static_cast<int>(miss.receiveOdds * 100.0f + 0.5f));
+		std::printf("  NOT REACHED: %s\n", miss.failure.c_str());
+		std::printf("  REFUSED AT IT: %s\n", refused.failure.c_str());
+		if (!miss.offered || miss.reached || refused.received) {
+			std::printf("  FAIL  the wildcard's two failures are not both reachable\n");
+			ok = false;
+		}
+		int lostBefore = 0;
+		for (const Shuttle &sh : play.shuttles) if (sh.location == SHUTTLE_LOST) ++lostBefore;
+		const float deuterium = play.stores.deuterium;
+		const float crystal = play.dilithium;
+		const WildcardOutcome played = AttemptWildcard(play, target);
+		int lostAfter = 0;
+		for (const Shuttle &sh : play.shuttles) if (sh.location == SHUTTLE_LOST) ++lostAfter;
+		std::printf("  SPENT: deuterium %d%% -> %d%%; crystal %d%% -> %d%%; shuttles lost %d -> %d\n",
+			static_cast<int>(deuterium * 100.0f + 0.5f), static_cast<int>(play.stores.deuterium * 100.0f + 0.5f),
+			static_cast<int>(crystal * 100.0f + 0.5f), static_cast<int>(play.dilithium * 100.0f + 0.5f),
+			lostBefore, lostAfter);
+		if (!played.offered || play.stores.deuterium >= deuterium || play.dilithium >= crystal) {
+			std::printf("  FAIL  the play did not spend what cannot be got back\n");
+			ok = false;
+		}
+		const std::vector<std::string> wildFindings = EndingToneFindings({miss.line, refused.line, played.line});
+		std::printf("  WILDCARD NEUTRAL: %d\n", static_cast<int>(wildFindings.size()));
+		for (const std::string &f : wildFindings) std::printf("    %s\n", f.c_str());
+		if (!wildFindings.empty()) { std::printf("  FAIL  the wildcard's own words are not neutral\n"); ok = false; }
+		Ship earned = NewShip();
+		EarnEveryDestination(earned);
+		const float kept = earned.stores.deuterium;
+		const WildcardOutcome none = AttemptWildcard(earned, target);
+		std::printf("  EARNED ALREADY: offered %d; the reserve is unchanged %d\n", none.offered ? 1 : 0,
+			earned.stores.deuterium == kept ? 1 : 0);
+		if (none.offered || earned.stores.deuterium != kept) {
+			std::printf("  FAIL  a place already earned was treated as a play\n");
+			ok = false;
+		}
+	}
+
+
+	std::printf("== the route\n");
+	{
+		Ship plainRoute = NewShip();
+		for (CrewMember &c : plainRoute.crew) {
+			if (c.species == SPECIES_BORG_RECOVERED) c.species = SPECIES_HUMAN;
+			if (c.allegiance.to == ALLEG_BORG_RECOVERED) c.allegiance.to = ALLEG_STARFLEET;
+		}
+		for (Deck &d : plainRoute.decks) d.assimilated = 0.0f;
+		std::printf("  BORG KNOWLEDGE: %d aboard; the conduit %s\n", BorgKnowledgeAboard(plainRoute) ? 1 : 0,
+			TranswarpCostOf(plainRoute).available ? "is available" : "is not available");
+		Ship conduit = NewShip();
+		conduit.crew.back().species = SPECIES_BORG_RECOVERED;
+		const TranswarpCost cost = TranswarpCostOf(conduit);
+		std::printf("  CONDUIT: %s; %s\n", cost.available ? "available" : "not available", cost.line.c_str());
+		const int fitBefore = conduit.CrewFit();
+		const double clockBefore = conduit.clock;
+		std::string why;
+		const bool taken = TakeTranswarp(conduit, &why);
+		const int days = static_cast<int>((conduit.clock - clockBefore) / SECONDS_PER_DAY + 0.5);
+		std::printf("  TAKEN: %d; the clock moved %d days; crew fit %d -> %d\n", taken ? 1 : 0, days,
+			fitBefore, conduit.CrewFit());
+		if (!cost.available || !taken || days != 365 || conduit.CrewFit() != fitBefore - 1) {
+			std::printf("  FAIL  the conduit did not cost all three\n");
+			ok = false;
+		}
+		const std::vector<std::string> routeFindings = EndingToneFindings({cost.line, cost.principle});
+		std::printf("  CONDUIT NEUTRAL: %d\n", static_cast<int>(routeFindings.size()));
+		for (const std::string &f : routeFindings) std::printf("    %s\n", f.c_str());
+		if (!routeFindings.empty()) { std::printf("  FAIL  the conduit's own words are not neutral\n"); ok = false; }
+		std::printf("  THE CLIP: %d ms on the grind and on the conduit (the route is the variable)\n", ARRIVAL_MS);
+		if (ARRIVAL_MS != 3000) { std::printf("  FAIL  the clip is not the constant\n"); ok = false; }
+	}
+
+
+	std::printf("== the endgame screen\n");
+	{
+		const std::vector<EndingScreenRow> rows = EndingScreenRows(NewShip());
+		std::printf("  SCREEN ROWS: %d in the design's order", static_cast<int>(rows.size()));
+		for (const EndingScreenRow &r : rows) std::printf(" %d", static_cast<int>(r.destination));
+		std::printf("\n");
+		bool order = rows.size() == DEST_COUNT;
+		int open = 0, plays = 0;
+		for (size_t i = 0; i < rows.size(); ++i) {
+			if (rows[i].destination != static_cast<DestinationId>(i)) order = false;
+			if (rows[i].open) ++open;
+			if (!rows[i].play.empty()) ++plays;
+		}
+		std::printf("  SCREEN OPEN: %d of %d; a play is offered for %d\n", open, static_cast<int>(rows.size()), plays);
+		std::printf("  SCREEN RANK FIELD: none (the row is destination, open, name, reader, lens, offer, play)\n");
+		if (!order) { std::printf("  FAIL  the screen is not in the design's order\n"); ok = false; }
+		const std::vector<std::string> labels = EndingScreenLabels();
+		const std::vector<std::string> labelFindings = EndingToneFindings(labels);
+		std::printf("  SCREEN LABELS: %d, %d tone findings\n", static_cast<int>(labels.size()),
+			static_cast<int>(labelFindings.size()));
+		for (const std::string &f : labelFindings) std::printf("    %s\n", f.c_str());
+		if (labels.size() != END_LABEL_COUNT || !labelFindings.empty()) {
+			std::printf("  FAIL  the screen's words are not neutral, or a label is missing\n");
+			ok = false;
+		}
+		Ship earnedScreen = NewShip();
+		EarnEveryDestination(earnedScreen);
+		int allOpen = 0;
+		const std::vector<EndingScreenRow> earnedRows = EndingScreenRows(earnedScreen);
+		for (const EndingScreenRow &r : earnedRows) if (r.open) ++allOpen;
+		std::printf("  SCREEN EARNED: %d of %d open\n", allOpen, DEST_COUNT);
+		if (allOpen != DEST_COUNT) { std::printf("  FAIL  an earned run did not open every destination\n"); ok = false; }
+	}
 
 	std::printf("%s\n", ok
 		? "PASS  the run reaches more than one destination; the same record is read differently by reader; no comparative or tone word is in the shipped strings; the arrival is three seconds and the log is the last frame"
@@ -11806,6 +12115,10 @@ int main(int argc, char **argv)
 	TestAllegianceValenceAndCompliance();
 	TestPursuitArtifact();
 	TestLikedProgramModel();
+	TestEndingVeto();
+	TestEndingWildcard();
+	TestEndingRoute();
+	TestEndingScreen();
 
 	if (g_failures) {
 		std::printf("%d check(s) failed\n", g_failures);

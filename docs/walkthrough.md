@@ -620,8 +620,10 @@ deaths), no destination is better than another, and the core breach is the only 
 model, the neutral string table, the arrival timer and the log handback are built** (2026-10-31,
 `docs/evidence/endings.md`): six destinations, the set accrued with Earth always open, the same record
 read differently by two readers, the engine's own camera on one 3000 ms timer, and the official log as
-the last frame. The rendered arrival is a **stand-in** until Voyager's exterior and a system skybox are
-authored, and no endgame screen was built; those are named in **G16**.
+the last frame. **The deferred endgame is built too** (2026-11-08): the crew's veto at the destination,
+the wildcard attempt, the transwarp conduit as a route, and an endgame screen that chooses a reader
+and does not score one. The rendered arrival remains a **stand-in** until Voyager's exterior or an
+original ship and a system skybox are decided and authored; that is named in **G16**.
 
 **The stop's question:** *what did you choose to lose, and who was entitled to read it?* The build
 cannot yet ask it.
@@ -914,20 +916,22 @@ evidence: `docs/evidence/the-character-layer.md`, `docs/evidence/the-manner.md`.
 - **To close:** the owner's ruling, and crew scenarios on the decks where they belong.
 
 ### G16 — The record's endgame pieces are not built
-- **Status 2026-10-31 — PARTLY CLOSED.** The meeting brief is built (`docs/gates.md`, *The meeting,
-  phase one*), and **the ending model is built** (`docs/evidence/endings.md`: six destinations as
-  readers, the accrued set, the neutral string table, the engine's three-second arrival and the log as
-  the last frame). The rest of the row stands: the **transwarp route** is design only; the arrival's
-  **rendered look** is a stand-in (no Voyager exterior model, no system skybox) and was not watched in
-  a graphical session; no endgame screen was built, so the destinations are reached by the console and
-  the model; and `docs/the-record-and-the-log.md` ("What assimilation takes") still has its own
-  remaining pieces. Left unannotated: the remainder is several pieces with no single named artifact.
-- **Missing:** the transwarp route; the rendered arrival against a skybox; an endgame screen; the
-  remaining assimilation pieces the record names.
-- **Says so:** `docs/evidence/endings.md` ("What could not be run here");
+- **Status 2026-11-08 — PARTLY CLOSED, and the remainder is one owner decision.** The meeting brief is
+  built (`docs/gates.md`, *The meeting, phase one*), **the ending model is built**
+  (`docs/evidence/endings.md`), and **the deferred endgame is built** (`docs/evidence/the-crews-veto.md`,
+  `docs/evidence/the-wildcard.md`, `docs/evidence/the-conduit-route.md`,
+  `docs/evidence/the-endgame-screen.md`): the crew's veto at the destination, the wildcard attempt, the
+  transwarp conduit as a route, and an endgame screen that is a list of readers rather than a score
+  screen. What remains is the arrival's **rendered look** — a stand-in with no exterior model and no
+  system skybox — and the owner is still deciding whether the ship is Voyager's or an original one; that
+  is out of scope for the build. `docs/the-record-and-the-log.md` ("What assimilation takes") still has
+  its own remaining pieces. Left unannotated: the remainder is one owner decision plus the record's own
+  assimilation pieces.
+- **Missing:** the rendered arrival against a skybox, pending the owner's decision.
+- **Says so:** `docs/evidence/the-endgame-screen.md` ("What could not be run here");
   `docs/the-record-and-the-log.md` ("Remaining (specified, not built)"); `docs/endings.md`.
-- **To close:** the transwarp route and the arrival's picture are the named remainder; the ending model
-  and the log handback are no longer on this row.
+- **To close:** the owner's decision on the exterior, and then the picture; the model, the route, the
+  veto, the wildcard, the screen and the log handback are no longer on this row.
 
 ### G17 — There is no away site, so the away mission's acceptance run is impossible
 - **Status 2026-10-11 — PARTLY CLOSED: the site is built and walkable; the acceptance run waits on the

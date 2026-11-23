@@ -216,6 +216,44 @@ them rather than discover them.
   arrival still happens, the counter still stops, and the log is still the last frame; the reading says the
   record was not filed and is handed back unread. Filing is offered nowhere else.
 
+## Taken in the build (2026-11-08): the deferred items
+
+The document's remaining endgame choices were built, and these are the choices they took.
+
+- **The veto's ground is the crew's confidence, and it is a read.** `CrewConfidence` is the mean morale
+  of everyone still aboard (morale itself is a read over deficit, outlook and holdings, never a stored
+  counter), and the veto fires below `CREW_CONFIDENCE_VETO` (35%, ours; a fresh crew reads 77%). It is
+  the crew's confidence, not a separate reputation store.
+- **The crew choose from what the run accrued, in the design's order of claims.** A settlement they
+  would stay for if it is open; otherwise the Empire that reads the dead if it is open; otherwise Earth,
+  which always is. The choice is not a preference score and is not ranked. It fires **once**: the game
+  latches it, and a second choice in the same endgame does not fire it.
+- **Who holds the conn is a person, and the log's own `who` field names them.** The senior fit officer
+  other than the player takes it; the veto's fact goes into the official log under that name, and the
+  reading that follows is unchanged.
+- **The wildcard spends before it draws.** A play for a place that has not invited the run takes a
+  shuttle out of the bay, a tenth of the deuterium reserve and a twentieth of the crystal; the spend is
+  real whether or not the play reaches. It is offered only when there is a shuttle, the fuel, the
+  crystal, and — for a sale — a buyer. A place the run already earned is not a play.
+- **The wildcard can fail in the two ways the document names, and each names its cause.** *Not reached*
+  is a read of the ship's own condition (the warp drive, the hull, the reserve, the odds). *Refused at
+  it* is a read of the record: the reader's own evidence is the reason, and the reading is that
+  reader's refusal rather than a fallback to another destination. A failed play that never left the
+  ship still ends the run at Earth, which is always open; the failure remains in the log.
+- **The conduit's gate is the enemy's knowledge.** Seven, a recovered drone, a Borg-recovered
+  allegiance, or a deck that never got back. The canon roster carries Seven, so the default run has
+  the road; an all-fictitious crew or a run that lost her may not.
+- **The conduit pays all three, and they are state changes.** A crew member who carried the knowledge
+  does not come back; a year passes on the clock; the principle — the ship takes the Collective's road
+  — is the fact recorded in the log. It is a **route**, so `ARRIVAL_MS`, the camera and the fade are
+  unchanged: the clip is the constant, and the record says which way the ship came.
+- **The endgame screen is a list of readers, not a score screen.** Rows are in the design's order,
+  never sorted; the row is destination, open, name, reader, lens, offer and play, with **no rank,
+  score or quality field**. A place not earned says what a play would spend, which is information,
+  not a ranking. The fixed words are shipped from the model (`EndingScreenLabel`) so the neutrality
+  assertion scans the screen too, and the screen closes before the arrival: the reading and the
+  official log remain the last frame.
+
 ## Acceptance
 
 - Arrival plays three seconds of our own engine's warp-in, with no scripted content, and the run then hands

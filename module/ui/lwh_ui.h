@@ -17,6 +17,10 @@ qboolean LWH_UI_StartScreens( const char *cmd );
 // Called by LWH_UI_ConsoleCommand alongside the other screens.
 qboolean LWH_UI_MeetingScreens( const char *cmd );
 
+// The endgame screen: the accrued destinations as readers, the approach, and Earth's filing
+// question (ui_lwh_ending.cpp). It chooses; the record is the last frame.
+qboolean LWH_UI_EndingScreens( const char *cmd );
+
 // Adds our line to the main menu. Implemented in ui_lwh_start.cpp and called from the patched
 // upstream ui_menu.cpp (an attach point: the menu itself is upstream's). `menu` is a
 // menuframework_s, passed as void* so the hook header needs no UI type.

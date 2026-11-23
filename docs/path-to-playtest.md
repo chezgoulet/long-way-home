@@ -200,8 +200,9 @@ field, in the design's own order. Neutrality is an assertion in the model over t
 (`CGCam_Enable`/`CGCam_Move`/`CGCam_Fade`) on one 3000 ms timer, the same for every destination and
 route; the reading and then the official log are what the module prints when it ends, and the log is
 the last frame. The player may **decline to file** at Earth: arriving and reporting are separable, and
-the record is handed back unread. No save change — `SAVE_VERSION` remains **66**. The transwarp route
-is the design's and is not built; the conduit is a route, not a separate arrival. Evidence:
+the record is handed back unread. No save change — `SAVE_VERSION` remains **66**. The transwarp
+route landed with the deferred items on 2026-11-08 (the conduit is a route, not a separate arrival).
+Evidence:
 `docs/evidence/endings.md`, `scripts/ending-check.sh`, `test_ship_core --endings`,
 `TestEndingReaders`, `TestEndingAvailability`, `TestEndingNeutrality`, `TestEndingArrival`.
 
@@ -219,10 +220,65 @@ is the design's and is not built; the conduit is a route, not a separate arrival
   the engine path and the log handback are built. The rendered arrival was not watched in a graphical
   session.
 
-**Still deferred inside Stage E:** the crew's veto at the destination and the wildcard attempt (both
-designed in `docs/endings.md`, neither built); the transwarp route (the arrival is the same clip either
-way); an endgame screen (the destinations are reached by the console and the model); and the arrival's
-rendered picture against a Voyager exterior and a system skybox.
+**Built 2026-11-08 — the deferred items.** The crew's **veto** fires once at the destination: a
+crew whose confidence is gone refuses the course, chooses the place themselves, and the official
+log records who holds the conn after it does (`CrewConfidence`, `ChooseEnding`,
+`RecordEndingChoice`; `docs/evidence/the-crews-veto.md`). The **wildcard** is a play for a place
+that has not invited the run, spending a shuttle, a tenth of the deuterium reserve and a twentieth
+of the crystal before the draw; it can fail to reach (the ship's own state named) or reach and be
+refused at the door (the record named) (`SolveWildcard`, `AttemptWildcard`;
+`docs/evidence/the-wildcard.md`). The **transwarp route** is the conduit: it requires the enemy's
+knowledge aboard and pays all three costs the design names — a principle, a crew member and a year
+— and it is a route, not a separate arrival, so the clip, the timer and the camera are unchanged
+(`BorgKnowledgeAboard`, `TranswarpCostOf`, `TakeTranswarp`;
+`docs/evidence/the-conduit-route.md`). The **endgame screen** lists the accrued destinations as
+readers in the design's order, with no rank, score or quality field and no sorting; its fixed words
+are shipped from the model so `EndingToneFindings` scans the screen too, and the screen chooses while
+the record remains the last frame (`EndingScreenRows`, `ui_lwh_ending.cpp`;
+`docs/evidence/the-endgame-screen.md`).
+
+**Still deferred inside Stage E, and out of scope by the owner's decision:** the arrival's rendered
+picture — whether it is a Voyager exterior or an original one is still being decided, so no model,
+no generated ship and no skybox was built. The camera move, the fade and the three-second handback
+remain the engine's own, and the picture is still a stand-in.
+
+## The remainder, scheduled 2026-11-07
+
+The owner's ruling: Stage C is closed by his own walkthrough; **Stage D is built out completely, including
+everything deferred**; **Stage E's deferred items are built**; the arrival picture is decided below; and the
+open O-items are placed in order rather than left in a list.
+
+**The order, and why it is this order:**
+
+1. **Stage C — the owner's walkthrough.** Five decks are built; the one criterion that cannot be automated is
+   his walk. Nothing below waits on it, but a play session does, and the deck gate is his to close.
+2. **Stage D — the crew in the world, fully.** In lane: the Collective's voice, allegiance weighting an
+   event's valence and an order's compliance, a pursuit producing an artifact the log can point at, and the
+   model half of the liked program observed on the deck.
+3. **Stage E — the deferred items.** In lane: the crew's veto at the destination, the wildcard attempt, the
+   transwarp route as a route, and an endgame screen that is not a score screen.
+4. **The arrival picture.** Two halves, and they are not the same problem:
+   - **The skybox we already have.** The player's own installation carries `env/bsky_{up,dn,lf,rt,ft,bk}.jpg`
+     in `pak3.pk3` — a complete six-face box. Loading it at runtime costs no new asset and is the asset
+     doctrine's own rule: the base game is the palette. This closes half the gap.
+   - **The ship, which we will not copy.** A faithful Voyager exterior is a named Paramount design, and the
+     doctrine's boundary is the same one it draws for named characters: *a mesh generated to look like a
+     specific lore asset is a new artifact with no clean chain of title*. So the arrival shows **an original
+     class ship of our own**, and the doctrine already blesses whole-cloth generation for our own content.
+5. **O15's remainder — the nine scenarios as played content, and the in-game verb that loads a declaration.**
+   Before O12 and O13, because firing content is what makes the crew and the decks worth walking: Stage D
+   built people who react, and a scenario is what they react to.
+6. **O12 — the phenomenon's two canon story models** (`docs/exploration-and-science.md`).
+7. **O13 — the Borg squad embodied as bodies moving deck by deck** (`docs/borg-incursion.md`). After O15,
+   because its bodies move through the decks a play session will already have walked.
+8. **O18 — multiplayer.** Stays deferred. It is a premise, not a stage, and nothing above needs it.
+
+**The generator, as its own piece of work.** A content generator is in scope by the doctrine — *whole-cloth
+generation is in scope for our own content* — with both of its constraints intact: it produces our content and
+never a lore asset, and its output lives in the player's cache, never in this repository. What it should be is
+**parametric rather than fantastical**: hulls from primitives with our own palette and greebles, panels re-dressed
+through the station path already built, and parts for anonymous crew. It serves the arrival's ship, the props a
+scenario needs, and the faces Stage D's anonymous crew are still waiting for.
 
 ## Cross-cutting: what only the owner can close
 
